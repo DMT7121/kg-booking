@@ -75,72 +75,73 @@ function clearWebhook() {
 </script>
 
 <template>
-  <div v-if="ui.showWebhookConfig" class="fixed inset-0 bg-black/60 z-[10001] flex justify-center items-center p-3 backdrop-blur-sm" @click.self="ui.showWebhookConfig = false">
-    <div class="bg-white rounded-2xl shadow-2xl w-[95%] max-w-[420px] overflow-hidden flex flex-col max-h-[90vh]">
+  <div v-if="ui.showWebhookConfig" class="fixed inset-0 bg-[#0D1658]/80 z-[12000] flex justify-center items-center p-4 backdrop-blur-md" @click.self="ui.showWebhookConfig = false">
+    <div class="bg-white rounded-3xl shadow-2xl p-6 md:p-8 max-w-md w-[95%] md:w-full flex flex-col relative overflow-hidden border border-white/20 max-h-[90vh]">
       
-      <!-- Header (compact) -->
-      <div class="bg-gradient-to-r from-cyan-600 to-blue-600 px-5 py-4 text-white flex justify-between items-center flex-shrink-0">
-        <div class="flex items-center gap-2">
-          <i class="fa-solid fa-bell text-lg"></i>
-          <div>
-            <h3 class="text-base font-black uppercase tracking-tight leading-none">Thông Báo Telegram</h3>
-            <p class="text-cyan-200 text-[9px] font-bold mt-0.5">Tự động gửi khi có đơn mới</p>
+      <!-- Header BG Decoration -->
+      <div class="absolute top-0 left-0 right-0 h-24 bg-gradient-to-r from-blue-600 to-[#1A237E] rounded-t-3xl opacity-10"></div>
+
+      <div class="flex justify-between items-center mb-6 relative z-10">
+        <h3 class="text-2xl font-black text-[#1A237E] uppercase tracking-tighter flex items-center gap-3">
+          <div class="w-10 h-10 bg-cyan-50 rounded-xl flex items-center justify-center text-cyan-600">
+            <i class="fa-solid fa-bell"></i>
           </div>
-        </div>
-        <button @click="ui.showWebhookConfig = false" class="text-white/70 hover:text-white p-1"><i class="fa-solid fa-xmark text-lg"></i></button>
+          Thông Báo
+        </h3>
+        <button @click="ui.showWebhookConfig = false" class="w-10 h-10 bg-slate-50 text-slate-400 rounded-xl hover:bg-red-50 hover:text-red-500 transition-all flex items-center justify-center shrink-0 shadow-sm border border-slate-100">
+          <i class="fa-solid fa-xmark text-xl"></i>
+        </button>
       </div>
 
-      <!-- Body (scrollable) -->
-      <div class="overflow-y-auto flex-grow p-5 space-y-4">
+      <div class="overflow-y-auto custom-scrollbar pr-1 relative z-10 flex-grow space-y-5">
         
         <!-- Collapsible Guide -->
-        <button @click="showGuide = !showGuide" class="w-full flex items-center justify-between px-3 py-2 bg-blue-50 rounded-xl text-blue-600 font-bold text-[11px] uppercase tracking-wider hover:bg-blue-100 transition-colors">
-          <span><i class="fa-brands fa-telegram mr-1.5"></i>Hướng dẫn cài đặt</span>
+        <button @click="showGuide = !showGuide" class="w-full flex items-center justify-between px-4 py-3 bg-blue-50 rounded-2xl text-blue-600 font-black text-xs uppercase tracking-wider hover:bg-blue-100 transition-colors shadow-sm">
+          <span><i class="fa-brands fa-telegram mr-2"></i>Hướng dẫn cài đặt Telegram</span>
           <i class="fa-solid fa-chevron-down text-[10px] transition-transform duration-200" :class="{ 'rotate-180': showGuide }"></i>
         </button>
-        <div v-if="showGuide" class="bg-blue-50/50 border border-blue-100 rounded-xl p-3 space-y-1.5 text-[11px] text-blue-700 font-semibold">
-          <div class="flex gap-2"><span class="bg-blue-200 text-blue-700 rounded-full w-5 h-5 flex items-center justify-center text-[9px] font-black flex-shrink-0">1</span><span>Mở Telegram → tìm <a href="https://t.me/BotFather" target="_blank" class="underline font-black">@BotFather</a> → tạo Bot mới → copy Token</span></div>
-          <div class="flex gap-2"><span class="bg-blue-200 text-blue-700 rounded-full w-5 h-5 flex items-center justify-center text-[9px] font-black flex-shrink-0">2</span><span>Thêm Bot vào Group nhận thông báo</span></div>
-          <div class="flex gap-2"><span class="bg-blue-200 text-blue-700 rounded-full w-5 h-5 flex items-center justify-center text-[9px] font-black flex-shrink-0">3</span><span>Truy cập <code class="bg-blue-100 px-1 rounded text-[10px]">api.telegram.org/bot{TOKEN}/getUpdates</code> → tìm <code class="bg-blue-100 px-1 rounded text-[10px]">chat.id</code></span></div>
-          <div class="flex gap-2"><span class="bg-blue-200 text-blue-700 rounded-full w-5 h-5 flex items-center justify-center text-[9px] font-black flex-shrink-0">4</span><span>Dán URL bên dưới dạng: <code class="bg-blue-100 px-1 rounded text-[10px] break-all">https://api.telegram.org/bot{TOKEN}/sendMessage</code></span></div>
+        <div v-if="showGuide" class="bg-blue-50/50 border border-blue-100 rounded-2xl p-4 space-y-2 text-[11px] text-blue-800 font-bold">
+          <div class="flex gap-3"><span class="bg-blue-600 text-white rounded-full w-5 h-5 flex items-center justify-center text-[9px] font-black flex-shrink-0 shadow-sm">1</span><span class="mt-0.5">Mở Telegram → tìm <a href="https://t.me/BotFather" target="_blank" class="underline font-black text-[#1A237E]">@BotFather</a> → tạo Bot mới → copy Token</span></div>
+          <div class="flex gap-3"><span class="bg-blue-600 text-white rounded-full w-5 h-5 flex items-center justify-center text-[9px] font-black flex-shrink-0 shadow-sm">2</span><span class="mt-0.5">Thêm Bot vào Group nhận thông báo</span></div>
+          <div class="flex gap-3"><span class="bg-blue-600 text-white rounded-full w-5 h-5 flex items-center justify-center text-[9px] font-black flex-shrink-0 shadow-sm">3</span><span class="mt-0.5">Truy cập <code class="bg-white border border-blue-200 px-1.5 py-0.5 rounded text-[10px] shadow-sm">api.telegram.org/bot{TOKEN}/getUpdates</code> → tìm <code class="bg-white border border-blue-200 px-1.5 py-0.5 rounded text-[10px] shadow-sm">chat.id</code></span></div>
+          <div class="flex gap-3"><span class="bg-blue-600 text-white rounded-full w-5 h-5 flex items-center justify-center text-[9px] font-black flex-shrink-0 shadow-sm">4</span><span class="mt-0.5">Dán URL bên dưới dạng: <code class="bg-white border border-blue-200 px-1.5 py-0.5 rounded text-[10px] break-all shadow-sm">https://api.telegram.org/bot{TOKEN}/sendMessage</code></span></div>
         </div>
 
-        <!-- Webhook URL -->
-        <div>
-          <label class="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1 mb-1 block">Webhook URL <span class="text-red-400">*</span></label>
-          <input v-model="webhookUrl" 
-            class="w-full border-2 border-slate-100 rounded-xl px-3.5 py-2.5 text-[13px] font-bold focus:border-cyan-500 outline-none transition-colors placeholder:text-slate-300"
-            placeholder="https://api.telegram.org/bot.../sendMessage">
+        <div class="bg-slate-50 rounded-2xl p-5 border border-slate-100 shadow-sm space-y-4">
+          <!-- Webhook URL -->
+          <div class="space-y-2">
+            <label class="text-[10px] font-black text-slate-500 uppercase tracking-widest block">Webhook URL <span class="text-rose-500">*</span></label>
+            <input v-model="webhookUrl" 
+              class="w-full px-4 py-3 rounded-xl border border-slate-200 bg-white font-mono font-bold text-slate-800 text-sm focus:border-[#1A237E] focus:ring-4 focus:ring-blue-50 outline-none transition-all placeholder-slate-300"
+              placeholder="https://api.telegram.org/bot.../sendMessage">
+          </div>
+
+          <!-- Chat ID -->
+          <div class="space-y-2">
+            <label class="text-[10px] font-black text-slate-500 uppercase tracking-widest block">Telegram Chat ID</label>
+            <input v-model="telegramChatId"
+              class="w-full px-4 py-3 rounded-xl border border-slate-200 bg-white font-mono font-bold text-slate-800 text-sm focus:border-[#1A237E] focus:ring-4 focus:ring-blue-50 outline-none transition-all placeholder-slate-300"
+              placeholder="-1001234567890 (Group ID hoặc User ID)">
+          </div>
+
+          <!-- Status indicator -->
+          <div class="flex items-center gap-2 pt-2 border-t border-slate-200/50 mt-2">
+            <div class="w-2.5 h-2.5 rounded-full shadow-sm" :class="webhookUrl ? 'bg-emerald-500' : 'bg-slate-300'"></div>
+            <span class="text-[10px] font-black uppercase tracking-widest" :class="webhookUrl ? 'text-emerald-600' : 'text-slate-400'">
+              {{ webhookUrl ? (webhookUrl.includes('telegram') ? '🤖 Telegram Bot' : '🔗 Custom Webhook') : 'Chưa cấu hình' }}
+            </span>
+            <button v-if="webhookUrl" @click="clearWebhook" class="ml-auto text-[10px] text-rose-400 font-black uppercase hover:text-rose-600 transition-colors bg-white px-3 py-1 rounded-lg border border-rose-100 shadow-sm">
+              <i class="fa-solid fa-trash-can mr-1"></i> Xóa
+            </button>
+          </div>
         </div>
 
-        <!-- Chat ID -->
-        <div>
-          <label class="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1 mb-1 block">Telegram Chat ID</label>
-          <input v-model="telegramChatId"
-            class="w-full border-2 border-slate-100 rounded-xl px-3.5 py-2.5 text-[13px] font-bold focus:border-cyan-500 outline-none transition-colors placeholder:text-slate-300"
-            placeholder="-1001234567890 (Group ID hoặc User ID)">
-        </div>
-
-        <!-- Status indicator -->
-        <div class="flex items-center gap-2 px-1">
-          <div class="w-2 h-2 rounded-full" :class="webhookUrl ? 'bg-emerald-500' : 'bg-slate-300'"></div>
-          <span class="text-[10px] font-bold" :class="webhookUrl ? 'text-emerald-600' : 'text-slate-400'">
-            {{ webhookUrl ? (webhookUrl.includes('telegram') ? '🤖 Telegram Bot' : '🔗 Custom Webhook') : 'Chưa cấu hình' }}
-          </span>
-          <button v-if="webhookUrl" @click="clearWebhook" class="ml-auto text-[9px] text-red-400 font-black uppercase hover:text-red-600 transition-colors">
-            <i class="fa-solid fa-trash-can mr-0.5"></i> Xóa
-          </button>
-        </div>
-      </div>
-
-      <!-- Footer Buttons (fixed) -->
-      <div class="px-5 pb-5 pt-3 border-t border-slate-100 flex-shrink-0">
         <button @click="saveWebhook" :disabled="saving || !webhookUrl.trim()"
-          class="w-full py-3 bg-gradient-to-r from-cyan-600 to-blue-600 text-white rounded-xl font-black uppercase tracking-widest text-[11px] shadow-lg hover:from-cyan-700 hover:to-blue-700 active:scale-[0.98] transition-all min-h-[44px] disabled:opacity-40 disabled:cursor-not-allowed">
-          <i class="fa-solid fa-cloud-arrow-up mr-1.5"></i>
-          {{ saving ? 'Đang lưu...' : 'Lưu & Đồng bộ' }}
+          class="w-full py-4 bg-[#1A237E] text-white rounded-xl font-black uppercase tracking-widest text-[11px] shadow-lg shadow-blue-900/20 active:scale-95 transition-all flex justify-center items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed">
+          <i class="fa-solid fa-cloud-arrow-up text-lg text-white/80"></i>
+          {{ saving ? 'ĐANG LƯU...' : 'LƯU & ĐỒNG BỘ' }}
         </button>
-        <p class="text-[9px] text-center text-slate-400 font-bold mt-2">Cấu hình sẽ lưu trên Cloud • Có thể mượn lại bằng mật khẩu Admin</p>
+        <p class="text-[10px] text-center text-slate-400 font-bold tracking-wide">Cấu hình sẽ lưu trên Cloud • Có thể lấy lại bằng mật khẩu Admin</p>
       </div>
     </div>
   </div>
