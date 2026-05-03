@@ -86,19 +86,49 @@ export const useAppStore = defineStore('app', () => {
     return groups
   })
 
-  // --- Computed: Filtered History (search) ---
+  // --- Computed: Filtered History (search & filters) ---
   const filteredHistory = computed(() => {
     const groups = groupedHistory.value
     const query = uiStore.historySearch.trim().toLowerCase()
-    if (!query) return groups
-    const filtered: Record<string, any> = {}
-    for (const [key, group] of Object.entries(groups)) {
+    const { time, status, deposit, sort } = uiStore.historyFilters
+
+    let entries = Object.entries(groups)
+
+    entries = entries.filter(([key, group]) => {
       const customer = group.latest.parsedCustomer
-      const searchStr = `${customer.name} ${customer.phone} ${customer.date} ${formatVND(group.latest.totalAmount)}`.toLowerCase()
-      if (stripAccents(searchStr).includes(stripAccents(query))) {
-        filtered[key] = group
+      
+      // Search
+      if (query) {
+        const searchStr = `${customer.name} ${customer.phone} ${customer.date} ${formatVND(group.latest.totalAmount)}`.toLowerCase()
+        if (!stripAccents(searchStr).includes(stripAccents(query))) return false
       }
-    }
+      
+      // Deposit filter
+      if (deposit === 'paid' && !group.latest.isDeposited) return false
+      if (deposit === 'unpaid' && group.latest.isDeposited) return false
+      
+      // Time filter (simple logic for today)
+      if (time === 'today') {
+        const todayStr = `${String(new Date().getDate()).padStart(2, '0')}/${String(new Date().getMonth() + 1).padStart(2, '0')}/${new Date().getFullYear()}`
+        if ((customer.date || '').trim() !== todayStr) return false
+      }
+      
+      // Status filter
+      if (status === 'synced' && group.latest.isSyncing) return false
+      if (status === 'syncing' && !group.latest.isSyncing) return false
+      
+      return true
+    })
+
+    // Sort
+    entries.sort((a, b) => {
+      const tA = new Date(a[1].latest.timestamp || 0).getTime()
+      const tB = new Date(b[1].latest.timestamp || 0).getTime()
+      return sort === 'newest' ? tB - tA : tA - tB
+    })
+
+    const filtered: Record<string, any> = {}
+    entries.forEach(([k, v]) => { filtered[k] = v })
     return filtered
   })
 
@@ -377,6 +407,15 @@ export const useAppStore = defineStore('app', () => {
     }
   }
 
+  // --- Auth Actions ---
+  function logout() {
+    uiStore.showToast('Đang đăng xuất và xóa phiên làm việc...', 'info')
+    localStorage.removeItem(CACHE_KEYS.HISTORY)
+    setTimeout(() => {
+      window.location.reload()
+    }, 500)
+  }
+
   return {
     historyList, menuList, menuDetails, menuSheets, activeSheet, newMenuName, newMenuContent,
     bankList, selectedBankIndex, newBank,
@@ -386,6 +425,7 @@ export const useAppStore = defineStore('app', () => {
     loadHistory, fetchMenu, fetchSheets, switchMenu, uploadNewMenu,
     selectBank, addBank, removeBank,
     addStaff, removeStaff,
-    fetchRemoteConfig, updateRemoteConfig
+    fetchRemoteConfig, updateRemoteConfig,
+    logout
   }
 })

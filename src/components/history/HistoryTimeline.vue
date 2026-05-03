@@ -2,10 +2,12 @@
 import { ref, computed } from 'vue'
 import { useUIStore } from '@/stores/useUIStore'
 import { useAppStore } from '@/stores/useAppStore'
+import { useFormStore } from '@/stores/useFormStore'
 import { useForm } from '@/composables/useForm'
 
 const ui = useUIStore()
 const appStore = useAppStore()
+const formStore = useFormStore()
 const { resetForm } = useForm()
 
 const dateInputRef = ref<HTMLInputElement | null>(null)
@@ -91,6 +93,16 @@ function openBookingDetail(booking: any) {
   ui.selectedBooking = booking
   ui.showBookingDetailModal = true
 }
+
+function prefillBooking(zone: string, time: string) {
+  formStore.customer.time = time
+  formStore.customer.date = selectedDateStr.value
+  const cleanZone = zone.replace('Khu ', '')
+  ui.tempTable.zone = cleanZone
+  formStore.customer.tables = cleanZone
+  ui.tab = 'create'
+  ui.showToast(`Đã điền sẵn bàn ${cleanZone} lúc ${time}`, 'success')
+}
 </script>
 
 <template>
@@ -146,7 +158,7 @@ function openBookingDetail(booking: any) {
               </template>
               <template v-else>
                 <!-- Empty Slot -->
-                <div @click="ui.showToast(`Bấm để đặt bàn tại ${z} lúc ${h} (Đang hoàn thiện)`, 'info')" class="w-10 h-10 rounded-xl bg-emerald-50/50 border border-emerald-100 flex items-center justify-center text-emerald-400 opacity-60 cursor-pointer hover:bg-emerald-100 transition-colors">
+                <div @click="prefillBooking(z, h)" class="w-10 h-10 rounded-xl bg-emerald-50/50 border border-emerald-100 flex items-center justify-center text-emerald-400 opacity-60 cursor-pointer hover:bg-emerald-100 transition-colors">
                   <i class="fa-solid fa-chair text-lg"></i>
                 </div>
               </template>

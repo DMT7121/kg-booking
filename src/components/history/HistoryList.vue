@@ -169,14 +169,19 @@ async function deleteBatchOrders() {
         
         <!-- Filter Dropdowns -->
         <div class="flex gap-2 overflow-x-auto custom-scrollbar pb-1" style="scrollbar-width: none;">
-          <select @change="ui.showToast('Tính năng lọc theo thời gian đang được nâng cấp!', 'info')" class="px-3 py-2 rounded-lg border border-slate-200 bg-white text-slate-600 text-[11px] font-bold shrink-0 outline-none appearance-none pr-8 relative">
-            <option>Tất cả thời gian</option>
+          <select v-model="ui.historyFilters.time" class="px-3 py-2 rounded-lg border border-slate-200 bg-white text-slate-600 text-[11px] font-bold shrink-0 outline-none appearance-none pr-8 relative">
+            <option value="all">Tất cả thời gian</option>
+            <option value="today">Hôm nay</option>
           </select>
-          <select @change="ui.showToast('Tính năng lọc theo trạng thái đang được nâng cấp!', 'info')" class="px-3 py-2 rounded-lg border border-slate-200 bg-white text-slate-600 text-[11px] font-bold shrink-0 outline-none appearance-none pr-8 relative">
-            <option>Tất cả trạng thái</option>
+          <select v-model="ui.historyFilters.status" class="px-3 py-2 rounded-lg border border-slate-200 bg-white text-slate-600 text-[11px] font-bold shrink-0 outline-none appearance-none pr-8 relative">
+            <option value="all">Tất cả trạng thái</option>
+            <option value="synced">Đã đồng bộ</option>
+            <option value="syncing">Đang chờ</option>
           </select>
-          <select @change="ui.showToast('Tính năng lọc đặt cọc đang được nâng cấp!', 'info')" class="px-3 py-2 rounded-lg border border-slate-200 bg-white text-slate-600 text-[11px] font-bold shrink-0 outline-none appearance-none pr-8 relative">
-            <option>Tất cả đặt cọc</option>
+          <select v-model="ui.historyFilters.deposit" class="px-3 py-2 rounded-lg border border-slate-200 bg-white text-slate-600 text-[11px] font-bold shrink-0 outline-none appearance-none pr-8 relative">
+            <option value="all">Tất cả đặt cọc</option>
+            <option value="paid">Đã đặt cọc</option>
+            <option value="unpaid">Chưa cọc</option>
           </select>
         </div>
         
@@ -185,8 +190,9 @@ async function deleteBatchOrders() {
           <div class="text-[12px] font-bold text-slate-500">Tổng số: <span class="text-slate-800">{{ stats.totalBookings }} phiếu</span></div>
           <div class="flex items-center gap-1.5 text-slate-500 text-[12px] font-bold">
             <i class="fa-solid fa-arrow-down-up-across-line text-[10px]"></i>
-            <select @change="ui.showToast('Tính năng sắp xếp đang được nâng cấp!', 'info')" class="bg-transparent border-none outline-none font-bold text-slate-600 appearance-none text-right">
-              <option>Mới nhất</option>
+            <select v-model="ui.historyFilters.sort" class="bg-transparent border-none outline-none font-bold text-slate-600 appearance-none text-right">
+              <option value="newest">Mới nhất</option>
+              <option value="oldest">Cũ nhất</option>
             </select>
             <i class="fa-solid fa-chevron-down text-[8px] ml-0.5"></i>
           </div>

@@ -76,6 +76,40 @@ function handleMouseMove(e: MouseEvent) {
 function resetParallax() {
   stampParallax.value = { x: 0, y: 0 }
 }
+
+function shareCurrentBill() {
+  const id = formStore.id
+  if (!id || !formStore.customer.name) {
+    ui.showToast('Vui lòng nhập thông tin đơn hàng trước!', 'warning')
+    return
+  }
+  const url = `${window.location.origin}${window.location.pathname}#/bill/${id}`
+  
+  if (navigator.share) {
+    navigator.share({
+      title: 'Phiếu Đặt Bàn - King\'s Grill',
+      text: `Phiếu đặt bàn của ${formStore.customer.name}`,
+      url: url
+    }).catch(err => {
+      console.log('Share failed:', err)
+      navigator.clipboard.writeText(url).then(() => {
+        ui.showToast(`📤 Đã copy link bill!`, 'success')
+      })
+    })
+  } else {
+    navigator.clipboard.writeText(url).then(() => {
+      ui.showToast(`📤 Đã copy link bill!`, 'success')
+    }).catch(() => ui.showAlert('Link Bill', url))
+  }
+}
+
+function openZaloChat() {
+  if (formStore.customer.phone) {
+    window.open(`https://zalo.me/${formStore.customer.phone.replace(/[^0-9]/g, '')}`, '_blank')
+  } else {
+    ui.showToast('Không có số điện thoại khách hàng!', 'warning')
+  }
+}
 </script>
 
 <template>
@@ -88,7 +122,7 @@ function resetParallax() {
         <i class="fa-solid fa-arrow-left text-xl"></i>
       </button>
       <h2 class="text-[15px] font-black text-[#1A237E] uppercase tracking-widest">Xem trước phiếu đặt</h2>
-      <button @click="ui.showToast('Tính năng chia sẻ đang tích hợp!', 'info')" class="w-10 h-10 flex items-center justify-center text-[#1A237E] rounded-full hover:bg-slate-50 active:scale-95 transition-all">
+      <button @click="shareCurrentBill" class="w-10 h-10 flex items-center justify-center text-[#1A237E] rounded-full hover:bg-slate-50 active:scale-95 transition-all">
         <i class="fa-solid fa-share-nodes text-lg"></i>
       </button>
     </div>
@@ -272,7 +306,7 @@ function resetParallax() {
           <img src="https://upload.wikimedia.org/wikipedia/commons/1/12/Google_Drive_icon_%282020%29.svg" class="w-4 h-4">
           <span class="text-[12px] font-bold whitespace-nowrap">Lưu lên Drive</span>
         </button>
-        <button @click="ui.showToast('Chia sẻ: Đang phát triển', 'info')" class="flex items-center justify-center bg-[#0D1658] text-white h-[44px] px-4 rounded-xl shrink-0 shadow-lg shadow-blue-900/20 gap-2 hover:bg-blue-900 active:scale-95 transition-all">
+        <button @click="shareCurrentBill" class="flex items-center justify-center bg-[#0D1658] text-white h-[44px] px-4 rounded-xl shrink-0 shadow-lg shadow-blue-900/20 gap-2 hover:bg-blue-900 active:scale-95 transition-all">
           <i class="fa-solid fa-share-nodes"></i>
           <span class="text-[12px] font-bold whitespace-nowrap">Chia sẻ phiếu</span>
         </button>
@@ -280,7 +314,7 @@ function resetParallax() {
     </div>
     
     <!-- Floating Chat Button -->
-    <button @click="ui.showToast('Tính năng CSKH qua tin nhắn đang phát triển', 'info')" class="md:hidden fixed bottom-[80px] right-4 w-12 h-12 bg-white rounded-full flex items-center justify-center shadow-lg shadow-slate-300 text-blue-500 text-xl z-50 active:scale-95 transition-transform border border-slate-100">
+    <button @click="openZaloChat" class="md:hidden fixed bottom-[80px] right-4 w-12 h-12 bg-white rounded-full flex items-center justify-center shadow-lg shadow-slate-300 text-blue-500 text-xl z-50 active:scale-95 transition-transform border border-slate-100">
       <i class="fa-solid fa-comment-dots"></i>
     </button>
     

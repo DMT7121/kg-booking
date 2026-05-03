@@ -51,6 +51,12 @@ export const useUIStore = defineStore('ui', () => {
   const historySearch = ref('')
   const isBatchMode = ref(false)
   const selectedIds = ref<string[]>([])
+  const historyFilters = reactive({
+    time: 'all',
+    status: 'all',
+    deposit: 'all',
+    sort: 'newest'
+  })
 
   // --- Form UI ---
   const focusIdx = ref<number | null>(null)
@@ -154,7 +160,7 @@ export const useUIStore = defineStore('ui', () => {
     loading, error,
     showSettingsHub, showAiConfig, showBankConfig, showMenuManager, showBrandingConfig, showStaffConfig, showStaffSelector, showWebhookConfig, showBookingDetailModal, selectedBooking,
     pendingAction, menuTab, isUpdateMode,
-    historySearch, isBatchMode, selectedIds,
+    historySearch, isBatchMode, selectedIds, historyFilters,
     focusIdx, listening, tempTable,
     toasts, verifyModal, modal,
     showToast, removeToast,
