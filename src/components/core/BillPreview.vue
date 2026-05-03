@@ -126,24 +126,24 @@ function resetParallax() {
           <!-- INFO & STAMP SECTION -->
           <div class="relative mb-10">
             <!-- Customer Info Grid -->
-            <div class="grid grid-cols-[140px_1fr] gap-y-4 text-[17px] w-3/4">
-              <div class="flex items-center gap-3 text-slate-500 font-bold"><i class="fa-solid fa-user w-5 text-center"></i> Khách hàng</div>
-              <div class="font-black text-[#1A237E]">{{ formStore.customer.name || '---' }}</div>
+            <div class="grid grid-cols-[130px_1fr] gap-y-3.5 text-[15px] w-full lg:w-[70%]">
+              <div class="flex items-center gap-3 text-slate-500 font-bold uppercase text-[11px] tracking-wider"><i class="fa-solid fa-user-tie w-4 text-center text-[13px]"></i> Khách hàng</div>
+              <div class="font-black text-[#0D1658] text-[14px]">{{ formStore.customer.name || '---' }}</div>
               
-              <div class="flex items-center gap-3 text-slate-500 font-bold"><i class="fa-solid fa-phone w-5 text-center"></i> SĐT / Zalo</div>
-              <div class="font-black text-[#1A237E]">{{ formStore.customer.phone || '---' }}</div>
+              <div class="flex items-center gap-3 text-slate-500 font-bold uppercase text-[11px] tracking-wider"><i class="fa-solid fa-phone w-4 text-center text-[13px]"></i> SĐT / Zalo</div>
+              <div class="font-black text-[#0D1658] text-[14px]">{{ formStore.customer.phone || '---' }}</div>
               
-              <div class="flex items-center gap-3 text-slate-500 font-bold"><i class="fa-regular fa-calendar w-5 text-center"></i> Thời gian</div>
-              <div class="font-black text-slate-800">{{ formStore.customer.date || 'dd/mm/yyyy' }} • {{ formStore.customer.time || '--:--' }}</div>
+              <div class="flex items-center gap-3 text-slate-500 font-bold uppercase text-[11px] tracking-wider"><i class="fa-regular fa-calendar-days w-4 text-center text-[13px]"></i> Thời gian</div>
+              <div class="font-black text-[#0D1658] text-[14px]">{{ formStore.customer.date || 'dd/mm/yyyy' }} • {{ formStore.customer.time || '--:--' }}</div>
               
-              <div class="flex items-center gap-3 text-slate-500 font-bold"><i class="fa-solid fa-users w-5 text-center"></i> Số khách</div>
-              <div class="font-black text-slate-800">{{ formStore.customer.pax || '0' }} người</div>
+              <div class="flex items-center gap-3 text-slate-500 font-bold uppercase text-[11px] tracking-wider"><i class="fa-solid fa-users w-4 text-center text-[13px]"></i> Số khách</div>
+              <div class="font-black text-[#0D1658] text-[14px]">{{ formStore.customer.pax || '0' }} người</div>
               
-              <div class="flex items-center gap-3 text-slate-500 font-bold"><i class="fa-solid fa-chair w-5 text-center"></i> Bàn</div>
-              <div class="font-black text-slate-800">{{ formStore.customer.tables || '---' }}</div>
+              <div class="flex items-center gap-3 text-slate-500 font-bold uppercase text-[11px] tracking-wider"><i class="fa-solid fa-border-all w-4 text-center text-[13px]"></i> Bàn</div>
+              <div class="font-black text-[#0D1658] text-[14px]">{{ formStore.customer.tables || '---' }}</div>
               
-              <div class="flex items-center gap-3 text-slate-500 font-bold"><i class="fa-solid fa-wine-glass w-5 text-center"></i> Loại tiệc</div>
-              <div class="font-black text-slate-800">{{ formStore.customer.type || '---' }}</div>
+              <div class="flex items-center gap-3 text-slate-500 font-bold uppercase text-[11px] tracking-wider"><i class="fa-solid fa-utensils w-4 text-center text-[13px]"></i> Loại tiệc</div>
+              <div class="font-black text-[#0D1658] text-[14px]">{{ formStore.customer.type || '---' }}</div>
             </div>
 
             <!-- Stamp -->
@@ -162,12 +162,12 @@ function resetParallax() {
           <!-- MENU TABLE -->
           <table class="w-full mb-8 border-collapse">
             <thead>
-              <tr class="bg-[#1A237E] text-white">
-                <th class="py-3 px-4 text-left font-bold text-[15px] rounded-tl-xl w-12">#</th>
-                <th class="py-3 px-4 text-left font-bold text-[15px]">TÊN MÓN</th>
-                <th class="py-3 px-4 text-center font-bold text-[15px] w-20">SL</th>
-                <th class="py-3 px-4 text-right font-bold text-[15px] w-32">ĐƠN GIÁ</th>
-                <th class="py-3 px-4 text-right font-bold text-[15px] rounded-tr-xl w-36">THÀNH TIỀN</th>
+              <tr class="bg-[#0D1658] text-white">
+                <th class="py-3 px-4 text-left font-bold text-[13px] rounded-tl-xl w-12">#</th>
+                <th class="py-3 px-4 text-left font-bold text-[13px]">TÊN MÓN</th>
+                <th class="py-3 px-4 text-center font-bold text-[13px] w-16">SL</th>
+                <th class="py-3 px-4 text-right font-bold text-[13px] w-28">ĐƠN GIÁ</th>
+                <th class="py-3 px-4 text-right font-bold text-[13px] rounded-tr-xl w-32">THÀNH TIỀN</th>
               </tr>
             </thead>
             <tbody>
@@ -258,28 +258,29 @@ function resetParallax() {
     </div>
 
     <!-- Bottom Actions Bar -->
-    <div class="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-slate-100 p-3 pb-safe z-50 flex gap-2 items-center justify-between shadow-[0_-5px_15px_-10px_rgba(0,0,0,0.1)] overflow-x-auto">
-      <div class="flex gap-2 flex-1 justify-start">
-        <button class="flex flex-col items-center justify-center bg-blue-50 text-blue-600 h-[50px] px-2.5 rounded-xl border border-blue-100/50 shrink-0 flex-1 max-w-[85px] active:scale-95 transition-transform">
-          <i class="fa-regular fa-image mb-0.5 text-sm"></i>
-          <span class="text-[9px] font-bold uppercase whitespace-nowrap">Tải ảnh PNG</span>
+    <div class="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-slate-100 p-3 pb-safe z-50 flex items-center shadow-[0_-5px_15px_-10px_rgba(0,0,0,0.1)]">
+      <div class="flex gap-2 w-full overflow-x-auto no-scrollbar items-center">
+        <button class="flex items-center justify-center bg-blue-50 text-blue-600 h-[44px] px-3.5 rounded-xl border border-blue-100 shrink-0 gap-2 active:scale-95 transition-transform">
+          <i class="fa-regular fa-image text-sm"></i>
+          <span class="text-[12px] font-bold whitespace-nowrap">Tải ảnh PNG</span>
         </button>
-        <button class="flex flex-col items-center justify-center bg-blue-50 text-blue-600 h-[50px] px-2.5 rounded-xl border border-blue-100/50 shrink-0 flex-1 max-w-[85px] active:scale-95 transition-transform">
-          <i class="fa-regular fa-file-pdf mb-0.5 text-sm"></i>
-          <span class="text-[9px] font-bold uppercase whitespace-nowrap">Tải file PDF</span>
+        <button class="flex items-center justify-center bg-blue-50 text-blue-600 h-[44px] px-3.5 rounded-xl border border-blue-100 shrink-0 gap-2 active:scale-95 transition-transform">
+          <i class="fa-regular fa-file-pdf text-sm"></i>
+          <span class="text-[12px] font-bold whitespace-nowrap">Tải file PDF</span>
         </button>
-        <button class="flex flex-col items-center justify-center bg-blue-50 text-blue-600 h-[50px] px-2.5 rounded-xl border border-blue-100/50 shrink-0 flex-1 max-w-[85px] active:scale-95 transition-transform">
-          <img src="https://upload.wikimedia.org/wikipedia/commons/1/12/Google_Drive_icon_%282020%29.svg" class="w-3.5 h-3.5 mb-0.5">
-          <span class="text-[9px] font-bold uppercase whitespace-nowrap">Lưu lên Drive</span>
+        <button class="flex items-center justify-center bg-blue-50 text-blue-600 h-[44px] px-3.5 rounded-xl border border-blue-100 shrink-0 gap-2 active:scale-95 transition-transform">
+          <img src="https://upload.wikimedia.org/wikipedia/commons/1/12/Google_Drive_icon_%282020%29.svg" class="w-4 h-4">
+          <span class="text-[12px] font-bold whitespace-nowrap">Lưu lên Drive</span>
+        </button>
+        <button class="flex items-center justify-center bg-[#0D1658] text-white h-[44px] px-4 rounded-xl shrink-0 shadow-lg shadow-blue-900/20 gap-2 hover:bg-blue-900 active:scale-95 transition-all">
+          <i class="fa-solid fa-share-nodes"></i>
+          <span class="text-[12px] font-bold whitespace-nowrap">Chia sẻ phiếu</span>
         </button>
       </div>
-      <button class="flex items-center justify-center bg-[#0D1658] text-white h-[50px] px-4 rounded-xl shrink-0 shadow-lg shadow-blue-900/20 font-black text-[11px] uppercase gap-2 hover:bg-blue-900 active:scale-95 transition-all ml-2">
-        <i class="fa-solid fa-share-nodes"></i> Chia sẻ phiếu
-      </button>
     </div>
     
     <!-- Floating Chat Button -->
-    <button class="md:hidden fixed bottom-[84px] right-4 w-12 h-12 bg-blue-500 rounded-full flex items-center justify-center shadow-lg shadow-blue-500/30 text-white text-xl z-50 active:scale-95 transition-transform border-2 border-white">
+    <button class="md:hidden fixed bottom-[80px] right-4 w-12 h-12 bg-white rounded-full flex items-center justify-center shadow-lg shadow-slate-300 text-blue-500 text-xl z-50 active:scale-95 transition-transform border border-slate-100">
       <i class="fa-solid fa-comment-dots"></i>
     </button>
     
