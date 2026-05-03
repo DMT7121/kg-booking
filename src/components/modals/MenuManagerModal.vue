@@ -58,6 +58,17 @@ function openUploadModal() {
   appStore.newMenuContent = ''
   showUploadModal.value = true
 }
+
+function getCategoryColor(category: string) {
+  switch (category) {
+    case 'Khai vị': return 'text-violet-600 border-violet-200 bg-white'
+    case 'Món chính': return 'text-emerald-600 border-emerald-200 bg-white'
+    case 'Tráng miệng': return 'text-orange-500 border-orange-200 bg-white'
+    case 'Đồ uống': return 'text-blue-600 border-blue-200 bg-white'
+    case 'Súp': return 'text-violet-500 border-violet-200 bg-white'
+    default: return 'text-slate-600 border-slate-200 bg-white'
+  }
+}
 </script>
 
 <template>
@@ -200,7 +211,7 @@ function openUploadModal() {
               <div class="flex-1 min-w-0">
                 <div class="flex items-center gap-2 flex-wrap mb-1">
                   <h4 class="font-bold text-slate-800 text-sm md:text-base truncate">{{ dish.name }}</h4>
-                  <span class="bg-blue-50 text-blue-600 px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-wider shrink-0 border border-blue-100">{{ dish.category }}</span>
+                  <span :class="['px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-wider shrink-0 border', getCategoryColor(dish.category)]">{{ dish.category }}</span>
                 </div>
                 <div v-if="dish.inUse" class="flex items-center gap-1.5 text-[11px] font-medium text-slate-500 bg-slate-50 inline-flex px-2 py-0.5 rounded-md">
                   <i class="fa-solid fa-clipboard-check text-emerald-500"></i> Đã có trong phiếu đặt
@@ -270,7 +281,7 @@ function openUploadModal() {
               <div class="p-3 text-center flex-1 flex flex-col justify-center items-center bg-white">
                 <h4 class="font-bold text-slate-800 text-sm mb-1 line-clamp-2 leading-tight">{{ dish.name }}</h4>
                 <div class="font-black text-[#1A237E] text-[13px] mb-2">{{ formatVND(dish.price) }}</div>
-                <span class="inline-block bg-blue-50 border border-blue-100 text-blue-600 px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider">{{ dish.category }}</span>
+                <span :class="['inline-block border px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider', getCategoryColor(dish.category)]">{{ dish.category }}</span>
               </div>
             </div>
           </div>
@@ -288,7 +299,7 @@ function openUploadModal() {
               </div>
               <div class="flex-1 min-w-0">
                 <h4 class="font-bold text-slate-800 truncate text-sm mb-1">{{ dish.name }}</h4>
-                <span class="bg-blue-50 text-blue-600 px-2 py-0.5 rounded border border-blue-100 text-[10px] font-black uppercase tracking-wider">{{ dish.category }}</span>
+                <span :class="['px-2 py-0.5 rounded border text-[10px] font-black uppercase tracking-wider', getCategoryColor(dish.category)]">{{ dish.category }}</span>
               </div>
               <div class="font-black text-[#1A237E] text-sm">{{ formatVND(dish.price) }}</div>
             </div>
