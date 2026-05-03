@@ -8,6 +8,8 @@ const ui = useUIStore()
 const appStore = useAppStore()
 const { resetForm } = useForm()
 
+const dateInputRef = ref<HTMLInputElement | null>(null)
+
 // Constants based on the image
 const ZONES = ['Khu A', 'Khu B', 'Khu C', 'Khu D', 'Khu E']
 const HOURS = [
@@ -96,13 +98,13 @@ function openBookingDetail(booking: any) {
     
     <!-- Top Controls -->
     <div class="p-4 bg-white border-b border-slate-100 flex gap-3 items-center z-10 shadow-sm">
-      <div class="relative flex-grow border border-slate-200 rounded-xl px-3 py-2 flex flex-col hover:border-blue-400 transition-colors">
+      <div @click="dateInputRef?.showPicker()" class="relative flex-grow border border-slate-200 rounded-xl px-3 py-2 flex flex-col cursor-pointer hover:border-blue-400 transition-colors">
         <label class="text-[10px] font-bold text-slate-500 uppercase pointer-events-none">Chọn ngày</label>
         <div class="font-black text-slate-800 text-sm flex justify-between items-center pointer-events-none">
           <span>{{ selectedDateStr }}</span>
           <i class="fa-solid fa-chevron-down text-slate-400 text-xs"></i>
         </div>
-        <input type="date" v-model="selectedDateInput" class="absolute inset-0 opacity-0 cursor-pointer w-full h-full z-20">
+        <input ref="dateInputRef" type="date" v-model="selectedDateInput" class="absolute w-0 h-0 opacity-0 -z-10 overflow-hidden pointer-events-none">
       </div>
       
       <button @click="resetForm(); ui.tab = 'create'" class="h-12 px-6 bg-[#1A237E] text-white rounded-xl font-black text-sm shadow-lg shadow-blue-900/20 active:scale-95 transition-all flex justify-center items-center gap-2 whitespace-nowrap">
