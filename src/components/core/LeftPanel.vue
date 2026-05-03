@@ -56,9 +56,9 @@ function shareCurrentBill() {
     @touchend="onSwipeEnd"
   >
     <!-- HEADER -->
-    <div class="flex-shrink-0 bg-[#1A237E] text-white px-5 py-4 flex justify-between items-center relative overflow-hidden">
+    <div class="flex-shrink-0 bg-[#1A237E] text-white px-3 md:px-5 py-4 flex flex-wrap justify-between items-center gap-2 relative overflow-hidden box-border w-full">
       <div class="absolute inset-0 bg-gradient-to-r from-blue-400/20 to-transparent pointer-events-none"></div>
-      <div class="flex items-center gap-4 relative z-10">
+      <div class="flex items-center gap-3 relative z-10 min-w-0">
         <div class="bg-white p-1.5 rounded-2xl shadow-xl flex items-center justify-center overflow-hidden w-12 h-12 border-2 border-white/20 backdrop-blur-sm">
           <img :src="configStore.branding.logo || '/favicon.svg'" class="w-full h-full object-contain" alt="KG Logo" loading="lazy" />
         </div>
@@ -88,7 +88,7 @@ function shareCurrentBill() {
     </div>
 
     <!-- TABS -->
-    <div class="flex bg-white text-[10px] font-black border-b border-slate-100 uppercase tracking-widest shadow-sm relative z-10">
+    <div class="flex flex-nowrap overflow-x-auto w-full bg-white text-[10px] font-black border-b border-slate-100 uppercase tracking-widest shadow-sm relative z-10">
       <button @click="ui.tab = 'history'; appStore.loadHistory(false)" :class="['flex-1 py-3.5 flex justify-center items-center gap-2 transition-all min-h-[46px] border-b-[3px]', ui.tab === 'history' ? 'text-[#1A237E] border-[#1A237E] bg-blue-50/50' : 'text-slate-400 border-transparent hover:text-slate-600 hover:bg-slate-50']"><i class="fa-solid fa-calendar-days text-sm"></i> Lịch Bàn</button>
       <button @click="ui.tab = 'create'" :class="['flex-1 py-3.5 flex justify-center items-center gap-2 transition-all min-h-[46px] border-b-[3px]', ui.tab === 'create' ? 'text-[#1A237E] border-[#1A237E] bg-blue-50/50' : 'text-slate-400 border-transparent hover:text-slate-600 hover:bg-slate-50']"><i class="fa-solid fa-plus text-sm"></i> Tạo Phiếu</button>
       <button @click="ui.tab = 'preview'" class="md:hidden flex-1 py-3.5 flex justify-center items-center gap-2 transition-all min-h-[46px] border-b-[3px] border-transparent text-slate-500 bg-slate-50 hover:bg-slate-100"><i class="fa-solid fa-eye text-sm"></i> Preview</button>

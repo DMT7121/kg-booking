@@ -169,13 +169,13 @@ async function deleteBatchOrders() {
         
         <!-- Filter Dropdowns -->
         <div class="flex gap-2 overflow-x-auto custom-scrollbar pb-1" style="scrollbar-width: none;">
-          <select class="px-3 py-2 rounded-lg border border-slate-200 bg-white text-slate-600 text-[11px] font-bold shrink-0 outline-none appearance-none pr-8 relative">
+          <select @change="ui.showToast('Tính năng lọc theo thời gian đang được nâng cấp!', 'info')" class="px-3 py-2 rounded-lg border border-slate-200 bg-white text-slate-600 text-[11px] font-bold shrink-0 outline-none appearance-none pr-8 relative">
             <option>Tất cả thời gian</option>
           </select>
-          <select class="px-3 py-2 rounded-lg border border-slate-200 bg-white text-slate-600 text-[11px] font-bold shrink-0 outline-none appearance-none pr-8 relative">
+          <select @change="ui.showToast('Tính năng lọc theo trạng thái đang được nâng cấp!', 'info')" class="px-3 py-2 rounded-lg border border-slate-200 bg-white text-slate-600 text-[11px] font-bold shrink-0 outline-none appearance-none pr-8 relative">
             <option>Tất cả trạng thái</option>
           </select>
-          <select class="px-3 py-2 rounded-lg border border-slate-200 bg-white text-slate-600 text-[11px] font-bold shrink-0 outline-none appearance-none pr-8 relative">
+          <select @change="ui.showToast('Tính năng lọc đặt cọc đang được nâng cấp!', 'info')" class="px-3 py-2 rounded-lg border border-slate-200 bg-white text-slate-600 text-[11px] font-bold shrink-0 outline-none appearance-none pr-8 relative">
             <option>Tất cả đặt cọc</option>
           </select>
         </div>
@@ -185,7 +185,7 @@ async function deleteBatchOrders() {
           <div class="text-[12px] font-bold text-slate-500">Tổng số: <span class="text-slate-800">{{ stats.totalBookings }} phiếu</span></div>
           <div class="flex items-center gap-1.5 text-slate-500 text-[12px] font-bold">
             <i class="fa-solid fa-arrow-down-up-across-line text-[10px]"></i>
-            <select class="bg-transparent border-none outline-none font-bold text-slate-600 appearance-none text-right">
+            <select @change="ui.showToast('Tính năng sắp xếp đang được nâng cấp!', 'info')" class="bg-transparent border-none outline-none font-bold text-slate-600 appearance-none text-right">
               <option>Mới nhất</option>
             </select>
             <i class="fa-solid fa-chevron-down text-[8px] ml-0.5"></i>

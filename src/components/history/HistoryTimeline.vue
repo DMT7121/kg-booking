@@ -113,7 +113,7 @@ function openBookingDetail(booking: any) {
     </div>
 
     <!-- Timeline Grid Container -->
-    <div class="flex-grow overflow-auto bg-slate-50 relative custom-scrollbar p-2 md:p-4">
+    <div class="flex-grow w-full overflow-x-auto bg-slate-50 relative custom-scrollbar p-2 md:p-4 box-border">
       <div class="min-w-[700px] bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden flex flex-col">
         
         <!-- Header Row -->

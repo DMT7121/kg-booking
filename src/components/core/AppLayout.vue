@@ -260,7 +260,7 @@ onMounted(() => {
         </div>
 
         <!-- Logout Button -->
-        <button class="w-full py-4 bg-white border border-rose-100 text-rose-500 rounded-2xl font-black text-sm shadow-sm active:scale-95 transition-all flex items-center justify-center gap-2 hover:bg-rose-50">
+        <button @click="() => { window.location.reload() }" class="w-full py-4 bg-white border border-rose-100 text-rose-500 rounded-2xl font-black text-sm shadow-sm active:scale-95 transition-all flex items-center justify-center gap-2 hover:bg-rose-50">
           <i class="fa-solid fa-arrow-right-from-bracket"></i> Đăng xuất
         </button>
       </div>
