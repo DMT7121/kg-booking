@@ -80,8 +80,33 @@ function resetParallax() {
 
 <template>
   <!-- RIGHT PANEL (BILL PREVIEW) -->
-  <div v-show="ui.tab === 'preview' || true" :class="['w-full md:w-7/12 flex-1 overflow-y-auto bill-preview-wrapper bg-slate-100', ui.tab !== 'preview' ? 'hidden md:block' : '']" class="custom-scrollbar">
-    <div class="p-4 md:p-8 flex gap-0 md:gap-4 justify-center">
+  <div v-show="ui.tab === 'preview' || true" :class="['w-full md:w-7/12 flex-1 overflow-y-auto bill-preview-wrapper bg-slate-50 flex flex-col relative', ui.tab !== 'preview' ? 'hidden md:block' : '']" class="custom-scrollbar">
+    
+    <!-- Mobile Header -->
+    <div class="md:hidden sticky top-0 z-[60] bg-white border-b border-slate-100 flex items-center justify-between px-4 py-3 shadow-sm">
+      <button @click="ui.tab = 'create'" class="w-10 h-10 flex items-center justify-center text-[#1A237E] rounded-full hover:bg-slate-50 active:scale-95 transition-all">
+        <i class="fa-solid fa-arrow-left text-xl"></i>
+      </button>
+      <h2 class="text-[15px] font-black text-[#1A237E] uppercase tracking-widest">Xem trước phiếu đặt</h2>
+      <button class="w-10 h-10 flex items-center justify-center text-[#1A237E] rounded-full hover:bg-slate-50 active:scale-95 transition-all">
+        <i class="fa-solid fa-share-nodes text-lg"></i>
+      </button>
+    </div>
+
+    <!-- Info Banner -->
+    <div class="md:hidden bg-blue-50 border-b border-blue-100 px-4 py-2.5 flex items-center justify-between shadow-sm sticky top-[64px] z-[50]">
+      <div class="flex items-center gap-2 flex-1">
+        <div class="w-5 h-5 bg-blue-500 rounded-full flex items-center justify-center shrink-0">
+          <i class="fa-solid fa-info text-white text-[10px] font-bold"></i>
+        </div>
+        <span class="text-[11px] font-bold text-blue-800 leading-tight">Vui lòng kiểm tra thông tin trước khi gửi cho khách hàng</span>
+      </div>
+      <button @click="ui.tab = 'create'" class="shrink-0 ml-3 px-3 py-1.5 bg-white border border-blue-200 text-blue-700 rounded-lg text-xs font-bold shadow-sm active:scale-95 transition-all flex items-center gap-1.5 hover:bg-blue-50">
+        <i class="fa-solid fa-pen text-[10px]"></i> Chỉnh sửa
+      </button>
+    </div>
+
+    <div class="p-4 md:p-8 flex gap-0 md:gap-4 justify-center flex-1 pb-28 md:pb-8">
 
       <!-- Scaled wrapper -->
       <div class="w-full max-w-[800px] relative" :style="wrapperScaleStyles">
@@ -231,5 +256,32 @@ function resetParallax() {
         </div>
       </div>
     </div>
+
+    <!-- Bottom Actions Bar -->
+    <div class="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-slate-100 p-3 pb-safe z-50 flex gap-2 items-center justify-between shadow-[0_-5px_15px_-10px_rgba(0,0,0,0.1)] overflow-x-auto">
+      <div class="flex gap-2 flex-1 justify-start">
+        <button class="flex flex-col items-center justify-center bg-blue-50 text-blue-600 h-[50px] px-2.5 rounded-xl border border-blue-100/50 shrink-0 flex-1 max-w-[85px] active:scale-95 transition-transform">
+          <i class="fa-regular fa-image mb-0.5 text-sm"></i>
+          <span class="text-[9px] font-bold uppercase whitespace-nowrap">Tải ảnh PNG</span>
+        </button>
+        <button class="flex flex-col items-center justify-center bg-blue-50 text-blue-600 h-[50px] px-2.5 rounded-xl border border-blue-100/50 shrink-0 flex-1 max-w-[85px] active:scale-95 transition-transform">
+          <i class="fa-regular fa-file-pdf mb-0.5 text-sm"></i>
+          <span class="text-[9px] font-bold uppercase whitespace-nowrap">Tải file PDF</span>
+        </button>
+        <button class="flex flex-col items-center justify-center bg-blue-50 text-blue-600 h-[50px] px-2.5 rounded-xl border border-blue-100/50 shrink-0 flex-1 max-w-[85px] active:scale-95 transition-transform">
+          <img src="https://upload.wikimedia.org/wikipedia/commons/1/12/Google_Drive_icon_%282020%29.svg" class="w-3.5 h-3.5 mb-0.5">
+          <span class="text-[9px] font-bold uppercase whitespace-nowrap">Lưu lên Drive</span>
+        </button>
+      </div>
+      <button class="flex items-center justify-center bg-[#0D1658] text-white h-[50px] px-4 rounded-xl shrink-0 shadow-lg shadow-blue-900/20 font-black text-[11px] uppercase gap-2 hover:bg-blue-900 active:scale-95 transition-all ml-2">
+        <i class="fa-solid fa-share-nodes"></i> Chia sẻ phiếu
+      </button>
+    </div>
+    
+    <!-- Floating Chat Button -->
+    <button class="md:hidden fixed bottom-[84px] right-4 w-12 h-12 bg-blue-500 rounded-full flex items-center justify-center shadow-lg shadow-blue-500/30 text-white text-xl z-50 active:scale-95 transition-transform border-2 border-white">
+      <i class="fa-solid fa-comment-dots"></i>
+    </button>
+    
   </div>
 </template>
