@@ -56,42 +56,42 @@ function shareCurrentBill() {
     @touchend="onSwipeEnd"
   >
     <!-- HEADER -->
-    <div class="flex-shrink-0 bg-slate-900 text-white px-5 py-4 flex justify-between items-center relative overflow-hidden">
-      <div class="absolute inset-0 bg-gradient-to-r from-blue-600/10 to-transparent pointer-events-none"></div>
+    <div class="flex-shrink-0 bg-[#1A237E] text-white px-5 py-4 flex justify-between items-center relative overflow-hidden">
+      <div class="absolute inset-0 bg-gradient-to-r from-blue-400/20 to-transparent pointer-events-none"></div>
       <div class="flex items-center gap-4 relative z-10">
-        <div class="bg-white p-1.5 rounded-xl shadow-xl flex items-center justify-center overflow-hidden w-11 h-11 border-2" :style="{ borderColor: configStore.branding.color + '40' }">
-          <img src="/favicon.svg" class="w-full h-full object-contain" alt="KG Logo" loading="lazy" />
+        <div class="bg-white p-1.5 rounded-2xl shadow-xl flex items-center justify-center overflow-hidden w-12 h-12 border-2 border-white/20 backdrop-blur-sm">
+          <img :src="configStore.branding.logo || '/favicon.svg'" class="w-full h-full object-contain" alt="KG Logo" loading="lazy" />
         </div>
         <div>
-          <h1 class="font-black text-lg tracking-tighter leading-none text-white uppercase flex items-center gap-2">
+          <h1 class="font-black text-xl tracking-wider leading-none text-white uppercase flex items-center gap-2 drop-shadow-md" style="font-family: 'Be Vietnam Pro', sans-serif;">
             KING'S GRILL
-            <span class="w-2 h-2 rounded-full bg-blue-500 animate-pulse"></span>
+            <span class="w-2 h-2 rounded-full bg-green-400 animate-pulse shadow-[0_0_8px_rgba(74,222,128,0.8)]"></span>
           </h1>
-          <div class="flex items-center gap-2 mt-1">
-            <span class="text-[9px] px-2 py-0.5 rounded-md font-black uppercase tracking-widest inline-block text-white" :style="{ backgroundColor: configStore.branding.color }">AI MANAGER v6.0</span>
+          <div class="flex items-center gap-2 mt-1.5">
+            <span class="text-[9px] px-2.5 py-0.5 rounded-md font-black uppercase tracking-widest inline-block text-white bg-blue-600/40 border border-blue-400/30 backdrop-blur-sm">AI MANAGER v6.0</span>
           </div>
         </div>
       </div>
       <div class="flex items-center gap-3 relative z-10">
-        <div class="hidden sm:flex items-center gap-2 bg-white/5 px-3 py-1.5 rounded-full border border-white/10 hover:bg-white/10 transition-colors cursor-default">
-          <div class="w-2 h-2 rounded-full transition-colors shadow-[0_0_8px_rgba(34,197,94,0.5)]" :class="{'bg-green-500': ui.connectionStatus === 'online', 'bg-yellow-500 animate-pulse': ui.connectionStatus === 'syncing', 'bg-red-500': ui.connectionStatus === 'error'}"></div>
-          <span class="text-[10px] font-black text-slate-300 uppercase tracking-widest">{{ ui.connectionStatus }}</span>
+        <div class="hidden sm:flex items-center gap-2 bg-white/10 px-3 py-1.5 rounded-xl border border-white/10 hover:bg-white/20 transition-all cursor-default shadow-inner">
+          <div class="w-2 h-2 rounded-full transition-colors shadow-[0_0_8px_rgba(34,197,94,0.5)]" :class="{'bg-green-400': ui.connectionStatus === 'online', 'bg-yellow-400 animate-pulse': ui.connectionStatus === 'syncing', 'bg-red-400': ui.connectionStatus === 'error'}"></div>
+          <span class="text-[10px] font-black text-blue-50 uppercase tracking-widest">{{ ui.connectionStatus }}</span>
         </div>
-        <button @click="ui.showSettingsHub = true" class="w-10 h-10 rounded-xl bg-white/10 hover:bg-white/20 flex items-center justify-center border border-white/10 transition-all active:scale-90 group relative">
-          <i class="fa-solid fa-layer-group text-slate-300 group-hover:text-white transition-colors"></i>
+        <button @click="ui.showSettingsHub = true" class="w-11 h-11 rounded-xl bg-white/10 hover:bg-white/25 flex items-center justify-center border border-white/10 transition-all active:scale-95 group relative shadow-sm">
+          <i class="fa-solid fa-layer-group text-blue-100 group-hover:text-white transition-colors text-lg"></i>
           <span v-if="configStore.totalKeysHasData" class="absolute -top-1 -right-1 flex h-4 w-4">
-            <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
-            <span class="relative inline-flex rounded-full h-4 w-4 bg-green-500 border-2 border-slate-900"></span>
+            <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+            <span class="relative inline-flex rounded-full h-4 w-4 bg-red-500 border-2 border-[#1A237E]"></span>
           </span>
         </button>
       </div>
     </div>
 
     <!-- TABS -->
-    <div class="flex bg-white text-[10px] font-black border-b border-gray-100 uppercase tracking-widest">
-      <button @click="ui.tab = 'create'" :class="['flex-1 py-3 flex justify-center items-center gap-2 transition-all min-h-[42px] border-b-3', ui.tab === 'create' ? 'border-b-[3px]' : 'text-gray-400 border-b-[3px] border-transparent']" :style="ui.tab === 'create' ? { color: configStore.branding.color, borderColor: configStore.branding.color, backgroundColor: configStore.branding.color + '0d' } : {}"><i class="fa-solid fa-pen-nib"></i> Nhập Liệu</button>
-      <button @click="appStore.loadHistory(false)" :class="['flex-1 py-3 flex justify-center items-center gap-2 transition-all min-h-[42px]', ui.tab === 'history' ? 'border-b-[3px]' : 'text-gray-400 border-b-[3px] border-transparent']" :style="ui.tab === 'history' ? { color: configStore.branding.color, borderColor: configStore.branding.color, backgroundColor: configStore.branding.color + '0d' } : {}"><i class="fa-solid fa-clock-rotate-left"></i> Lịch Sử</button>
-      <button @click="ui.tab = 'preview'" class="md:hidden flex-1 py-3 flex justify-center items-center gap-2 text-slate-600 bg-gray-50 min-h-[42px] border-b-[3px] border-transparent"><i class="fa-solid fa-eye"></i> Preview</button>
+    <div class="flex bg-white text-[10px] font-black border-b border-slate-100 uppercase tracking-widest shadow-sm relative z-10">
+      <button @click="ui.tab = 'create'" :class="['flex-1 py-3.5 flex justify-center items-center gap-2 transition-all min-h-[46px] border-b-[3px]', ui.tab === 'create' ? 'text-[#1A237E] border-[#1A237E] bg-blue-50/50' : 'text-slate-400 border-transparent hover:text-slate-600 hover:bg-slate-50']"><i class="fa-solid fa-pen-nib text-sm"></i> Nhập Liệu</button>
+      <button @click="appStore.loadHistory(false)" :class="['flex-1 py-3.5 flex justify-center items-center gap-2 transition-all min-h-[46px] border-b-[3px]', ui.tab === 'history' ? 'text-[#1A237E] border-[#1A237E] bg-blue-50/50' : 'text-slate-400 border-transparent hover:text-slate-600 hover:bg-slate-50']"><i class="fa-solid fa-clock-rotate-left text-sm"></i> Lịch Sử</button>
+      <button @click="ui.tab = 'preview'" class="md:hidden flex-1 py-3.5 flex justify-center items-center gap-2 transition-all min-h-[46px] border-b-[3px] border-transparent text-slate-500 bg-slate-50 hover:bg-slate-100"><i class="fa-solid fa-eye text-sm"></i> Preview</button>
     </div>
 
     <!-- CREATE TAB -->

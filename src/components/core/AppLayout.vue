@@ -142,36 +142,41 @@ onMounted(() => {
     </div>
 
     <!-- SETTINGS HUB MODAL -->
-    <div v-if="ui.showSettingsHub" class="fixed inset-0 bg-black/60 z-50 flex justify-center items-center p-4 backdrop-blur-sm" @click.self="ui.showSettingsHub = false">
-      <div class="bg-white rounded-3xl shadow-2xl p-8 max-w-md w-[95%] md:w-full flex flex-col">
+    <div v-if="ui.showSettingsHub" class="fixed inset-0 bg-[#0D1658]/80 z-[12000] flex justify-center items-center p-4 backdrop-blur-md" @click.self="ui.showSettingsHub = false">
+      <div class="bg-white rounded-3xl shadow-2xl p-6 md:p-8 max-w-2xl w-[95%] md:w-full flex flex-col border border-white/20">
         <div class="flex justify-between items-center mb-6">
-          <h3 class="text-2xl font-black text-slate-800 uppercase tracking-tighter"><i class="fa-solid fa-gear text-slate-600 mr-2"></i>Cài Đặt Hệ Thống</h3>
-          <button @click="ui.showSettingsHub = false" class="text-gray-400 hover:text-red-500 transition-colors p-2 min-h-[44px] min-w-[44px]"><i class="fa-solid fa-circle-xmark text-3xl"></i></button>
+          <h3 class="text-2xl font-black text-[#1A237E] uppercase tracking-tighter flex items-center gap-3" style="font-family: 'Be Vietnam Pro', sans-serif;">
+            <div class="w-10 h-10 bg-blue-50 rounded-xl flex items-center justify-center text-blue-600">
+              <i class="fa-solid fa-gear"></i>
+            </div>
+            Cài Đặt Hệ Thống
+          </h3>
+          <button @click="ui.showSettingsHub = false" class="w-10 h-10 bg-slate-50 text-slate-400 rounded-xl hover:bg-red-50 hover:text-red-500 transition-all flex items-center justify-center"><i class="fa-solid fa-xmark text-xl"></i></button>
         </div>
-        <div class="grid grid-cols-2 gap-4">
-          <button @click="ui.openConfig('branding')" class="p-6 bg-blue-50 border-2 border-blue-100 rounded-2xl flex flex-col items-center justify-center gap-2 hover:bg-blue-100 hover:border-blue-300 transition-all active:scale-95 group min-h-[120px]">
-            <i class="fa-solid fa-palette text-3xl text-blue-500 group-hover:scale-110 transition-transform"></i>
-            <span class="font-black text-xs uppercase text-slate-600 tracking-wide">Giao Diện</span>
+        <div class="grid grid-cols-2 md:grid-cols-3 gap-3 md:gap-4">
+          <button @click="ui.openConfig('branding')" class="p-6 bg-slate-50 border border-slate-100 rounded-2xl flex flex-col items-center justify-center gap-3 hover:bg-blue-50 hover:border-blue-200 transition-all active:scale-95 group min-h-[110px] shadow-sm">
+            <i class="fa-solid fa-palette text-3xl text-[#1A237E] group-hover:scale-110 transition-transform"></i>
+            <span class="font-black text-[11px] uppercase text-slate-700 tracking-wider">Giao Diện</span>
           </button>
-          <button @click="ui.openConfig('menu')" class="p-6 bg-green-50 border-2 border-green-100 rounded-2xl flex flex-col items-center justify-center gap-2 hover:bg-green-100 hover:border-green-300 transition-all active:scale-95 group min-h-[120px]">
-            <i class="fa-solid fa-utensils text-3xl text-green-500 group-hover:scale-110 transition-transform"></i>
-            <span class="font-black text-xs uppercase text-slate-600 tracking-wide">Thực Đơn</span>
+          <button @click="ui.openConfig('menu')" class="p-6 bg-slate-50 border border-slate-100 rounded-2xl flex flex-col items-center justify-center gap-3 hover:bg-green-50 hover:border-green-200 transition-all active:scale-95 group min-h-[110px] shadow-sm">
+            <i class="fa-solid fa-utensils text-3xl text-green-600 group-hover:scale-110 transition-transform"></i>
+            <span class="font-black text-[11px] uppercase text-slate-700 tracking-wider">Thực Đơn</span>
           </button>
-          <button @click="ui.openConfig('bank')" class="p-6 bg-purple-50 border-2 border-purple-100 rounded-2xl flex flex-col items-center justify-center gap-2 hover:bg-purple-100 hover:border-purple-300 transition-all active:scale-95 group min-h-[120px]">
-            <i class="fa-solid fa-building-columns text-3xl text-purple-500 group-hover:scale-110 transition-transform"></i>
-            <span class="font-black text-xs uppercase text-slate-600 tracking-wide">Ngân Hàng</span>
+          <button @click="ui.openConfig('bank')" class="p-6 bg-slate-50 border border-slate-100 rounded-2xl flex flex-col items-center justify-center gap-3 hover:bg-purple-50 hover:border-purple-200 transition-all active:scale-95 group min-h-[110px] shadow-sm">
+            <i class="fa-solid fa-building-columns text-3xl text-purple-600 group-hover:scale-110 transition-transform"></i>
+            <span class="font-black text-[11px] uppercase text-slate-700 tracking-wider">Ngân Hàng</span>
           </button>
-          <button @click="ui.openConfig('staff')" class="p-6 bg-orange-50 border-2 border-orange-100 rounded-2xl flex flex-col items-center justify-center gap-2 hover:bg-orange-100 hover:border-orange-300 transition-all active:scale-95 group min-h-[120px]">
+          <button @click="ui.openConfig('staff')" class="p-6 bg-slate-50 border border-slate-100 rounded-2xl flex flex-col items-center justify-center gap-3 hover:bg-orange-50 hover:border-orange-200 transition-all active:scale-95 group min-h-[110px] shadow-sm">
             <i class="fa-solid fa-users-gear text-3xl text-orange-500 group-hover:scale-110 transition-transform"></i>
-            <span class="font-black text-xs uppercase text-slate-600 tracking-wide">Nhân Viên</span>
+            <span class="font-black text-[11px] uppercase text-slate-700 tracking-wider">Nhân Viên</span>
           </button>
-          <button @click="ui.openConfig('ai')" class="p-4 bg-slate-100 border-2 border-slate-200 rounded-2xl flex items-center justify-center gap-3 hover:bg-slate-200 hover:border-slate-300 transition-all active:scale-95 min-h-[60px]">
-            <i class="fa-solid fa-microchip text-xl text-slate-600"></i>
-            <span class="font-black text-xs uppercase text-slate-600 tracking-wide">AI Core v6.0</span>
+          <button @click="ui.openConfig('ai')" class="p-6 bg-slate-50 border border-slate-100 rounded-2xl flex flex-col items-center justify-center gap-3 hover:bg-indigo-50 hover:border-indigo-200 transition-all active:scale-95 group min-h-[110px] shadow-sm">
+            <i class="fa-solid fa-microchip text-3xl text-indigo-500 group-hover:scale-110 transition-transform"></i>
+            <span class="font-black text-[11px] uppercase text-slate-700 tracking-wider">AI Core</span>
           </button>
-          <button @click="ui.openConfig('webhook')" class="p-4 bg-cyan-50 border-2 border-cyan-200 rounded-2xl flex items-center justify-center gap-3 hover:bg-cyan-100 hover:border-cyan-300 transition-all active:scale-95 min-h-[60px]">
-            <i class="fa-solid fa-bell text-xl text-cyan-600"></i>
-            <span class="font-black text-xs uppercase text-slate-600 tracking-wide">Thông Báo</span>
+          <button @click="ui.openConfig('webhook')" class="p-6 bg-slate-50 border border-slate-100 rounded-2xl flex flex-col items-center justify-center gap-3 hover:bg-cyan-50 hover:border-cyan-200 transition-all active:scale-95 group min-h-[110px] shadow-sm">
+            <i class="fa-solid fa-bell text-3xl text-cyan-500 group-hover:scale-110 transition-transform"></i>
+            <span class="font-black text-[11px] uppercase text-slate-700 tracking-wider">Thông Báo</span>
           </button>
         </div>
       </div>
@@ -204,25 +209,26 @@ onMounted(() => {
     <WebhookConfigModal />
 
     <!-- DESKTOP SIDEBAR -->
-    <aside class="hidden lg:flex w-20 bg-slate-950 flex-col items-center py-8 gap-8 border-r border-white/5 z-30 shadow-2xl">
-      <div class="w-12 h-12 bg-blue-600 rounded-2xl flex items-center justify-center shadow-lg shadow-blue-500/20 active:scale-95 transition-transform cursor-pointer">
-        <i class="fa-solid fa-crown text-white text-xl"></i>
+    <aside class="hidden lg:flex w-20 bg-[#0D1658] flex-col items-center py-8 gap-8 border-r border-white/5 z-30 shadow-[4px_0_24px_rgba(0,0,0,0.1)]">
+      <div class="w-12 h-12 bg-blue-500 rounded-2xl flex items-center justify-center shadow-[0_4px_12px_rgba(59,130,246,0.3)] active:scale-95 transition-transform cursor-pointer border border-blue-400/30 relative overflow-hidden">
+        <div class="absolute inset-0 bg-gradient-to-br from-white/20 to-transparent pointer-events-none"></div>
+        <i class="fa-solid fa-crown text-white text-xl relative z-10"></i>
       </div>
       
       <nav class="flex-1 flex flex-col gap-6 w-full px-4">
-        <button @click="ui.tab = 'create'" :class="['w-12 h-12 rounded-2xl flex items-center justify-center transition-all group', ui.tab === 'create' ? 'bg-white/10 text-white shadow-inner' : 'text-slate-500 hover:text-slate-300 hover:bg-white/5']">
+        <button @click="ui.tab = 'create'" :class="['w-12 h-12 rounded-2xl flex items-center justify-center transition-all group', ui.tab === 'create' ? 'bg-white/10 text-white shadow-inner border border-white/10' : 'text-blue-200 hover:text-white hover:bg-white/5']">
           <i class="fa-solid fa-house-chimney text-lg group-hover:scale-110 transition-transform"></i>
         </button>
-        <button @click="appStore.loadHistory(false)" :class="['w-12 h-12 rounded-2xl flex items-center justify-center transition-all group', ui.tab === 'history' ? 'bg-white/10 text-white shadow-inner' : 'text-slate-500 hover:text-slate-300 hover:bg-white/5']">
+        <button @click="appStore.loadHistory(false)" :class="['w-12 h-12 rounded-2xl flex items-center justify-center transition-all group', ui.tab === 'history' ? 'bg-white/10 text-white shadow-inner border border-white/10' : 'text-blue-200 hover:text-white hover:bg-white/5']">
           <i class="fa-solid fa-calendar-days text-lg group-hover:scale-110 transition-transform"></i>
         </button>
-        <button @click="ui.showSettingsHub = true" class="w-12 h-12 rounded-2xl flex items-center justify-center text-slate-500 hover:text-slate-300 hover:bg-white/5 transition-all group">
+        <button @click="ui.showSettingsHub = true" class="w-12 h-12 rounded-2xl flex items-center justify-center text-blue-200 hover:text-white hover:bg-white/5 transition-all group">
           <i class="fa-solid fa-sliders text-lg group-hover:scale-110 transition-transform"></i>
         </button>
       </nav>
 
-      <div class="mt-auto flex flex-col gap-6">
-        <div class="w-10 h-10 rounded-full border-2 border-slate-800 overflow-hidden cursor-pointer hover:border-blue-500 transition-colors">
+      <div class="mt-auto flex flex-col gap-6 w-full px-4 items-center">
+        <div class="w-10 h-10 rounded-full border-2 border-[#1A237E] overflow-hidden cursor-pointer hover:border-blue-400 transition-colors shadow-lg">
           <img src="https://api.dicebear.com/7.x/avataaars/svg?seed=Admin" alt="Admin">
         </div>
       </div>
