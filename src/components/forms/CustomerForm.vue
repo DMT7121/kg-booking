@@ -112,7 +112,7 @@ const selectedIcon = computed(() => {
           <div class="flex flex-col items-center gap-1">
             <span class="text-[10px] font-bold text-slate-400">Nhập số bàn</span>
             <div class="flex items-center gap-2 bg-white border border-slate-200 rounded-lg p-1 shadow-sm">
-              <button @click="if(aiTableCount>1) aiTableCount--" class="w-6 h-6 flex items-center justify-center text-blue-600 hover:bg-blue-50 rounded"><i class="fa-solid fa-minus text-xs"></i></button>
+              <button @click="aiTableCount > 1 ? aiTableCount-- : null" class="w-6 h-6 flex items-center justify-center text-blue-600 hover:bg-blue-50 rounded"><i class="fa-solid fa-minus text-xs"></i></button>
               <span class="w-6 text-center font-black text-slate-800">{{ aiTableCount }}</span>
               <button @click="aiTableCount++" class="w-6 h-6 flex items-center justify-center text-blue-600 hover:bg-blue-50 rounded"><i class="fa-solid fa-plus text-xs"></i></button>
             </div>
