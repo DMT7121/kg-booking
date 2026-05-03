@@ -1,75 +1,421 @@
 <script setup lang="ts">
+import { ref, computed } from 'vue'
 import { useUIStore } from '@/stores/useUIStore'
 import { useAppStore } from '@/stores/useAppStore'
+import { formatVND } from '@/utils'
 import { useForm } from '@/composables/useForm'
 
 const ui = useUIStore()
 const appStore = useAppStore()
 const { fillSampleMenu, prepareUpdate } = useForm()
+
+// Tabs
+const activeTab = ref('manage') // 'manage' | 'add'
+
+// Manage Tab States
+const showAllMenus = ref(false)
+const showUploadModal = ref(false)
+
+// Add/Edit Dish States
+const viewMode = ref('grid') // 'list' | 'grid'
+const selectedCategory = ref('')
+const selectedDish = ref<any>(null)
+
+// Mock data for UI presentation
+const mockCategories = ['Khai vị', 'Súp', 'Món chính', 'Tráng miệng', 'Đồ uống']
+
+const mockMenus = [
+  { id: 1, name: 'Thực đơn tiệc cưới', date: '10/05/2025', count: 25, icon: 'fa-bell-concierge', color: 'text-blue-500', bg: 'bg-blue-50' },
+  { id: 2, name: 'Thực đơn tiệc công ty', date: '02/05/2025', count: 18, icon: 'fa-utensils', color: 'text-green-500', bg: 'bg-green-50' },
+  { id: 3, name: 'Thực đơn gọi món', date: '15/04/2025', count: 42, icon: 'fa-bowl-food', color: 'text-orange-500', bg: 'bg-orange-50' }
+]
+
+// Enhance menuList with mock images and categories
+const enhancedMenuList = computed(() => {
+  return appStore.menuList.map((item, index) => {
+    const cat = mockCategories[index % mockCategories.length]
+    return {
+      ...item,
+      category: cat,
+      // Fixed placeholder images to avoid flickering
+      image: `https://picsum.photos/seed/${item.cleanName || index}/200/200`,
+      inUse: index % 3 === 0
+    }
+  })
+})
+
+function close() {
+  ui.showMenuManager = false
+}
+
+function selectDish(dish: any) {
+  selectedDish.value = dish
+}
+
+function openUploadModal() {
+  ui.isUpdateMode = false
+  appStore.newMenuName = ''
+  appStore.newMenuContent = ''
+  showUploadModal.value = true
+}
 </script>
 
 <template>
-  <div v-if="ui.showMenuManager" class="fixed inset-0 bg-[#0D1658]/80 z-[12000] flex justify-center items-center p-4 backdrop-blur-md" @click.self="ui.showMenuManager = false">
-    <div class="bg-white rounded-3xl shadow-2xl p-6 md:p-8 max-w-lg w-[95%] md:w-full flex flex-col relative overflow-hidden border border-white/20 max-h-[90vh]">
-      
-      <!-- Header BG Decoration -->
-      <div class="absolute top-0 left-0 right-0 h-24 bg-gradient-to-r from-blue-600 to-[#1A237E] rounded-t-3xl opacity-10"></div>
-      
-      <!-- Header -->
-      <div class="flex justify-between items-center mb-6 relative z-10">
-        <h3 class="text-2xl font-black text-[#1A237E] uppercase tracking-tighter flex items-center gap-3">
-          <div class="w-10 h-10 bg-blue-50 rounded-xl flex items-center justify-center text-blue-600">
-            <i class="fa-solid fa-utensils"></i>
-          </div>
-          Quản Lý Menu
-        </h3>
-        <button @click="ui.showMenuManager = false" class="w-10 h-10 bg-slate-50 text-slate-400 rounded-xl hover:bg-red-50 hover:text-red-500 transition-all flex items-center justify-center shrink-0 shadow-sm border border-slate-100">
-          <i class="fa-solid fa-xmark text-xl"></i>
-        </button>
+  <div v-if="ui.showMenuManager" class="fixed inset-0 bg-slate-50 md:bg-white z-[12000] flex flex-col overflow-hidden">
+    
+    <!-- Header -->
+    <div class="flex items-center justify-between px-4 py-3 border-b border-slate-100 bg-white shrink-0 shadow-sm relative z-20">
+      <button @click="close" class="w-10 h-10 flex items-center justify-center text-[#1A237E] hover:bg-slate-50 rounded-full transition-colors active:scale-95">
+        <i class="fa-solid fa-arrow-left text-xl"></i>
+      </button>
+      <div class="text-center flex-1">
+        <h2 class="text-lg font-black text-[#1A237E]">{{ activeTab === 'manage' ? 'Thêm thực đơn' : 'Thêm / Chỉnh sửa ảnh món' }}</h2>
+        <p v-if="activeTab === 'add'" class="text-[11px] text-slate-500 mt-0.5">Quản lý và cập nhật hình ảnh món ăn</p>
       </div>
+      <button class="w-10 h-10 flex items-center justify-center text-[#1A237E] hover:bg-slate-50 rounded-full transition-colors">
+        <i class="fa-regular fa-circle-question text-xl"></i>
+      </button>
+    </div>
 
-      <!-- Tabs -->
-      <div class="flex bg-slate-100 p-1.5 rounded-2xl mb-6 relative z-10">
-        <button @click="ui.menuTab = 'select'" :class="['flex-1 py-3 rounded-xl font-black text-xs uppercase transition-all', ui.menuTab === 'select' ? 'bg-white text-[#1A237E] shadow-sm' : 'text-slate-500 hover:text-slate-700']">CHỌN MENU</button>
-        <button @click="ui.menuTab = 'upload'; ui.isUpdateMode = false" :class="['flex-1 py-3 rounded-xl font-black text-xs uppercase transition-all', ui.menuTab === 'upload' ? 'bg-white text-[#1A237E] shadow-sm' : 'text-slate-500 hover:text-slate-700']">TẠO / CẬP NHẬT</button>
-      </div>
+    <!-- Tabs -->
+    <div class="flex border-b border-slate-200 shrink-0 bg-white px-4 relative z-10 shadow-sm">
+      <button @click="activeTab = 'manage'" :class="['flex-1 py-3 text-sm font-bold text-center border-b-2 transition-colors relative', activeTab === 'manage' ? 'border-[#1A237E] text-[#1A237E]' : 'border-transparent text-slate-400 hover:text-slate-600']">
+        Quản lý thực đơn
+      </button>
+      <button @click="activeTab = 'add'" :class="['flex-1 py-3 text-sm font-bold text-center border-b-2 transition-colors relative', activeTab === 'add' ? 'border-[#1A237E] text-[#1A237E]' : 'border-transparent text-slate-400 hover:text-slate-600']">
+        Thêm món
+      </button>
+    </div>
 
-      <div class="overflow-y-auto custom-scrollbar pr-1 relative z-10 flex-grow">
-        <!-- Select Tab -->
-        <div v-if="ui.menuTab === 'select'" class="space-y-3 pb-4">
-          <div v-for="sheet in appStore.menuSheets" :key="sheet"
-            :class="['p-4 rounded-2xl border-2 flex justify-between items-center transition-all cursor-pointer group', sheet === appStore.activeSheet ? 'border-[#1A237E] bg-blue-50/50 shadow-md' : 'border-slate-100 hover:border-blue-200 hover:bg-slate-50']"
-            @click="appStore.switchMenu(sheet)">
-            <div class="flex items-center gap-3">
-              <i :class="['fa-solid text-xl transition-all', sheet === appStore.activeSheet ? 'fa-circle-check text-[#1A237E]' : 'fa-circle text-slate-200 group-hover:text-blue-300']"></i>
-              <span class="font-black text-sm" :class="sheet === appStore.activeSheet ? 'text-[#1A237E]' : 'text-slate-700'">{{ sheet }}</span>
-            </div>
-            <button @click.stop="prepareUpdate(sheet)" class="w-10 h-10 bg-white border border-slate-200 text-slate-500 rounded-xl hover:bg-blue-50 hover:text-blue-600 hover:border-blue-200 transition-all flex items-center justify-center active:scale-95 shadow-sm">
-              <i class="fa-solid fa-pen"></i>
+    <!-- Scrollable Content Area -->
+    <div class="flex-1 overflow-y-auto custom-scrollbar relative z-0">
+      
+      <!-- TAB 1: QUẢN LÝ THỰC ĐƠN -->
+      <div v-if="activeTab === 'manage'" class="p-4 md:p-6 lg:p-8 max-w-5xl mx-auto space-y-6">
+        
+        <!-- AI Banner -->
+        <div class="bg-[#2D4FE0] rounded-2xl p-5 text-white shadow-lg shadow-blue-900/10 relative overflow-hidden flex items-center">
+          <div class="relative z-10 flex-1 pr-4">
+            <h3 class="text-base md:text-lg font-black mb-1.5 flex items-center gap-2 uppercase tracking-wide">
+              AI Phân tích thực đơn <i class="fa-solid fa-wand-magic-sparkles text-yellow-300"></i>
+            </h3>
+            <p class="text-[13px] text-blue-100 mb-4 leading-relaxed opacity-90">Nhập danh sách món, AI sẽ tách tên món và gợi ý giá bán cho bạn</p>
+            <button @click="openUploadModal" class="bg-white/10 hover:bg-white/20 backdrop-blur-md text-white px-4 py-2.5 rounded-xl text-sm font-bold flex items-center gap-2 transition-colors border border-white/20 active:scale-95 shadow-sm">
+              <i class="fa-regular fa-file-lines"></i> Nhập thực đơn từ văn bản
             </button>
           </div>
-          <div v-if="appStore.menuSheets.length === 0" class="text-center py-10 bg-slate-50 rounded-2xl border border-slate-100">
-            <i class="fa-solid fa-folder-open text-4xl mb-3 text-slate-300"></i>
-            <p class="font-black text-slate-500 text-xs uppercase tracking-widest">Chưa có menu nào</p>
+          <div class="hidden sm:block w-32 h-32 bg-blue-400/20 rounded-2xl relative shrink-0 overflow-hidden border border-white/10 backdrop-blur-sm p-3 shadow-inner">
+             <div class="w-full h-full border border-dashed border-white/30 rounded-xl flex flex-col items-center justify-center text-white/50 relative">
+               <i class="fa-solid fa-list-ul text-2xl mb-1"></i>
+               <div class="absolute -bottom-2 -right-2 w-12 h-12 bg-gradient-to-br from-blue-400 to-blue-600 rounded-full flex items-center justify-center text-white font-black text-sm shadow-lg border-2 border-[#2D4FE0]">AI</div>
+             </div>
           </div>
         </div>
 
-        <!-- Upload / Update Tab -->
-        <div v-if="ui.menuTab === 'upload'" class="space-y-5 pb-4">
+        <!-- Danh sách thực đơn (Menus) -->
+        <div>
+          <div class="flex justify-between items-center mb-3">
+            <h4 class="text-xs font-black text-slate-500 uppercase tracking-widest">Danh sách thực đơn</h4>
+            <button @click="openUploadModal" class="bg-[#1A237E] text-white px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 hover:bg-blue-800 transition-all active:scale-95 shadow-md shadow-blue-900/20">
+              <i class="fa-solid fa-plus"></i> Thêm thực đơn
+            </button>
+          </div>
+          
+          <div class="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm">
+            <div class="flex flex-col">
+              <!-- Actual active sheet from store -->
+              <div v-for="sheet in appStore.menuSheets" :key="sheet" 
+                   @click="appStore.switchMenu(sheet)"
+                   :class="['flex items-center gap-4 p-4 border-b border-slate-100 last:border-0 hover:bg-slate-50 transition-colors cursor-pointer group', sheet === appStore.activeSheet ? 'bg-blue-50/50' : '']">
+                <div :class="['w-12 h-12 rounded-xl flex items-center justify-center text-xl shrink-0 transition-all', sheet === appStore.activeSheet ? 'bg-blue-100 text-blue-600' : 'bg-slate-100 text-slate-400 group-hover:bg-blue-50 group-hover:text-blue-500']">
+                  <i class="fa-solid fa-file-lines"></i>
+                </div>
+                <div class="flex-1 min-w-0">
+                  <h5 :class="['font-bold text-base truncate transition-colors', sheet === appStore.activeSheet ? 'text-[#1A237E]' : 'text-slate-700']">{{ sheet }}</h5>
+                  <p class="text-[11px] text-slate-500 mt-0.5 truncate uppercase tracking-wide">{{ sheet === appStore.activeSheet ? 'Đang sử dụng' : 'Menu hệ thống' }}</p>
+                </div>
+                <button @click.stop="prepareUpdate(sheet); showUploadModal = true" class="w-8 h-8 flex items-center justify-center text-slate-400 hover:text-blue-600 rounded-full hover:bg-blue-50 transition-colors shrink-0">
+                  <i class="fa-solid fa-pen"></i>
+                </button>
+              </div>
+              
+              <!-- Mock visual placeholders to match design -->
+              <div v-if="appStore.menuSheets.length === 0" v-for="menu in mockMenus.slice(0,2)" :key="'mock'+menu.id" 
+                   class="flex items-center gap-4 p-4 border-b border-slate-100 hover:bg-slate-50 transition-colors cursor-pointer">
+                <div :class="['w-12 h-12 rounded-xl flex items-center justify-center text-xl shrink-0', menu.bg, menu.color]">
+                  <i :class="['fa-solid', menu.icon]"></i>
+                </div>
+                <div class="flex-1 min-w-0">
+                  <h5 class="font-bold text-slate-700 text-base truncate">{{ menu.name }}</h5>
+                  <p class="text-xs text-slate-500 mt-0.5 truncate">Tạo ngày {{ menu.date }} &bull; {{ menu.count }} món</p>
+                </div>
+                <button class="w-8 h-8 flex items-center justify-center text-slate-400 hover:text-[#1A237E] rounded-full hover:bg-slate-100 transition-colors shrink-0">
+                  <i class="fa-solid fa-ellipsis"></i>
+                </button>
+              </div>
+            </div>
+            
+            <button v-if="appStore.menuSheets.length > 3 || mockMenus.length > 2" class="w-full p-3 text-sm font-bold text-blue-600 hover:bg-slate-50 transition-colors flex items-center justify-center gap-2 border-t border-slate-100">
+              Xem tất cả <i class="fa-solid fa-chevron-down"></i>
+            </button>
+          </div>
+        </div>
+
+        <!-- Chi tiết thực đơn (Selected Menu) -->
+        <div class="pt-2">
+          <div class="flex flex-wrap items-center justify-between gap-4 mb-4">
+            <div class="flex items-center gap-3">
+              <h3 class="text-lg md:text-xl font-black text-[#1A237E] uppercase tracking-tight">{{ appStore.activeSheet || 'THỰC ĐƠN TRỐNG' }}</h3>
+              <span class="bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-widest border border-emerald-200">Đang sử dụng</span>
+            </div>
+            <div class="flex items-center gap-2">
+              <button @click="prepareUpdate(appStore.activeSheet); showUploadModal = true" class="px-3 py-1.5 border border-slate-200 bg-white rounded-lg text-sm font-bold text-slate-600 flex items-center gap-2 hover:bg-slate-50 transition-colors shadow-sm">
+                <i class="fa-solid fa-pen text-blue-500"></i> Sửa
+              </button>
+              <button class="px-3 py-1.5 border border-slate-200 bg-white rounded-lg text-sm font-bold text-slate-600 flex items-center gap-2 hover:bg-slate-50 transition-colors shadow-sm">
+                <i class="fa-solid fa-download text-[#1A237E]"></i> Xuất file
+              </button>
+            </div>
+          </div>
+
+          <!-- Filters -->
+          <div class="flex flex-col md:flex-row md:items-center gap-3 mb-4">
+            <span class="text-sm font-bold text-slate-500 hidden md:block w-20">{{ enhancedMenuList.length }} món</span>
+            <div class="flex-1 relative">
+              <i class="fa-solid fa-magnifying-glass absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400"></i>
+              <input type="text" placeholder="Tìm kiếm món ăn..." class="w-full pl-10 pr-4 py-2.5 bg-white border border-slate-200 rounded-xl text-sm font-medium text-slate-700 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition-all shadow-sm">
+            </div>
+            <div class="flex items-center gap-3">
+              <span class="text-sm font-bold text-slate-500 md:hidden flex-1">{{ enhancedMenuList.length }} món</span>
+              <button class="px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-sm font-bold text-[#1A237E] flex items-center gap-2 hover:bg-slate-50 transition-colors shrink-0 shadow-sm">
+                <i class="fa-solid fa-filter"></i> Bộ lọc
+              </button>
+            </div>
+          </div>
+
+          <!-- Dish List -->
+          <div class="space-y-3 pb-8">
+            <div v-for="dish in enhancedMenuList" :key="dish.name" class="bg-white p-3 rounded-2xl border border-slate-200 shadow-sm flex items-center gap-4 hover:border-blue-300 transition-all group">
+              <img :src="dish.image" alt="dish" class="w-16 h-16 md:w-20 md:h-20 rounded-xl object-cover shrink-0 bg-slate-100 shadow-sm">
+              <div class="flex-1 min-w-0">
+                <div class="flex items-center gap-2 flex-wrap mb-1">
+                  <h4 class="font-bold text-slate-800 text-sm md:text-base truncate">{{ dish.name }}</h4>
+                  <span class="bg-blue-50 text-blue-600 px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-wider shrink-0 border border-blue-100">{{ dish.category }}</span>
+                </div>
+                <div v-if="dish.inUse" class="flex items-center gap-1.5 text-[11px] font-medium text-slate-500 bg-slate-50 inline-flex px-2 py-0.5 rounded-md">
+                  <i class="fa-solid fa-clipboard-check text-emerald-500"></i> Đã có trong phiếu đặt
+                </div>
+              </div>
+              <div class="text-right shrink-0 flex flex-col items-end gap-1">
+                <div class="font-black text-[#1A237E] text-sm md:text-base">{{ formatVND(dish.price) }}</div>
+                <button class="w-8 h-8 flex items-center justify-center text-slate-400 hover:text-[#1A237E] rounded-full hover:bg-blue-50 transition-colors opacity-0 group-hover:opacity-100 md:opacity-100">
+                  <i class="fa-solid fa-ellipsis"></i>
+                </button>
+              </div>
+            </div>
+            
+            <div v-if="enhancedMenuList.length === 0" class="text-center py-12 bg-white rounded-2xl border border-slate-200 border-dashed">
+              <i class="fa-solid fa-plate-wheat text-4xl text-slate-200 mb-3"></i>
+              <p class="text-slate-500 font-bold text-sm">Chưa có món ăn nào trong thực đơn này</p>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- TAB 2: THÊM MÓN (GRID/LIST WITH EDIT PANEL) -->
+      <div v-if="activeTab === 'add'" class="flex flex-col lg:flex-row min-h-full max-w-7xl mx-auto">
+        <!-- Left Side: Dish Grid -->
+        <div class="flex-1 p-4 md:p-6 lg:border-r border-slate-200 flex flex-col h-full bg-slate-50 lg:bg-transparent">
+          <!-- Toolbar -->
+          <div class="flex flex-wrap items-center gap-3 mb-5">
+            <div class="flex-1 min-w-[200px] relative">
+              <i class="fa-solid fa-magnifying-glass absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400"></i>
+              <input type="text" placeholder="Tìm kiếm món ăn..." class="w-full pl-10 pr-4 py-2.5 bg-white border border-slate-200 rounded-xl text-sm font-medium text-slate-700 focus:outline-none focus:border-blue-500 shadow-sm transition-all">
+            </div>
+            <div class="flex gap-2 shrink-0">
+              <select v-model="selectedCategory" class="px-3 py-2.5 bg-white border border-slate-200 rounded-xl text-sm font-bold text-slate-600 focus:outline-none focus:border-blue-500 shadow-sm appearance-none pr-8 relative bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIGZpbGw9Im5vbmUiIHZpZXdCb3g9IjAgMCAyNCAyNCIgc3Ryb2tlLXdpZHRoPSIyIiBzdHJva2U9IiM2NDc0OGIiPjxwYXRoIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgc3Ryb2tlLWxpbmVqb2luPSJyb3VuZCIgZD0iTTE5IDlsLTcgNy03LTciLz48L3N2Zz4=')] bg-[length:16px_16px] bg-[right_10px_center] bg-no-repeat">
+                <option value="">Loại món</option>
+                <option v-for="cat in mockCategories" :key="cat" :value="cat">{{ cat }}</option>
+              </select>
+              <button class="px-3 py-2.5 bg-white border border-slate-200 rounded-xl text-sm font-bold text-slate-600 flex items-center gap-2 hover:bg-slate-50 shadow-sm">
+                <i class="fa-solid fa-filter text-slate-400"></i> Bộ lọc
+              </button>
+            </div>
+          </div>
+
+          <div class="flex justify-between items-center mb-4">
+            <h4 class="text-xs font-black text-slate-500 uppercase tracking-widest">Danh sách món ({{ enhancedMenuList.length }})</h4>
+            <div class="flex bg-slate-200 p-1 rounded-xl shadow-inner">
+              <button @click="viewMode = 'list'" :class="['px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all', viewMode === 'list' ? 'bg-white shadow-sm text-[#1A237E]' : 'text-slate-500 hover:text-slate-700']">
+                <i class="fa-solid fa-list"></i> <span class="hidden sm:inline">Danh sách</span>
+              </button>
+              <button @click="viewMode = 'grid'" :class="['px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all', viewMode === 'grid' ? 'bg-[#2D4FE0] text-white shadow-md' : 'text-slate-500 hover:text-slate-700']">
+                <i class="fa-solid fa-border-all"></i> <span class="hidden sm:inline">Lưới</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Grid View -->
+          <div v-if="viewMode === 'grid'" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4 pb-32 lg:pb-8 overflow-y-auto custom-scrollbar pr-1">
+            <div v-for="dish in enhancedMenuList" :key="dish.name" 
+                 @click="selectDish(dish)"
+                 :class="['bg-white rounded-2xl overflow-hidden cursor-pointer transition-all hover:shadow-lg hover:-translate-y-1 flex flex-col border', selectedDish?.name === dish.name ? 'border-blue-500 shadow-md shadow-blue-500/20 ring-1 ring-blue-500' : 'border-slate-200 shadow-sm']">
+              <div class="relative pt-[100%] bg-slate-100">
+                <img :src="dish.image" alt="dish" class="absolute inset-0 w-full h-full object-cover">
+                <div v-if="selectedDish?.name === dish.name" class="absolute top-2 right-2 w-6 h-6 bg-blue-500 text-white rounded-full flex items-center justify-center text-xs shadow-md border-2 border-white">
+                  <i class="fa-solid fa-check"></i>
+                </div>
+              </div>
+              <div class="p-3 text-center flex-1 flex flex-col justify-center items-center bg-white">
+                <h4 class="font-bold text-slate-800 text-sm mb-1 line-clamp-2 leading-tight">{{ dish.name }}</h4>
+                <div class="font-black text-[#1A237E] text-[13px] mb-2">{{ formatVND(dish.price) }}</div>
+                <span class="inline-block bg-blue-50 border border-blue-100 text-blue-600 px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider">{{ dish.category }}</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- List View -->
+          <div v-else class="space-y-3 pb-32 lg:pb-8 overflow-y-auto custom-scrollbar pr-1">
+            <div v-for="dish in enhancedMenuList" :key="dish.name"
+                 @click="selectDish(dish)"
+                 :class="['bg-white p-3 rounded-2xl border flex items-center gap-4 cursor-pointer transition-all hover:shadow-md', selectedDish?.name === dish.name ? 'border-blue-500 bg-blue-50/20 shadow-md ring-1 ring-blue-500' : 'border-slate-200 shadow-sm']">
+              <div class="relative shrink-0">
+                <img :src="dish.image" alt="dish" class="w-16 h-16 rounded-xl object-cover">
+                <div v-if="selectedDish?.name === dish.name" class="absolute -top-1 -right-1 w-5 h-5 bg-blue-500 text-white rounded-full flex items-center justify-center text-[10px] shadow-sm border-2 border-white">
+                  <i class="fa-solid fa-check"></i>
+                </div>
+              </div>
+              <div class="flex-1 min-w-0">
+                <h4 class="font-bold text-slate-800 truncate text-sm mb-1">{{ dish.name }}</h4>
+                <span class="bg-blue-50 text-blue-600 px-2 py-0.5 rounded border border-blue-100 text-[10px] font-black uppercase tracking-wider">{{ dish.category }}</span>
+              </div>
+              <div class="font-black text-[#1A237E] text-sm">{{ formatVND(dish.price) }}</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Right Side: Edit Panel -->
+        <div v-if="selectedDish" class="w-full lg:w-[400px] xl:w-[450px] bg-white lg:border-l border-slate-200 shrink-0 flex flex-col h-[75vh] lg:h-full border-t lg:border-t-0 fixed lg:static bottom-0 left-0 right-0 z-50 rounded-t-3xl lg:rounded-none shadow-[0_-20px_50px_-10px_rgba(0,0,0,0.15)] lg:shadow-none transition-transform duration-300">
+          
+          <div class="px-5 py-4 border-b border-slate-100 flex justify-between items-center bg-white rounded-t-3xl lg:rounded-none sticky top-0 z-10 shadow-sm">
+            <h3 class="font-black text-slate-700 uppercase text-[13px] tracking-widest flex items-center gap-2">
+              <i class="fa-solid fa-pen-to-square text-blue-500"></i> Chỉnh sửa ảnh món
+            </h3>
+            <button @click="selectedDish = null" class="w-8 h-8 flex items-center justify-center text-slate-400 hover:bg-slate-100 hover:text-slate-700 rounded-full transition-colors lg:hidden bg-slate-50">
+              <i class="fa-solid fa-chevron-down"></i>
+            </button>
+            <button class="text-xs font-black text-blue-600 hidden lg:flex items-center gap-1.5 hover:bg-blue-50 px-3 py-1.5 rounded-lg transition-colors" @click="selectedDish = null">
+              Đóng <i class="fa-solid fa-xmark"></i>
+            </button>
+          </div>
+          
+          <div class="p-5 overflow-y-auto custom-scrollbar flex-1 pb-24 lg:pb-5">
+            <!-- Large Image Preview -->
+            <div class="relative rounded-2xl overflow-hidden bg-slate-100 mb-5 group border border-slate-200 shadow-sm">
+              <img :src="selectedDish.image" alt="dish" class="w-full aspect-square object-cover transition-transform duration-500 group-hover:scale-105">
+              <button class="absolute top-3 right-3 w-8 h-8 bg-black/50 hover:bg-black/70 text-white rounded-full flex items-center justify-center backdrop-blur-md transition-all opacity-0 group-hover:opacity-100 scale-90 group-hover:scale-100">
+                <i class="fa-solid fa-xmark"></i>
+              </button>
+            </div>
+            
+            <!-- Upload Box -->
+            <div class="border-2 border-dashed border-blue-200 bg-blue-50/50 rounded-2xl p-6 text-center mb-6 cursor-pointer hover:bg-blue-50 hover:border-blue-400 transition-all group">
+              <div class="w-12 h-12 bg-white rounded-xl shadow-sm text-blue-500 flex items-center justify-center text-xl mx-auto mb-3 group-hover:scale-110 group-hover:text-blue-600 transition-all border border-blue-100">
+                <i class="fa-solid fa-cloud-arrow-up"></i>
+              </div>
+              <h4 class="font-bold text-blue-700 text-sm mb-1.5">Thêm ảnh khác</h4>
+              <p class="text-[10px] text-slate-500 uppercase tracking-widest leading-relaxed">PNG, JPG, WebP (Tối đa 2MB)<br>Khuyến nghị: 800x800px, tỉ lệ 1:1</p>
+            </div>
+
+            <!-- Form Fields -->
+            <div class="space-y-4 bg-slate-50/50 p-4 rounded-2xl border border-slate-100">
+              <div>
+                <label class="block text-[11px] font-black text-slate-500 uppercase mb-1.5 tracking-wider">Tên món</label>
+                <input v-model="selectedDish.name" type="text" class="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-sm font-bold text-slate-800 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 shadow-sm transition-all">
+              </div>
+              
+              <div>
+                <label class="block text-[11px] font-black text-slate-500 uppercase mb-1.5 tracking-wider">Giá</label>
+                <div class="relative">
+                  <input v-model="selectedDish.price" type="number" class="w-full pl-4 pr-10 py-2.5 bg-white border border-slate-200 rounded-xl text-sm font-bold text-slate-800 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 shadow-sm transition-all">
+                  <span class="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 font-bold bg-slate-100 px-2 py-0.5 rounded text-xs">đ</span>
+                </div>
+              </div>
+
+              <div>
+                <label class="block text-[11px] font-black text-slate-500 uppercase mb-1.5 tracking-wider">Loại món</label>
+                <select v-model="selectedDish.category" class="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-sm font-bold text-slate-800 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 appearance-none shadow-sm transition-all pr-10 relative bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIGZpbGw9Im5vbmUiIHZpZXdCb3g9IjAgMCAyNCAyNCIgc3Ryb2tlLXdpZHRoPSIyIiBzdHJva2U9IiM2NDc0OGIiPjxwYXRoIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgc3Ryb2tlLWxpbmVqb2luPSJyb3VuZCIgZD0iTTE5IDlsLTcgNy03LTciLz48L3N2Zz4=')] bg-[length:16px_16px] bg-[right_12px_center] bg-no-repeat">
+                  <option v-for="cat in mockCategories" :key="cat" :value="cat">{{ cat }}</option>
+                </select>
+              </div>
+
+              <!-- Current Images list -->
+              <div class="pt-2">
+                <label class="block text-[11px] font-black text-slate-500 uppercase mb-2 tracking-wider">Ảnh hiện tại</label>
+                <div class="flex gap-3 overflow-x-auto pb-2 custom-scrollbar pr-1">
+                  <div class="relative w-20 h-20 shrink-0 rounded-xl overflow-hidden border-2 border-blue-500 shadow-md">
+                    <img :src="selectedDish.image" class="w-full h-full object-cover">
+                    <div class="absolute top-1 right-1 w-5 h-5 bg-blue-500 text-white rounded-full flex items-center justify-center text-[10px] shadow-sm">
+                      <i class="fa-solid fa-check"></i>
+                    </div>
+                  </div>
+                  <div class="w-20 h-20 shrink-0 rounded-xl border-2 border-dashed border-slate-200 bg-white flex flex-col items-center justify-center text-slate-400 hover:text-blue-500 hover:border-blue-300 hover:bg-blue-50 transition-all cursor-pointer">
+                    <i class="fa-solid fa-plus mb-1"></i>
+                    <span class="text-[10px] font-bold uppercase tracking-widest">Thêm ảnh</span>
+                  </div>
+                </div>
+                <p class="text-[10px] text-slate-400 mt-1 italic flex items-center gap-1.5"><i class="fa-solid fa-circle-info"></i> Ảnh đầu tiên sẽ được hiển thị làm ảnh đại diện.</p>
+              </div>
+            </div>
+            
+            <!-- Actions -->
+            <div class="mt-6 flex gap-3 pb-4 lg:pb-0">
+              <button class="px-4 py-3.5 bg-red-50 text-red-600 rounded-xl text-sm font-black flex items-center justify-center gap-2 hover:bg-red-100 transition-colors shrink-0 border border-red-100">
+                <i class="fa-regular fa-trash-can"></i> <span class="hidden sm:inline">Xóa món</span>
+              </button>
+              <button class="flex-1 py-3.5 bg-[#1A237E] text-white rounded-xl text-sm font-black shadow-lg shadow-blue-900/20 hover:bg-blue-900 active:scale-95 transition-all uppercase tracking-wider">
+                Lưu thay đổi
+              </button>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+    </div>
+    
+    <!-- Legacy Upload Modal (Overlay on top of MenuManager) -->
+    <div v-if="showUploadModal" class="fixed inset-0 bg-[#0D1658]/80 z-[13000] flex justify-center items-center p-4 backdrop-blur-sm" @click.self="showUploadModal = false">
+      <div class="bg-white rounded-3xl shadow-2xl p-6 md:p-8 max-w-lg w-[95%] md:w-full flex flex-col relative overflow-hidden border border-white/20">
+        <!-- Header -->
+        <div class="flex justify-between items-center mb-6 relative z-10">
+          <h3 class="text-xl font-black text-[#1A237E] uppercase tracking-tight flex items-center gap-3">
+            <div class="w-10 h-10 bg-blue-50 rounded-xl flex items-center justify-center text-blue-600">
+              <i class="fa-solid fa-cloud-arrow-up"></i>
+            </div>
+            {{ ui.isUpdateMode ? 'Cập nhật Menu' : 'Tạo Menu Mới' }}
+          </h3>
+          <button @click="showUploadModal = false" class="w-10 h-10 bg-slate-50 text-slate-400 rounded-xl hover:bg-red-50 hover:text-red-500 transition-all flex items-center justify-center shrink-0">
+            <i class="fa-solid fa-xmark text-xl"></i>
+          </button>
+        </div>
+
+        <div class="space-y-5 pb-2 relative z-10">
           <div class="space-y-2">
             <label class="text-[10px] font-black text-slate-500 uppercase tracking-widest">Tên Menu</label>
-            <input v-model="appStore.newMenuName" class="w-full px-4 py-3 rounded-xl border border-slate-200 bg-slate-50 font-black text-slate-800 text-sm focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-50 outline-none transition-all" :placeholder="ui.isUpdateMode ? 'Tên sheet đang sửa' : 'VD: Menu Tết 2025'">
+            <input v-model="appStore.newMenuName" class="w-full px-4 py-3 rounded-xl border border-slate-200 bg-slate-50 font-black text-slate-800 text-sm focus:border-blue-500 focus:bg-white focus:ring-2 focus:ring-blue-100 outline-none transition-all" :placeholder="ui.isUpdateMode ? 'Tên sheet đang sửa' : 'VD: Menu Tết 2025'">
           </div>
           <div class="space-y-2">
             <div class="flex justify-between items-center">
               <label class="text-[10px] font-black text-slate-500 uppercase tracking-widest">Nội dung (Text)</label>
-              <button @click="fillSampleMenu" class="text-[10px] bg-blue-50 text-blue-600 px-3 py-1 rounded-lg font-black uppercase hover:bg-blue-100 active:scale-95 transition-all">
+              <button @click="fillSampleMenu" class="text-[10px] bg-blue-50 text-blue-600 px-3 py-1.5 rounded-lg font-black uppercase hover:bg-blue-100 active:scale-95 transition-all">
                 {{ appStore.menuList.length > 0 ? 'LẤY TỪ MENU HIỆN TẠI' : 'TẠO MẪU' }}
               </button>
             </div>
-            <textarea v-model="appStore.newMenuContent" rows="12" class="w-full p-4 rounded-xl border border-slate-200 bg-slate-50 font-mono text-[13px] leading-relaxed text-slate-800 focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-50 outline-none transition-all resize-none custom-scrollbar" placeholder="Tên món - Giá&#10;VD:&#10;Bò nướng tảng - 250k&#10;Bia Tiger - 25k"></textarea>
+            <textarea v-model="appStore.newMenuContent" rows="10" class="w-full p-4 rounded-xl border border-slate-200 bg-slate-50 font-mono text-[13px] leading-relaxed text-slate-800 focus:border-blue-500 focus:bg-white focus:ring-2 focus:ring-blue-100 outline-none transition-all resize-none custom-scrollbar" placeholder="Tên món - Giá&#10;VD:&#10;Bò nướng tảng - 250k&#10;Bia Tiger - 25k"></textarea>
           </div>
-          <button @click="appStore.uploadNewMenu()" class="w-full h-14 bg-[#1A237E] text-white rounded-xl font-black text-sm uppercase shadow-lg shadow-blue-900/20 active:scale-95 transition-all flex items-center justify-center gap-2">
+          <button @click="appStore.uploadNewMenu(); showUploadModal = false" class="w-full h-14 bg-[#1A237E] text-white rounded-xl font-black text-sm uppercase shadow-lg shadow-blue-900/20 active:scale-95 transition-all flex items-center justify-center gap-2">
             <i class="fa-solid fa-cloud-arrow-up text-lg text-white/80"></i> {{ ui.isUpdateMode ? 'CẬP NHẬT MENU' : 'TẠO MENU MỚI' }}
           </button>
         </div>
@@ -77,3 +423,18 @@ const { fillSampleMenu, prepareUpdate } = useForm()
     </div>
   </div>
 </template>
+
+<style scoped>
+/* Ensure custom scrollbar looks good on webkit */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background-color: #cbd5e1;
+  border-radius: 10px;
+}
+</style>
