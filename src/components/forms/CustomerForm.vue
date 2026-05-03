@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { ref, computed } from 'vue'
 import { useUIStore } from '@/stores/useUIStore'
 import { useFormStore } from '@/stores/useFormStore'
 import { useForm } from '@/composables/useForm'
@@ -9,6 +9,9 @@ const ui = useUIStore()
 const formStore = useFormStore()
 const { handleInputFocus, handleInputBlur, formatDate, checkCRM, crmStatus } = useForm()
 
+const tableMode = ref<'ai' | 'manual'>('ai')
+const aiTableCount = ref(3)
+
 const selectedIcon = computed(() => {
   const found = PARTY_TYPES.find(p => p.name === formStore.customer.type)
   return found?.icon || 'fa-utensils'
@@ -16,61 +19,138 @@ const selectedIcon = computed(() => {
 </script>
 
 <template>
-  <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-4 space-y-3">
-    <div class="flex items-center gap-2 border-b border-gray-100 pb-2 mb-1">
-      <i class="fa-solid fa-user-tag text-blue-500"></i>
-      <h3 class="font-black text-slate-800 text-[10px] uppercase tracking-widest">Thông tin khách hàng</h3>
+  <div class="bg-white rounded-2xl shadow-[0_2px_10px_rgba(0,0,0,0.04)] border border-slate-100 p-5 space-y-5">
+    <!-- Header -->
+    <div class="flex items-center gap-2 mb-2">
+      <i class="fa-solid fa-user text-blue-600 text-lg"></i>
+      <h3 class="font-black text-slate-800 text-[11px] uppercase tracking-widest">Thông tin khách hàng</h3>
       <div v-if="formStore.customer.phone && crmStatus" :class="['crm-badge', crmStatus === 'VIP' ? 'crm-vip' : 'crm-new']">
         <i class="fa-solid" :class="crmStatus === 'VIP' ? 'fa-crown' : 'fa-seedling'"></i> {{ crmStatus }}
       </div>
     </div>
-    <div class="grid grid-cols-2 gap-4">
-      <div class="space-y-1"><label class="text-[9px] font-black text-slate-400 uppercase ml-1 tracking-wider">Người đặt <span class="text-red-500">*</span></label><input v-model="formStore.customer.name" @focus="handleInputFocus" @blur="handleInputBlur" class="w-full border-2 border-slate-100 rounded-xl px-4 py-3 text-base md:text-sm font-black focus:border-blue-500 outline-none transition-colors" placeholder="Tên khách"></div>
-      <div class="space-y-1"><label class="text-[9px] font-black text-slate-400 uppercase ml-1 tracking-wider">SĐT/Zalo <span class="text-red-500">*</span></label><input v-model="formStore.customer.phone" @focus="handleInputFocus" @blur="(e) => { handleInputBlur(); checkCRM(); }" class="w-full border-2 border-slate-100 rounded-xl px-4 py-3 text-base md:text-sm font-black focus:border-blue-500 outline-none transition-colors" placeholder="09xxxxxxx"></div>
-    </div>
-    <div class="grid grid-cols-3 gap-3">
-      <div class="space-y-1 text-center"><label class="text-[9px] font-black text-slate-400 uppercase tracking-wider">Ngày <span class="text-red-500">*</span></label><input v-model="formStore.customer.date" @focus="handleInputFocus" @blur="(e) => { handleInputBlur(); formatDate(); }" class="w-full border-2 border-slate-100 rounded-xl px-2 py-3 text-base md:text-sm text-center font-black focus:border-blue-500 outline-none transition-colors" placeholder="dd/mm/yyyy"></div>
-      <div class="space-y-1 text-center"><label class="text-[9px] font-black text-slate-400 uppercase tracking-wider">Giờ <span class="text-red-500">*</span></label><input v-model="formStore.customer.time" @focus="handleInputFocus" @blur="handleInputBlur" class="w-full border-2 border-slate-100 rounded-xl px-2 py-3 text-base md:text-sm text-center font-black focus:border-blue-500 outline-none transition-colors" placeholder="18:30"></div>
-      <div class="space-y-1 text-center"><label class="text-[9px] font-black text-slate-400 uppercase tracking-wider">Khách <span class="text-red-500">*</span></label><input v-model="formStore.customer.pax" @focus="handleInputFocus" @blur="handleInputBlur" class="w-full border-2 border-slate-100 rounded-xl px-2 py-3 text-base md:text-sm text-center font-black focus:border-blue-500 outline-none transition-colors" placeholder="SL"></div>
-    </div>
-    <div class="grid grid-cols-2 gap-4">
-      <div class="space-y-1">
-        <label class="text-[9px] font-black text-slate-400 uppercase ml-1 tracking-wider">Loại tiệc <span class="text-red-500">*</span></label>
+
+    <!-- Row 1: Name & Phone -->
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div class="space-y-1.5">
+        <label class="text-[10px] font-black text-slate-500 uppercase tracking-wider ml-1">Người đặt <span class="text-red-500">*</span></label>
         <div class="relative">
-          <i class="fa-solid absolute left-3 top-1/2 -translate-y-1/2 text-blue-500 text-sm pointer-events-none" :class="selectedIcon"></i>
-          <select v-model="formStore.customer.type" class="w-full border-2 border-slate-100 rounded-xl pl-9 pr-4 py-3 text-base md:text-sm font-black text-blue-600 focus:border-blue-500 outline-none transition-colors appearance-none bg-white cursor-pointer min-h-[44px]">
-            <option v-for="pt in PARTY_TYPES" :key="pt.name" :value="pt.name">{{ pt.name }}</option>
-          </select>
-          <i class="fa-solid fa-chevron-down absolute right-3 top-1/2 -translate-y-1/2 text-slate-300 text-xs pointer-events-none"></i>
+          <i class="fa-regular fa-user absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"></i>
+          <input v-model="formStore.customer.name" @focus="handleInputFocus" @blur="handleInputBlur" class="w-full border border-slate-200 rounded-xl pl-10 pr-4 py-3 text-sm font-semibold text-slate-800 focus:border-blue-500 focus:ring-4 focus:ring-blue-50 outline-none transition-all" placeholder="Tên khách">
         </div>
       </div>
-      <div class="space-y-1">
-        <label class="text-[9px] font-black text-slate-400 uppercase ml-1 tracking-wider">Khu / Bàn <span class="text-red-500">*</span></label>
-        <div class="flex gap-2 items-center">
-          <!-- Zone Pills -->
+      <div class="space-y-1.5">
+        <label class="text-[10px] font-black text-slate-500 uppercase tracking-wider ml-1">SĐT / Zalo <span class="text-red-500">*</span></label>
+        <div class="relative">
+          <i class="fa-solid fa-phone absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"></i>
+          <input v-model="formStore.customer.phone" @focus="handleInputFocus" @blur="(e) => { handleInputBlur(); checkCRM(); }" class="w-full border border-slate-200 rounded-xl pl-10 pr-4 py-3 text-sm font-semibold text-slate-800 focus:border-blue-500 focus:ring-4 focus:ring-blue-50 outline-none transition-all" placeholder="09xxxxxxx">
+        </div>
+      </div>
+    </div>
+
+    <!-- Row 2: Date, Time, Pax -->
+    <div class="grid grid-cols-3 gap-3 md:gap-4">
+      <div class="space-y-1.5">
+        <label class="text-[10px] font-black text-slate-500 uppercase tracking-wider ml-1">Ngày <span class="text-red-500">*</span></label>
+        <div class="relative">
+          <i class="fa-regular fa-calendar absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"></i>
+          <input v-model="formStore.customer.date" @focus="handleInputFocus" @blur="(e) => { handleInputBlur(); formatDate(); }" class="w-full border border-slate-200 rounded-xl pl-9 pr-2 py-3 text-sm font-semibold text-slate-800 focus:border-blue-500 focus:ring-4 focus:ring-blue-50 outline-none transition-all" placeholder="dd/mm/yyyy">
+        </div>
+      </div>
+      <div class="space-y-1.5">
+        <label class="text-[10px] font-black text-slate-500 uppercase tracking-wider ml-1">Giờ <span class="text-red-500">*</span></label>
+        <div class="relative">
+          <i class="fa-regular fa-clock absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"></i>
+          <input v-model="formStore.customer.time" @focus="handleInputFocus" @blur="handleInputBlur" class="w-full border border-slate-200 rounded-xl pl-9 pr-2 py-3 text-sm font-semibold text-slate-800 focus:border-blue-500 focus:ring-4 focus:ring-blue-50 outline-none transition-all" placeholder="18:30">
+        </div>
+      </div>
+      <div class="space-y-1.5">
+        <label class="text-[10px] font-black text-slate-500 uppercase tracking-wider ml-1">Khách <span class="text-red-500">*</span></label>
+        <div class="relative">
+          <i class="fa-solid fa-user-group absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"></i>
+          <input v-model="formStore.customer.pax" @focus="handleInputFocus" @blur="handleInputBlur" class="w-full border border-slate-200 rounded-xl pl-9 pr-2 py-3 text-sm font-semibold text-slate-800 focus:border-blue-500 focus:ring-4 focus:ring-blue-50 outline-none transition-all" placeholder="SL">
+        </div>
+      </div>
+    </div>
+
+    <!-- Row 3: Type & Table -->
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div class="space-y-1.5">
+        <label class="text-[10px] font-black text-slate-500 uppercase tracking-wider ml-1">Loại tiệc <span class="text-red-500">*</span></label>
+        <div class="relative">
+          <i class="fa-solid absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" :class="selectedIcon"></i>
+          <select v-model="formStore.customer.type" class="w-full border border-slate-200 rounded-xl pl-10 pr-10 py-3 text-sm font-semibold text-slate-800 focus:border-blue-500 focus:ring-4 focus:ring-blue-50 outline-none transition-all appearance-none bg-white">
+            <option v-for="pt in PARTY_TYPES" :key="pt.name" :value="pt.name">{{ pt.name }}</option>
+          </select>
+          <i class="fa-solid fa-chevron-down absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 text-xs pointer-events-none"></i>
+        </div>
+      </div>
+      <div class="space-y-1.5">
+        <label class="text-[10px] font-black text-slate-500 uppercase tracking-wider ml-1 flex justify-between">Khu / Bàn <span class="text-red-500">*</span></label>
+        
+        <!-- Table Mode Tabs -->
+        <div class="flex bg-slate-100 p-1 rounded-xl mb-3">
+          <button @click="tableMode = 'ai'" :class="['flex-1 py-1.5 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 transition-all', tableMode === 'ai' ? 'bg-blue-50 text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700']">
+            <i class="fa-solid fa-wand-magic-sparkles"></i> AI tự động
+          </button>
+          <button @click="tableMode = 'manual'" :class="['flex-1 py-1.5 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 transition-all', tableMode === 'manual' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700']">
+            Nhập thủ công
+          </button>
+        </div>
+
+        <!-- AI Mode -->
+        <div v-if="tableMode === 'ai'" class="flex items-center justify-between bg-blue-50/50 border border-blue-100 rounded-xl p-3">
+          <div class="flex gap-3 items-center">
+            <div class="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center text-blue-500">
+              <i class="fa-solid fa-wand-magic-sparkles"></i>
+            </div>
+            <div>
+              <div class="text-xs font-bold text-slate-700">AI gợi ý số bàn</div>
+              <div class="text-lg font-black text-blue-600 leading-tight">{{ aiTableCount }} <span class="text-sm font-semibold text-slate-500">bàn</span></div>
+              <div class="text-[10px] text-slate-500">Phù hợp với {{ formStore.customer.pax || 0 }} khách</div>
+            </div>
+          </div>
+          <div class="flex flex-col items-center gap-1">
+            <span class="text-[10px] font-bold text-slate-400">Nhập số bàn</span>
+            <div class="flex items-center gap-2 bg-white border border-slate-200 rounded-lg p-1 shadow-sm">
+              <button @click="if(aiTableCount>1) aiTableCount--" class="w-6 h-6 flex items-center justify-center text-blue-600 hover:bg-blue-50 rounded"><i class="fa-solid fa-minus text-xs"></i></button>
+              <span class="w-6 text-center font-black text-slate-800">{{ aiTableCount }}</span>
+              <button @click="aiTableCount++" class="w-6 h-6 flex items-center justify-center text-blue-600 hover:bg-blue-50 rounded"><i class="fa-solid fa-plus text-xs"></i></button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Manual Mode -->
+        <div v-else class="flex gap-2 items-center mt-2">
           <div class="flex gap-1">
             <button 
               v-for="z in ['A','B','C','D','E']" :key="z"
               @click="ui.tempTable.zone = z"
               :class="[
-                'w-9 h-10 rounded-lg font-black text-sm transition-all duration-200 border-2',
+                'w-9 h-11 rounded-xl font-black text-sm transition-all duration-200 border',
                 ui.tempTable.zone === z 
-                  ? 'bg-blue-500 text-white border-blue-500 shadow-md shadow-blue-200 scale-105' 
-                  : 'bg-slate-50 text-slate-400 border-slate-100 hover:border-blue-200 hover:text-blue-400'
+                  ? 'bg-blue-600 text-white border-blue-600 shadow-md scale-105' 
+                  : 'bg-white text-slate-500 border-slate-200 hover:border-blue-300 hover:text-blue-500'
               ]"
             >{{ z }}</button>
           </div>
-          <!-- Table Number Input -->
           <input 
             v-model="ui.tempTable.number" 
             @focus="handleInputFocus" 
             @blur="handleInputBlur" 
-            class="flex-1 border-2 border-slate-100 rounded-xl px-3 py-2.5 text-base md:text-sm font-black text-center bg-yellow-50 focus:bg-white focus:border-blue-500 outline-none transition-all min-w-0" 
-            placeholder="1,2,3..."
+            class="flex-1 border border-slate-200 rounded-xl px-3 py-2.5 text-sm font-black text-center bg-slate-50 focus:bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-50 outline-none transition-all min-w-0" 
+            placeholder="Số..."
           >
         </div>
       </div>
     </div>
-    <div class="space-y-1"><label class="text-[9px] font-black text-slate-400 uppercase ml-1 tracking-wider">Ghi chú yêu cầu</label><textarea v-model="formStore.customer.note" @focus="handleInputFocus" @blur="handleInputBlur" class="w-full border-2 border-slate-100 rounded-xl px-4 py-3 text-base md:text-sm font-medium resize-none focus:border-blue-500 outline-none transition-colors" rows="2" placeholder="VD: Trang trí sinh nhật, không lấy đá..."></textarea></div>
+
+    <!-- Notes -->
+    <div class="space-y-1.5">
+      <label class="text-[10px] font-black text-slate-500 uppercase tracking-wider ml-1">Ghi chú yêu cầu</label>
+      <div class="relative">
+        <i class="fa-solid fa-pen absolute left-4 top-3.5 text-slate-400"></i>
+        <textarea v-model="formStore.customer.note" @focus="handleInputFocus" @blur="handleInputBlur" class="w-full border border-slate-200 rounded-xl pl-10 pr-4 py-3 text-sm font-semibold text-slate-800 focus:border-blue-500 focus:ring-4 focus:ring-blue-50 outline-none transition-all resize-none" rows="2" placeholder="VD: Trang trí sinh nhật, không lấy đá..."></textarea>
+      </div>
+    </div>
   </div>
 </template>
