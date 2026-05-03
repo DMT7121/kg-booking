@@ -146,7 +146,7 @@ function openBookingDetail(booking: any) {
               </template>
               <template v-else>
                 <!-- Empty Slot -->
-                <div class="w-10 h-10 rounded-xl bg-emerald-50/50 border border-emerald-100 flex items-center justify-center text-emerald-400 opacity-60">
+                <div @click="ui.showToast(`Bấm để đặt bàn tại ${z} lúc ${h} (Đang hoàn thiện)`, 'info')" class="w-10 h-10 rounded-xl bg-emerald-50/50 border border-emerald-100 flex items-center justify-center text-emerald-400 opacity-60 cursor-pointer hover:bg-emerald-100 transition-colors">
                   <i class="fa-solid fa-chair text-lg"></i>
                 </div>
               </template>

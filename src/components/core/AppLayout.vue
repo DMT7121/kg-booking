@@ -158,7 +158,7 @@ onMounted(() => {
 
       <div class="p-4 md:p-6 max-w-2xl mx-auto w-full space-y-6 pb-20">
         <!-- Brand Card -->
-        <div class="bg-white rounded-2xl p-4 flex items-center justify-between shadow-sm border border-slate-100 active:scale-[0.98] transition-transform cursor-pointer">
+        <div @click="ui.openConfig('branding')" class="bg-white rounded-2xl p-4 flex items-center justify-between shadow-sm border border-slate-100 active:scale-[0.98] transition-transform cursor-pointer hover:bg-slate-50">
           <div class="flex items-center gap-4">
             <div class="w-14 h-14 bg-slate-50 rounded-xl overflow-hidden border border-slate-100 p-1.5 flex items-center justify-center">
               <img :src="configStore.branding.logo || 'https://ui-avatars.com/api/?name=King+Grill&background=1e293b&color=fff'" alt="Logo" class="w-full h-full object-contain rounded-lg">

@@ -13,7 +13,7 @@ const ui = useUIStore()
 const formStore = useFormStore()
 const appStore = useAppStore()
 const configStore = useConfigStore()
-const { mobileScaleStyles, wrapperScaleStyles } = useBillRender()
+const { mobileScaleStyles, wrapperScaleStyles, triggerSave } = useBillRender()
 const { depositTransferContent, qrImageUrl } = useForm()
 
 const currentTimestamp = ref('')
@@ -88,7 +88,7 @@ function resetParallax() {
         <i class="fa-solid fa-arrow-left text-xl"></i>
       </button>
       <h2 class="text-[15px] font-black text-[#1A237E] uppercase tracking-widest">Xem trước phiếu đặt</h2>
-      <button class="w-10 h-10 flex items-center justify-center text-[#1A237E] rounded-full hover:bg-slate-50 active:scale-95 transition-all">
+      <button @click="ui.showToast('Tính năng chia sẻ đang tích hợp!', 'info')" class="w-10 h-10 flex items-center justify-center text-[#1A237E] rounded-full hover:bg-slate-50 active:scale-95 transition-all">
         <i class="fa-solid fa-share-nodes text-lg"></i>
       </button>
     </div>
@@ -260,19 +260,19 @@ function resetParallax() {
     <!-- Bottom Actions Bar -->
     <div class="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-slate-100 p-3 pb-safe z-50 flex items-center shadow-[0_-5px_15px_-10px_rgba(0,0,0,0.1)]">
       <div class="flex gap-2 w-full overflow-x-auto no-scrollbar items-center">
-        <button class="flex items-center justify-center bg-blue-50 text-blue-600 h-[44px] px-3.5 rounded-xl border border-blue-100 shrink-0 gap-2 active:scale-95 transition-transform">
+        <button @click="triggerSave('image')" class="flex items-center justify-center bg-blue-50 text-blue-600 h-[44px] px-3.5 rounded-xl border border-blue-100 shrink-0 gap-2 active:scale-95 transition-transform">
           <i class="fa-regular fa-image text-sm"></i>
           <span class="text-[12px] font-bold whitespace-nowrap">Tải ảnh PNG</span>
         </button>
-        <button class="flex items-center justify-center bg-blue-50 text-blue-600 h-[44px] px-3.5 rounded-xl border border-blue-100 shrink-0 gap-2 active:scale-95 transition-transform">
+        <button @click="triggerSave('pdf')" class="flex items-center justify-center bg-blue-50 text-blue-600 h-[44px] px-3.5 rounded-xl border border-blue-100 shrink-0 gap-2 active:scale-95 transition-transform">
           <i class="fa-regular fa-file-pdf text-sm"></i>
           <span class="text-[12px] font-bold whitespace-nowrap">Tải file PDF</span>
         </button>
-        <button class="flex items-center justify-center bg-blue-50 text-blue-600 h-[44px] px-3.5 rounded-xl border border-blue-100 shrink-0 gap-2 active:scale-95 transition-transform">
+        <button @click="ui.showToast('Lưu lên Drive: Đang phát triển', 'info')" class="flex items-center justify-center bg-blue-50 text-blue-600 h-[44px] px-3.5 rounded-xl border border-blue-100 shrink-0 gap-2 active:scale-95 transition-transform">
           <img src="https://upload.wikimedia.org/wikipedia/commons/1/12/Google_Drive_icon_%282020%29.svg" class="w-4 h-4">
           <span class="text-[12px] font-bold whitespace-nowrap">Lưu lên Drive</span>
         </button>
-        <button class="flex items-center justify-center bg-[#0D1658] text-white h-[44px] px-4 rounded-xl shrink-0 shadow-lg shadow-blue-900/20 gap-2 hover:bg-blue-900 active:scale-95 transition-all">
+        <button @click="ui.showToast('Chia sẻ: Đang phát triển', 'info')" class="flex items-center justify-center bg-[#0D1658] text-white h-[44px] px-4 rounded-xl shrink-0 shadow-lg shadow-blue-900/20 gap-2 hover:bg-blue-900 active:scale-95 transition-all">
           <i class="fa-solid fa-share-nodes"></i>
           <span class="text-[12px] font-bold whitespace-nowrap">Chia sẻ phiếu</span>
         </button>
@@ -280,7 +280,7 @@ function resetParallax() {
     </div>
     
     <!-- Floating Chat Button -->
-    <button class="md:hidden fixed bottom-[80px] right-4 w-12 h-12 bg-white rounded-full flex items-center justify-center shadow-lg shadow-slate-300 text-blue-500 text-xl z-50 active:scale-95 transition-transform border border-slate-100">
+    <button @click="ui.showToast('Tính năng CSKH qua tin nhắn đang phát triển', 'info')" class="md:hidden fixed bottom-[80px] right-4 w-12 h-12 bg-white rounded-full flex items-center justify-center shadow-lg shadow-slate-300 text-blue-500 text-xl z-50 active:scale-95 transition-transform border border-slate-100">
       <i class="fa-solid fa-comment-dots"></i>
     </button>
     
