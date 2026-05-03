@@ -19,7 +19,7 @@ export interface ModalState {
 
 export const useUIStore = defineStore('ui', () => {
   // --- Tab & Panel ---
-  const tab = ref<'create' | 'history' | 'preview'>('create')
+  const tab = ref<'create' | 'history' | 'preview'>('history')
   const connectionStatus = ref<'online' | 'syncing' | 'error'>('online')
   const isKeyboardOpen = ref(false)
   const isVoiceSupported = ref(false)
@@ -39,6 +39,8 @@ export const useUIStore = defineStore('ui', () => {
   const showStaffConfig = ref(false)
   const showStaffSelector = ref(false)
   const showWebhookConfig = ref(false)
+  const showBookingDetailModal = ref(false)
+  const selectedBooking = ref<any>(null)
   const pendingAction = ref<string | null>(null)
 
   // --- Menu Tab ---
@@ -150,7 +152,7 @@ export const useUIStore = defineStore('ui', () => {
   return {
     tab, connectionStatus, isKeyboardOpen, isVoiceSupported,
     loading, error,
-    showSettingsHub, showAiConfig, showBankConfig, showMenuManager, showBrandingConfig, showStaffConfig, showStaffSelector, showWebhookConfig,
+    showSettingsHub, showAiConfig, showBankConfig, showMenuManager, showBrandingConfig, showStaffConfig, showStaffSelector, showWebhookConfig, showBookingDetailModal, selectedBooking,
     pendingAction, menuTab, isUpdateMode,
     historySearch, isBatchMode, selectedIds,
     focusIdx, listening, tempTable,

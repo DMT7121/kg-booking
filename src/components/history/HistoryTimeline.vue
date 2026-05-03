@@ -83,6 +83,11 @@ function getAmPm(time: string) {
   const h = parseInt(time.split(':')[0])
   return h >= 12 ? 'PM' : 'AM'
 }
+
+function openBookingDetail(booking: any) {
+  ui.selectedBooking = booking
+  ui.showBookingDetailModal = true
+}
 </script>
 
 <template>
@@ -128,8 +133,9 @@ function getAmPm(time: string) {
               <template v-if="timelineData[h][z]">
                 <!-- Booked Slot -->
                 <div 
-                  class="w-full h-full rounded-xl flex flex-col items-center justify-center p-1 text-center shadow-sm border"
-                  :class="timelineData[h][z].isDeposited ? 'bg-blue-50 border-blue-100 text-[#1A237E]' : 'bg-rose-50 border-rose-100 text-rose-700'"
+                  @click="openBookingDetail(timelineData[h][z])"
+                  class="w-full h-full rounded-xl flex flex-col items-center justify-center p-1 text-center shadow-sm border cursor-pointer active:scale-95 transition-transform"
+                  :class="timelineData[h][z].isDeposited ? 'bg-blue-50 border-blue-200 text-[#1A237E] hover:bg-blue-100' : 'bg-rose-50 border-rose-200 text-rose-700 hover:bg-rose-100'"
                 >
                   <div class="font-black text-xs leading-tight line-clamp-1 break-all px-1">{{ timelineData[h][z].parsedCustomer?.name }}</div>
                   <div class="text-[10px] font-bold opacity-80 mt-0.5">{{ timelineData[h][z].parsedCustomer?.pax }} người</div>

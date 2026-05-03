@@ -12,7 +12,7 @@ const ui = useUIStore()
 const appStore = useAppStore()
 const { editHistoricOrder, resetForm } = useForm()
 
-const currentView = ref<'list' | 'timeline'>('list')
+const currentView = ref<'list' | 'timeline'>('timeline')
 
 // --- Stats Calculation ---
 const stats = computed(() => {

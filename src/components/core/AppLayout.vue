@@ -18,6 +18,7 @@ const BankConfigModal = defineAsyncComponent(() => import('@/components/modals/B
 const BrandingModal = defineAsyncComponent(() => import('@/components/modals/BrandingModal.vue'))
 const VerifyTransferModal = defineAsyncComponent(() => import('@/components/modals/VerifyTransferModal.vue'))
 const WebhookConfigModal = defineAsyncComponent(() => import('@/components/modals/WebhookConfigModal.vue'))
+const BookingDetailModal = defineAsyncComponent(() => import('@/components/modals/BookingDetailModal.vue'))
 
 const ui = useUIStore()
 const formStore = useFormStore()
@@ -207,6 +208,7 @@ onMounted(() => {
     <MenuManagerModal />
     <BankConfigModal />
     <WebhookConfigModal />
+    <BookingDetailModal />
 
     <!-- DESKTOP SIDEBAR -->
     <aside class="hidden lg:flex w-20 bg-[#0D1658] flex-col items-center py-8 gap-8 border-r border-white/5 z-30 shadow-[4px_0_24px_rgba(0,0,0,0.1)]">
