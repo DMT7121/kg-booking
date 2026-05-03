@@ -275,6 +275,35 @@ export const useAppStore = defineStore('app', () => {
     }
   }
 
+  async function deleteMenu(sheetName: string) {
+    const pass = await uiStore.showPrompt('Xóa Bộ Thực Đơn', `Nhập mã PIN Quản Lý để xóa bộ thực đơn "${sheetName}":`)
+    if (pass === null) return
+
+    uiStore.loading.is = true
+    uiStore.loading.msg = `ĐANG XÓA MENU "${sheetName}"...`
+    uiStore.loading.subMsg = 'Vui lòng chờ...'
+    try {
+      const data = await api.deleteMenu(sheetName, pass)
+      if (data.ok) {
+        uiStore.showToast(`Xóa menu "${sheetName}" thành công!`, 'success')
+        await fetchSheets()
+        if (activeSheet.value === sheetName) {
+          if (menuSheets.value.length > 0) {
+            await switchMenu(menuSheets.value[0])
+          } else {
+            menuList.value = []
+          }
+        }
+      } else {
+        throw new Error(data.message)
+      }
+    } catch (e: any) {
+      uiStore.showToast('Lỗi xóa menu: ' + e.message, 'error')
+    } finally {
+      uiStore.loading.is = false
+    }
+  }
+
   // --- Bank Actions ---
   function selectBank(idx: number) {
     selectedBankIndex.value = idx
@@ -422,7 +451,7 @@ export const useAppStore = defineStore('app', () => {
     staffList, newStaff,
     currentBank, groupedHistory, filteredHistory,
     getCrmStatus, computeDiff,
-    loadHistory, fetchMenu, fetchSheets, switchMenu, uploadNewMenu,
+    loadHistory, fetchMenu, fetchSheets, switchMenu, uploadNewMenu, deleteMenu,
     selectBank, addBank, removeBank,
     addStaff, removeStaff,
     fetchRemoteConfig, updateRemoteConfig,

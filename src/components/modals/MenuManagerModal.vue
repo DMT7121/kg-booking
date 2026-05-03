@@ -145,9 +145,14 @@ function getCategoryColor(category: string) {
                   <h5 :class="['font-bold text-base truncate transition-colors', sheet === appStore.activeSheet ? 'text-[#1A237E]' : 'text-slate-700']">{{ sheet }}</h5>
                   <p class="text-[11px] text-slate-500 mt-0.5 truncate uppercase tracking-wide">{{ sheet === appStore.activeSheet ? 'Đang sử dụng' : 'Menu hệ thống' }}</p>
                 </div>
-                <button @click.stop="prepareUpdate(sheet); showUploadModal = true" class="w-8 h-8 flex items-center justify-center text-slate-400 hover:text-blue-600 rounded-full hover:bg-blue-50 transition-colors shrink-0">
-                  <i class="fa-solid fa-pen"></i>
-                </button>
+                <div class="flex gap-1 shrink-0">
+                  <button @click.stop="prepareUpdate(sheet); showUploadModal = true" class="w-8 h-8 flex items-center justify-center text-slate-400 hover:text-blue-600 rounded-full hover:bg-blue-50 transition-colors">
+                    <i class="fa-solid fa-pen"></i>
+                  </button>
+                  <button @click.stop="appStore.deleteMenu(sheet)" class="w-8 h-8 flex items-center justify-center text-slate-400 hover:text-red-600 rounded-full hover:bg-red-50 transition-colors">
+                    <i class="fa-solid fa-trash-can"></i>
+                  </button>
+                </div>
               </div>
               
               <!-- Mock visual placeholders to match design -->

@@ -89,6 +89,11 @@ export async function createMenu(name: string, rawText: string, password?: strin
   return postGAS({ action: 'createMenu', name, rawText, password })
 }
 
+/** Delete menu */
+export async function deleteMenu(name: string, password?: string): Promise<any> {
+  return postGAS({ action: 'deleteMenu', name, password })
+}
+
 /** Save API key to cloud */
 export async function saveApiKeyToCloud(provider: string, key: string, password: string): Promise<any> {
   return postGAS({ action: 'saveApiKey', provider, key, password })
