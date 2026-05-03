@@ -15,8 +15,8 @@ const HOURS = [
   '15:00', '16:00', '17:00', '18:00', '19:00', '20:00', '21:00', '22:00'
 ]
 
-// Date selection
-const selectedDateStr = ref(new Date().toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' }))
+const today = new Date()
+const selectedDateStr = ref(`${String(today.getDate()).padStart(2, '0')}/${String(today.getMonth() + 1).padStart(2, '0')}/${today.getFullYear()}`)
 
 // Format date for native input type="date"
 const selectedDateInput = computed({
@@ -47,14 +47,15 @@ const timelineData = computed(() => {
   Object.values(groups).forEach((group: any) => {
     const order = group.latest
     if (!order.parsedCustomer) return
-    const date = order.parsedCustomer.date
+    
+    const date = (order.parsedCustomer.date || '').trim()
     if (date !== selectedDateStr.value) return
 
-    const time = order.parsedCustomer.time // e.g. "09:30" or "10:00"
-    const tables = order.parsedCustomer.tables || ''
+    const time = (order.parsedCustomer.time || '').trim()
+    const tables = (order.parsedCustomer.tables || '').trim()
     
     // Find closest hour slot
-    const hourPrefix = time ? time.split(':')[0] : ''
+    const hourPrefix = time ? time.split(':')[0].padStart(2, '0') : ''
     let matchHour = HOURS.find(h => h.startsWith(hourPrefix))
     if (!matchHour) return
 
@@ -95,13 +96,13 @@ function openBookingDetail(booking: any) {
     
     <!-- Top Controls -->
     <div class="p-4 bg-white border-b border-slate-100 flex gap-3 items-center z-10 shadow-sm">
-      <div class="relative flex-grow border border-slate-200 rounded-xl px-3 py-2 flex flex-col cursor-pointer hover:border-blue-400 transition-colors">
-        <label class="text-[10px] font-bold text-slate-500 uppercase">Chọn ngày</label>
-        <div class="font-black text-slate-800 text-sm flex justify-between items-center">
+      <div class="relative flex-grow border border-slate-200 rounded-xl px-3 py-2 flex flex-col hover:border-blue-400 transition-colors">
+        <label class="text-[10px] font-bold text-slate-500 uppercase pointer-events-none">Chọn ngày</label>
+        <div class="font-black text-slate-800 text-sm flex justify-between items-center pointer-events-none">
           <span>{{ selectedDateStr }}</span>
           <i class="fa-solid fa-chevron-down text-slate-400 text-xs"></i>
         </div>
-        <input type="date" v-model="selectedDateInput" class="absolute inset-0 opacity-0 cursor-pointer w-full h-full">
+        <input type="date" v-model="selectedDateInput" class="absolute inset-0 opacity-0 cursor-pointer w-full h-full z-20">
       </div>
       
       <button @click="resetForm(); ui.tab = 'create'" class="h-12 px-6 bg-[#1A237E] text-white rounded-xl font-black text-sm shadow-lg shadow-blue-900/20 active:scale-95 transition-all flex justify-center items-center gap-2 whitespace-nowrap">
