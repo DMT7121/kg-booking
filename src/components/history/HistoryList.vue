@@ -6,10 +6,13 @@ import { useForm } from '@/composables/useForm'
 import { formatVND } from '@/utils'
 import * as api from '@/services/api'
 import { usePullToRefresh, haptic } from '@/composables/useGestures'
+import HistoryTimeline from './HistoryTimeline.vue'
 
 const ui = useUIStore()
 const appStore = useAppStore()
 const { editHistoricOrder, resetForm } = useForm()
+
+const currentView = ref<'list' | 'timeline'>('list')
 
 // --- Stats Calculation ---
 const stats = computed(() => {
@@ -131,13 +134,22 @@ async function deleteBatchOrders() {
 <template>
   <div class="flex-grow flex flex-col overflow-hidden text-[13px] bg-slate-50">
     <!-- Header Title -->
-    <div class="bg-white px-5 py-4 border-b border-slate-100 flex justify-between items-center z-10 shadow-sm">
-      <h2 class="font-black text-xl text-[#1A237E] uppercase tracking-wider" style="font-family: 'Be Vietnam Pro', sans-serif;">Lịch Đặt Bàn</h2>
+    <div class="bg-white px-5 py-4 border-b border-slate-100 flex justify-between items-center z-10 shadow-sm shrink-0">
+      <h2 class="font-black text-xl text-[#1A237E] uppercase tracking-wider flex items-center gap-2" style="font-family: 'Be Vietnam Pro', sans-serif;">
+        <i class="fa-solid fa-arrow-left text-slate-400 cursor-pointer lg:hidden" @click="ui.tab = 'create'"></i>
+        Lịch Đặt Bàn
+      </h2>
       <div class="flex bg-slate-100 p-1 rounded-xl">
-        <button class="px-4 py-1.5 rounded-lg text-xs font-bold bg-white text-[#1A237E] shadow-sm">Danh sách</button>
-        <button class="px-4 py-1.5 rounded-lg text-xs font-bold text-slate-500 hover:text-slate-700">Timeline</button>
+        <button @click="currentView = 'list'" :class="['px-4 py-1.5 rounded-lg text-xs font-bold transition-all', currentView === 'list' ? 'bg-white text-[#1A237E] shadow-sm' : 'text-slate-500 hover:text-slate-700']">Danh sách</button>
+        <button @click="currentView = 'timeline'" :class="['px-4 py-1.5 rounded-lg text-xs font-bold transition-all', currentView === 'timeline' ? 'bg-white text-[#1A237E] shadow-sm' : 'text-slate-500 hover:text-slate-700']">Timeline</button>
       </div>
     </div>
+
+    <!-- TIMELINE VIEW -->
+    <HistoryTimeline v-if="currentView === 'timeline'" />
+
+    <!-- LIST VIEW -->
+    <div v-else class="flex-grow flex flex-col overflow-hidden">
 
     <!-- Stats Cards -->
     <div class="grid grid-cols-2 md:grid-cols-4 gap-3 p-4 bg-white border-b border-slate-100 shadow-sm z-10">
@@ -318,6 +330,7 @@ async function deleteBatchOrders() {
               </button>
             </div>
           </div>
+        </div>
         </div>
       </div>
     </div>
