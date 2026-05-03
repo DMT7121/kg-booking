@@ -45,8 +45,60 @@ async function handleDelete() {
   finally { ui.loading.is = false }
 }
 
-function handlePending() {
-  ui.showToast('Tính năng chuyển sang chờ đang phát triển.', 'info')
+async function handlePending() {
+  if (!ui.selectedBooking) return
+  const confirmed = await ui.showConfirm('Xác Nhận', 'Chuyển đơn này sang trạng thái Tạm Hoãn? Bàn sẽ được giải phóng khỏi lịch.')
+  if (!confirmed) return
+  
+  ui.loading.is = true
+  ui.loading.msg = 'ĐANG CẬP NHẬT...'
+  haptic('medium')
+  
+  try {
+    const o = ui.selectedBooking
+    // Copy the original string back to parsedCustomer
+    const updateData = JSON.parse(o.data || '{}')
+    updateData.customer = updateData.customer || {}
+    updateData.customer.tables = 'Tạm hoãn'
+    updateData.customer.note = ((updateData.customer.note || '') + ' [TẠM HOÃN]').trim()
+    
+    const payload = {
+      ...o,
+      data: JSON.stringify(updateData),
+      customerTable: 'Tạm hoãn'
+    }
+
+    const res = await api.saveOrder(payload)
+    if (res.ok) {
+      ui.showToast('Đã chuyển sang hàng chờ!', 'success')
+      // Update local state without reloading everything
+      o.parsedCustomer.tables = 'Tạm hoãn'
+      o.parsedCustomer.note = updateData.customer.note
+      o.customerTable = 'Tạm hoãn'
+      o.data = payload.data
+      close()
+    } else {
+      ui.showToast(res.message || 'Lỗi cập nhật', 'error')
+    }
+  } catch (e: any) {
+    ui.showToast(e.message, 'error')
+  } finally {
+    ui.loading.is = false
+  }
+}
+
+function handleViewBill() {
+  if (!ui.selectedBooking) return
+  const url = `${window.location.origin}${window.location.pathname}?id=${ui.selectedBooking.id}`
+  if (navigator.share) {
+    navigator.share({
+      title: 'Bill - ' + (ui.selectedBooking.parsedCustomer?.name || ''),
+      url: url
+    }).catch(() => ui.showAlert('Link Bill', url))
+  } else {
+    navigator.clipboard.writeText(url)
+    ui.showAlert('Đã copy Link Bill', url)
+  }
 }
 </script>
 
@@ -93,7 +145,7 @@ function handlePending() {
           </div>
           <div class="bg-slate-50 p-3 rounded-2xl border border-slate-100">
             <div class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Khu / Bàn</div>
-            <div class="font-black flex items-center gap-2" :class="ui.selectedBooking.parsedCustomer?.tables && !ui.selectedBooking.parsedCustomer.tables.toLowerCase().includes('chưa') ? 'text-[#1A237E]' : 'text-orange-500'">
+            <div class="font-black flex items-center gap-2" :class="ui.selectedBooking.parsedCustomer?.tables && !ui.selectedBooking.parsedCustomer.tables.toLowerCase().includes('chưa') && !ui.selectedBooking.parsedCustomer.tables.toLowerCase().includes('hoãn') ? 'text-[#1A237E]' : 'text-orange-500'">
               <i class="fa-solid fa-chair text-slate-300"></i> {{ ui.selectedBooking.parsedCustomer?.tables || 'Chưa xếp' }}
             </div>
           </div>
@@ -118,7 +170,7 @@ function handlePending() {
         <button @click="handlePending" class="py-3.5 bg-amber-100 text-amber-700 border border-amber-200 rounded-xl font-black text-xs uppercase shadow-sm hover:bg-amber-200 active:scale-95 transition-all flex justify-center items-center gap-2">
           <i class="fa-solid fa-pause"></i> Tạm hoãn
         </button>
-        <button class="py-3.5 bg-slate-100 text-slate-600 border border-slate-200 rounded-xl font-black text-xs uppercase shadow-sm hover:bg-slate-200 active:scale-95 transition-all flex justify-center items-center gap-2">
+        <button @click="handleViewBill" class="py-3.5 bg-slate-100 text-slate-600 border border-slate-200 rounded-xl font-black text-xs uppercase shadow-sm hover:bg-slate-200 active:scale-95 transition-all flex justify-center items-center gap-2">
           <i class="fa-solid fa-receipt"></i> Xem Bill
         </button>
         <button @click="handleDelete" class="py-3.5 bg-red-50 text-red-600 border border-red-100 rounded-xl font-black text-xs uppercase shadow-sm hover:bg-red-100 active:scale-95 transition-all flex justify-center items-center gap-2">
