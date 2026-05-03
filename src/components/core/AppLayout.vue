@@ -143,43 +143,126 @@ onMounted(() => {
     </div>
 
     <!-- SETTINGS HUB MODAL -->
-    <div v-if="ui.showSettingsHub" class="fixed inset-0 bg-[#0D1658]/80 z-[12000] flex justify-center items-center p-4 backdrop-blur-md" @click.self="ui.showSettingsHub = false">
-      <div class="bg-white rounded-3xl shadow-2xl p-6 md:p-8 max-w-2xl w-[95%] md:w-full flex flex-col border border-white/20">
-        <div class="flex justify-between items-center mb-6">
-          <h3 class="text-2xl font-black text-[#1A237E] uppercase tracking-tighter flex items-center gap-3" style="font-family: 'Be Vietnam Pro', sans-serif;">
-            <div class="w-10 h-10 bg-blue-50 rounded-xl flex items-center justify-center text-blue-600">
-              <i class="fa-solid fa-gear"></i>
+    <div v-if="ui.showSettingsHub" class="fixed inset-0 bg-slate-50 z-[12000] overflow-y-auto custom-scrollbar flex flex-col">
+      <!-- Top Header -->
+      <div class="bg-white px-4 py-4 flex items-center justify-between sticky top-0 z-10 shadow-sm">
+        <button @click="ui.showSettingsHub = false" class="w-10 h-10 flex items-center justify-center text-slate-800 text-xl active:scale-95 transition-transform">
+          <i class="fa-solid fa-arrow-left"></i>
+        </button>
+        <div class="text-center flex-1">
+          <h2 class="text-xl font-black text-[#1A237E]">Cài đặt</h2>
+          <p class="text-[10px] font-bold text-slate-400 mt-0.5">Quản lý thông tin và thiết lập hệ thống</p>
+        </div>
+        <div class="w-10 h-10"></div> <!-- Placeholder for balance -->
+      </div>
+
+      <div class="p-4 md:p-6 max-w-2xl mx-auto w-full space-y-6 pb-20">
+        <!-- Brand Card -->
+        <div class="bg-white rounded-2xl p-4 flex items-center justify-between shadow-sm border border-slate-100 active:scale-[0.98] transition-transform cursor-pointer">
+          <div class="flex items-center gap-4">
+            <div class="w-14 h-14 bg-slate-50 rounded-xl overflow-hidden border border-slate-100 p-1.5 flex items-center justify-center">
+              <img src="/kg-logo.png" onerror="this.src='data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSIgc3Ryb2tlPSIjMUEyMzdFIiBzdHJva2Utd2lkdGg9IjIiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgc3Ryb2tlLWxpbmVqb2luPSJyb3VuZCI+PHBhdGggZD0iTTEyIDJMMiA3bDEwIDUgMTAtNS0xMC01ek0yIDE3bDEwIDUgMTAtNU0yIDEybDEwIDUgMTAtNSIvPjwvc3ZnPg=='" alt="Logo" class="w-full h-full object-contain">
             </div>
-            Cài Đặt Hệ Thống
-          </h3>
-          <button @click="ui.showSettingsHub = false" class="w-10 h-10 bg-slate-50 text-slate-400 rounded-xl hover:bg-red-50 hover:text-red-500 transition-all flex items-center justify-center"><i class="fa-solid fa-xmark text-xl"></i></button>
+            <div>
+              <h3 class="font-black text-slate-800 text-base">King's Grill</h3>
+              <p class="text-[11px] font-bold text-slate-400 mt-0.5">Nhà hàng / Quản trị viên</p>
+            </div>
+          </div>
+          <i class="fa-solid fa-chevron-right text-slate-300 text-sm"></i>
         </div>
-        <div class="grid grid-cols-2 md:grid-cols-3 gap-3 md:gap-4">
-          <button @click="ui.openConfig('branding')" class="p-6 bg-slate-50 border border-slate-100 rounded-2xl flex flex-col items-center justify-center gap-3 hover:bg-blue-50 hover:border-blue-200 transition-all active:scale-95 group min-h-[110px] shadow-sm">
-            <i class="fa-solid fa-palette text-3xl text-[#1A237E] group-hover:scale-110 transition-transform"></i>
-            <span class="font-black text-[11px] uppercase text-slate-700 tracking-wider">Giao Diện</span>
-          </button>
-          <button @click="ui.openConfig('menu')" class="p-6 bg-slate-50 border border-slate-100 rounded-2xl flex flex-col items-center justify-center gap-3 hover:bg-green-50 hover:border-green-200 transition-all active:scale-95 group min-h-[110px] shadow-sm">
-            <i class="fa-solid fa-utensils text-3xl text-green-600 group-hover:scale-110 transition-transform"></i>
-            <span class="font-black text-[11px] uppercase text-slate-700 tracking-wider">Thực Đơn</span>
-          </button>
-          <button @click="ui.openConfig('bank')" class="p-6 bg-slate-50 border border-slate-100 rounded-2xl flex flex-col items-center justify-center gap-3 hover:bg-purple-50 hover:border-purple-200 transition-all active:scale-95 group min-h-[110px] shadow-sm">
-            <i class="fa-solid fa-building-columns text-3xl text-purple-600 group-hover:scale-110 transition-transform"></i>
-            <span class="font-black text-[11px] uppercase text-slate-700 tracking-wider">Ngân Hàng</span>
-          </button>
-          <button @click="ui.openConfig('staff')" class="p-6 bg-slate-50 border border-slate-100 rounded-2xl flex flex-col items-center justify-center gap-3 hover:bg-orange-50 hover:border-orange-200 transition-all active:scale-95 group min-h-[110px] shadow-sm">
-            <i class="fa-solid fa-users-gear text-3xl text-orange-500 group-hover:scale-110 transition-transform"></i>
-            <span class="font-black text-[11px] uppercase text-slate-700 tracking-wider">Nhân Viên</span>
-          </button>
-          <button @click="ui.openConfig('ai')" class="p-6 bg-slate-50 border border-slate-100 rounded-2xl flex flex-col items-center justify-center gap-3 hover:bg-indigo-50 hover:border-indigo-200 transition-all active:scale-95 group min-h-[110px] shadow-sm">
-            <i class="fa-solid fa-microchip text-3xl text-indigo-500 group-hover:scale-110 transition-transform"></i>
-            <span class="font-black text-[11px] uppercase text-slate-700 tracking-wider">AI Core</span>
-          </button>
-          <button @click="ui.openConfig('webhook')" class="p-6 bg-slate-50 border border-slate-100 rounded-2xl flex flex-col items-center justify-center gap-3 hover:bg-cyan-50 hover:border-cyan-200 transition-all active:scale-95 group min-h-[110px] shadow-sm">
-            <i class="fa-solid fa-bell text-3xl text-cyan-500 group-hover:scale-110 transition-transform"></i>
-            <span class="font-black text-[11px] uppercase text-slate-700 tracking-wider">Thông Báo</span>
-          </button>
+
+        <!-- Section: Content -->
+        <div class="space-y-3">
+          <h4 class="text-[11px] font-black text-slate-400 uppercase tracking-widest pl-2">Quản lý nội dung</h4>
+          <div class="bg-white rounded-3xl shadow-sm border border-slate-100 overflow-hidden">
+            <!-- Menu -->
+            <button @click="ui.openConfig('menu')" class="w-full px-4 py-4 flex items-center gap-4 hover:bg-slate-50 active:bg-slate-100 transition-colors border-b border-slate-50 group">
+              <div class="w-12 h-12 rounded-2xl bg-blue-50 text-blue-500 flex items-center justify-center text-xl shrink-0 group-hover:scale-110 transition-transform">
+                <i class="fa-solid fa-bell-concierge"></i>
+              </div>
+              <div class="flex-1 text-left">
+                <div class="font-black text-slate-800 text-[13px] mb-0.5">Thêm thực đơn</div>
+                <div class="text-[10px] font-bold text-slate-400 leading-tight">Quản lý và cập nhật các món ăn, đồ uống<br>hiển thị trên phiếu đặt bàn</div>
+              </div>
+              <i class="fa-solid fa-chevron-right text-slate-300 text-sm"></i>
+            </button>
+            
+            <!-- AI -->
+            <button @click="ui.openConfig('ai')" class="w-full px-4 py-4 flex items-center gap-4 hover:bg-slate-50 active:bg-slate-100 transition-colors border-b border-slate-50 group">
+              <div class="w-12 h-12 rounded-2xl bg-purple-50 text-purple-500 flex items-center justify-center text-xl shrink-0 group-hover:scale-110 transition-transform">
+                <i class="fa-solid fa-wand-magic-sparkles"></i>
+              </div>
+              <div class="flex-1 text-left">
+                <div class="font-black text-slate-800 text-[13px] mb-0.5">Thêm cấu hình AI</div>
+                <div class="text-[10px] font-bold text-slate-400 leading-tight">Thiết lập và tùy chỉnh AI hỗ trợ gợi ý số bàn,<br>phân tích và nhắc nhở</div>
+              </div>
+              <i class="fa-solid fa-chevron-right text-slate-300 text-sm"></i>
+            </button>
+
+            <!-- Staff -->
+            <button @click="ui.openConfig('staff')" class="w-full px-4 py-4 flex items-center gap-4 hover:bg-slate-50 active:bg-slate-100 transition-colors border-b border-slate-50 group">
+              <div class="w-12 h-12 rounded-2xl bg-emerald-50 text-emerald-500 flex items-center justify-center text-xl shrink-0 group-hover:scale-110 transition-transform">
+                <i class="fa-regular fa-user"></i>
+              </div>
+              <div class="flex-1 text-left">
+                <div class="font-black text-slate-800 text-[13px] mb-0.5">Thêm nhân viên nhận bàn</div>
+                <div class="text-[10px] font-bold text-slate-400 leading-tight">Thêm và quản lý nhân viên nhận bàn.<br>Thông tin sẽ hiển thị trên phiếu để khách hàng<br>liên hệ khi cần</div>
+              </div>
+              <i class="fa-solid fa-chevron-right text-slate-300 text-sm"></i>
+            </button>
+
+            <!-- Bank -->
+            <button @click="ui.openConfig('bank')" class="w-full px-4 py-4 flex items-center gap-4 hover:bg-slate-50 active:bg-slate-100 transition-colors group">
+              <div class="w-12 h-12 rounded-2xl bg-cyan-50 text-cyan-500 flex items-center justify-center text-xl shrink-0 group-hover:scale-110 transition-transform">
+                <i class="fa-solid fa-building-columns"></i>
+              </div>
+              <div class="flex-1 text-left">
+                <div class="font-black text-slate-800 text-[13px] mb-0.5">Thêm ngân hàng</div>
+                <div class="text-[10px] font-bold text-slate-400 leading-tight">Quản lý thông tin tài khoản ngân hàng<br>hiển thị trên phiếu đặt bàn</div>
+              </div>
+              <i class="fa-solid fa-chevron-right text-slate-300 text-sm"></i>
+            </button>
+          </div>
         </div>
+
+        <!-- Section: UI -->
+        <div class="space-y-3">
+          <h4 class="text-[11px] font-black text-slate-400 uppercase tracking-widest pl-2">Tùy chỉnh giao diện</h4>
+          <div class="bg-white rounded-3xl shadow-sm border border-slate-100 overflow-hidden">
+            <button @click="ui.openConfig('branding')" class="w-full px-4 py-4 flex items-center gap-4 hover:bg-slate-50 active:bg-slate-100 transition-colors group">
+              <div class="w-12 h-12 rounded-2xl bg-orange-50 text-orange-500 flex items-center justify-center text-xl shrink-0 group-hover:scale-110 transition-transform">
+                <i class="fa-solid fa-pen-nib"></i>
+              </div>
+              <div class="flex-1 text-left">
+                <div class="font-black text-slate-800 text-[13px] mb-0.5">Tinh chỉnh giao diện</div>
+                <div class="text-[10px] font-bold text-slate-400 leading-tight">Tùy chỉnh logo, màu sắc, font chữ và<br>các yếu tố hiển thị trên phiếu đặt bàn</div>
+              </div>
+              <i class="fa-solid fa-chevron-right text-slate-300 text-sm"></i>
+            </button>
+          </div>
+        </div>
+
+        <!-- Section: Other -->
+        <div class="space-y-3">
+          <h4 class="text-[11px] font-black text-slate-400 uppercase tracking-widest pl-2">Khác</h4>
+          <div class="bg-white rounded-3xl shadow-sm border border-slate-100 overflow-hidden">
+            <button @click="ui.openConfig('webhook')" class="w-full px-4 py-4 flex items-center gap-4 hover:bg-slate-50 active:bg-slate-100 transition-colors group">
+              <div class="w-12 h-12 rounded-2xl bg-slate-100 text-slate-600 flex items-center justify-center text-xl shrink-0 group-hover:scale-110 transition-transform">
+                <i class="fa-solid fa-gear"></i>
+              </div>
+              <div class="flex-1 text-left">
+                <div class="font-black text-slate-800 text-[13px] mb-0.5">Cài đặt hệ thống</div>
+                <div class="text-[10px] font-bold text-slate-400 leading-tight">Quản lý thông báo Telegram, cấu hình chung<br>và các thiết lập khác</div>
+              </div>
+              <i class="fa-solid fa-chevron-right text-slate-300 text-sm"></i>
+            </button>
+          </div>
+        </div>
+
+        <!-- Logout Button -->
+        <button class="w-full py-4 bg-white border border-rose-100 text-rose-500 rounded-2xl font-black text-sm shadow-sm active:scale-95 transition-all flex items-center justify-center gap-2 hover:bg-rose-50">
+          <i class="fa-solid fa-arrow-right-from-bracket"></i> Đăng xuất
+        </button>
       </div>
     </div>
 
