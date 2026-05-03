@@ -104,7 +104,7 @@ function openBookingDetail(booking: any) {
         <input type="date" v-model="selectedDateInput" class="absolute inset-0 opacity-0 cursor-pointer w-full h-full">
       </div>
       
-      <button @click="resetForm" class="h-12 px-6 bg-[#1A237E] text-white rounded-xl font-black text-sm shadow-lg shadow-blue-900/20 active:scale-95 transition-all flex justify-center items-center gap-2 whitespace-nowrap">
+      <button @click="resetForm(); ui.tab = 'create'" class="h-12 px-6 bg-[#1A237E] text-white rounded-xl font-black text-sm shadow-lg shadow-blue-900/20 active:scale-95 transition-all flex justify-center items-center gap-2 whitespace-nowrap">
         <i class="fa-solid fa-plus text-white/70"></i> Tạo lịch đặt mới
       </button>
     </div>

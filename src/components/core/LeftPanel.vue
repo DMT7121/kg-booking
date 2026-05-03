@@ -89,8 +89,8 @@ function shareCurrentBill() {
 
     <!-- TABS -->
     <div class="flex bg-white text-[10px] font-black border-b border-slate-100 uppercase tracking-widest shadow-sm relative z-10">
-      <button @click="ui.tab = 'create'" :class="['flex-1 py-3.5 flex justify-center items-center gap-2 transition-all min-h-[46px] border-b-[3px]', ui.tab === 'create' ? 'text-[#1A237E] border-[#1A237E] bg-blue-50/50' : 'text-slate-400 border-transparent hover:text-slate-600 hover:bg-slate-50']"><i class="fa-solid fa-pen-nib text-sm"></i> Nhập Liệu</button>
-      <button @click="appStore.loadHistory(false)" :class="['flex-1 py-3.5 flex justify-center items-center gap-2 transition-all min-h-[46px] border-b-[3px]', ui.tab === 'history' ? 'text-[#1A237E] border-[#1A237E] bg-blue-50/50' : 'text-slate-400 border-transparent hover:text-slate-600 hover:bg-slate-50']"><i class="fa-solid fa-clock-rotate-left text-sm"></i> Lịch Sử</button>
+      <button @click="ui.tab = 'history'; appStore.loadHistory(false)" :class="['flex-1 py-3.5 flex justify-center items-center gap-2 transition-all min-h-[46px] border-b-[3px]', ui.tab === 'history' ? 'text-[#1A237E] border-[#1A237E] bg-blue-50/50' : 'text-slate-400 border-transparent hover:text-slate-600 hover:bg-slate-50']"><i class="fa-solid fa-calendar-days text-sm"></i> Lịch Bàn</button>
+      <button @click="ui.tab = 'create'" :class="['flex-1 py-3.5 flex justify-center items-center gap-2 transition-all min-h-[46px] border-b-[3px]', ui.tab === 'create' ? 'text-[#1A237E] border-[#1A237E] bg-blue-50/50' : 'text-slate-400 border-transparent hover:text-slate-600 hover:bg-slate-50']"><i class="fa-solid fa-plus text-sm"></i> Tạo Phiếu</button>
       <button @click="ui.tab = 'preview'" class="md:hidden flex-1 py-3.5 flex justify-center items-center gap-2 transition-all min-h-[46px] border-b-[3px] border-transparent text-slate-500 bg-slate-50 hover:bg-slate-100"><i class="fa-solid fa-eye text-sm"></i> Preview</button>
     </div>
 

@@ -17,6 +17,7 @@ function close() {
 function handleEdit() {
   if (!ui.selectedBooking) return
   editHistoricOrder(ui.selectedBooking)
+  ui.tab = 'create'
   close()
 }
 
