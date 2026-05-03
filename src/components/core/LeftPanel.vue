@@ -119,7 +119,7 @@ function shareCurrentBill() {
     <HistoryList v-show="ui.tab === 'history'" />
 
     <!-- MOBILE FOOTER (Glassmorphism) -->
-    <div v-if="ui.tab === 'create' && !ui.isKeyboardOpen" class="md:hidden fixed bottom-4 left-4 right-4 p-2.5 bg-slate-900/90 backdrop-blur-2xl border border-white/10 z-40 grid grid-cols-5 gap-2 shadow-[0_20px_50px_rgba(0,0,0,0.4)] rounded-2xl safe-area-pb">
+    <div v-if="ui.tab === 'create' && !ui.isKeyboardOpen" class="md:hidden fixed bottom-4 left-4 right-4 p-2.5 bg-[#0D1658]/90 backdrop-blur-2xl border border-white/10 z-40 grid grid-cols-5 gap-2 shadow-[0_20px_50px_rgba(0,0,0,0.4)] rounded-2xl safe-area-pb">
       <button @click="doSave('save')" class="bg-emerald-500/10 text-emerald-400 py-3 rounded-xl font-black flex flex-col items-center text-[7px] gap-1 active:scale-90 transition-all uppercase tracking-widest border border-emerald-500/20 active-effect"><i class="fa-solid fa-cloud-arrow-up text-lg"></i> LƯU</button>
       <button @click="doSave('image')" class="bg-indigo-500/10 text-indigo-400 py-3 rounded-xl font-black flex flex-col items-center text-[7px] gap-1 active:scale-90 transition-all uppercase tracking-widest border border-indigo-500/20 active-effect"><i class="fa-solid fa-file-image text-lg"></i> ẢNH</button>
       <button @click="doSave('pdf')" class="bg-rose-500/10 text-rose-400 py-3 rounded-xl font-black flex flex-col items-center text-[7px] gap-1 active:scale-90 transition-all uppercase tracking-widest border border-rose-500/20 active-effect"><i class="fa-solid fa-file-pdf text-lg"></i> PDF</button>
