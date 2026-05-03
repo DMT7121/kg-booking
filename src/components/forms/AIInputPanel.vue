@@ -115,8 +115,8 @@ function onDrop(e: DragEvent) {
       </div>
     </div>
 
-    <button @click="processAI" class="w-full mt-3 bg-yellow-400 text-slate-900 py-3 rounded-xl font-black text-xs hover:bg-yellow-300 shadow-xl flex justify-center items-center gap-2 active:scale-95 transition-all min-h-[44px] active-effect" :style="{ backgroundColor: configStore.branding.color }">
-      <i class="fa-solid fa-rocket animate-bounce"></i> PHÂN TÍCH (QUICK EXTRACT)
+    <button @click="processAI" class="w-full mt-3 bg-white/20 text-white py-3 rounded-xl font-bold text-sm hover:bg-white/30 backdrop-blur-sm shadow-lg border border-white/10 flex justify-center items-center gap-2 active:scale-95 transition-all min-h-[48px] active-effect">
+      <i class="fa-solid fa-rocket"></i> PHÂN TÍCH (QUICK EXTRACT)
     </button>
   </div>
 </template>

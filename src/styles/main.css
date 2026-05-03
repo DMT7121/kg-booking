@@ -6,8 +6,9 @@
 [v-cloak] { display: none; }
 :root {
     --app-height: 100%;
-    --primary: #1e293b;
-    --accent: #2563eb;
+    --primary: #1A237E; /* New Navy Blue */
+    --accent: #22C55E; /* New Green Accent */
+    --secondary: #7C4DFF;
     --success: #10b981;
     --warning: #f59e0b;
     --danger: #ef4444;
@@ -16,13 +17,16 @@
     --border-radius-2xl: 2rem;
 }
 body { 
-    font-family: 'Be Vietnam Pro', 'Inter', sans-serif; 
+    font-family: 'Inter', 'Be Vietnam Pro', sans-serif; 
     background-color: #f8fafc; 
-    color: #1e293b;
+    color: #1F2937;
     overscroll-behavior-y: none; 
     -webkit-font-smoothing: antialiased; 
     -moz-osx-font-smoothing: grayscale;
     text-rendering: optimizeLegibility;
+}
+h1, h2, h3, h4, h5, h6, .font-display {
+    font-family: 'Be Vietnam Pro', sans-serif;
 }
 
 /* --- UTILS --- */
