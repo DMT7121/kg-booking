@@ -84,6 +84,36 @@ const timelineData = computed(() => {
   return grid
 })
 
+// Auto CRM Insights for today
+const crmInsights = computed(() => {
+  let vipCount = 0
+  let totalPax = 0
+  
+  const groups = appStore.groupedHistory
+  Object.values(groups).forEach((group: any) => {
+    const order = group.latest
+    if (!order.parsedCustomer) return
+    const date = (order.parsedCustomer.date || '').trim()
+    if (date !== selectedDateStr.value) return
+    
+    totalPax += Number(order.parsedCustomer.pax) || 0
+    const status = appStore.getCrmStatus(order.parsedCustomer.phone)
+    if (status === 'VIP' || status === 'Khách quen') {
+      vipCount++
+    }
+  })
+
+  if (totalPax === 0) return null
+  
+  return {
+    vipCount,
+    totalPax,
+    message: vipCount > 0 
+      ? `Hôm nay dự kiến đón ${totalPax} khách, trong đó có ${vipCount} khách hàng thân thiết. Khuyến nghị chuẩn bị quà tặng/voucher VIP!` 
+      : `Dự kiến đón ${totalPax} khách. Hãy cố gắng upsell các món đặc biệt nhé!`
+  }
+})
+
 function getAmPm(time: string) {
   const h = parseInt(time.split(':')[0])
   return h >= 12 ? 'PM' : 'AM'
@@ -143,6 +173,18 @@ function getStaff(order: any) {
       <button @click="resetForm(); ui.tab = 'create'" class="h-12 px-6 bg-blue-900 text-white rounded-xl font-black text-sm shadow-lg shadow-blue-900/20 active:scale-95 transition-all flex justify-center items-center gap-2 whitespace-nowrap">
         <i class="fa-solid fa-plus text-white/70"></i> Tạo lịch đặt mới
       </button>
+    </div>
+
+    <!-- Auto CRM Banner -->
+    <div v-if="crmInsights" class="bg-gradient-to-r from-purple-600 to-blue-600 p-3 flex items-center gap-3 text-white shadow-inner shrink-0 relative overflow-hidden">
+      <div class="absolute -right-4 -top-4 w-16 h-16 bg-white/10 rounded-full blur-xl pointer-events-none"></div>
+      <div class="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center shrink-0 border border-white/30 shadow-sm relative z-10">
+        <i class="fa-solid fa-wand-magic-sparkles text-sm animate-pulse text-yellow-300"></i>
+      </div>
+      <div class="flex-1 min-w-0 relative z-10">
+        <div class="text-[10px] font-black uppercase tracking-widest text-blue-100 mb-0.5">AI Tự Động Gợi Ý (Auto-CRM)</div>
+        <div class="text-xs font-semibold leading-tight line-clamp-2 md:line-clamp-1">{{ crmInsights.message }}</div>
+      </div>
     </div>
 
     <!-- Timeline Grid Container -->
