@@ -97,7 +97,7 @@ function shareCurrentBill() {
     </div>
 
     <!-- TAB CONTENT WRAPPER -->
-    <div class="flex-grow relative overflow-hidden flex flex-col bg-slate-50">
+    <div class="flex-grow relative overflow-hidden flex flex-col bg-slate-50 z-0">
       <transition name="tab-fade" mode="out-in">
         <KeepAlive>
           <HistoryTimeline v-if="ui.tab === 'timeline'" key="timeline" />
