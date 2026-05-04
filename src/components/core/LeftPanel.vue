@@ -100,13 +100,8 @@ function shareCurrentBill() {
     <div class="flex-grow relative overflow-hidden flex flex-col bg-slate-50">
       <transition name="tab-fade" mode="out-in">
         <KeepAlive>
-          <!-- TIMELINE TAB -->
           <HistoryTimeline v-if="ui.tab === 'timeline'" key="timeline" />
-
-          <!-- HISTORY TAB -->
           <HistoryList v-else-if="ui.tab === 'history'" key="history" />
-
-          <!-- CREATE TAB -->
           <div v-else-if="ui.tab === 'create'" key="create" class="flex-grow flex flex-col overflow-hidden relative">
             <div class="flex-grow overflow-y-auto p-3 md:p-4 space-y-3 pb-28 md:pb-6 bg-gray-50/30 scroll-smooth custom-scrollbar">
               <AIInputPanel />
