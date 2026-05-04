@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia'
-import { reactive, ref } from 'vue'
+import { reactive, ref, computed } from 'vue'
 
 export interface Toast {
   id: number

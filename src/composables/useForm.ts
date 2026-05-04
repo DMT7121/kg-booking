@@ -212,7 +212,7 @@ function _createForm() {
     }
 
     const menuText = formStore.items.map((item, i) => {
-      const note = item.notes ? ` (${item.notes})` : ''
+      const note = item.note ? ` (${item.note})` : ''
       return `  ${i + 1}. ${item.name} x${item.qty}${note}`
     }).join('\n')
 
