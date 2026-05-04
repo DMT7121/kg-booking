@@ -350,4 +350,5 @@ onMounted(() => {
     <!-- MAIN PANELS -->
     <LeftPanel />
   </div>
+  </div>
 </template>
