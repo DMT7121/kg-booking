@@ -4,6 +4,8 @@ import { useUIStore } from '@/stores/useUIStore'
 import { useAppStore } from '@/stores/useAppStore'
 import { formatVND } from '@/utils'
 import { useForm } from '@/composables/useForm'
+import MenuListItem from './MenuListItem.vue'
+import MenuGridItem from './MenuGridItem.vue'
 
 const ui = useUIStore()
 const appStore = useAppStore()
@@ -274,40 +276,26 @@ function getCategoryColor(category: string) {
 
           <!-- Grid View -->
           <div v-if="viewMode === 'grid'" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4 pb-32 lg:pb-8 overflow-y-auto custom-scrollbar pr-1">
-            <div v-for="dish in enhancedMenuList" :key="dish.name" 
-                 @click="selectDish(dish)"
-                 :class="['bg-white rounded-2xl overflow-hidden cursor-pointer transition-all hover:shadow-lg hover:-translate-y-1 flex flex-col border', selectedDish?.name === dish.name ? 'border-blue-500 shadow-md shadow-blue-500/20 ring-1 ring-blue-500' : 'border-slate-200 shadow-sm']">
-              <div class="relative pt-[100%] bg-slate-100">
-                <img :src="dish.image" alt="dish" class="absolute inset-0 w-full h-full object-cover">
-                <div v-if="selectedDish?.name === dish.name" class="absolute top-2 right-2 w-6 h-6 bg-blue-500 text-white rounded-full flex items-center justify-center text-xs shadow-md border-2 border-white">
-                  <i class="fa-solid fa-check"></i>
-                </div>
-              </div>
-              <div class="p-3 text-center flex-1 flex flex-col justify-center items-center bg-white">
-                <h4 class="font-bold text-slate-800 text-sm mb-1 line-clamp-2 leading-tight">{{ dish.name }}</h4>
-                <div class="font-black text-blue-900 text-[13px] mb-2">{{ formatVND(dish.price) }}</div>
-                <span :class="['inline-block border px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider', getCategoryColor(dish.category)]">{{ dish.category }}</span>
-              </div>
-            </div>
+            <MenuGridItem 
+              v-for="dish in enhancedMenuList" 
+              :key="dish.name"
+              :dish="dish"
+              :getCategoryColor="getCategoryColor"
+              :isSelected="selectedDish?.name === dish.name"
+              @select="selectDish"
+            />
           </div>
 
           <!-- List View -->
           <div v-else class="space-y-3 pb-32 lg:pb-8 overflow-y-auto custom-scrollbar pr-1">
-            <div v-for="dish in enhancedMenuList" :key="dish.name"
-                 @click="selectDish(dish)"
-                 :class="['bg-white p-3 rounded-2xl border flex items-center gap-4 cursor-pointer transition-all hover:shadow-md', selectedDish?.name === dish.name ? 'border-blue-500 bg-blue-50/20 shadow-md ring-1 ring-blue-500' : 'border-slate-200 shadow-sm']">
-              <div class="relative shrink-0">
-                <img :src="dish.image" alt="dish" class="w-16 h-16 rounded-xl object-cover">
-                <div v-if="selectedDish?.name === dish.name" class="absolute -top-1 -right-1 w-5 h-5 bg-blue-500 text-white rounded-full flex items-center justify-center text-[10px] shadow-sm border-2 border-white">
-                  <i class="fa-solid fa-check"></i>
-                </div>
-              </div>
-              <div class="flex-1 min-w-0">
-                <h4 class="font-bold text-slate-800 truncate text-sm mb-1">{{ dish.name }}</h4>
-                <span :class="['px-2 py-0.5 rounded border text-[10px] font-black uppercase tracking-wider', getCategoryColor(dish.category)]">{{ dish.category }}</span>
-              </div>
-              <div class="font-black text-blue-900 text-sm">{{ formatVND(dish.price) }}</div>
-            </div>
+            <MenuListItem 
+              v-for="dish in enhancedMenuList" 
+              :key="dish.name"
+              :dish="dish"
+              :getCategoryColor="getCategoryColor"
+              :isSelected="selectedDish?.name === dish.name"
+              @select="selectDish"
+            />
           </div>
         </div>
 

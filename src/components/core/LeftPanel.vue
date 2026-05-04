@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { useUIStore } from '@/stores/useUIStore'
 import { useFormStore } from '@/stores/useFormStore'
 import { useConfigStore } from '@/stores/useConfigStore'
@@ -22,6 +22,11 @@ const { triggerSave } = useBillRender()
 const { copyBookingConfirmation, validateForm } = useForm()
 
 const doSave = (type: string) => { haptic('light'); triggerSave(type, validateForm) }
+
+const showDropdown = ref(false)
+function reloadApp() {
+  window.location.reload()
+}
 
 // --- Tab Swipe (mobile only) ---
 const mobileTabs = ['timeline', 'history', 'create', 'preview']
@@ -78,13 +83,35 @@ function shareCurrentBill() {
           <div class="w-2 h-2 rounded-full transition-colors shadow-[0_0_8px_rgba(34,197,94,0.5)]" :class="{'bg-green-400': ui.connectionStatus === 'online', 'bg-yellow-400 animate-pulse': ui.connectionStatus === 'syncing', 'bg-red-400': ui.connectionStatus === 'error'}"></div>
           <span class="text-[10px] font-black text-blue-50 uppercase tracking-widest">{{ ui.connectionStatus }}</span>
         </div>
-        <button @click="ui.showSettingsHub = true" class="w-11 h-11 rounded-xl bg-white/10 hover:bg-white/25 flex items-center justify-center border border-white/10 transition-all active:scale-95 group relative shadow-sm">
-          <i class="fa-solid fa-layer-group text-blue-100 group-hover:text-white transition-colors text-lg"></i>
-          <span v-if="configStore.totalKeysHasData" class="absolute -top-1 -right-1 flex h-4 w-4">
-            <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
-            <span class="relative inline-flex rounded-full h-4 w-4 bg-red-500 border-2 border-blue-900"></span>
-          </span>
-        </button>
+        <div class="relative">
+          <button @click="showDropdown = !showDropdown" class="w-11 h-11 rounded-xl bg-white/10 hover:bg-white/25 flex items-center justify-center border border-white/10 transition-all active:scale-95 group relative shadow-sm">
+            <i class="fa-solid fa-ellipsis-vertical text-blue-100 group-hover:text-white transition-colors text-lg"></i>
+            <span v-if="configStore.totalKeysHasData" class="absolute -top-1 -right-1 flex h-4 w-4">
+              <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+              <span class="relative inline-flex rounded-full h-4 w-4 bg-red-500 border-2 border-blue-900"></span>
+            </span>
+          </button>
+          
+          <div v-if="showDropdown" @click="showDropdown = false" class="fixed inset-0 z-[100]"></div>
+
+          <transition enter-active-class="transition ease-out duration-100" enter-from-class="transform opacity-0 scale-95" enter-to-class="transform opacity-100 scale-100" leave-active-class="transition ease-in duration-75" leave-from-class="transform opacity-100 scale-100" leave-to-class="transform opacity-0 scale-95">
+            <div v-if="showDropdown" class="absolute top-full right-0 mt-2 w-56 bg-white rounded-2xl shadow-xl border border-slate-100 py-2 z-[101]">
+              <button @click="reloadApp" class="w-full text-left px-4 py-3 flex items-center gap-3 hover:bg-slate-50 transition-colors">
+                <div class="w-6 text-center"><i class="fa-solid fa-rotate-right text-slate-400"></i></div>
+                <span class="font-bold text-[13px] text-slate-700">Tải lại (Refresh)</span>
+              </button>
+              <button @click="appStore.loadHistory(false); showDropdown = false" class="w-full text-left px-4 py-3 flex items-center gap-3 hover:bg-slate-50 transition-colors">
+                <div class="w-6 text-center"><i class="fa-solid fa-cloud-arrow-down text-slate-400"></i></div>
+                <span class="font-bold text-[13px] text-slate-700">Đồng bộ Cloud</span>
+              </button>
+              <div class="h-[1px] bg-slate-100 my-1"></div>
+              <button @click="ui.showSettingsHub = true; showDropdown = false" class="w-full text-left px-4 py-3 flex items-center gap-3 hover:bg-slate-50 transition-colors group">
+                <div class="w-6 text-center"><i class="fa-solid fa-layer-group text-slate-400 group-hover:text-blue-500 transition-colors"></i></div>
+                <span class="font-bold text-[13px] text-slate-700">Cài đặt hệ thống</span>
+              </button>
+            </div>
+          </transition>
+        </div>
       </div>
     </div>
 
