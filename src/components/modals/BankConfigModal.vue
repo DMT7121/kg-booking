@@ -109,8 +109,9 @@ function getBankLogoColor(bin: string) {
             <div v-for="(b, idx) in appStore.bankList" :key="idx"
                  class="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm flex items-center gap-4 hover:border-blue-200 transition-colors group">
               
-              <div :class="['w-10 h-10 rounded-full flex items-center justify-center shrink-0 overflow-hidden text-lg', getBankLogoColor(b.bankId)]">
-                 <i class="fa-solid fa-building-columns"></i>
+              <div class="w-12 h-12 rounded-full flex items-center justify-center shrink-0 overflow-hidden bg-white border border-slate-100 shadow-[0_2px_8px_rgba(0,0,0,0.04)] p-2 relative group-hover:border-blue-200 transition-colors">
+                 <img :src="`https://api.vietqr.io/img/${b.bankId}.png`" @error="$event.target.style.display='none'; $event.target.nextElementSibling.style.display='block'" class="w-full h-full object-contain" :alt="b.name">
+                 <i class="fa-solid fa-building-columns text-slate-300 hidden text-lg"></i>
               </div>
               
               <div class="flex-1 min-w-0">
