@@ -112,6 +112,12 @@ h1, h2, h3, h4, h5, h6, .font-display {
 .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
 .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
 
+.no-scrollbar::-webkit-scrollbar { display: none; }
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
 /* --- MOBILE OPTIMIZATIONS --- */
 input, textarea, button, select, a, div[role="button"] {
     -webkit-tap-highlight-color: transparent;
