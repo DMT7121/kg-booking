@@ -11,21 +11,11 @@ const appStore = useAppStore()
 
 // Floor Plan Layout Definition
 const floorPlan = [
-  {
-    name: 'Tầng 1 (Trong Nhà)',
-    zone: 'A',
-    tables: ['A1', 'A2', 'A3', 'A4', 'A5', 'A6', 'A7', 'A8']
-  },
-  {
-    name: 'Sân Vườn (Ngoài Trời)',
-    zone: 'B',
-    tables: ['B1', 'B2', 'B3', 'B4', 'B5', 'B6']
-  },
-  {
-    name: 'Tầng 2 (Phòng Lạnh / VIP)',
-    zone: 'V',
-    tables: ['V1', 'V2', 'V3', 'V4', 'V5']
-  }
+  { name: 'Khu A', zone: 'A', tables: Array.from({length: 22}, (_, i) => `A${i+1}`) },
+  { name: 'Khu B', zone: 'B', tables: Array.from({length: 10}, (_, i) => `B${i+1}`) },
+  { name: 'Khu C', zone: 'C', tables: Array.from({length: 16}, (_, i) => `C${i+1}`) },
+  { name: 'Khu D', zone: 'D', tables: Array.from({length: 8}, (_, i) => `D${i+1}`) },
+  { name: 'Khu E', zone: 'E', tables: Array.from({length: 8}, (_, i) => `E${i+1}`) }
 ]
 
 // Current date string to filter today's bookings
