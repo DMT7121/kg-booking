@@ -103,6 +103,15 @@ function prefillBooking(zone: string, time: string) {
   ui.tab = 'create'
   ui.showToast(`Đã điền sẵn bàn ${cleanZone} lúc ${time}`, 'success')
 }
+
+function getStaff(order: any) {
+  try {
+    const data = JSON.parse(order.data || '{}')
+    return data.staff?.name || ''
+  } catch {
+    return ''
+  }
+}
 </script>
 
 <template>
@@ -159,11 +168,11 @@ function prefillBooking(zone: string, time: string) {
                     <div v-if="timelineData[h][z].parsedCustomer?.tables" class="text-[8.5px] font-bold opacity-80 truncate text-left w-full flex items-center gap-1">
                       <i class="fa-solid fa-chair text-[8px] opacity-70"></i> {{ timelineData[h][z].parsedCustomer?.tables }}
                     </div>
-                    <div v-if="timelineData[h][z].parsedCustomer?.req" class="text-[8.5px] font-bold opacity-80 truncate text-left w-full flex items-center gap-1">
-                      <i class="fa-solid fa-bell-concierge text-[8px] opacity-70"></i> {{ timelineData[h][z].parsedCustomer?.req }}
+                    <div v-if="timelineData[h][z].parsedCustomer?.note" class="text-[8.5px] font-bold opacity-80 truncate text-left w-full flex items-center gap-1">
+                      <i class="fa-solid fa-bell-concierge text-[8px] opacity-70"></i> {{ timelineData[h][z].parsedCustomer?.note }}
                     </div>
-                    <div v-if="timelineData[h][z].parsedCustomer?.staff" class="text-[8.5px] font-bold opacity-80 truncate text-left w-full flex items-center gap-1">
-                      <i class="fa-solid fa-user-tag text-[8px] opacity-70"></i> {{ timelineData[h][z].parsedCustomer?.staff }}
+                    <div v-if="getStaff(timelineData[h][z])" class="text-[8.5px] font-bold opacity-80 truncate text-left w-full flex items-center gap-1">
+                      <i class="fa-solid fa-user-tag text-[8px] opacity-70"></i> {{ getStaff(timelineData[h][z]) }}
                     </div>
                   </div>
                 </div>
