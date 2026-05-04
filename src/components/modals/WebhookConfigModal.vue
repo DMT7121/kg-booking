@@ -75,11 +75,11 @@ function clearWebhook() {
 </script>
 
 <template>
-  <div v-if="ui.showWebhookConfig" class="fixed inset-0 bg-blue-950/80 z-[12000] flex justify-center items-center p-4 backdrop-blur-md" @click.self="ui.showWebhookConfig = false">
-    <div class="bg-white rounded-3xl shadow-2xl p-6 md:p-8 max-w-md w-[95%] md:w-full flex flex-col relative overflow-hidden border border-white/20 max-h-[90vh]">
+  <div v-if="ui.activeSettingModal === 'webhook'" class="flex-1 h-full flex justify-center items-center p-4 bg-slate-50 relative z-[12000] lg:z-10 w-full" @click.self="ui.closeConfig()">
+    <div class="bg-white rounded-3xl shadow-2xl p-6 md:p-8 max-w-sm w-[95%] md:w-full flex flex-col relative overflow-hidden border border-slate-200">
       
       <!-- Header BG Decoration -->
-      <div class="absolute top-0 left-0 right-0 h-24 bg-gradient-to-r from-blue-600 to-blue-900 rounded-t-3xl opacity-10"></div>
+      <div class="absolute top-0 left-0 right-0 h-24 bg-gradient-to-r from-blue-600 to-cyan-500 rounded-t-3xl opacity-10"></div>
 
       <div class="flex justify-between items-center mb-6 relative z-10">
         <h3 class="text-2xl font-black text-blue-900 uppercase tracking-tighter flex items-center gap-3">
@@ -88,7 +88,7 @@ function clearWebhook() {
           </div>
           Thông Báo
         </h3>
-        <button @click="ui.showWebhookConfig = false" class="w-10 h-10 bg-slate-50 text-slate-400 rounded-xl hover:bg-red-50 hover:text-red-500 transition-all flex items-center justify-center shrink-0 shadow-sm border border-slate-100">
+        <button @click="ui.closeConfig()" class="w-10 h-10 bg-slate-50 text-slate-400 rounded-xl hover:bg-red-50 hover:text-red-500 transition-all flex items-center justify-center shrink-0 shadow-sm border border-slate-100">
           <i class="fa-solid fa-xmark text-xl"></i>
         </button>
       </div>
@@ -136,11 +136,17 @@ function clearWebhook() {
           </div>
         </div>
 
-        <button @click="saveWebhook" :disabled="saving || !webhookUrl.trim()"
-          class="w-full py-4 bg-blue-900 text-white rounded-xl font-black uppercase tracking-widest text-[11px] shadow-lg shadow-blue-900/20 active:scale-95 transition-all flex justify-center items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed">
-          <i class="fa-solid fa-cloud-arrow-up text-lg text-white/80"></i>
-          {{ saving ? 'ĐANG LƯU...' : 'LƯU & ĐỒNG BỘ' }}
-        </button>
+        <!-- Action Buttons -->
+        <div class="grid grid-cols-2 gap-3 relative z-10 pt-4 mt-auto">
+          <button @click="ui.closeConfig()" class="py-3.5 bg-slate-50 border border-slate-200 text-slate-500 hover:bg-slate-100 hover:text-slate-700 rounded-xl font-black uppercase tracking-widest text-[10px] active:scale-95 transition-all shadow-sm">
+            HỦY BỎ
+          </button>
+          <button @click="saveWebhook" :disabled="saving || !webhookUrl.trim()"
+            class="py-3.5 bg-blue-900 text-white rounded-xl font-black uppercase tracking-widest text-[10px] shadow-lg shadow-blue-900/20 active:scale-95 transition-all flex justify-center items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed">
+            <i class="fa-solid fa-cloud-arrow-up text-lg text-white/80"></i>
+            {{ saving ? 'ĐANG LƯU...' : 'LƯU & ĐỒNG BỘ' }}
+          </button>
+        </div>
         <p class="text-[10px] text-center text-slate-400 font-bold tracking-wide">Cấu hình sẽ lưu trên Cloud • Có thể lấy lại bằng mật khẩu Admin</p>
       </div>
     </div>

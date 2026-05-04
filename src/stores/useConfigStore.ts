@@ -71,8 +71,6 @@ export const useConfigStore = defineStore('config', () => {
 
     const adminPass = await uiStore.showPrompt('Đồng bộ Cloud', 'Nhập Pass Admin để đồng bộ Key lên hệ thống (để trống nếu chỉ muốn lưu trên trình duyệt này):')
 
-    uiStore.loading.is = true
-    uiStore.loading.msg = adminPass ? 'ĐANG ĐỒNG BỘ LÊN MÁY CHỦ...' : 'ĐANG LƯU CỤC BỘ...'
     try {
       keys[pId].push(keyVal)
       tempKeys[pId] = ''
@@ -92,10 +90,8 @@ export const useConfigStore = defineStore('config', () => {
       } else {
         uiStore.showToast('Đã lưu cục bộ an toàn (Chưa đồng bộ lên Cloud).', 'success')
       }
-    } catch {
-      uiStore.showToast('Lưu hoàn tất (Có lỗi mạng trong quá trình đồng bộ)', 'warning')
-    } finally {
-      uiStore.loading.is = false
+    } catch (e: any) {
+      uiStore.showToast('Lưu cục bộ hoàn tất (Lỗi đồng bộ).', 'warning')
     }
   }
 
@@ -106,8 +102,6 @@ export const useConfigStore = defineStore('config', () => {
 
   async function borrowKeys() {
     if (!borrowPass.value) return uiStore.showToast('Nhập pass Admin hoặc Password Truy cập!', 'warning')
-    uiStore.loading.is = true
-    uiStore.loading.msg = 'ĐANG KẾT NỐI SERVER TẢI KEYS...'
     try {
       const data = await api.borrowApiKeys(borrowPass.value)
       if (data.ok) {
@@ -128,10 +122,8 @@ export const useConfigStore = defineStore('config', () => {
       } else {
         uiStore.showToast(data.message || 'Mật khẩu không đúng hoặc quyền bị từ chối!', 'error')
       }
-    } catch {
-      uiStore.showToast('Lỗi kết nối máy chủ', 'error')
-    } finally {
-      uiStore.loading.is = false
+    } catch (e: any) {
+      console.error(e)
     }
   }
 

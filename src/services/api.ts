@@ -9,15 +9,40 @@ const API_GATEWAY = import.meta.env.VITE_GAS_URL ||
 /** Active AbortController for cancellable requests */
 let activeAIController: AbortController | null = null
 
+import { useUIStore } from '@/stores/useUIStore'
+
 /** Generic POST to GAS */
 async function postGAS(payload: Record<string, any>, signal?: AbortSignal): Promise<any> {
-  const res = await fetch(API_GATEWAY, {
-    method: 'POST',
-    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-    body: JSON.stringify(payload),
-    signal
-  })
-  return res.json()
+  const ui = useUIStore()
+  ui.activeRequests++
+  try {
+    const res = await fetch(API_GATEWAY, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify(payload),
+      signal
+    })
+    if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`)
+    const data = await res.json()
+    
+    // Centralized Server Error Handling
+    if (!data.ok && data.message) {
+      // Don't show toast for getConfig if it fails silently often, but generally we want to show it.
+      // We can skip specific actions if needed, but for now we intercept all.
+      if (payload.action !== 'getConfig' && payload.action !== 'getHistory') {
+        ui.showToast(`Lỗi Server: ${data.message}`, 'error')
+      }
+    }
+    return data
+  } catch (e: any) {
+    if (e.name === 'AbortError') throw e
+    if (payload.action !== 'getConfig' && payload.action !== 'getHistory') {
+      ui.showToast(`Lỗi Mạng: ${e.message}`, 'error')
+    }
+    throw e
+  } finally {
+    setTimeout(() => { ui.activeRequests-- }, 300)
+  }
 }
 
 /** POST with auto-retry (for save operations) */
@@ -26,6 +51,8 @@ export async function fetchWithRetry(
   retries = 3,
   signal?: AbortSignal
 ): Promise<any> {
+  const ui = useUIStore()
+  ui.activeRequests++
   for (let i = 0; i < retries; i++) {
     try {
       const res = await fetch(API_GATEWAY, {
@@ -35,10 +62,22 @@ export async function fetchWithRetry(
         signal
       })
       if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`)
-      return await res.json()
+      const data = await res.json()
+      if (!data.ok && data.message) {
+        ui.showToast(`Lỗi Server: ${data.message}`, 'error')
+      }
+      setTimeout(() => { ui.activeRequests-- }, 300)
+      return data
     } catch (e: any) {
-      if (e.name === 'AbortError') throw e
-      if (i === retries - 1) throw e
+      if (e.name === 'AbortError') {
+        setTimeout(() => { ui.activeRequests-- }, 300)
+        throw e
+      }
+      if (i === retries - 1) {
+        ui.showToast(`Lỗi Mạng (Đã thử ${retries} lần): ${e.message}`, 'error')
+        setTimeout(() => { ui.activeRequests-- }, 300)
+        throw e
+      }
       console.warn(`Sync failed. Retrying... (${i + 1}/${retries})`)
       await new Promise(r => setTimeout(r, 1000 * (i + 1)))
     }

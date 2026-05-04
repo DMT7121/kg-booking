@@ -26,19 +26,25 @@ export const useUIStore = defineStore('ui', () => {
 
   // --- Loading ---
   const loading = reactive({ is: false, msg: '', subMsg: '' })
+  const activeRequests = ref(0)
+  const isFetchingAPI = computed(() => activeRequests.value > 0)
 
   // --- Error ---
   const error = reactive({ show: false, msg: '' })
 
   // --- Modal Visibility ---
   const showSettingsHub = ref(false)
+  const activeSettingModal = ref<string | null>(null)
+  
+  // Modals that might still need individual visibility
   const showAiConfig = ref(false)
   const showBankConfig = ref(false)
   const showMenuManager = ref(false)
   const showBrandingConfig = ref(false)
   const showStaffConfig = ref(false)
-  const showStaffSelector = ref(false)
   const showWebhookConfig = ref(false)
+  
+  const showStaffSelector = ref(false)
   const showBookingDetailModal = ref(false)
   const selectedBooking = ref<any>(null)
   const pendingAction = ref<string | null>(null)
@@ -130,13 +136,14 @@ export const useUIStore = defineStore('ui', () => {
 
   // --- Settings Hub ---
   function openConfig(type: string) {
-    showSettingsHub.value = false
-    if (type === 'branding') showBrandingConfig.value = true
-    if (type === 'menu') showMenuManager.value = true
-    if (type === 'bank') showBankConfig.value = true
-    if (type === 'ai') showAiConfig.value = true
-    if (type === 'staff') showStaffConfig.value = true
-    if (type === 'webhook') showWebhookConfig.value = true
+    if (!showSettingsHub.value) {
+      showSettingsHub.value = true
+    }
+    activeSettingModal.value = type
+  }
+
+  function closeConfig() {
+    activeSettingModal.value = null
   }
 
   // --- Batch Mode ---
@@ -157,14 +164,14 @@ export const useUIStore = defineStore('ui', () => {
 
   return {
     tab, connectionStatus, isKeyboardOpen, isVoiceSupported,
-    loading, error,
-    showSettingsHub, showAiConfig, showBankConfig, showMenuManager, showBrandingConfig, showStaffConfig, showStaffSelector, showWebhookConfig, showBookingDetailModal, selectedBooking,
+    loading, activeRequests, isFetchingAPI, error,
+    showSettingsHub, activeSettingModal, showAiConfig, showBankConfig, showMenuManager, showBrandingConfig, showStaffConfig, showStaffSelector, showWebhookConfig, showBookingDetailModal, selectedBooking,
     pendingAction, menuTab, isUpdateMode,
     historySearch, isBatchMode, selectedIds, historyFilters,
     focusIdx, listening, tempTable,
     toasts, verifyModal, modal,
     showToast, removeToast,
     resolveModal, showAlert, showConfirm, showPrompt,
-    openConfig, toggleBatchMode, toggleSelection
+    openConfig, closeConfig, toggleBatchMode, toggleSelection
   }
 })

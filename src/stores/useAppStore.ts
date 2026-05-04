@@ -238,10 +238,8 @@ export const useAppStore = defineStore('app', () => {
       localStorage.setItem(CACHE_KEYS.MENU_SHEET, sheetName)
       await fetchMenu(sheetName)
       uiStore.showMenuManager = false
-    } catch (e) {
+    } catch (e: any) {
       console.error(e)
-    } finally {
-      uiStore.loading.is = false
     }
   }
 
@@ -252,9 +250,6 @@ export const useAppStore = defineStore('app', () => {
     const pass = await uiStore.showPrompt('Bảo mật', 'Nhập mã PIN Quản Lý để cập nhật/tạo Menu lên Cloud:')
     if (pass === null) return
 
-    uiStore.loading.is = true
-    uiStore.loading.msg = uiStore.isUpdateMode ? 'ĐANG CẬP NHẬT MENU...' : 'AI ĐANG TẠO MENU...'
-    uiStore.loading.subMsg = 'Processing...'
     try {
       const data = await api.createMenu(newMenuName.value, newMenuContent.value, pass)
       if (data.ok) {
@@ -268,9 +263,7 @@ export const useAppStore = defineStore('app', () => {
         throw new Error(data.message)
       }
     } catch (e: any) {
-      uiStore.showToast('Menu Error: ' + e.message, 'error')
-    } finally {
-      uiStore.loading.is = false
+      console.error(e)
     }
   }
 
@@ -278,9 +271,6 @@ export const useAppStore = defineStore('app', () => {
     const pass = await uiStore.showPrompt('Xóa Bộ Thực Đơn', `Nhập mã PIN Quản Lý để xóa bộ thực đơn "${sheetName}":`)
     if (pass === null) return
 
-    uiStore.loading.is = true
-    uiStore.loading.msg = `ĐANG XÓA MENU "${sheetName}"...`
-    uiStore.loading.subMsg = 'Vui lòng chờ...'
     try {
       const data = await api.deleteMenu(sheetName, pass)
       if (data.ok) {
@@ -297,9 +287,7 @@ export const useAppStore = defineStore('app', () => {
         throw new Error(data.message)
       }
     } catch (e: any) {
-      uiStore.showToast('Lỗi xóa menu: ' + e.message, 'error')
-    } finally {
-      uiStore.loading.is = false
+      console.error(e)
     }
   }
 
@@ -443,6 +431,12 @@ export const useAppStore = defineStore('app', () => {
       window.location.reload()
     }, 500)
   }
+
+  // --- Auto Background Sync ---
+  window.addEventListener('online', () => {
+    uiStore.showToast('Đã có mạng lại, đang đồng bộ dữ liệu...', 'info')
+    processOfflineQueue()
+  })
 
   return {
     historyList, menuList, menuDetails, menuSheets, activeSheet, newMenuName, newMenuContent,

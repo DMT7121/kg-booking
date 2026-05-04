@@ -80,7 +80,12 @@ onMounted(() => {
 </script>
 
 <template>
-  <div id="app-root" class="h-screen min-h-[100dvh] flex flex-col md:flex-row" v-cloak>
+  <div id="app-root" class="h-screen min-h-[100dvh] flex flex-col md:flex-row relative" v-cloak>
+
+    <!-- GLOBAL PROGRESS BAR -->
+    <div class="fixed top-0 left-0 h-[3px] bg-blue-500 z-[999999] transition-all duration-300 ease-out shadow-[0_0_10px_rgba(59,130,246,0.5)]" 
+         :class="{'opacity-100 w-[85%]': ui.isFetchingAPI, 'opacity-0 w-full': !ui.isFetchingAPI}">
+    </div>
 
     <!-- LOADING OVERLAY -->
     <div v-if="ui.loading.is" class="fixed inset-0 bg-white/95 z-[9999] flex flex-col justify-center items-center backdrop-blur-sm text-center p-6">
@@ -169,10 +174,12 @@ onMounted(() => {
     </div>
 
     <!-- SETTINGS HUB MODAL -->
-    <div v-if="ui.showSettingsHub" class="fixed inset-0 bg-slate-50 z-[12000] overflow-y-auto custom-scrollbar flex flex-col">
-      <!-- Top Header -->
-      <div class="bg-white px-4 py-4 flex items-center justify-between sticky top-0 z-10 shadow-sm">
-        <button @click="ui.showSettingsHub = false" class="w-10 h-10 flex items-center justify-center text-slate-800 text-xl active:scale-95 transition-transform">
+    <div v-if="ui.showSettingsHub" class="fixed inset-0 bg-slate-50 z-[12000] flex flex-col lg:flex-row overflow-hidden">
+      <!-- Left Sidebar (Menu) -->
+      <div class="w-full lg:w-[350px] xl:w-[400px] bg-slate-50 flex flex-col h-full shrink-0 shadow-[4px_0_24px_rgba(0,0,0,0.02)] z-20 overflow-y-auto custom-scrollbar lg:border-r border-slate-200" :class="{'hidden lg:flex': ui.activeSettingModal}">
+        <!-- Top Header -->
+        <div class="bg-white px-4 py-4 flex items-center justify-between sticky top-0 z-10 shadow-sm border-b border-slate-100">
+          <button @click="ui.showSettingsHub = false; ui.closeConfig()" class="w-10 h-10 flex items-center justify-center text-slate-800 text-xl active:scale-95 transition-transform">
           <i class="fa-solid fa-arrow-left"></i>
         </button>
         <div class="text-center flex-1">
@@ -202,7 +209,7 @@ onMounted(() => {
           <h4 class="text-[11px] font-black text-slate-400 uppercase tracking-widest pl-2">Quản lý nội dung</h4>
           <div class="bg-white rounded-3xl shadow-sm border border-slate-100 overflow-hidden">
             <!-- Menu -->
-            <button @click="ui.openConfig('menu')" class="w-full px-4 py-4 flex items-center gap-4 hover:bg-slate-50 active:bg-slate-100 transition-colors border-b border-slate-50 group">
+            <button @click="ui.openConfig('menu')" :class="['w-full px-4 py-4 flex items-center gap-4 transition-colors border-b border-slate-50 group', ui.activeSettingModal === 'menu' ? 'bg-blue-50/50' : 'hover:bg-slate-50 active:bg-slate-100']">
               <div class="w-12 h-12 rounded-2xl bg-blue-50 text-blue-500 flex items-center justify-center text-xl shrink-0 group-hover:scale-110 transition-transform">
                 <i class="fa-solid fa-bell-concierge"></i>
               </div>
@@ -210,11 +217,11 @@ onMounted(() => {
                 <div class="font-black text-slate-800 text-[13px] mb-0.5">Thêm thực đơn</div>
                 <div class="text-[10px] font-bold text-slate-400 leading-tight">Quản lý và cập nhật các món ăn, đồ uống<br>hiển thị trên phiếu đặt bàn</div>
               </div>
-              <i class="fa-solid fa-chevron-right text-slate-300 text-sm"></i>
+              <i class="fa-solid fa-chevron-right text-sm" :class="ui.activeSettingModal === 'menu' ? 'text-blue-500' : 'text-slate-300'"></i>
             </button>
             
             <!-- AI -->
-            <button @click="ui.openConfig('ai')" class="w-full px-4 py-4 flex items-center gap-4 hover:bg-slate-50 active:bg-slate-100 transition-colors border-b border-slate-50 group">
+            <button @click="ui.openConfig('ai')" :class="['w-full px-4 py-4 flex items-center gap-4 transition-colors border-b border-slate-50 group', ui.activeSettingModal === 'ai' ? 'bg-blue-50/50' : 'hover:bg-slate-50 active:bg-slate-100']">
               <div class="w-12 h-12 rounded-2xl bg-purple-50 text-purple-500 flex items-center justify-center text-xl shrink-0 group-hover:scale-110 transition-transform">
                 <i class="fa-solid fa-wand-magic-sparkles"></i>
               </div>
@@ -222,11 +229,11 @@ onMounted(() => {
                 <div class="font-black text-slate-800 text-[13px] mb-0.5">Thêm cấu hình AI</div>
                 <div class="text-[10px] font-bold text-slate-400 leading-tight">Thiết lập và tùy chỉnh AI hỗ trợ gợi ý số bàn,<br>phân tích và nhắc nhở</div>
               </div>
-              <i class="fa-solid fa-chevron-right text-slate-300 text-sm"></i>
+              <i class="fa-solid fa-chevron-right text-sm" :class="ui.activeSettingModal === 'ai' ? 'text-blue-500' : 'text-slate-300'"></i>
             </button>
 
             <!-- Staff -->
-            <button @click="ui.openConfig('staff')" class="w-full px-4 py-4 flex items-center gap-4 hover:bg-slate-50 active:bg-slate-100 transition-colors border-b border-slate-50 group">
+            <button @click="ui.openConfig('staff')" :class="['w-full px-4 py-4 flex items-center gap-4 transition-colors border-b border-slate-50 group', ui.activeSettingModal === 'staff' ? 'bg-blue-50/50' : 'hover:bg-slate-50 active:bg-slate-100']">
               <div class="w-12 h-12 rounded-2xl bg-emerald-50 text-emerald-500 flex items-center justify-center text-xl shrink-0 group-hover:scale-110 transition-transform">
                 <i class="fa-regular fa-user"></i>
               </div>
@@ -234,11 +241,11 @@ onMounted(() => {
                 <div class="font-black text-slate-800 text-[13px] mb-0.5">Thêm nhân viên nhận bàn</div>
                 <div class="text-[10px] font-bold text-slate-400 leading-tight">Thêm và quản lý nhân viên nhận bàn.<br>Thông tin sẽ hiển thị trên phiếu để khách hàng<br>liên hệ khi cần</div>
               </div>
-              <i class="fa-solid fa-chevron-right text-slate-300 text-sm"></i>
+              <i class="fa-solid fa-chevron-right text-sm" :class="ui.activeSettingModal === 'staff' ? 'text-blue-500' : 'text-slate-300'"></i>
             </button>
 
             <!-- Bank -->
-            <button @click="ui.openConfig('bank')" class="w-full px-4 py-4 flex items-center gap-4 hover:bg-slate-50 active:bg-slate-100 transition-colors group">
+            <button @click="ui.openConfig('bank')" :class="['w-full px-4 py-4 flex items-center gap-4 transition-colors group', ui.activeSettingModal === 'bank' ? 'bg-blue-50/50' : 'hover:bg-slate-50 active:bg-slate-100']">
               <div class="w-12 h-12 rounded-2xl bg-cyan-50 text-cyan-500 flex items-center justify-center text-xl shrink-0 group-hover:scale-110 transition-transform">
                 <i class="fa-solid fa-building-columns"></i>
               </div>
@@ -246,7 +253,7 @@ onMounted(() => {
                 <div class="font-black text-slate-800 text-[13px] mb-0.5">Thêm ngân hàng</div>
                 <div class="text-[10px] font-bold text-slate-400 leading-tight">Quản lý thông tin tài khoản ngân hàng<br>hiển thị trên phiếu đặt bàn</div>
               </div>
-              <i class="fa-solid fa-chevron-right text-slate-300 text-sm"></i>
+              <i class="fa-solid fa-chevron-right text-sm" :class="ui.activeSettingModal === 'bank' ? 'text-blue-500' : 'text-slate-300'"></i>
             </button>
           </div>
         </div>
@@ -255,7 +262,7 @@ onMounted(() => {
         <div class="space-y-3">
           <h4 class="text-[11px] font-black text-slate-400 uppercase tracking-widest pl-2">Tùy chỉnh giao diện</h4>
           <div class="bg-white rounded-3xl shadow-sm border border-slate-100 overflow-hidden">
-            <button @click="ui.openConfig('branding')" class="w-full px-4 py-4 flex items-center gap-4 hover:bg-slate-50 active:bg-slate-100 transition-colors group">
+            <button @click="ui.openConfig('branding')" :class="['w-full px-4 py-4 flex items-center gap-4 transition-colors group', ui.activeSettingModal === 'branding' ? 'bg-blue-50/50' : 'hover:bg-slate-50 active:bg-slate-100']">
               <div class="w-12 h-12 rounded-2xl bg-orange-50 text-orange-500 flex items-center justify-center text-xl shrink-0 group-hover:scale-110 transition-transform">
                 <i class="fa-solid fa-pen-nib"></i>
               </div>
@@ -263,7 +270,7 @@ onMounted(() => {
                 <div class="font-black text-slate-800 text-[13px] mb-0.5">Tinh chỉnh giao diện</div>
                 <div class="text-[10px] font-bold text-slate-400 leading-tight">Tùy chỉnh logo, màu sắc, font chữ và<br>các yếu tố hiển thị trên phiếu đặt bàn</div>
               </div>
-              <i class="fa-solid fa-chevron-right text-slate-300 text-sm"></i>
+              <i class="fa-solid fa-chevron-right text-sm" :class="ui.activeSettingModal === 'branding' ? 'text-blue-500' : 'text-slate-300'"></i>
             </button>
           </div>
         </div>
@@ -272,7 +279,7 @@ onMounted(() => {
         <div class="space-y-3">
           <h4 class="text-[11px] font-black text-slate-400 uppercase tracking-widest pl-2">Khác</h4>
           <div class="bg-white rounded-3xl shadow-sm border border-slate-100 overflow-hidden">
-            <button @click="ui.openConfig('webhook')" class="w-full px-4 py-4 flex items-center gap-4 hover:bg-slate-50 active:bg-slate-100 transition-colors group">
+            <button @click="ui.openConfig('webhook')" :class="['w-full px-4 py-4 flex items-center gap-4 transition-colors group', ui.activeSettingModal === 'webhook' ? 'bg-blue-50/50' : 'hover:bg-slate-50 active:bg-slate-100']">
               <div class="w-12 h-12 rounded-2xl bg-slate-100 text-slate-600 flex items-center justify-center text-xl shrink-0 group-hover:scale-110 transition-transform">
                 <i class="fa-solid fa-gear"></i>
               </div>
@@ -280,15 +287,31 @@ onMounted(() => {
                 <div class="font-black text-slate-800 text-[13px] mb-0.5">Cài đặt hệ thống</div>
                 <div class="text-[10px] font-bold text-slate-400 leading-tight">Quản lý thông báo Telegram, cấu hình chung<br>và các thiết lập khác</div>
               </div>
-              <i class="fa-solid fa-chevron-right text-slate-300 text-sm"></i>
+              <i class="fa-solid fa-chevron-right text-sm" :class="ui.activeSettingModal === 'webhook' ? 'text-blue-500' : 'text-slate-300'"></i>
             </button>
           </div>
         </div>
 
-        <!-- Logout Button -->
-        <button @click="appStore.logout()" class="w-full py-4 bg-white border border-rose-100 text-rose-500 rounded-2xl font-black text-sm shadow-sm active:scale-95 transition-all flex items-center justify-center gap-2 hover:bg-rose-50">
+        <button @click="appStore.logout()" class="w-full py-4 bg-white border border-rose-100 text-rose-500 rounded-2xl font-black text-sm shadow-sm active:scale-95 transition-all flex items-center justify-center gap-2 hover:bg-rose-50 mb-8">
           <i class="fa-solid fa-arrow-right-from-bracket"></i> Đăng xuất
         </button>
+      </div>
+      </div> <!-- Closes Sidebar -->
+
+      <!-- Right Content Area (Modals) -->
+      <div class="flex-1 h-full overflow-hidden relative bg-white flex flex-col" :class="{'hidden lg:flex': !ui.activeSettingModal}">
+        <!-- Desktop empty state -->
+        <div v-if="!ui.activeSettingModal" class="hidden lg:flex flex-col items-center justify-center h-full text-slate-400 gap-4 opacity-40">
+          <i class="fa-solid fa-gears text-7xl text-slate-200"></i>
+          <p class="font-bold text-sm tracking-wide">Chọn một mục cấu hình bên trái để bắt đầu</p>
+        </div>
+        
+        <AiConfigModal />
+        <BankConfigModal />
+        <BrandingModal />
+        <MenuManagerModal />
+        <StaffModal />
+        <WebhookConfigModal />
       </div>
     </div>
 
@@ -321,12 +344,6 @@ onMounted(() => {
 
     <!-- ALL CONFIG MODALS -->
     <VerifyTransferModal />
-    <StaffModal />
-    <AiConfigModal />
-    <BrandingModal />
-    <MenuManagerModal />
-    <BankConfigModal />
-    <WebhookConfigModal />
     <BookingDetailModal />
 
     <!-- DESKTOP SIDEBAR -->
