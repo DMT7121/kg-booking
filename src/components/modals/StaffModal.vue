@@ -185,6 +185,8 @@ function handleSave() {
       </div>
     </div>
 
+    </div>
+
     <!-- Fixed Bottom Footer -->
     <div class="fixed bottom-0 left-0 right-0 p-4 md:p-6 bg-slate-50 border-t border-slate-200 z-20 flex justify-center">
       <div class="max-w-2xl w-full">
