@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, computed } from 'vue'
+import { ref, onMounted, computed, onUnmounted } from 'vue'
 import { getOrderById } from '@/services/api'
 
 const order = ref<any>(null)
@@ -24,42 +24,99 @@ const depositTransferContent = computed(() => {
   return `${n} DAT COC ${p} ${idSuf}`.trim()
 })
 
+// --- Countdown Logic ---
+const countdownText = ref('')
+let timer: any = null
+
+function updateCountdown() {
+  if (!order.value?.customer?.date || !order.value?.customer?.time) return
+  
+  const [d, m, y] = order.value.customer.date.split('/')
+  const [hh, mm] = order.value.customer.time.split(':')
+  if (!d || !m || !y || !hh || !mm) return
+
+  const eventDate = new Date(Number(y), Number(m)-1, Number(d), Number(hh), Number(mm))
+  const diff = eventDate.getTime() - Date.now()
+  
+  if (diff <= 0) {
+    countdownText.value = 'Hân hạnh được phục vụ!'
+    return
+  }
+  
+  const days = Math.floor(diff / (1000 * 60 * 60 * 24))
+  const hours = Math.floor((diff / (1000 * 60 * 60)) % 24)
+  const mins = Math.floor((diff / 1000 / 60) % 60)
+  
+  if (days > 0) countdownText.value = `Còn ${days} ngày ${hours} giờ`
+  else if (hours > 0) countdownText.value = `Còn ${hours} tiếng ${mins} phút`
+  else countdownText.value = `Còn ${mins} phút nữa`
+}
+
 onMounted(async () => {
   if (!orderId.value) { error.value = 'Không tìm thấy mã đơn hàng'; loading.value = false; return }
   try {
     const res = await getOrderById(orderId.value)
-    if (res.ok) { order.value = res.data }
+    if (res.ok) { 
+      order.value = res.data
+      updateCountdown()
+      timer = setInterval(updateCountdown, 60000)
+    }
     else { error.value = res.message || 'Không tìm thấy đơn hàng' }
   } catch (e: any) { error.value = 'Lỗi kết nối: ' + e.message }
   finally { loading.value = false }
 })
+
+onUnmounted(() => { if (timer) clearInterval(timer) })
 </script>
 
 <template>
-  <div class="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50/30 to-slate-100 flex items-start justify-center p-4 md:p-8">
+  <div class="min-h-screen bg-slate-900 flex items-start justify-center p-4 md:p-8">
     <!-- LOADING -->
     <div v-if="loading" class="flex flex-col items-center justify-center py-32">
-      <div class="w-14 h-14 border-4 border-gray-100 border-t-blue-600 rounded-full animate-spin mb-6"></div>
-      <p class="text-slate-500 font-bold text-sm uppercase tracking-widest">Đang tải phiếu đặt...</p>
+      <div class="w-14 h-14 border-4 border-slate-700 border-t-amber-500 rounded-full animate-spin mb-6"></div>
+      <p class="text-amber-500 font-bold text-sm uppercase tracking-widest animate-pulse">Đang chuẩn bị Portal...</p>
     </div>
 
     <!-- ERROR -->
-    <div v-else-if="error" class="bg-white rounded-3xl shadow-2xl p-10 max-w-md w-full text-center border-t-8 border-red-500">
+    <div v-else-if="error" class="bg-slate-800 rounded-3xl shadow-2xl p-10 max-w-md w-full text-center border-t-8 border-red-500">
       <i class="fa-solid fa-circle-exclamation text-6xl text-red-400 mb-4"></i>
-      <h2 class="text-xl font-black text-slate-800 uppercase mb-3">Không tìm thấy</h2>
-      <p class="text-sm text-gray-500 mb-6">{{ error }}</p>
-      <a href="/" class="inline-block px-6 py-3 bg-slate-900 text-white rounded-xl font-black text-xs uppercase tracking-widest">← Trang chủ</a>
+      <h2 class="text-xl font-black text-white uppercase mb-3">Không tìm thấy</h2>
+      <p class="text-sm text-slate-400 mb-6">{{ error }}</p>
     </div>
 
-    <!-- PUBLIC BILL -->
-    <div v-else-if="order" class="w-full max-w-[600px]">
-      <div class="bill-preview-container p-8 md:p-10 rounded-3xl shadow-2xl border border-white/60">
+    <!-- PUBLIC PORTAL -->
+    <div v-else-if="order" class="w-full max-w-[500px]">
+      
+      <!-- Greeting & Countdown -->
+      <div class="text-center mb-8 pt-4">
+        <div class="inline-flex justify-center mb-6 bg-white/10 p-4 rounded-full border border-white/5 shadow-[0_0_30px_rgba(245,158,11,0.2)]">
+          <img src="/favicon.svg" class="h-16 w-16" alt="Logo">
+        </div>
+        <h1 class="text-2xl font-black text-white mb-2 tracking-tight">Xin chào, {{ order.customer?.name }}!</h1>
+        <p class="text-slate-400 text-sm mb-5">Cảm ơn bạn đã chọn King's Grill cho bữa tiệc của mình.</p>
+        
+        <div v-if="countdownText" class="inline-block bg-gradient-to-r from-amber-500/20 to-orange-600/20 border border-amber-500/30 px-6 py-3 rounded-2xl backdrop-blur-sm">
+          <div class="text-[10px] text-amber-400 font-black uppercase tracking-widest mb-1">Thời gian đếm ngược</div>
+          <div class="text-xl font-black text-amber-500">{{ countdownText }}</div>
+        </div>
+      </div>
+
+      <!-- Quick Actions -->
+      <div class="grid grid-cols-2 gap-3 mb-6">
+        <a href="https://maps.app.goo.gl/search/kings+grill" target="_blank" class="bg-blue-600 hover:bg-blue-500 text-white rounded-2xl p-4 flex flex-col items-center justify-center gap-2 transition-all active:scale-95 shadow-[0_8px_20px_rgba(37,99,235,0.2)]">
+          <i class="fa-solid fa-location-dot text-2xl"></i>
+          <span class="text-xs font-black uppercase tracking-wider">Chỉ đường</span>
+        </a>
+        <a href="#" @click.prevent="() => {}" class="bg-slate-800 hover:bg-slate-700 text-white rounded-2xl p-4 flex flex-col items-center justify-center gap-2 transition-all active:scale-95 border border-slate-700">
+          <i class="fa-solid fa-book-open text-2xl text-amber-400"></i>
+          <span class="text-xs font-black uppercase tracking-wider text-amber-400">Xem Menu</span>
+        </a>
+      </div>
+
+      <div class="bg-white rounded-[2rem] shadow-2xl p-6 md:p-8 relative overflow-hidden">
         <!-- HEADER -->
         <div class="text-center mb-6">
-          <div class="flex justify-center mb-2"><img src="/favicon.svg" class="h-20 w-auto" alt="Logo"></div>
-          <h1 class="font-black tracking-widest text-slate-900 uppercase text-2xl" style="font-family: 'Freeman', sans-serif;">KING'S GRILL</h1>
-          <h2 class="font-bold tracking-[0.3em] text-slate-500 uppercase mt-1 text-sm" style="font-family: 'Freeman', sans-serif;">PHIẾU ĐẶT CHỖ</h2>
-          <div class="w-32 h-1 mx-auto mt-3 rounded-full bg-amber-500"></div>
+          <h2 class="font-bold tracking-[0.2em] text-slate-400 uppercase mt-1 text-xs" style="font-family: 'Freeman', sans-serif;">THÔNG TIN ĐẶT CHỖ</h2>
         </div>
 
         <!-- INFO CARD -->
