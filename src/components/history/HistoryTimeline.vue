@@ -144,16 +144,28 @@ function prefillBooking(zone: string, time: string) {
             </div>
             
             <!-- Zone Columns -->
-            <div v-for="z in ZONES" :key="z" class="flex-1 p-2 border-r border-slate-100 last:border-0 flex items-center justify-center min-h-[70px]">
+            <div v-for="z in ZONES" :key="z" class="flex-1 p-2 border-r border-slate-100 last:border-0 flex items-center justify-center min-h-[90px]">
               <template v-if="timelineData[h][z]">
                 <!-- Booked Slot -->
                 <div 
                   @click="openBookingDetail(timelineData[h][z])"
-                  class="w-full h-full rounded-xl flex flex-col items-center justify-center p-1 text-center shadow-sm border cursor-pointer active:scale-95 transition-transform"
+                  class="w-full h-full rounded-xl flex flex-col items-center justify-center p-2 text-center shadow-sm border cursor-pointer active:scale-95 transition-transform relative overflow-hidden"
                   :class="timelineData[h][z].isDeposited ? 'bg-blue-50 border-blue-200 text-blue-900 hover:bg-blue-100' : 'bg-rose-50 border-rose-200 text-rose-700 hover:bg-rose-100'"
                 >
-                  <div class="font-black text-xs leading-tight line-clamp-1 break-all px-1">{{ timelineData[h][z].parsedCustomer?.name }}</div>
-                  <div class="text-[10px] font-bold opacity-80 mt-0.5">{{ timelineData[h][z].parsedCustomer?.pax }} người</div>
+                  <div class="font-black text-xs leading-tight line-clamp-1 break-all w-full">{{ timelineData[h][z].parsedCustomer?.name }}</div>
+                  <div class="text-[10px] font-bold opacity-80 mt-0.5 mb-1">{{ timelineData[h][z].parsedCustomer?.pax }} người</div>
+                  
+                  <div class="flex flex-col gap-[2px] w-full mt-auto pt-1 border-t" :class="timelineData[h][z].isDeposited ? 'border-blue-200/50' : 'border-rose-200/50'">
+                    <div v-if="timelineData[h][z].parsedCustomer?.tables" class="text-[8.5px] font-bold opacity-80 truncate text-left w-full flex items-center gap-1">
+                      <i class="fa-solid fa-chair text-[8px] opacity-70"></i> {{ timelineData[h][z].parsedCustomer?.tables }}
+                    </div>
+                    <div v-if="timelineData[h][z].parsedCustomer?.req" class="text-[8.5px] font-bold opacity-80 truncate text-left w-full flex items-center gap-1">
+                      <i class="fa-solid fa-bell-concierge text-[8px] opacity-70"></i> {{ timelineData[h][z].parsedCustomer?.req }}
+                    </div>
+                    <div v-if="timelineData[h][z].parsedCustomer?.staff" class="text-[8.5px] font-bold opacity-80 truncate text-left w-full flex items-center gap-1">
+                      <i class="fa-solid fa-user-tag text-[8px] opacity-70"></i> {{ timelineData[h][z].parsedCustomer?.staff }}
+                    </div>
+                  </div>
                 </div>
               </template>
               <template v-else>
