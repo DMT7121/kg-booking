@@ -405,12 +405,23 @@ function _createBillRender() {
   // --- Responsive Preview Scaling ---
   function updatePreviewScale() {
     const el = document.getElementById('bill-render')
-    if (window.innerWidth < 800) {
-      const s = Math.min((window.innerWidth - 24) / 800, 1)
+    if (!el) return
+    const wrapper = el.parentElement
+    const parent = wrapper ? wrapper.parentElement : null
+    
+    // Determine available width. Default to window innerWidth - padding if no parent.
+    // If parent exists, use its clientWidth minus its padding (approx 64px on desktop, 32px on mobile)
+    const padding = window.innerWidth >= 768 ? 64 : 32
+    const availableWidth = parent ? Math.max(300, parent.clientWidth - padding) : window.innerWidth - padding
+
+    if (availableWidth < 800) {
+      const s = Math.min(availableWidth / 800, 1)
       requestAnimationFrame(() => {
-        const h = el ? (el.scrollHeight || el.getBoundingClientRect().height || 800) : 800
-        mobileScaleStyles.value = { transform: `scale(${s})`, transformOrigin: 'top left', margin: '0' }
-        wrapperScaleStyles.value = { width: `${800 * s}px`, height: `${h * s + 16}px`, position: 'relative' }
+        const h = el.scrollHeight || el.getBoundingClientRect().height || 800
+        // on mobile or small containers, scale from top left or center depending on layout
+        const origin = window.innerWidth < 768 ? 'top left' : 'top center'
+        mobileScaleStyles.value = { transform: `scale(${s})`, transformOrigin: origin, margin: origin === 'top left' ? '0' : '0 auto' }
+        wrapperScaleStyles.value = { width: window.innerWidth < 768 ? `${800 * s}px` : '100%', height: `${h * s + 16}px`, position: 'relative' }
       })
     } else {
       mobileScaleStyles.value = { transform: 'none', transformOrigin: 'top center', margin: '0 auto' }

@@ -603,6 +603,20 @@ input, textarea, button, select, a, div[role="button"] {
 .modal-enter-active, .modal-leave-active { transition: all 0.2s ease; }
 .modal-enter-from, .modal-leave-to { opacity: 0; transform: scale(0.95); }
 
+/* --- TAB TRANSITIONS --- */
+.tab-fade-enter-active,
+.tab-fade-leave-active {
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+.tab-fade-enter-from {
+  opacity: 0;
+  transform: translateY(10px);
+}
+.tab-fade-leave-to {
+  opacity: 0;
+  transform: translateY(-10px);
+}
+
 /* --- ADAPTIVE IOS OPTIMIZATIONS --- */
 html.is-ios .backdrop-blur-sm,
 html.is-ios .backdrop-blur-md,

@@ -13,17 +13,30 @@ const ui = useUIStore()
 const formStore = useFormStore()
 const appStore = useAppStore()
 const configStore = useConfigStore()
-const { mobileScaleStyles, wrapperScaleStyles, triggerSave } = useBillRender()
+const { mobileScaleStyles, wrapperScaleStyles, triggerSave, updatePreviewScale } = useBillRender()
 const { depositTransferContent, qrImageUrl } = useForm()
 
 const currentTimestamp = ref('')
 let _timestampTimer: ReturnType<typeof setInterval> | null = null
+
+let _ro: ResizeObserver | null = null
 
 onMounted(() => {
   currentTimestamp.value = new Date().toLocaleString('vi-VN')
   _timestampTimer = setInterval(() => {
     currentTimestamp.value = new Date().toLocaleString('vi-VN')
   }, 1000)
+
+  // Watch for container resizes to scale the bill
+  const wrapper = document.querySelector('.bill-preview-wrapper')
+  if (wrapper) {
+    _ro = new ResizeObserver(() => {
+      updatePreviewScale()
+    })
+    _ro.observe(wrapper)
+  }
+  window.addEventListener('resize', updatePreviewScale)
+  setTimeout(updatePreviewScale, 100)
 })
 
 onUnmounted(() => {
@@ -31,6 +44,11 @@ onUnmounted(() => {
     clearInterval(_timestampTimer)
     _timestampTimer = null
   }
+  if (_ro) {
+    _ro.disconnect()
+    _ro = null
+  }
+  window.removeEventListener('resize', updatePreviewScale)
 })
 
 // --- KDS Vertical Slider ---

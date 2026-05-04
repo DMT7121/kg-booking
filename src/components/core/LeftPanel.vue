@@ -96,40 +96,51 @@ function shareCurrentBill() {
       <button @click="ui.tab = 'preview'" class="md:hidden flex-1 py-3.5 flex justify-center items-center gap-2 transition-all min-h-[46px] border-b-[3px] border-transparent text-slate-500 bg-slate-50 hover:bg-slate-100 whitespace-nowrap px-2"><i class="fa-solid fa-eye text-sm"></i> Xem Phiếu</button>
     </div>
 
-    <!-- CREATE TAB -->
-    <div v-show="ui.tab === 'create'" class="flex-grow overflow-y-auto p-3 md:p-4 space-y-3 pb-28 md:pb-6 bg-gray-50/30 scroll-smooth custom-scrollbar">
-      <AIInputPanel />
-      <div class="space-y-4">
-        <CustomerForm />
-        <DepositManager />
-        <MenuItemsEditor />
-      </div>
+    <!-- TAB CONTENT WRAPPER -->
+    <div class="flex-grow relative overflow-hidden flex flex-col bg-slate-50">
+      <transition name="tab-fade" mode="out-in">
+        <KeepAlive>
+          <!-- TIMELINE TAB -->
+          <HistoryTimeline v-if="ui.tab === 'timeline'" key="timeline" />
+
+          <!-- HISTORY TAB -->
+          <HistoryList v-else-if="ui.tab === 'history'" key="history" />
+
+          <!-- CREATE TAB -->
+          <div v-else-if="ui.tab === 'create'" key="create" class="flex-grow flex flex-col overflow-hidden relative">
+            <div class="flex-grow overflow-y-auto p-3 md:p-4 space-y-3 pb-28 md:pb-6 bg-gray-50/30 scroll-smooth custom-scrollbar">
+              <AIInputPanel />
+              <div class="space-y-4">
+                <CustomerForm />
+                <DepositManager />
+                <MenuItemsEditor />
+              </div>
+            </div>
+
+            <!-- DESKTOP FOOTER ACTIONS -->
+            <div v-show="!ui.isKeyboardOpen" class="hidden md:grid grid-cols-5 gap-3 p-4 border-t bg-white z-20 shadow-[0_-10px_20px_rgba(0,0,0,0.02)] shrink-0">
+              <button @click="doSave('save')" class="bg-emerald-600 text-white py-3.5 rounded-2xl font-black text-[10px] hover:bg-emerald-700 shadow-lg shadow-emerald-100 transition-all hover:-translate-y-1 active:scale-95 flex flex-col items-center gap-1.5 uppercase tracking-wide min-h-[50px]">
+                <i class="fa-solid fa-cloud-arrow-up text-lg"></i> LƯU & DỮ LIỆU
+              </button>
+              <button @click="doSave('image')" class="bg-indigo-600 text-white py-3.5 rounded-2xl font-black text-[10px] hover:bg-indigo-700 shadow-lg shadow-indigo-100 transition-all hover:-translate-y-1 active:scale-95 flex flex-col items-center gap-1.5 uppercase tracking-wide min-h-[50px]"><i class="fa-solid fa-file-image text-lg"></i> XUẤT ẢNH</button>
+              <button @click="doSave('pdf')" class="bg-rose-600 text-white py-3.5 rounded-2xl font-black text-[10px] hover:bg-rose-700 shadow-lg shadow-rose-100 transition-all hover:-translate-y-1 active:scale-95 flex flex-col items-center gap-1.5 uppercase tracking-wide min-h-[50px]"><i class="fa-solid fa-file-pdf text-lg"></i> XUẤT PDF</button>
+              <button @click="copyBookingConfirmation" class="bg-amber-500 text-white py-3.5 rounded-2xl font-black text-[10px] hover:bg-amber-600 shadow-lg shadow-amber-100 transition-all hover:-translate-y-1 active:scale-95 flex flex-col items-center gap-1.5 uppercase tracking-wide min-h-[50px]"><i class="fa-solid fa-copy text-lg"></i> SAO CHÉP</button>
+              <button @click="shareCurrentBill" class="bg-cyan-500 text-white py-3.5 rounded-2xl font-black text-[10px] hover:bg-cyan-600 shadow-lg shadow-cyan-100 transition-all hover:-translate-y-1 active:scale-95 flex flex-col items-center gap-1.5 uppercase tracking-wide min-h-[50px]"><i class="fa-solid fa-share-nodes text-lg"></i> CHIA SẺ</button>
+            </div>
+          </div>
+        </KeepAlive>
+      </transition>
     </div>
-
-    <!-- DESKTOP FOOTER ACTIONS -->
-    <div v-show="ui.tab === 'create' && !ui.isKeyboardOpen" class="hidden md:grid grid-cols-5 gap-3 p-4 border-t bg-white z-20 shadow-[0_-10px_20px_rgba(0,0,0,0.02)]">
-      <button @click="doSave('save')" class="bg-emerald-600 text-white py-3.5 rounded-2xl font-black text-[10px] hover:bg-emerald-700 shadow-lg shadow-emerald-100 transition-all hover:-translate-y-1 active:scale-95 flex flex-col items-center gap-1.5 uppercase tracking-wide min-h-[50px]">
-        <i class="fa-solid fa-cloud-arrow-up text-lg"></i> LƯU & DỮ LIỆU
-      </button>
-      <button @click="doSave('image')" class="bg-indigo-600 text-white py-3.5 rounded-2xl font-black text-[10px] hover:bg-indigo-700 shadow-lg shadow-indigo-100 transition-all hover:-translate-y-1 active:scale-95 flex flex-col items-center gap-1.5 uppercase tracking-wide min-h-[50px]"><i class="fa-solid fa-file-image text-lg"></i> XUẤT ẢNH</button>
-      <button @click="doSave('pdf')" class="bg-rose-600 text-white py-3.5 rounded-2xl font-black text-[10px] hover:bg-rose-700 shadow-lg shadow-rose-100 transition-all hover:-translate-y-1 active:scale-95 flex flex-col items-center gap-1.5 uppercase tracking-wide min-h-[50px]"><i class="fa-solid fa-file-pdf text-lg"></i> XUẤT PDF</button>
-      <button @click="copyBookingConfirmation" class="bg-amber-500 text-white py-3.5 rounded-2xl font-black text-[10px] hover:bg-amber-600 shadow-lg shadow-amber-100 transition-all hover:-translate-y-1 active:scale-95 flex flex-col items-center gap-1.5 uppercase tracking-wide min-h-[50px]"><i class="fa-solid fa-copy text-lg"></i> SAO CHÉP</button>
-      <button @click="shareCurrentBill" class="bg-cyan-500 text-white py-3.5 rounded-2xl font-black text-[10px] hover:bg-cyan-600 shadow-lg shadow-cyan-100 transition-all hover:-translate-y-1 active:scale-95 flex flex-col items-center gap-1.5 uppercase tracking-wide min-h-[50px]"><i class="fa-solid fa-share-nodes text-lg"></i> CHIA SẺ</button>
-    </div>
-
-    <!-- TIMELINE TAB -->
-    <HistoryTimeline v-show="ui.tab === 'timeline'" />
-
-    <!-- HISTORY TAB -->
-    <HistoryList v-show="ui.tab === 'history'" />
 
     <!-- MOBILE FOOTER (Glassmorphism) -->
-    <div v-if="ui.tab === 'create' && !ui.isKeyboardOpen" class="md:hidden fixed bottom-4 left-4 right-4 p-2.5 bg-blue-950/90 backdrop-blur-2xl border border-white/10 z-40 grid grid-cols-5 gap-2 shadow-[0_20px_50px_rgba(0,0,0,0.4)] rounded-2xl safe-area-pb">
-      <button @click="doSave('save')" class="bg-emerald-500/10 text-emerald-400 py-3 rounded-xl font-black flex flex-col items-center text-[7px] gap-1 active:scale-90 transition-all uppercase tracking-widest border border-emerald-500/20 active-effect"><i class="fa-solid fa-cloud-arrow-up text-lg"></i> LƯU</button>
-      <button @click="doSave('image')" class="bg-indigo-500/10 text-indigo-400 py-3 rounded-xl font-black flex flex-col items-center text-[7px] gap-1 active:scale-90 transition-all uppercase tracking-widest border border-indigo-500/20 active-effect"><i class="fa-solid fa-file-image text-lg"></i> ẢNH</button>
-      <button @click="doSave('pdf')" class="bg-rose-500/10 text-rose-400 py-3 rounded-xl font-black flex flex-col items-center text-[7px] gap-1 active:scale-90 transition-all uppercase tracking-widest border border-rose-500/20 active-effect"><i class="fa-solid fa-file-pdf text-lg"></i> PDF</button>
-      <button @click="copyBookingConfirmation" class="bg-amber-500/10 text-amber-400 py-3 rounded-xl font-black flex flex-col items-center text-[7px] gap-1 active:scale-90 transition-all uppercase tracking-widest border border-amber-500/20 active-effect"><i class="fa-solid fa-copy text-lg"></i> CHÉP</button>
-      <button @click="shareCurrentBill" class="bg-cyan-500/10 text-cyan-400 py-3 rounded-xl font-black flex flex-col items-center text-[7px] gap-1 active:scale-90 transition-all uppercase tracking-widest border border-cyan-500/20 active-effect"><i class="fa-solid fa-share-nodes text-lg"></i> SHARE</button>
-    </div>
+    <transition name="fade">
+      <div v-if="ui.tab === 'create' && !ui.isKeyboardOpen" class="md:hidden fixed bottom-4 left-4 right-4 p-2.5 bg-blue-950/90 backdrop-blur-2xl border border-white/10 z-[100] grid grid-cols-5 gap-2 shadow-[0_20px_50px_rgba(0,0,0,0.4)] rounded-2xl safe-area-pb">
+        <button @click="doSave('save')" class="bg-emerald-500/10 text-emerald-400 py-3 rounded-xl font-black flex flex-col items-center text-[7px] gap-1 active:scale-90 transition-all uppercase tracking-widest border border-emerald-500/20 active-effect"><i class="fa-solid fa-cloud-arrow-up text-lg"></i> LƯU</button>
+        <button @click="doSave('image')" class="bg-indigo-500/10 text-indigo-400 py-3 rounded-xl font-black flex flex-col items-center text-[7px] gap-1 active:scale-90 transition-all uppercase tracking-widest border border-indigo-500/20 active-effect"><i class="fa-solid fa-file-image text-lg"></i> ẢNH</button>
+        <button @click="doSave('pdf')" class="bg-rose-500/10 text-rose-400 py-3 rounded-xl font-black flex flex-col items-center text-[7px] gap-1 active:scale-90 transition-all uppercase tracking-widest border border-rose-500/20 active-effect"><i class="fa-solid fa-file-pdf text-lg"></i> PDF</button>
+        <button @click="copyBookingConfirmation" class="bg-amber-500/10 text-amber-400 py-3 rounded-xl font-black flex flex-col items-center text-[7px] gap-1 active:scale-90 transition-all uppercase tracking-widest border border-amber-500/20 active-effect"><i class="fa-solid fa-copy text-lg"></i> CHÉP</button>
+        <button @click="shareCurrentBill" class="bg-cyan-500/10 text-cyan-400 py-3 rounded-xl font-black flex flex-col items-center text-[7px] gap-1 active:scale-90 transition-all uppercase tracking-widest border border-cyan-500/20 active-effect"><i class="fa-solid fa-share-nodes text-lg"></i> SHARE</button>
+      </div>
+    </transition>
   </div>
 </template>
