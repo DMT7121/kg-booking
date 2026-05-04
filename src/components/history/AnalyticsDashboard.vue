@@ -13,6 +13,7 @@ const stats = computed(() => {
   let totalBookings = keys.length
   let depositedCount = 0
   const dishCounts: Record<string, { qty: number, revenue: number }> = {}
+  const staffKPIs: Record<string, { bookings: number, revenue: number, pax: number }> = {}
 
   const last7Days: { date: string, display: string, revenue: number }[] = []
   for (let i = 6; i >= 0; i--) {
@@ -55,6 +56,13 @@ const stats = computed(() => {
         dishCounts[name].revenue += (qty * price)
       })
     }
+    
+    // Calculate Staff KPIs
+    const staffName = order.staff?.name || 'Admin'
+    if (!staffKPIs[staffName]) staffKPIs[staffName] = { bookings: 0, revenue: 0, pax: 0 }
+    staffKPIs[staffName].bookings++
+    staffKPIs[staffName].revenue += order.totalAmount || 0
+    staffKPIs[staffName].pax += Number(order.parsedCustomer?.pax) || 0
   })
   
   const maxRevenue = Math.max(...last7Days.map(d => d.revenue), 1)
@@ -65,12 +73,18 @@ const stats = computed(() => {
     revenue: dishCounts[name].revenue
   })).sort((a, b) => b.qty - a.qty).slice(0, 5)
 
+  const leaderboard = Object.keys(staffKPIs).map(name => ({
+    name,
+    ...staffKPIs[name]
+  })).sort((a, b) => b.revenue - a.revenue) // Sort by revenue by default
+
   return {
     totalRevenue,
     totalPax,
     totalBookings,
     depositRate: totalBookings ? Math.round((depositedCount / totalBookings) * 100) : 0,
     topDishes,
+    leaderboard,
     last7Days,
     maxRevenue
   }
@@ -163,6 +177,50 @@ const stats = computed(() => {
             <div class="text-[10px] font-bold text-slate-400 group-hover:text-blue-900 transition-colors">{{ day.display }}</div>
           </div>
         </div>
+      </div>
+    </div>
+
+    <!-- Leaderboard (KPIs) -->
+    <div class="bg-white rounded-3xl p-6 md:p-8 shadow-sm border border-slate-100 mt-6">
+      <h3 class="text-sm font-black text-slate-700 uppercase tracking-wide mb-6 flex items-center gap-2">
+        <i class="fa-solid fa-trophy text-yellow-500"></i> Bảng Xếp Hạng KPIs (Nhân Viên)
+      </h3>
+      
+      <div v-if="stats.leaderboard.length > 0" class="overflow-x-auto w-full custom-scrollbar pb-2">
+        <table class="w-full text-left border-collapse min-w-[500px]">
+          <thead>
+            <tr class="border-b border-slate-200">
+              <th class="py-3 px-2 text-[10px] font-black text-slate-400 uppercase tracking-widest">Hạng</th>
+              <th class="py-3 px-2 text-[10px] font-black text-slate-400 uppercase tracking-widest">Nhân Viên</th>
+              <th class="py-3 px-2 text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">Số Phiếu</th>
+              <th class="py-3 px-2 text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">Số Khách</th>
+              <th class="py-3 px-2 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Doanh Thu</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-slate-100">
+            <tr v-for="(staff, index) in stats.leaderboard" :key="staff.name" class="hover:bg-slate-50 transition-colors group">
+              <td class="py-3 px-2">
+                <div class="w-8 h-8 rounded-xl flex items-center justify-center font-black text-[13px] shadow-sm"
+                     :class="index === 0 ? 'bg-gradient-to-br from-yellow-300 to-yellow-500 text-white' : index === 1 ? 'bg-gradient-to-br from-slate-300 to-slate-400 text-white' : index === 2 ? 'bg-gradient-to-br from-orange-300 to-orange-400 text-white' : 'bg-slate-100 text-slate-500'">
+                  <i v-if="index < 3" class="fa-solid fa-medal mr-0.5 text-[10px]"></i>{{ index + 1 }}
+                </div>
+              </td>
+              <td class="py-3 px-2">
+                <div class="font-bold text-sm text-slate-800">{{ staff.name }}</div>
+                <div class="text-[10px] text-slate-400 font-medium mt-0.5">Rank: <span class="font-black text-blue-500" v-if="index === 0">KIM CƯƠNG</span><span class="font-black text-yellow-500" v-else-if="index === 1">VÀNG</span><span class="font-black text-slate-500" v-else-if="index === 2">BẠC</span><span class="font-bold text-slate-400" v-else>ĐỒNG</span></div>
+              </td>
+              <td class="py-3 px-2 text-center font-black text-slate-600 text-[13px]">{{ staff.bookings }}</td>
+              <td class="py-3 px-2 text-center font-bold text-slate-500">{{ staff.pax }} <i class="fa-solid fa-user text-[9px] text-slate-300 ml-0.5"></i></td>
+              <td class="py-3 px-2 text-right">
+                <div class="font-black text-blue-900 text-sm">{{ formatVND(staff.revenue) }}</div>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <div v-else class="text-center py-10">
+        <i class="fa-solid fa-ranking-star text-4xl text-slate-200 mb-3"></i>
+        <p class="text-xs font-bold text-slate-400">Chưa có dữ liệu xếp hạng</p>
       </div>
     </div>
   </div>
