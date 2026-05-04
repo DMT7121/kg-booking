@@ -27,7 +27,7 @@ module.exports = {
         text: '#1F2937',
       },
       fontFamily: {
-        sans: ['Inter', 'system-ui', 'sans-serif'],
+        sans: ['Be Vietnam Pro', 'system-ui', 'sans-serif'],
         display: ['Be Vietnam Pro', 'system-ui', 'sans-serif'],
       },
     },

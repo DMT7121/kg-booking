@@ -85,16 +85,13 @@
     --color-primary-950: 59 7 100;
 }
 body { 
-    font-family: 'Inter', 'Be Vietnam Pro', sans-serif; 
+    font-family: 'Be Vietnam Pro', system-ui, sans-serif; 
     background-color: #f8fafc; 
     color: #1F2937;
     overscroll-behavior-y: none; 
     -webkit-font-smoothing: antialiased; 
     -moz-osx-font-smoothing: grayscale;
     text-rendering: optimizeLegibility;
-}
-h1, h2, h3, h4, h5, h6, .font-display {
-    font-family: 'Be Vietnam Pro', sans-serif;
 }
 
 /* --- UTILS --- */
