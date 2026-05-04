@@ -92,7 +92,7 @@ onMounted(() => {
     <!-- PROMISE-BASED MODALS -->
     <!-- Alert -->
     <transition name="modal">
-    <div v-if="ui.modal.alert.show" class="fixed inset-0 bg-black/60 z-[12000] flex justify-center items-center p-4 backdrop-blur-sm">
+    <div v-if="ui.modal.alert.show" class="fixed inset-0 bg-black/60 z-[99999] flex justify-center items-center p-4 backdrop-blur-sm">
       <div class="bg-white rounded-3xl shadow-2xl p-6 max-w-sm w-full border-t-8 border-blue-500">
         <h3 class="text-lg font-black text-slate-800 mb-2 uppercase">{{ ui.modal.alert.title }}</h3>
         <p class="text-sm text-gray-600 mb-6 font-medium whitespace-pre-line">{{ ui.modal.alert.msg }}</p>
@@ -103,7 +103,7 @@ onMounted(() => {
 
     <!-- Confirm -->
     <transition name="modal">
-    <div v-if="ui.modal.confirm.show" class="fixed inset-0 bg-black/60 z-[12000] flex justify-center items-center p-4 backdrop-blur-sm">
+    <div v-if="ui.modal.confirm.show" class="fixed inset-0 bg-black/60 z-[99999] flex justify-center items-center p-4 backdrop-blur-sm">
       <div class="bg-white rounded-3xl shadow-2xl p-6 max-w-sm w-full border-t-8 border-red-500">
         <h3 class="text-lg font-black text-slate-800 mb-2 uppercase">{{ ui.modal.confirm.title }}</h3>
         <p class="text-sm text-gray-600 mb-6 font-medium whitespace-pre-line">{{ ui.modal.confirm.msg }}</p>
@@ -117,7 +117,7 @@ onMounted(() => {
 
     <!-- Prompt -->
     <transition name="modal">
-    <div v-if="ui.modal.prompt.show" class="fixed inset-0 bg-black/60 z-[12000] flex justify-center items-center p-4 backdrop-blur-sm">
+    <div v-if="ui.modal.prompt.show" class="fixed inset-0 bg-black/60 z-[99999] flex justify-center items-center p-4 backdrop-blur-sm">
       <div class="bg-white rounded-3xl shadow-2xl p-6 max-w-sm w-full border-t-8 border-purple-500">
         <h3 class="text-lg font-black text-slate-800 mb-2 uppercase">{{ ui.modal.prompt.title }}</h3>
         <p class="text-xs text-gray-500 mb-3 font-bold uppercase">{{ ui.modal.prompt.msg }}</p>
