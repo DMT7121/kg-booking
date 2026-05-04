@@ -14,6 +14,7 @@ import MenuItemsEditor from '@/components/forms/MenuItemsEditor.vue'
 import HistoryList from '@/components/history/HistoryList.vue'
 import HistoryTimeline from '@/components/history/HistoryTimeline.vue'
 import AnalyticsDashboard from '@/components/history/AnalyticsDashboard.vue'
+import BillPreview from './BillPreview.vue'
 
 const ui = useUIStore()
 const formStore = useFormStore()
@@ -130,8 +131,8 @@ function shareCurrentBill() {
       <button @click="ui.tab = 'create'" :class="['flex-1 py-2 md:py-4 flex flex-col md:flex-row justify-center items-center gap-1 md:gap-2 transition-all min-h-[54px] md:min-h-[56px] border-b-[3px] px-1 md:px-4 text-center leading-tight whitespace-normal', ui.tab === 'create' ? 'text-blue-700 border-blue-600 bg-blue-50/80' : 'text-slate-400 border-transparent hover:text-slate-600 hover:bg-slate-50']">
         <i class="fa-solid fa-plus text-sm md:text-base"></i> <span class="hidden sm:inline">Tạo Phiếu</span>
       </button>
-      <button @click="ui.tab = 'preview'" :class="['md:hidden flex-1 py-2 flex flex-col justify-center items-center gap-1 transition-all min-h-[54px] border-b-[3px] px-1 text-center leading-tight whitespace-normal', ui.tab === 'preview' ? 'text-blue-700 border-blue-600 bg-blue-50/80' : 'text-slate-500 border-transparent hover:text-slate-600 hover:bg-slate-50']">
-        <i class="fa-solid fa-eye text-sm"></i> <span>Xem Phiếu</span>
+      <button v-if="formStore.customer.name || formStore.id" @click="ui.tab = 'preview'" :class="['flex-1 py-2 md:py-4 flex flex-col md:flex-row justify-center items-center gap-1 md:gap-2 transition-all min-h-[54px] md:min-h-[56px] border-b-[3px] px-1 md:px-4 text-center leading-tight whitespace-normal', ui.tab === 'preview' ? 'text-blue-700 border-blue-600 bg-blue-50/80' : 'text-slate-400 border-transparent hover:text-slate-600 hover:bg-slate-50']">
+        <i class="fa-solid fa-eye text-sm md:text-base"></i> <span>Xem Phiếu</span>
       </button>
     </div>
 
@@ -152,31 +153,36 @@ function shareCurrentBill() {
               </div>
             </div>
 
-            <!-- DESKTOP FOOTER ACTIONS -->
-            <div v-show="!ui.isKeyboardOpen" class="hidden md:grid grid-cols-6 gap-3 p-4 border-t bg-white z-20 shadow-[0_-10px_20px_rgba(0,0,0,0.02)] shrink-0">
-              <button @click="doSave('save')" class="bg-emerald-600 text-white py-3.5 rounded-2xl font-black text-[10px] hover:bg-emerald-700 shadow-lg shadow-emerald-100 transition-all hover:-translate-y-1 active:scale-95 flex flex-col items-center gap-1.5 uppercase tracking-wide min-h-[50px]">
-                <i class="fa-solid fa-cloud-arrow-up text-lg"></i> LƯU DATA
-              </button>
-              <button @click="doSave('print')" class="bg-gray-800 text-white py-3.5 rounded-2xl font-black text-[10px] hover:bg-gray-900 shadow-lg shadow-gray-200 transition-all hover:-translate-y-1 active:scale-95 flex flex-col items-center gap-1.5 uppercase tracking-wide min-h-[50px]"><i class="fa-solid fa-print text-lg"></i> IN BILL</button>
-              <button @click="doSave('image')" class="bg-indigo-600 text-white py-3.5 rounded-2xl font-black text-[10px] hover:bg-indigo-700 shadow-lg shadow-indigo-100 transition-all hover:-translate-y-1 active:scale-95 flex flex-col items-center gap-1.5 uppercase tracking-wide min-h-[50px]"><i class="fa-solid fa-file-image text-lg"></i> XUẤT ẢNH</button>
-              <button @click="doSave('pdf')" class="bg-rose-600 text-white py-3.5 rounded-2xl font-black text-[10px] hover:bg-rose-700 shadow-lg shadow-rose-100 transition-all hover:-translate-y-1 active:scale-95 flex flex-col items-center gap-1.5 uppercase tracking-wide min-h-[50px]"><i class="fa-solid fa-file-pdf text-lg"></i> XUẤT PDF</button>
-              <button @click="copyBookingConfirmation" class="bg-amber-500 text-white py-3.5 rounded-2xl font-black text-[10px] hover:bg-amber-600 shadow-lg shadow-amber-100 transition-all hover:-translate-y-1 active:scale-95 flex flex-col items-center gap-1.5 uppercase tracking-wide min-h-[50px]"><i class="fa-solid fa-copy text-lg"></i> SAO CHÉP</button>
-              <button @click="shareCurrentBill" class="bg-cyan-500 text-white py-3.5 rounded-2xl font-black text-[10px] hover:bg-cyan-600 shadow-lg shadow-cyan-100 transition-all hover:-translate-y-1 active:scale-95 flex flex-col items-center gap-1.5 uppercase tracking-wide min-h-[50px]"><i class="fa-solid fa-share-nodes text-lg"></i> CHIA SẺ</button>
-            </div>
           </div>
         </KeepAlive>
       </transition>
+
+      <!-- BILL PREVIEW (Always in DOM for instant html2canvas capturing on iPhones) -->
+      <div v-show="ui.tab === 'preview'" class="absolute inset-0 z-10 bg-slate-50 flex flex-col">
+        <BillPreview />
+      </div>
     </div>
 
-    <!-- MOBILE FOOTER (Glassmorphism) -->
-    <transition name="fade">
-      <div v-if="ui.tab === 'create' && !ui.isKeyboardOpen" class="md:hidden fixed bottom-4 left-4 right-4 p-2.5 bg-blue-950/90 backdrop-blur-2xl border border-white/10 z-[100] grid grid-cols-5 gap-2 shadow-[0_20px_50px_rgba(0,0,0,0.4)] rounded-2xl safe-area-pb">
-        <button @click="doSave('save')" class="bg-emerald-500/10 text-emerald-400 py-3 rounded-xl font-black flex flex-col items-center text-[7px] gap-1 active:scale-90 transition-all uppercase tracking-widest border border-emerald-500/20 active-effect"><i class="fa-solid fa-cloud-arrow-up text-lg"></i> LƯU</button>
-        <button @click="doSave('image')" class="bg-indigo-500/10 text-indigo-400 py-3 rounded-xl font-black flex flex-col items-center text-[7px] gap-1 active:scale-90 transition-all uppercase tracking-widest border border-indigo-500/20 active-effect"><i class="fa-solid fa-file-image text-lg"></i> ẢNH</button>
-        <button @click="doSave('pdf')" class="bg-rose-500/10 text-rose-400 py-3 rounded-xl font-black flex flex-col items-center text-[7px] gap-1 active:scale-90 transition-all uppercase tracking-widest border border-rose-500/20 active-effect"><i class="fa-solid fa-file-pdf text-lg"></i> PDF</button>
-        <button @click="copyBookingConfirmation" class="bg-amber-500/10 text-amber-400 py-3 rounded-xl font-black flex flex-col items-center text-[7px] gap-1 active:scale-90 transition-all uppercase tracking-widest border border-amber-500/20 active-effect"><i class="fa-solid fa-copy text-lg"></i> CHÉP</button>
-        <button @click="shareCurrentBill" class="bg-cyan-500/10 text-cyan-400 py-3 rounded-xl font-black flex flex-col items-center text-[7px] gap-1 active:scale-90 transition-all uppercase tracking-widest border border-cyan-500/20 active-effect"><i class="fa-solid fa-share-nodes text-lg"></i> SHARE</button>
-      </div>
-    </transition>
+    <!-- UNIFIED FOOTER (Always visible 6 buttons, except when keyboard is open) -->
+    <div v-show="!ui.isKeyboardOpen && ['create', 'preview'].includes(ui.tab)" class="grid grid-cols-6 gap-1 md:gap-3 p-2 md:p-4 border-t bg-white z-20 shadow-[0_-10px_20px_rgba(0,0,0,0.02)] shrink-0 safe-area-pb">
+      <button @click="doSave('save')" class="bg-emerald-600 text-white py-2.5 md:py-3.5 rounded-xl md:rounded-2xl font-black text-[8px] md:text-[10px] hover:bg-emerald-700 shadow-sm md:shadow-lg transition-all hover:-translate-y-1 active:scale-95 flex flex-col items-center justify-center gap-1 md:gap-1.5 uppercase tracking-wide min-h-[44px] md:min-h-[50px]">
+        <i class="fa-solid fa-cloud-arrow-up text-sm md:text-lg"></i> LƯU
+      </button>
+      <button @click="doSave('print')" class="bg-gray-800 text-white py-2.5 md:py-3.5 rounded-xl md:rounded-2xl font-black text-[8px] md:text-[10px] hover:bg-gray-900 shadow-sm md:shadow-lg transition-all hover:-translate-y-1 active:scale-95 flex flex-col items-center justify-center gap-1 md:gap-1.5 uppercase tracking-wide min-h-[44px] md:min-h-[50px]">
+        <i class="fa-solid fa-print text-sm md:text-lg"></i> IN BILL
+      </button>
+      <button @click="doSave('image')" class="bg-indigo-600 text-white py-2.5 md:py-3.5 rounded-xl md:rounded-2xl font-black text-[8px] md:text-[10px] hover:bg-indigo-700 shadow-sm md:shadow-lg transition-all hover:-translate-y-1 active:scale-95 flex flex-col items-center justify-center gap-1 md:gap-1.5 uppercase tracking-wide min-h-[44px] md:min-h-[50px]">
+        <i class="fa-solid fa-file-image text-sm md:text-lg"></i> XUẤT ẢNH
+      </button>
+      <button @click="doSave('pdf')" class="bg-rose-600 text-white py-2.5 md:py-3.5 rounded-xl md:rounded-2xl font-black text-[8px] md:text-[10px] hover:bg-rose-700 shadow-sm md:shadow-lg transition-all hover:-translate-y-1 active:scale-95 flex flex-col items-center justify-center gap-1 md:gap-1.5 uppercase tracking-wide min-h-[44px] md:min-h-[50px]">
+        <i class="fa-solid fa-file-pdf text-sm md:text-lg"></i> XUẤT PDF
+      </button>
+      <button @click="copyBookingConfirmation" class="bg-amber-500 text-white py-2.5 md:py-3.5 rounded-xl md:rounded-2xl font-black text-[8px] md:text-[10px] hover:bg-amber-600 shadow-sm md:shadow-lg transition-all hover:-translate-y-1 active:scale-95 flex flex-col items-center justify-center gap-1 md:gap-1.5 uppercase tracking-wide min-h-[44px] md:min-h-[50px]">
+        <i class="fa-solid fa-copy text-sm md:text-lg"></i> SAO CHÉP
+      </button>
+      <button @click="shareCurrentBill" class="bg-cyan-500 text-white py-2.5 md:py-3.5 rounded-xl md:rounded-2xl font-black text-[8px] md:text-[10px] hover:bg-cyan-600 shadow-sm md:shadow-lg transition-all hover:-translate-y-1 active:scale-95 flex flex-col items-center justify-center gap-1 md:gap-1.5 uppercase tracking-wide min-h-[44px] md:min-h-[50px]">
+        <i class="fa-solid fa-share-nodes text-sm md:text-lg"></i> CHIA SẺ
+      </button>
+    </div>
   </div>
 </template>

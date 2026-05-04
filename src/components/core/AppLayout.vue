@@ -80,7 +80,8 @@ onMounted(() => {
 </script>
 
 <template>
-  <div id="app-root" class="h-screen min-h-[100dvh] flex flex-col md:flex-row relative" v-cloak>
+  <div class="min-h-screen bg-slate-100 flex items-center justify-center font-sans text-slate-800">
+    <div id="app-root" class="w-full max-w-[480px] h-screen min-h-[100dvh] md:h-[95vh] md:min-h-[auto] md:rounded-[2rem] md:shadow-2xl flex flex-col relative overflow-hidden bg-white border border-slate-200" v-cloak>
 
     <!-- GLOBAL PROGRESS BAR -->
     <div class="fixed top-0 left-0 h-[3px] bg-blue-500 z-[999999] transition-all duration-300 ease-out shadow-[0_0_10px_rgba(59,130,246,0.5)]" 
@@ -346,38 +347,10 @@ onMounted(() => {
     <VerifyTransferModal />
     <BookingDetailModal />
 
-    <!-- DESKTOP SIDEBAR -->
-    <aside class="hidden lg:flex w-20 bg-blue-950 flex-col items-center py-8 gap-8 border-r border-white/5 z-30 shadow-[4px_0_24px_rgba(0,0,0,0.1)]">
-      <div class="w-12 h-12 bg-blue-500 rounded-2xl flex items-center justify-center shadow-[0_4px_12px_rgba(59,130,246,0.3)] active:scale-95 transition-transform cursor-pointer border border-blue-400/30 relative overflow-hidden">
-        <div class="absolute inset-0 bg-gradient-to-br from-white/20 to-transparent pointer-events-none"></div>
-        <i class="fa-solid fa-crown text-white text-xl relative z-10"></i>
-      </div>
-      
-      <nav class="flex-1 flex flex-col gap-6 w-full px-4">
-        <button @click="ui.tab = 'timeline'; appStore.loadHistory(false)" :class="['w-12 h-12 rounded-2xl flex items-center justify-center transition-all group', ui.tab === 'timeline' ? 'bg-white/10 text-white shadow-inner border border-white/10' : 'text-blue-200 hover:text-white hover:bg-white/5']" title="Lịch Đặt Bàn">
-          <i class="fa-solid fa-calendar-days text-lg group-hover:scale-110 transition-transform"></i>
-        </button>
-        <button @click="ui.tab = 'history'; appStore.loadHistory(false)" :class="['w-12 h-12 rounded-2xl flex items-center justify-center transition-all group', ui.tab === 'history' ? 'bg-white/10 text-white shadow-inner border border-white/10' : 'text-blue-200 hover:text-white hover:bg-white/5']" title="Lịch Sử Tạo Phiếu">
-          <i class="fa-solid fa-list-ul text-lg group-hover:scale-110 transition-transform"></i>
-        </button>
-        <button @click="ui.tab = 'create'" :class="['w-12 h-12 rounded-2xl flex items-center justify-center transition-all group', ui.tab === 'create' ? 'bg-white/10 text-white shadow-inner border border-white/10' : 'text-blue-200 hover:text-white hover:bg-white/5']" title="Tạo Phiếu Đặt">
-          <i class="fa-solid fa-house-chimney text-lg group-hover:scale-110 transition-transform"></i>
-        </button>
-        <button @click="ui.showSettingsHub = true" class="w-12 h-12 rounded-2xl flex items-center justify-center text-blue-200 hover:text-white hover:bg-white/5 transition-all group mt-auto" title="Cài đặt">
-          <i class="fa-solid fa-sliders text-lg group-hover:scale-110 transition-transform"></i>
-        </button>
-      </nav>
-
-      <div class="mt-auto flex flex-col gap-6 w-full px-4 items-center">
-        <div class="w-10 h-10 rounded-full border-2 border-blue-900 overflow-hidden cursor-pointer hover:border-blue-400 transition-colors shadow-lg">
-          <img src="https://api.dicebear.com/7.x/avataaars/svg?seed=Admin" alt="Admin">
-        </div>
-      </div>
-    </aside>
-
     <!-- MAIN PANELS -->
     <LeftPanel />
     <BillPreview />
 
+    </div>
   </div>
 </template>
