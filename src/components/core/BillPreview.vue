@@ -316,6 +316,10 @@ function openZaloChat() {
           <i class="fa-regular fa-image text-sm"></i>
           <span class="text-[12px] font-bold whitespace-nowrap">Tải ảnh PNG</span>
         </button>
+        <button @click="triggerSave('print')" class="flex items-center justify-center bg-gray-800 text-white h-[44px] px-4 rounded-xl border border-gray-700 shrink-0 gap-2 active:scale-95 transition-transform shadow-md shadow-gray-900/20 hover:bg-gray-900">
+          <i class="fa-solid fa-print text-sm"></i>
+          <span class="text-[12px] font-bold whitespace-nowrap">In máy POS</span>
+        </button>
         <button @click="triggerSave('pdf')" class="flex items-center justify-center bg-blue-50 text-blue-600 h-[44px] px-3.5 rounded-xl border border-blue-100 shrink-0 gap-2 active:scale-95 transition-transform">
           <i class="fa-regular fa-file-pdf text-sm"></i>
           <span class="text-[12px] font-bold whitespace-nowrap">Tải file PDF</span>

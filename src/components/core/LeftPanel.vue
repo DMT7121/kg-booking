@@ -153,10 +153,11 @@ function shareCurrentBill() {
             </div>
 
             <!-- DESKTOP FOOTER ACTIONS -->
-            <div v-show="!ui.isKeyboardOpen" class="hidden md:grid grid-cols-5 gap-3 p-4 border-t bg-white z-20 shadow-[0_-10px_20px_rgba(0,0,0,0.02)] shrink-0">
+            <div v-show="!ui.isKeyboardOpen" class="hidden md:grid grid-cols-6 gap-3 p-4 border-t bg-white z-20 shadow-[0_-10px_20px_rgba(0,0,0,0.02)] shrink-0">
               <button @click="doSave('save')" class="bg-emerald-600 text-white py-3.5 rounded-2xl font-black text-[10px] hover:bg-emerald-700 shadow-lg shadow-emerald-100 transition-all hover:-translate-y-1 active:scale-95 flex flex-col items-center gap-1.5 uppercase tracking-wide min-h-[50px]">
-                <i class="fa-solid fa-cloud-arrow-up text-lg"></i> LƯU & DỮ LIỆU
+                <i class="fa-solid fa-cloud-arrow-up text-lg"></i> LƯU DATA
               </button>
+              <button @click="doSave('print')" class="bg-gray-800 text-white py-3.5 rounded-2xl font-black text-[10px] hover:bg-gray-900 shadow-lg shadow-gray-200 transition-all hover:-translate-y-1 active:scale-95 flex flex-col items-center gap-1.5 uppercase tracking-wide min-h-[50px]"><i class="fa-solid fa-print text-lg"></i> IN BILL</button>
               <button @click="doSave('image')" class="bg-indigo-600 text-white py-3.5 rounded-2xl font-black text-[10px] hover:bg-indigo-700 shadow-lg shadow-indigo-100 transition-all hover:-translate-y-1 active:scale-95 flex flex-col items-center gap-1.5 uppercase tracking-wide min-h-[50px]"><i class="fa-solid fa-file-image text-lg"></i> XUẤT ẢNH</button>
               <button @click="doSave('pdf')" class="bg-rose-600 text-white py-3.5 rounded-2xl font-black text-[10px] hover:bg-rose-700 shadow-lg shadow-rose-100 transition-all hover:-translate-y-1 active:scale-95 flex flex-col items-center gap-1.5 uppercase tracking-wide min-h-[50px]"><i class="fa-solid fa-file-pdf text-lg"></i> XUẤT PDF</button>
               <button @click="copyBookingConfirmation" class="bg-amber-500 text-white py-3.5 rounded-2xl font-black text-[10px] hover:bg-amber-600 shadow-lg shadow-amber-100 transition-all hover:-translate-y-1 active:scale-95 flex flex-col items-center gap-1.5 uppercase tracking-wide min-h-[50px]"><i class="fa-solid fa-copy text-lg"></i> SAO CHÉP</button>

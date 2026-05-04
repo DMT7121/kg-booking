@@ -251,6 +251,9 @@ function _createBillRender() {
       } else if (formStore.saveType === 'pdf') {
         // PDF already saved above, just release UI
         uiStore.loading.is = false
+      } else if (formStore.saveType === 'print') {
+        uiStore.loading.is = false
+        setTimeout(() => { window.print() }, 300)
       } else if (formStore.saveType === 'save') {
         // For "save only", show brief loading then release
         uiStore.loading.subMsg = 'Đang gửi...'
