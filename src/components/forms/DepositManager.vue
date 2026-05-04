@@ -48,7 +48,7 @@ function onDrop(e: DragEvent) {
 
 <template>
   <div 
-    class="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm relative overflow-hidden transition-all" 
+    class="bg-white p-5 rounded-2xl border border-slate-100 shadow-[0_2px_10px_rgba(0,0,0,0.04)] relative overflow-hidden transition-all" 
     :class="{'ring-4 ring-emerald-500/20 bg-emerald-50/30': formStore.deposit.isPaid, 'ring-8 ring-indigo-500/20 bg-indigo-50/50 scale-[1.02]': isDragging}"
     @dragover="onDragOver"
     @dragleave="onDragLeave"

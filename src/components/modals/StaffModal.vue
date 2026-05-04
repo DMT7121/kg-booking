@@ -47,9 +47,9 @@ function handleSave() {
 </script>
 
 <template>
-  <div v-if="ui.showStaffConfig" class="fixed inset-0 bg-slate-50 z-[12000] overflow-y-auto custom-scrollbar flex flex-col">
+  <div v-if="ui.showStaffConfig" class="fixed inset-0 bg-slate-50 md:bg-white z-[12000] flex flex-col overflow-hidden">
     <!-- Top Header -->
-    <div class="bg-slate-50 px-4 py-4 flex items-center justify-between sticky top-0 z-10">
+    <div class="flex items-center justify-between px-4 py-3 border-b border-slate-100 bg-white shrink-0 shadow-sm relative z-20">
       <button @click="ui.showStaffConfig = false" class="w-10 h-10 flex items-center justify-center text-blue-900 hover:bg-slate-50 rounded-full transition-colors active:scale-95">
         <i class="fa-solid fa-arrow-left text-xl"></i>
       </button>
@@ -62,11 +62,13 @@ function handleSave() {
       </button>
     </div>
 
-    <div class="text-center px-6 mb-4">
-      <p class="text-xs font-bold text-slate-500 leading-relaxed">Danh sách nhân viên sẽ hiển thị trên phiếu đặt bàn<br>để khách hàng liên hệ khi cần.</p>
-    </div>
+    <!-- Scrollable Content -->
+    <div class="flex-1 overflow-y-auto custom-scrollbar bg-slate-50 md:bg-white">
+      <div class="text-center px-6 mt-6 mb-4 max-w-sm mx-auto">
+        <p class="text-[13px] font-bold text-slate-500 leading-relaxed">Danh sách nhân viên sẽ hiển thị trên phiếu đặt bàn để khách hàng liên hệ khi cần.</p>
+      </div>
 
-    <div class="p-4 md:p-6 max-w-2xl mx-auto w-full space-y-8 pb-32">
+      <div class="p-4 md:p-6 lg:p-8 max-w-2xl mx-auto w-full space-y-8 pb-32">
       <!-- Section: Displayed Staff -->
       <div class="space-y-4">
         <div class="flex justify-between items-center pl-2">
