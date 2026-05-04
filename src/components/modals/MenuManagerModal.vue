@@ -76,12 +76,12 @@ function getCategoryColor(category: string) {
     
     <!-- Header -->
     <div class="flex items-center justify-between px-4 py-3 border-b border-slate-100 bg-white shrink-0 shadow-sm relative z-20">
-      <button @click="close" class="w-10 h-10 flex items-center justify-center text-[#1A237E] hover:bg-slate-50 rounded-full transition-colors active:scale-95">
+      <button @click="ui.showMenuManager = false" class="w-10 h-10 flex items-center justify-center text-[#1A237E] hover:bg-slate-50 rounded-full transition-colors active:scale-95">
         <i class="fa-solid fa-arrow-left text-xl"></i>
       </button>
       <div class="text-center flex-1">
-        <h2 class="text-lg font-black text-[#1A237E]">{{ activeTab === 'manage' ? 'Thêm thực đơn' : 'Thêm / Chỉnh sửa ảnh món' }}</h2>
-        <p v-if="activeTab === 'add'" class="text-[11px] text-slate-500 mt-0.5">Quản lý và cập nhật hình ảnh món ăn</p>
+        <h2 class="text-lg font-black text-[#1A237E]">Cấu hình Thực đơn</h2>
+        <p class="text-[10px] font-bold text-slate-400 mt-0.5 uppercase tracking-wider">Quản lý & Cập nhật</p>
       </div>
       <button class="w-10 h-10 flex items-center justify-center text-[#1A237E] hover:bg-slate-50 rounded-full transition-colors">
         <i class="fa-regular fa-circle-question text-xl"></i>

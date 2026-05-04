@@ -92,24 +92,42 @@ onMounted(() => {
     <!-- PROMISE-BASED MODALS -->
     <!-- Alert -->
     <transition name="modal">
-    <div v-if="ui.modal.alert.show" class="fixed inset-0 bg-black/60 z-[99999] flex justify-center items-center p-4 backdrop-blur-sm">
-      <div class="bg-white rounded-3xl shadow-2xl p-6 max-w-sm w-full border-t-8 border-blue-500">
-        <h3 class="text-lg font-black text-slate-800 mb-2 uppercase">{{ ui.modal.alert.title }}</h3>
-        <p class="text-sm text-gray-600 mb-6 font-medium whitespace-pre-line">{{ ui.modal.alert.msg }}</p>
-        <button @click="ui.resolveModal('alert')" class="w-full py-3 bg-blue-600 text-white rounded-xl font-black uppercase tracking-widest min-h-[44px] active-effect">Đã Hiểu</button>
+    <div v-if="ui.modal.alert.show" class="fixed inset-0 bg-[#0D1658]/80 z-[99999] flex justify-center items-center p-4 backdrop-blur-md" @click.self="ui.resolveModal('alert')">
+      <div class="bg-white rounded-3xl shadow-2xl p-6 md:p-8 max-w-sm w-[95%] md:w-full flex flex-col relative overflow-hidden border border-white/20">
+        <div class="absolute top-0 left-0 right-0 h-24 bg-gradient-to-r from-blue-600 to-cyan-500 rounded-t-3xl opacity-10"></div>
+        <div class="flex justify-center items-center mb-6 relative z-10 flex-col gap-3">
+          <div class="w-14 h-14 bg-blue-50 rounded-2xl flex items-center justify-center text-blue-500 text-2xl shadow-sm border border-blue-100">
+            <i class="fa-solid fa-circle-info"></i>
+          </div>
+          <h3 class="text-xl font-black text-[#1A237E] uppercase tracking-tighter text-center">{{ ui.modal.alert.title }}</h3>
+        </div>
+        <div class="relative z-10 mb-8">
+          <p class="text-sm text-slate-600 font-medium text-center whitespace-pre-line">{{ ui.modal.alert.msg }}</p>
+        </div>
+        <div class="relative z-10">
+          <button @click="ui.resolveModal('alert')" class="w-full py-4 bg-[#1A237E] text-white rounded-xl font-black uppercase tracking-widest text-[10px] shadow-lg shadow-blue-900/20 hover:bg-blue-800 active:scale-95 transition-all">ĐÃ HIỂU</button>
+        </div>
       </div>
     </div>
     </transition>
 
     <!-- Confirm -->
     <transition name="modal">
-    <div v-if="ui.modal.confirm.show" class="fixed inset-0 bg-black/60 z-[99999] flex justify-center items-center p-4 backdrop-blur-sm">
-      <div class="bg-white rounded-3xl shadow-2xl p-6 max-w-sm w-full border-t-8 border-red-500">
-        <h3 class="text-lg font-black text-slate-800 mb-2 uppercase">{{ ui.modal.confirm.title }}</h3>
-        <p class="text-sm text-gray-600 mb-6 font-medium whitespace-pre-line">{{ ui.modal.confirm.msg }}</p>
-        <div class="grid grid-cols-2 gap-3">
-          <button @click="ui.resolveModal('confirm', false)" class="py-3 bg-gray-100 text-gray-600 rounded-xl font-black uppercase min-h-[44px] active-effect">Hủy</button>
-          <button @click="ui.resolveModal('confirm', true)" class="py-3 bg-red-600 text-white rounded-xl font-black uppercase min-h-[44px] active-effect shadow-lg shadow-red-200">Đồng Ý</button>
+    <div v-if="ui.modal.confirm.show" class="fixed inset-0 bg-[#0D1658]/80 z-[99999] flex justify-center items-center p-4 backdrop-blur-md" @click.self="ui.resolveModal('confirm', false)">
+      <div class="bg-white rounded-3xl shadow-2xl p-6 md:p-8 max-w-sm w-[95%] md:w-full flex flex-col relative overflow-hidden border border-white/20">
+        <div class="absolute top-0 left-0 right-0 h-24 bg-gradient-to-r from-rose-500 to-orange-500 rounded-t-3xl opacity-10"></div>
+        <div class="flex justify-center items-center mb-6 relative z-10 flex-col gap-3">
+          <div class="w-14 h-14 bg-rose-50 rounded-2xl flex items-center justify-center text-rose-500 text-2xl shadow-sm border border-rose-100">
+            <i class="fa-solid fa-triangle-exclamation"></i>
+          </div>
+          <h3 class="text-xl font-black text-[#1A237E] uppercase tracking-tighter text-center">{{ ui.modal.confirm.title }}</h3>
+        </div>
+        <div class="relative z-10 mb-8">
+          <p class="text-sm text-slate-600 font-medium text-center whitespace-pre-line">{{ ui.modal.confirm.msg }}</p>
+        </div>
+        <div class="grid grid-cols-2 gap-3 relative z-10">
+          <button @click="ui.resolveModal('confirm', false)" class="py-4 bg-slate-50 border border-slate-200 text-slate-500 hover:bg-slate-100 hover:text-slate-700 rounded-xl font-black uppercase tracking-widest text-[10px] active:scale-95 transition-all shadow-sm">HỦY BỎ</button>
+          <button @click="ui.resolveModal('confirm', true)" class="py-4 bg-rose-600 text-white rounded-xl font-black uppercase tracking-widest text-[10px] shadow-lg shadow-rose-600/20 hover:bg-rose-700 active:scale-95 transition-all">ĐỒNG Ý</button>
         </div>
       </div>
     </div>
@@ -117,14 +135,22 @@ onMounted(() => {
 
     <!-- Prompt -->
     <transition name="modal">
-    <div v-if="ui.modal.prompt.show" class="fixed inset-0 bg-black/60 z-[99999] flex justify-center items-center p-4 backdrop-blur-sm">
-      <div class="bg-white rounded-3xl shadow-2xl p-6 max-w-sm w-full border-t-8 border-purple-500">
-        <h3 class="text-lg font-black text-slate-800 mb-2 uppercase">{{ ui.modal.prompt.title }}</h3>
-        <p class="text-xs text-gray-500 mb-3 font-bold uppercase">{{ ui.modal.prompt.msg }}</p>
-        <input v-model="ui.modal.prompt.value" class="w-full border-2 border-gray-200 rounded-xl p-3 mb-6 font-bold text-slate-800 focus:border-purple-500 outline-none" placeholder="Nhập nội dung...">
-        <div class="grid grid-cols-2 gap-3">
-          <button @click="ui.resolveModal('prompt', null)" class="py-3 bg-gray-100 text-gray-600 rounded-xl font-black uppercase min-h-[44px] active-effect">Hủy</button>
-          <button @click="ui.resolveModal('prompt', ui.modal.prompt.value)" class="py-3 bg-purple-600 text-white rounded-xl font-black uppercase min-h-[44px] active-effect shadow-lg shadow-purple-200">Xác Nhận</button>
+    <div v-if="ui.modal.prompt.show" class="fixed inset-0 bg-[#0D1658]/80 z-[99999] flex justify-center items-center p-4 backdrop-blur-md" @click.self="ui.resolveModal('prompt', null)">
+      <div class="bg-white rounded-3xl shadow-2xl p-6 md:p-8 max-w-sm w-[95%] md:w-full flex flex-col relative overflow-hidden border border-white/20">
+        <div class="absolute top-0 left-0 right-0 h-24 bg-gradient-to-r from-purple-600 to-[#1A237E] rounded-t-3xl opacity-10"></div>
+        <div class="flex justify-center items-center mb-6 relative z-10 flex-col gap-3">
+          <div class="w-14 h-14 bg-purple-50 rounded-2xl flex items-center justify-center text-purple-600 text-2xl shadow-sm border border-purple-100">
+            <i class="fa-solid fa-keyboard"></i>
+          </div>
+          <h3 class="text-xl font-black text-[#1A237E] uppercase tracking-tighter text-center">{{ ui.modal.prompt.title }}</h3>
+        </div>
+        <div class="relative z-10 mb-6">
+          <p class="text-[11px] font-black text-slate-500 uppercase tracking-widest text-center mb-4">{{ ui.modal.prompt.msg }}</p>
+          <input v-model="ui.modal.prompt.value" class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-slate-800 focus:outline-none focus:bg-white focus:border-purple-500 focus:ring-2 focus:ring-purple-100 shadow-sm transition-all placeholder-slate-300 text-center" placeholder="Nhập nội dung...">
+        </div>
+        <div class="grid grid-cols-2 gap-3 relative z-10">
+          <button @click="ui.resolveModal('prompt', null)" class="py-4 bg-slate-50 border border-slate-200 text-slate-500 hover:bg-slate-100 hover:text-slate-700 rounded-xl font-black uppercase tracking-widest text-[10px] active:scale-95 transition-all shadow-sm">HỦY BỎ</button>
+          <button @click="ui.resolveModal('prompt', ui.modal.prompt.value)" class="py-4 bg-purple-600 text-white rounded-xl font-black uppercase tracking-widest text-[10px] shadow-lg shadow-purple-600/20 hover:bg-purple-700 active:scale-95 transition-all">XÁC NHẬN</button>
         </div>
       </div>
     </div>
@@ -267,21 +293,31 @@ onMounted(() => {
     </div>
 
     <!-- STAFF SELECTOR MODAL (ON SAVE) -->
-    <div v-if="ui.showStaffSelector" class="fixed inset-0 bg-black/80 z-[10002] flex justify-center items-center p-4 backdrop-blur-sm" @click.self="ui.showStaffSelector = false">
-      <div class="bg-white rounded-3xl shadow-2xl p-6 max-w-sm w-full border-4 border-slate-900">
-        <h3 class="text-xl font-black text-center mb-6 text-slate-800 uppercase tracking-tighter">NHÂN VIÊN TẠO PHIẾU</h3>
-        <div class="grid grid-cols-2 gap-3 max-h-[60vh] overflow-y-auto custom-scrollbar p-1">
+    <transition name="modal">
+    <div v-if="ui.showStaffSelector" class="fixed inset-0 bg-[#0D1658]/80 z-[10002] flex justify-center items-center p-4 backdrop-blur-md" @click.self="ui.showStaffSelector = false">
+      <div class="bg-white rounded-3xl shadow-2xl p-6 md:p-8 max-w-sm w-[95%] md:w-full flex flex-col relative overflow-hidden border border-white/20">
+        <div class="absolute top-0 left-0 right-0 h-24 bg-gradient-to-r from-blue-600 to-cyan-500 rounded-t-3xl opacity-10"></div>
+        <div class="flex justify-center items-center mb-6 relative z-10 flex-col gap-3">
+          <div class="w-14 h-14 bg-blue-50 rounded-2xl flex items-center justify-center text-blue-500 text-2xl shadow-sm border border-blue-100">
+            <i class="fa-solid fa-user-tag"></i>
+          </div>
+          <h3 class="text-xl font-black text-[#1A237E] uppercase tracking-tighter text-center">CHỌN NGƯỜI TẠO PHIẾU</h3>
+        </div>
+        <div class="grid grid-cols-2 gap-3 max-h-[50vh] overflow-y-auto custom-scrollbar p-1 relative z-10">
           <button v-for="(staff, idx) in appStore.staffList" :key="idx"
             @click="confirmStaffAndSave(staff)"
-            class="p-4 rounded-2xl border-2 border-slate-100 hover:border-blue-500 hover:bg-blue-50 transition-all active:scale-95 flex flex-col items-center justify-center gap-1 shadow-sm group min-h-[80px]">
-            <i class="fa-solid fa-user-check text-2xl text-slate-300 group-hover:text-blue-500 mb-1"></i>
+            class="p-4 rounded-2xl bg-slate-50 border border-slate-200 hover:border-blue-500 hover:bg-blue-50 hover:shadow-md transition-all active:scale-95 flex flex-col items-center justify-center gap-1 group min-h-[80px]">
+            <i class="fa-solid fa-user-check text-2xl text-slate-300 group-hover:text-blue-500 mb-1 transition-colors"></i>
             <span class="font-black text-xs uppercase text-slate-700 text-center leading-tight">{{ staff.name }}</span>
             <span class="text-[9px] font-mono font-bold text-slate-400">{{ staff.phone }}</span>
           </button>
         </div>
-        <button @click="ui.showStaffSelector = false" class="w-full mt-4 py-3 bg-gray-100 text-gray-500 font-black rounded-xl uppercase text-xs hover:bg-gray-200 min-h-[44px] active-effect">Hủy Bỏ</button>
+        <div class="relative z-10 mt-6">
+          <button @click="ui.showStaffSelector = false" class="w-full py-4 bg-slate-50 border border-slate-200 text-slate-500 hover:bg-slate-100 hover:text-slate-700 rounded-xl font-black uppercase tracking-widest text-[10px] active:scale-95 transition-all shadow-sm">HỦY BỎ</button>
+        </div>
       </div>
     </div>
+    </transition>
 
     <!-- ALL CONFIG MODALS -->
     <VerifyTransferModal />

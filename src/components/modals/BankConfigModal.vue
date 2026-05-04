@@ -80,6 +80,7 @@ function getBankLogoColor(bin: string) {
       </button>
       <div class="text-center flex-1">
         <h2 class="text-lg font-black text-[#1A237E]">Quản lý ngân hàng</h2>
+        <p class="text-[10px] font-bold text-slate-400 mt-0.5 uppercase tracking-wider">Tài khoản & Thanh toán</p>
       </div>
       <button class="w-10 h-10 flex items-center justify-center text-[#1A237E] hover:bg-slate-50 rounded-full transition-colors">
         <i class="fa-regular fa-circle-question text-xl"></i>

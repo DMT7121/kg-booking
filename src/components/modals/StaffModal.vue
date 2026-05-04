@@ -50,14 +50,15 @@ function handleSave() {
   <div v-if="ui.showStaffConfig" class="fixed inset-0 bg-slate-50 z-[12000] overflow-y-auto custom-scrollbar flex flex-col">
     <!-- Top Header -->
     <div class="bg-slate-50 px-4 py-4 flex items-center justify-between sticky top-0 z-10">
-      <button @click="ui.showStaffConfig = false" class="w-10 h-10 flex items-center justify-center text-[#1A237E] text-xl active:scale-95 transition-transform">
-        <i class="fa-solid fa-arrow-left"></i>
+      <button @click="ui.showStaffConfig = false" class="w-10 h-10 flex items-center justify-center text-[#1A237E] hover:bg-slate-50 rounded-full transition-colors active:scale-95">
+        <i class="fa-solid fa-arrow-left text-xl"></i>
       </button>
       <div class="text-center flex-1">
-        <h2 class="text-xl font-black text-[#1A237E]">Nhân viên hỗ trợ đặt</h2>
+        <h2 class="text-lg font-black text-[#1A237E]">Danh sách nhân sự</h2>
+        <p class="text-[10px] font-bold text-slate-400 mt-0.5 uppercase tracking-wider">Quản lý & Thiết lập</p>
       </div>
-      <button class="w-10 h-10 flex items-center justify-center text-[#1A237E] text-xl active:scale-95 transition-transform">
-        <i class="fa-regular fa-circle-question"></i>
+      <button class="w-10 h-10 flex items-center justify-center text-[#1A237E] hover:bg-slate-50 rounded-full transition-colors">
+        <i class="fa-regular fa-circle-question text-xl"></i>
       </button>
     </div>
 

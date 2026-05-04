@@ -35,23 +35,26 @@ async function handleKeyClick(pId: string, idx: number) {
 </script>
 
 <template>
-  <div v-if="ui.showAiConfig" class="fixed inset-0 bg-slate-50 z-[12000] overflow-y-auto custom-scrollbar flex flex-col">
-    <!-- Top Header -->
-    <div class="bg-slate-50 px-4 py-4 flex items-center justify-between sticky top-0 z-10">
-      <button @click="ui.showAiConfig = false" class="w-10 h-10 flex items-center justify-center text-[#1A237E] text-xl active:scale-95 transition-transform">
-        <i class="fa-solid fa-arrow-left"></i>
+  <div v-if="ui.showAiConfig" class="fixed inset-0 bg-slate-50 md:bg-white z-[12000] flex flex-col overflow-hidden">
+    <!-- Header -->
+    <div class="flex items-center justify-between px-4 py-3 border-b border-slate-100 bg-white shrink-0 shadow-sm relative z-20">
+      <button @click="ui.showAiConfig = false" class="w-10 h-10 flex items-center justify-center text-[#1A237E] hover:bg-slate-50 rounded-full transition-colors active:scale-95">
+        <i class="fa-solid fa-arrow-left text-xl"></i>
       </button>
       <div class="text-center flex-1">
-        <h2 class="text-xl font-black text-[#1A237E]">Cấu hình AI</h2>
+        <h2 class="text-lg font-black text-[#1A237E]">Cấu hình AI</h2>
+        <p class="text-[10px] font-bold text-slate-400 mt-0.5 uppercase tracking-wider">Quản lý & Thiết lập</p>
       </div>
-      <button class="w-10 h-10 flex items-center justify-center text-[#1A237E] text-xl active:scale-95 transition-transform">
-        <i class="fa-regular fa-circle-question"></i>
+      <button class="w-10 h-10 flex items-center justify-center text-[#1A237E] hover:bg-slate-50 rounded-full transition-colors">
+        <i class="fa-regular fa-circle-question text-xl"></i>
       </button>
     </div>
 
-    <div class="text-center px-6 mb-6">
-      <p class="text-xs font-bold text-slate-500 leading-relaxed">Thiết lập và quản lý các mô hình AI giúp bạn phân tích<br>thực đơn và gợi ý số bàn thông minh.</p>
-    </div>
+    <!-- Scrollable Content -->
+    <div class="flex-1 overflow-y-auto custom-scrollbar bg-slate-50 md:bg-white">
+      <div class="text-center px-6 py-6 pb-2">
+        <p class="text-xs font-bold text-slate-500 leading-relaxed">Thiết lập và quản lý các mô hình AI giúp bạn phân tích<br>thực đơn và gợi ý số bàn thông minh.</p>
+      </div>
 
     <div class="p-4 md:p-6 max-w-2xl mx-auto w-full space-y-6 pb-20">
       <!-- General Config -->
@@ -153,6 +156,7 @@ async function handleKeyClick(pId: string, idx: number) {
       <div class="mt-6 text-center text-[10px] font-bold text-slate-400 flex items-center justify-center gap-1.5 pb-4">
         <i class="fa-solid fa-circle-info"></i> Tổng cộng: {{ configStore.totalKeyCount + 1 }} keys across {{ Object.keys(PLATFORMS).length }} platforms
       </div>
+    </div>
     </div>
   </div>
 </template>
