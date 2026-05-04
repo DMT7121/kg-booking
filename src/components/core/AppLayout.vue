@@ -175,9 +175,9 @@ onMounted(() => {
     </div>
 
     <!-- SETTINGS HUB MODAL -->
-    <div v-if="ui.showSettingsHub" class="fixed inset-0 bg-slate-50 z-[12000] flex flex-col lg:flex-row overflow-hidden">
+    <div v-if="ui.showSettingsHub" class="absolute inset-0 bg-slate-50 z-[12000] flex flex-col overflow-hidden">
       <!-- Left Sidebar (Menu) -->
-      <div class="w-full lg:w-[350px] xl:w-[400px] bg-slate-50 flex flex-col h-full shrink-0 shadow-[4px_0_24px_rgba(0,0,0,0.02)] z-20 overflow-y-auto custom-scrollbar lg:border-r border-slate-200" :class="{'hidden lg:flex': ui.activeSettingModal}">
+      <div class="w-full bg-slate-50 flex flex-col h-full shrink-0 shadow-[4px_0_24px_rgba(0,0,0,0.02)] z-20 overflow-y-auto custom-scrollbar" :class="{'hidden': ui.activeSettingModal}">
         <!-- Top Header -->
         <div class="bg-white px-4 py-4 flex items-center justify-between sticky top-0 z-10 shadow-sm border-b border-slate-100">
           <button @click="ui.showSettingsHub = false; ui.closeConfig()" class="w-10 h-10 flex items-center justify-center text-slate-800 text-xl active:scale-95 transition-transform">
@@ -300,13 +300,7 @@ onMounted(() => {
       </div> <!-- Closes Sidebar -->
 
       <!-- Right Content Area (Modals) -->
-      <div class="flex-1 h-full overflow-hidden relative bg-white flex flex-col" :class="{'hidden lg:flex': !ui.activeSettingModal}">
-        <!-- Desktop empty state -->
-        <div v-if="!ui.activeSettingModal" class="hidden lg:flex flex-col items-center justify-center h-full text-slate-400 gap-4 opacity-40">
-          <i class="fa-solid fa-gears text-7xl text-slate-200"></i>
-          <p class="font-bold text-sm tracking-wide">Chọn một mục cấu hình bên trái để bắt đầu</p>
-        </div>
-        
+      <div class="flex-1 h-full overflow-hidden relative bg-white flex flex-col" :class="{'hidden': !ui.activeSettingModal}">
         <AiConfigModal />
         <BankConfigModal />
         <BrandingModal />

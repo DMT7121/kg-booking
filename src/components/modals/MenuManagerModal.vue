@@ -120,7 +120,7 @@ async function deleteSelectedDish() {
     
     <!-- Header -->
     <div class="flex items-center justify-between px-4 py-3 border-b border-slate-100 bg-white shrink-0 shadow-sm relative z-20">
-      <button @click="ui.closeConfig()" class="lg:hidden w-10 h-10 flex items-center justify-center text-blue-900 hover:bg-slate-50 rounded-full transition-colors active:scale-95">
+      <button @click="ui.closeConfig()" class="w-10 h-10 flex items-center justify-center text-blue-900 hover:bg-slate-50 rounded-full transition-colors active:scale-95">
         <i class="fa-solid fa-arrow-left text-xl"></i>
       </button>
       <div class="text-center flex-1">
@@ -284,9 +284,9 @@ async function deleteSelectedDish() {
       </div>
 
       <!-- TAB 2: THÊM MÓN (GRID/LIST WITH EDIT PANEL) -->
-      <div v-if="activeTab === 'add'" class="flex flex-col lg:flex-row min-h-full max-w-7xl mx-auto">
+      <div v-if="activeTab === 'add'" class="flex flex-col min-h-full max-w-7xl mx-auto">
         <!-- Left Side: Dish Grid -->
-        <div class="flex-1 p-4 md:p-6 lg:border-r border-slate-200 flex flex-col h-full bg-slate-50 lg:bg-transparent">
+        <div class="flex-1 p-4 md:p-6 flex flex-col h-full bg-slate-50">
           <!-- Toolbar -->
           <div class="flex flex-wrap items-center gap-3 mb-5">
             <div class="flex-1 min-w-[200px] relative">
@@ -342,16 +342,16 @@ async function deleteSelectedDish() {
         </div>
 
         <!-- Right Side: Edit Panel -->
-        <div v-if="selectedDish" class="w-full lg:w-[400px] xl:w-[450px] bg-white lg:border-l border-slate-200 shrink-0 flex flex-col h-[75vh] lg:h-full border-t lg:border-t-0 fixed lg:static bottom-0 left-0 right-0 z-50 rounded-t-3xl lg:rounded-none shadow-[0_-20px_50px_-10px_rgba(0,0,0,0.15)] lg:shadow-none transition-transform duration-300">
+        <div v-if="selectedDish" class="w-full bg-white shrink-0 flex flex-col h-[75vh] border-t fixed bottom-0 left-0 right-0 z-50 rounded-t-3xl shadow-[0_-20px_50px_-10px_rgba(0,0,0,0.15)] transition-transform duration-300">
           
-          <div class="px-5 py-4 border-b border-slate-100 flex justify-between items-center bg-white rounded-t-3xl lg:rounded-none sticky top-0 z-10 shadow-sm">
+          <div class="px-5 py-4 border-b border-slate-100 flex justify-between items-center bg-white rounded-t-3xl sticky top-0 z-10 shadow-sm">
             <h3 class="font-black text-slate-700 uppercase text-[13px] tracking-widest flex items-center gap-2">
               <i class="fa-solid fa-pen-to-square text-blue-500"></i> Chỉnh sửa ảnh món
             </h3>
-            <button @click="selectedDish = null" class="w-8 h-8 flex items-center justify-center text-slate-400 hover:bg-slate-100 hover:text-slate-700 rounded-full transition-colors lg:hidden bg-slate-50">
+            <button @click="selectedDish = null" class="w-8 h-8 flex items-center justify-center text-slate-400 hover:bg-slate-100 hover:text-slate-700 rounded-full transition-colors bg-slate-50">
               <i class="fa-solid fa-chevron-down"></i>
             </button>
-            <button class="text-xs font-black text-blue-600 hidden lg:flex items-center gap-1.5 hover:bg-blue-50 px-3 py-1.5 rounded-lg transition-colors" @click="selectedDish = null">
+            <button class="text-xs font-black text-blue-600 hidden items-center gap-1.5 hover:bg-blue-50 px-3 py-1.5 rounded-lg transition-colors" @click="selectedDish = null">
               Đóng <i class="fa-solid fa-xmark"></i>
             </button>
           </div>

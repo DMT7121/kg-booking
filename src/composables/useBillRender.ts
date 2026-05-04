@@ -300,12 +300,7 @@ function _createBillRender() {
             uiStore.showToast('⚠️ Lưu cục bộ OK — Chờ mạng để đồng bộ', 'warning', 5000)
             
             // Add to offline queue for later sync
-            await addToOfflineQueue({
-              id: payload.id || crypto.randomUUID(),
-              action: 'saveOrder',
-              payload: payload,
-              timestamp: Date.now()
-            })
+            await addToOfflineQueue('saveOrder', payload)
           })
 
         // If save-only mode, wait for sync to complete before switching tab

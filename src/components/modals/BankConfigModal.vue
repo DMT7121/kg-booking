@@ -16,10 +16,21 @@ function resetForm() {
     bankId: '',
     name: '',
     number: '',
-    owner: ''
+    owner: '',
+    template: 'compact'
   }
   isEditing.value = false
   editIndex.value = -1
+}
+
+function handleImgError(e: Event) {
+  const target = e.target as HTMLElement
+  if (target) {
+    target.style.display = 'none'
+    if (target.nextElementSibling) {
+      (target.nextElementSibling as HTMLElement).style.display = 'block'
+    }
+  }
 }
 
 function updateNewBankName() {
@@ -76,7 +87,7 @@ function getBankLogoColor(bin: string) {
     
     <!-- Header -->
     <div class="flex items-center justify-between px-4 py-3 border-b border-slate-100 bg-white shrink-0 shadow-sm relative z-20">
-      <button @click="ui.closeConfig()" class="lg:hidden w-10 h-10 flex items-center justify-center text-blue-900 hover:bg-slate-50 rounded-full transition-colors active:scale-95">
+      <button @click="ui.closeConfig()" class="w-10 h-10 flex items-center justify-center text-blue-900 hover:bg-slate-50 rounded-full transition-colors active:scale-95">
         <i class="fa-solid fa-arrow-left text-xl"></i>
       </button>
       <div class="text-center flex-1">
@@ -111,7 +122,7 @@ function getBankLogoColor(bin: string) {
                  class="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm flex items-center gap-4 hover:border-blue-200 transition-colors group">
               
               <div class="w-12 h-12 rounded-full flex items-center justify-center shrink-0 overflow-hidden bg-white border border-slate-100 shadow-[0_2px_8px_rgba(0,0,0,0.04)] p-2 relative group-hover:border-blue-200 transition-colors">
-                 <img :src="`https://api.vietqr.io/img/${b.bankId}.png`" @error="$event.target.style.display='none'; $event.target.nextElementSibling.style.display='block'" class="w-full h-full object-contain" :alt="b.name">
+                 <img :src="`https://api.vietqr.io/img/${b.bankId}.png`" @error="handleImgError" class="w-full h-full object-contain" :alt="b.name">
                  <i class="fa-solid fa-building-columns text-slate-300 hidden text-lg"></i>
               </div>
               
