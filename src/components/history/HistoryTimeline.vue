@@ -182,7 +182,7 @@ function getStaff(order: any) {
                   <div class="font-black text-[11px] leading-tight line-clamp-1 break-all w-full pr-4 mt-1">{{ timelineData[h][z].parsedCustomer?.name }}</div>
                   
                   <!-- Phone Number -->
-                  <div v-if="timelineData[h][z].parsedCustomer?.phone" class="text-[9px] font-mono font-bold opacity-75 mt-0.5">
+                  <div v-if="timelineData[h][z].parsedCustomer?.phone" class="text-[9px] font-bold opacity-75 mt-0.5">
                     {{ timelineData[h][z].parsedCustomer?.phone }}
                   </div>
 
