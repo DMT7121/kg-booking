@@ -2,7 +2,7 @@
 import { ref } from 'vue'
 import { useUIStore } from '@/stores/useUIStore'
 import { useAppStore } from '@/stores/useAppStore'
-import { BANKS } from '@/utils/constants'
+import { BANKS, CACHE_KEYS } from '@/utils/constants'
 
 const ui = useUIStore()
 const appStore = useAppStore()
@@ -34,10 +34,11 @@ function saveBank() {
   }
   if (isEditing.value && editIndex.value >= 0) {
     appStore.bankList[editIndex.value] = { ...appStore.newBank }
+    localStorage.setItem(CACHE_KEYS.BANK, JSON.stringify(appStore.bankList))
   } else {
     appStore.addBank()
   }
-  appStore.saveConfigToDrive()
+  appStore.updateRemoteConfig()
   resetForm()
 }
 
