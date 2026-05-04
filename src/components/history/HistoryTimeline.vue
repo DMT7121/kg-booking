@@ -153,26 +153,39 @@ function getStaff(order: any) {
             </div>
             
             <!-- Zone Columns -->
-            <div v-for="z in ZONES" :key="z" class="flex-1 p-2 border-r border-slate-100 last:border-0 flex items-center justify-center min-h-[90px]">
+            <div v-for="z in ZONES" :key="z" class="flex-1 p-2 border-r border-slate-100 last:border-0 flex items-center justify-center min-h-[110px]">
               <template v-if="timelineData[h][z]">
                 <!-- Booked Slot -->
                 <div 
                   @click="openBookingDetail(timelineData[h][z])"
-                  class="w-full h-full rounded-xl flex flex-col items-center justify-center p-2 text-center shadow-sm border cursor-pointer active:scale-95 transition-transform relative overflow-hidden"
+                  class="w-full h-full rounded-xl flex flex-col items-center justify-start p-2 text-center shadow-sm border cursor-pointer active:scale-95 transition-transform relative overflow-hidden"
                   :class="timelineData[h][z].isDeposited ? 'bg-blue-50 border-blue-200 text-blue-900 hover:bg-blue-100' : 'bg-rose-50 border-rose-200 text-rose-700 hover:bg-rose-100'"
                 >
-                  <div class="font-black text-xs leading-tight line-clamp-1 break-all w-full">{{ timelineData[h][z].parsedCustomer?.name }}</div>
-                  <div class="text-[10px] font-bold opacity-80 mt-0.5 mb-1">{{ timelineData[h][z].parsedCustomer?.pax }} người</div>
+                  <!-- Table Badge -->
+                  <div v-if="timelineData[h][z].parsedCustomer?.tables" class="absolute top-1 right-1 px-1.5 py-0.5 rounded-full text-[8.5px] font-black shadow-[0_2px_4px_rgba(0,0,0,0.05)] border" :class="timelineData[h][z].isDeposited ? 'bg-white text-blue-700 border-blue-100' : 'bg-white text-rose-700 border-rose-100'">
+                    {{ timelineData[h][z].parsedCustomer?.tables.replace('Khu ', '').replace('Khu', '') }}
+                  </div>
+
+                  <!-- Customer Name -->
+                  <div class="font-black text-[11px] leading-tight line-clamp-1 break-all w-full pr-4 mt-1">{{ timelineData[h][z].parsedCustomer?.name }}</div>
                   
-                  <div class="flex flex-col gap-[2px] w-full mt-auto pt-1 border-t" :class="timelineData[h][z].isDeposited ? 'border-blue-200/50' : 'border-rose-200/50'">
-                    <div v-if="timelineData[h][z].parsedCustomer?.tables" class="text-[8.5px] font-bold opacity-80 truncate text-left w-full flex items-center gap-1">
-                      <i class="fa-solid fa-chair text-[8px] opacity-70"></i> {{ timelineData[h][z].parsedCustomer?.tables }}
-                    </div>
-                    <div v-if="timelineData[h][z].parsedCustomer?.note" class="text-[8.5px] font-bold opacity-80 truncate text-left w-full flex items-center gap-1">
-                      <i class="fa-solid fa-bell-concierge text-[8px] opacity-70"></i> {{ timelineData[h][z].parsedCustomer?.note }}
-                    </div>
-                    <div v-if="getStaff(timelineData[h][z])" class="text-[8.5px] font-bold opacity-80 truncate text-left w-full flex items-center gap-1">
-                      <i class="fa-solid fa-user-tag text-[8px] opacity-70"></i> {{ getStaff(timelineData[h][z]) }}
+                  <!-- Phone Number -->
+                  <div v-if="timelineData[h][z].parsedCustomer?.phone" class="text-[9px] font-mono font-bold opacity-75 mt-0.5">
+                    {{ timelineData[h][z].parsedCustomer?.phone }}
+                  </div>
+
+                  <!-- Pax & Party Type -->
+                  <div class="text-[10px] font-bold opacity-80 mt-1 flex flex-col items-center">
+                    <span>{{ timelineData[h][z].parsedCustomer?.pax }} người</span>
+                    <span v-if="timelineData[h][z].parsedCustomer?.type" class="text-[8.5px] font-semibold opacity-70 mt-0.5 px-1.5 py-[1px] bg-black/5 rounded text-inherit">
+                      {{ timelineData[h][z].parsedCustomer?.type }}
+                    </span>
+                  </div>
+                  
+                  <!-- Staff Received -->
+                  <div v-if="getStaff(timelineData[h][z])" class="mt-auto pt-1 border-t w-full text-center" :class="timelineData[h][z].isDeposited ? 'border-blue-200/50' : 'border-rose-200/50'">
+                    <div class="text-[8.5px] font-bold opacity-75 truncate w-full flex items-center justify-center gap-1">
+                      <i class="fa-solid fa-user-tag opacity-70"></i> {{ getStaff(timelineData[h][z]) }}
                     </div>
                   </div>
                 </div>
