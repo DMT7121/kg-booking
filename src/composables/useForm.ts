@@ -245,16 +245,33 @@ Cảm ơn anh/chị đã tin tưởng King's Grill 🙏`
     if (!uiStore.isVoiceSupported) {
       return uiStore.showToast('Tính năng giọng nói chưa hỗ trợ trên thiết bị này', 'warning')
     }
-    if (uiStore.listening) { uiStore.listening = false; return }
+    if (uiStore.listening) { 
+      uiStore.listening = false
+      return 
+    }
 
     if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
       const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
       const recognition = new SpeechRecognition()
       recognition.lang = 'vi-VN'
-      recognition.onstart = () => { uiStore.listening = true }
-      recognition.onresult = (e: any) => {
-        formStore.rawInput += ' ' + e.results[0][0].transcript
+      recognition.onstart = () => { 
+        uiStore.listening = true
+        // Play a small pop sound to indicate listening
+        import('@/utils/audio').then(m => m.sound.playPop())
+      }
+      recognition.onend = () => {
         uiStore.listening = false
+      }
+      recognition.onresult = (e: any) => {
+        const transcript = e.results[0][0].transcript
+        formStore.rawInput = (formStore.rawInput ? formStore.rawInput + ' ' : '') + transcript
+        uiStore.listening = false
+        
+        // Auto-trigger AI processing
+        import('@/composables/useAI').then(({ useAI }) => {
+          const { processAI } = useAI()
+          processAI()
+        })
       }
       recognition.start()
     }

@@ -19,7 +19,11 @@ export interface HistoryOrder {
     name: string
     phone: string
     date: string
+    time?: string
+    pax?: string
     tables?: string
+    type?: string
+    note?: string
   }
   menuItems: any[]
   totalAmount: number

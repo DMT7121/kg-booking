@@ -8,7 +8,7 @@ import * as api from '@/services/api'
 import { usePullToRefresh, haptic } from '@/composables/useGestures'
 const ui = useUIStore()
 const appStore = useAppStore()
-const { editHistoricOrder, resetForm } = useForm()
+const { editHistoricOrder, resetForm, copyToClipboard } = useForm()
 
 // --- Stats Calculation ---
 const stats = computed(() => {
