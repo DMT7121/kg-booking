@@ -89,7 +89,7 @@ function shareCurrentBill() {
     </div>
 
     <!-- TABS -->
-    <div class="flex flex-nowrap overflow-x-auto w-full bg-white text-[10px] md:text-xs font-black border-b border-slate-200 uppercase tracking-widest shadow-sm relative z-10 no-scrollbar items-stretch snap-x">
+    <div class="flex flex-nowrap overflow-x-auto w-full bg-white text-[10px] md:text-xs font-black border-b border-slate-200 uppercase tracking-widest shadow-sm relative z-10 no-scrollbar items-stretch snap-x shrink-0">
       <button @click="ui.tab = 'timeline'; appStore.loadHistory(false)" :class="['flex-1 min-w-fit shrink-0 py-3 md:py-4 flex justify-center items-center gap-2 transition-all min-h-[48px] md:min-h-[56px] border-b-[3px] whitespace-nowrap px-4 snap-start', ui.tab === 'timeline' ? 'text-blue-700 border-blue-600 bg-blue-50/80' : 'text-slate-400 border-transparent hover:text-slate-600 hover:bg-slate-50']"><i class="fa-solid fa-calendar-days text-sm md:text-base"></i> Lịch Đặt Bàn</button>
       <button @click="ui.tab = 'history'; appStore.loadHistory(false)" :class="['flex-1 min-w-fit shrink-0 py-3 md:py-4 flex justify-center items-center gap-2 transition-all min-h-[48px] md:min-h-[56px] border-b-[3px] whitespace-nowrap px-4 snap-start', ui.tab === 'history' ? 'text-blue-700 border-blue-600 bg-blue-50/80' : 'text-slate-400 border-transparent hover:text-slate-600 hover:bg-slate-50']"><i class="fa-solid fa-list-ul text-sm md:text-base"></i> Lịch Sử Tạo Phiếu</button>
       <button @click="ui.tab = 'create'" :class="['flex-1 min-w-fit shrink-0 py-3 md:py-4 flex justify-center items-center gap-2 transition-all min-h-[48px] md:min-h-[56px] border-b-[3px] whitespace-nowrap px-4 snap-start', ui.tab === 'create' ? 'text-blue-700 border-blue-600 bg-blue-50/80' : 'text-slate-400 border-transparent hover:text-slate-600 hover:bg-slate-50']"><i class="fa-solid fa-plus text-sm md:text-base"></i> Tạo Phiếu Đặt</button>
@@ -97,12 +97,12 @@ function shareCurrentBill() {
     </div>
 
     <!-- TAB CONTENT WRAPPER -->
-    <div class="flex-grow relative overflow-hidden flex flex-col bg-slate-50 z-0">
+    <div class="flex-grow relative overflow-hidden flex flex-col bg-slate-50 z-0 min-h-0 h-full">
       <transition name="tab-fade" mode="out-in">
         <KeepAlive>
           <HistoryTimeline v-if="ui.tab === 'timeline'" key="timeline" />
           <HistoryList v-else-if="ui.tab === 'history'" key="history" />
-          <div v-else-if="ui.tab === 'create'" key="create" class="flex-grow flex flex-col overflow-hidden relative">
+          <div v-else-if="ui.tab === 'create'" key="create" class="flex-grow flex flex-col overflow-hidden relative min-h-0 h-full">
             <div class="flex-grow overflow-y-auto p-3 md:p-4 space-y-3 pb-28 md:pb-6 bg-gray-50/30 scroll-smooth custom-scrollbar">
               <AIInputPanel />
               <div class="space-y-4">

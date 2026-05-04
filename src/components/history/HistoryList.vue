@@ -128,7 +128,7 @@ async function deleteBatchOrders() {
 </script>
 
 <template>
-  <div class="flex-grow flex flex-col overflow-hidden text-[13px] bg-slate-50">
+  <div class="flex-grow flex flex-col overflow-hidden text-[13px] bg-slate-50 min-h-0 h-full">
     <!-- Header Title -->
     <div class="bg-slate-50 px-4 py-4 flex items-center justify-between sticky top-0 z-20 shadow-sm border-b border-slate-100">
       <button @click="ui.tab = 'create'" class="w-10 h-10 flex items-center justify-center text-blue-900 text-xl active:scale-95 transition-transform">
@@ -143,7 +143,7 @@ async function deleteBatchOrders() {
     </div>
 
     <!-- LIST VIEW -->
-    <div class="flex-grow flex flex-col overflow-hidden bg-slate-50">
+    <div class="flex-grow flex flex-col overflow-hidden bg-slate-50 min-h-0 h-full">
       
       <!-- Search & Filters -->
       <div class="p-4 bg-slate-50 space-y-3 z-10 shrink-0">
