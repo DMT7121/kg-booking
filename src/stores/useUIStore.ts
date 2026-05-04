@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia'
 import { reactive, ref, computed } from 'vue'
+import { sound } from '@/utils/audio'
 
 export interface Toast {
   id: number
@@ -88,6 +89,10 @@ export const useUIStore = defineStore('ui', () => {
 
   // --- Toast System ---
   function showToast(msg: string, type: Toast['type'] = 'info', duration = 3000) {
+    if (type === 'success') sound.playSuccess()
+    else if (type === 'error' || type === 'warning') sound.playError()
+    else sound.playPop()
+
     const id = Date.now()
     const titleMap: Record<string, string> = { success: 'Thành Công', error: 'Lỗi', warning: 'Cảnh Báo', info: 'Thông Tin' }
     const toast = reactive<Toast>({ id, title: titleMap[type], msg, type, progress: 100 })
@@ -117,12 +122,14 @@ export const useUIStore = defineStore('ui', () => {
   }
 
   function showAlert(title: string, msg: string): Promise<void> {
+    sound.playPop()
     return new Promise((resolve) => {
       modal.alert = { show: true, title, msg, resolve }
     })
   }
 
   function showConfirm(title: string, msg: string): Promise<boolean> {
+    sound.playPop()
     return new Promise((resolve) => {
       modal.confirm = { show: true, title, msg, resolve }
     })
