@@ -76,24 +76,24 @@ function getCategoryColor(category: string) {
     
     <!-- Header -->
     <div class="flex items-center justify-between px-4 py-3 border-b border-slate-100 bg-white shrink-0 shadow-sm relative z-20">
-      <button @click="ui.showMenuManager = false" class="w-10 h-10 flex items-center justify-center text-[#1A237E] hover:bg-slate-50 rounded-full transition-colors active:scale-95">
+      <button @click="ui.showMenuManager = false" class="w-10 h-10 flex items-center justify-center text-blue-900 hover:bg-slate-50 rounded-full transition-colors active:scale-95">
         <i class="fa-solid fa-arrow-left text-xl"></i>
       </button>
       <div class="text-center flex-1">
-        <h2 class="text-lg font-black text-[#1A237E]">Cấu hình Thực đơn</h2>
+        <h2 class="text-lg font-black text-blue-900">Cấu hình Thực đơn</h2>
         <p class="text-[10px] font-bold text-slate-400 mt-0.5 uppercase tracking-wider">Quản lý & Cập nhật</p>
       </div>
-      <button class="w-10 h-10 flex items-center justify-center text-[#1A237E] hover:bg-slate-50 rounded-full transition-colors">
+      <button class="w-10 h-10 flex items-center justify-center text-blue-900 hover:bg-slate-50 rounded-full transition-colors">
         <i class="fa-regular fa-circle-question text-xl"></i>
       </button>
     </div>
 
     <!-- Tabs -->
     <div class="flex border-b border-slate-200 shrink-0 bg-white px-4 relative z-10 shadow-sm">
-      <button @click="activeTab = 'manage'" :class="['flex-1 py-3 text-sm font-bold text-center border-b-2 transition-colors relative', activeTab === 'manage' ? 'border-[#1A237E] text-[#1A237E]' : 'border-transparent text-slate-400 hover:text-slate-600']">
+      <button @click="activeTab = 'manage'" :class="['flex-1 py-3 text-sm font-bold text-center border-b-2 transition-colors relative', activeTab === 'manage' ? 'border-blue-900 text-blue-900' : 'border-transparent text-slate-400 hover:text-slate-600']">
         Quản lý thực đơn
       </button>
-      <button @click="activeTab = 'add'" :class="['flex-1 py-3 text-sm font-bold text-center border-b-2 transition-colors relative', activeTab === 'add' ? 'border-[#1A237E] text-[#1A237E]' : 'border-transparent text-slate-400 hover:text-slate-600']">
+      <button @click="activeTab = 'add'" :class="['flex-1 py-3 text-sm font-bold text-center border-b-2 transition-colors relative', activeTab === 'add' ? 'border-blue-900 text-blue-900' : 'border-transparent text-slate-400 hover:text-slate-600']">
         Thêm món
       </button>
     </div>
@@ -127,7 +127,7 @@ function getCategoryColor(category: string) {
         <div>
           <div class="flex justify-between items-center mb-3">
             <h4 class="text-xs font-black text-slate-500 uppercase tracking-widest">Danh sách thực đơn</h4>
-            <button @click="openUploadModal" class="bg-[#1A237E] text-white px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 hover:bg-blue-800 transition-all active:scale-95 shadow-md shadow-blue-900/20">
+            <button @click="openUploadModal" class="bg-blue-900 text-white px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 hover:bg-blue-800 transition-all active:scale-95 shadow-md shadow-blue-900/20">
               <i class="fa-solid fa-plus"></i> Thêm thực đơn
             </button>
           </div>
@@ -142,7 +142,7 @@ function getCategoryColor(category: string) {
                   <i class="fa-solid fa-file-lines"></i>
                 </div>
                 <div class="flex-1 min-w-0">
-                  <h5 :class="['font-bold text-base truncate transition-colors', sheet === appStore.activeSheet ? 'text-[#1A237E]' : 'text-slate-700']">{{ sheet }}</h5>
+                  <h5 :class="['font-bold text-base truncate transition-colors', sheet === appStore.activeSheet ? 'text-blue-900' : 'text-slate-700']">{{ sheet }}</h5>
                   <p class="text-[11px] text-slate-500 mt-0.5 truncate uppercase tracking-wide">{{ sheet === appStore.activeSheet ? 'Đang sử dụng' : 'Menu hệ thống' }}</p>
                 </div>
                 <div class="flex gap-1 shrink-0">
@@ -165,7 +165,7 @@ function getCategoryColor(category: string) {
                   <h5 class="font-bold text-slate-700 text-base truncate">{{ menu.name }}</h5>
                   <p class="text-xs text-slate-500 mt-0.5 truncate">Tạo ngày {{ menu.date }} &bull; {{ menu.count }} món</p>
                 </div>
-                <button class="w-8 h-8 flex items-center justify-center text-slate-400 hover:text-[#1A237E] rounded-full hover:bg-slate-100 transition-colors shrink-0">
+                <button class="w-8 h-8 flex items-center justify-center text-slate-400 hover:text-blue-900 rounded-full hover:bg-slate-100 transition-colors shrink-0">
                   <i class="fa-solid fa-ellipsis"></i>
                 </button>
               </div>
@@ -181,7 +181,7 @@ function getCategoryColor(category: string) {
         <div class="pt-2">
           <div class="flex flex-wrap items-center justify-between gap-4 mb-4">
             <div class="flex items-center gap-3">
-              <h3 class="text-lg md:text-xl font-black text-[#1A237E] uppercase tracking-tight">{{ appStore.activeSheet || 'THỰC ĐƠN TRỐNG' }}</h3>
+              <h3 class="text-lg md:text-xl font-black text-blue-900 uppercase tracking-tight">{{ appStore.activeSheet || 'THỰC ĐƠN TRỐNG' }}</h3>
               <span class="bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-widest border border-emerald-200">Đang sử dụng</span>
             </div>
             <div class="flex items-center gap-2">
@@ -189,7 +189,7 @@ function getCategoryColor(category: string) {
                 <i class="fa-solid fa-pen text-blue-500"></i> Sửa
               </button>
               <button class="px-3 py-1.5 border border-slate-200 bg-white rounded-lg text-sm font-bold text-slate-600 flex items-center gap-2 hover:bg-slate-50 transition-colors shadow-sm">
-                <i class="fa-solid fa-download text-[#1A237E]"></i> Xuất file
+                <i class="fa-solid fa-download text-blue-900"></i> Xuất file
               </button>
             </div>
           </div>
@@ -203,7 +203,7 @@ function getCategoryColor(category: string) {
             </div>
             <div class="flex items-center gap-3">
               <span class="text-sm font-bold text-slate-500 md:hidden flex-1">{{ enhancedMenuList.length }} món</span>
-              <button class="px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-sm font-bold text-[#1A237E] flex items-center gap-2 hover:bg-slate-50 transition-colors shrink-0 shadow-sm">
+              <button class="px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-sm font-bold text-blue-900 flex items-center gap-2 hover:bg-slate-50 transition-colors shrink-0 shadow-sm">
                 <i class="fa-solid fa-filter"></i> Bộ lọc
               </button>
             </div>
@@ -223,8 +223,8 @@ function getCategoryColor(category: string) {
                 </div>
               </div>
               <div class="text-right shrink-0 flex flex-col items-end gap-1">
-                <div class="font-black text-[#1A237E] text-sm md:text-base">{{ formatVND(dish.price) }}</div>
-                <button class="w-8 h-8 flex items-center justify-center text-slate-400 hover:text-[#1A237E] rounded-full hover:bg-blue-50 transition-colors opacity-0 group-hover:opacity-100 md:opacity-100">
+                <div class="font-black text-blue-900 text-sm md:text-base">{{ formatVND(dish.price) }}</div>
+                <button class="w-8 h-8 flex items-center justify-center text-slate-400 hover:text-blue-900 rounded-full hover:bg-blue-50 transition-colors opacity-0 group-hover:opacity-100 md:opacity-100">
                   <i class="fa-solid fa-ellipsis"></i>
                 </button>
               </div>
@@ -263,7 +263,7 @@ function getCategoryColor(category: string) {
           <div class="flex justify-between items-center mb-4">
             <h4 class="text-xs font-black text-slate-500 uppercase tracking-widest">Danh sách món ({{ enhancedMenuList.length }})</h4>
             <div class="flex bg-slate-200 p-1 rounded-xl shadow-inner">
-              <button @click="viewMode = 'list'" :class="['px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all', viewMode === 'list' ? 'bg-white shadow-sm text-[#1A237E]' : 'text-slate-500 hover:text-slate-700']">
+              <button @click="viewMode = 'list'" :class="['px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all', viewMode === 'list' ? 'bg-white shadow-sm text-blue-900' : 'text-slate-500 hover:text-slate-700']">
                 <i class="fa-solid fa-list"></i> <span class="hidden sm:inline">Danh sách</span>
               </button>
               <button @click="viewMode = 'grid'" :class="['px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all', viewMode === 'grid' ? 'bg-[#2D4FE0] text-white shadow-md' : 'text-slate-500 hover:text-slate-700']">
@@ -285,7 +285,7 @@ function getCategoryColor(category: string) {
               </div>
               <div class="p-3 text-center flex-1 flex flex-col justify-center items-center bg-white">
                 <h4 class="font-bold text-slate-800 text-sm mb-1 line-clamp-2 leading-tight">{{ dish.name }}</h4>
-                <div class="font-black text-[#1A237E] text-[13px] mb-2">{{ formatVND(dish.price) }}</div>
+                <div class="font-black text-blue-900 text-[13px] mb-2">{{ formatVND(dish.price) }}</div>
                 <span :class="['inline-block border px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider', getCategoryColor(dish.category)]">{{ dish.category }}</span>
               </div>
             </div>
@@ -306,7 +306,7 @@ function getCategoryColor(category: string) {
                 <h4 class="font-bold text-slate-800 truncate text-sm mb-1">{{ dish.name }}</h4>
                 <span :class="['px-2 py-0.5 rounded border text-[10px] font-black uppercase tracking-wider', getCategoryColor(dish.category)]">{{ dish.category }}</span>
               </div>
-              <div class="font-black text-[#1A237E] text-sm">{{ formatVND(dish.price) }}</div>
+              <div class="font-black text-blue-900 text-sm">{{ formatVND(dish.price) }}</div>
             </div>
           </div>
         </div>
@@ -390,7 +390,7 @@ function getCategoryColor(category: string) {
               <button class="px-4 py-3.5 bg-red-50 text-red-600 rounded-xl text-sm font-black flex items-center justify-center gap-2 hover:bg-red-100 transition-colors shrink-0 border border-red-100">
                 <i class="fa-regular fa-trash-can"></i> <span class="hidden sm:inline">Xóa món</span>
               </button>
-              <button class="flex-1 py-3.5 bg-[#1A237E] text-white rounded-xl text-sm font-black shadow-lg shadow-blue-900/20 hover:bg-blue-900 active:scale-95 transition-all uppercase tracking-wider">
+              <button class="flex-1 py-3.5 bg-blue-900 text-white rounded-xl text-sm font-black shadow-lg shadow-blue-900/20 hover:bg-blue-900 active:scale-95 transition-all uppercase tracking-wider">
                 Lưu thay đổi
               </button>
             </div>
@@ -402,11 +402,11 @@ function getCategoryColor(category: string) {
     </div>
     
     <!-- Legacy Upload Modal (Overlay on top of MenuManager) -->
-    <div v-if="showUploadModal" class="fixed inset-0 bg-[#0D1658]/80 z-[13000] flex justify-center items-center p-4 backdrop-blur-sm" @click.self="showUploadModal = false">
+    <div v-if="showUploadModal" class="fixed inset-0 bg-blue-950/80 z-[13000] flex justify-center items-center p-4 backdrop-blur-sm" @click.self="showUploadModal = false">
       <div class="bg-white rounded-3xl shadow-2xl p-6 md:p-8 max-w-lg w-[95%] md:w-full flex flex-col relative overflow-hidden border border-white/20">
         <!-- Header -->
         <div class="flex justify-between items-center mb-6 relative z-10">
-          <h3 class="text-xl font-black text-[#1A237E] uppercase tracking-tight flex items-center gap-3">
+          <h3 class="text-xl font-black text-blue-900 uppercase tracking-tight flex items-center gap-3">
             <div class="w-10 h-10 bg-blue-50 rounded-xl flex items-center justify-center text-blue-600">
               <i class="fa-solid fa-cloud-arrow-up"></i>
             </div>
@@ -431,7 +431,7 @@ function getCategoryColor(category: string) {
             </div>
             <textarea v-model="appStore.newMenuContent" rows="10" class="w-full p-4 rounded-xl border border-slate-200 bg-slate-50 font-mono text-[13px] leading-relaxed text-slate-800 focus:border-blue-500 focus:bg-white focus:ring-2 focus:ring-blue-100 outline-none transition-all resize-none custom-scrollbar" placeholder="Tên món - Giá&#10;VD:&#10;Bò nướng tảng - 250k&#10;Bia Tiger - 25k"></textarea>
           </div>
-          <button @click="appStore.uploadNewMenu(); showUploadModal = false" class="w-full h-14 bg-[#1A237E] text-white rounded-xl font-black text-sm uppercase shadow-lg shadow-blue-900/20 active:scale-95 transition-all flex items-center justify-center gap-2">
+          <button @click="appStore.uploadNewMenu(); showUploadModal = false" class="w-full h-14 bg-blue-900 text-white rounded-xl font-black text-sm uppercase shadow-lg shadow-blue-900/20 active:scale-95 transition-all flex items-center justify-center gap-2">
             <i class="fa-solid fa-cloud-arrow-up text-lg text-white/80"></i> {{ ui.isUpdateMode ? 'CẬP NHẬT MENU' : 'TẠO MENU MỚI' }}
           </button>
         </div>

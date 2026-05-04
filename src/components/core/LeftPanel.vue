@@ -56,7 +56,7 @@ function shareCurrentBill() {
     @touchend="onSwipeEnd"
   >
     <!-- HEADER -->
-    <div class="flex-shrink-0 bg-[#1A237E] text-white px-3 md:px-5 py-4 flex flex-wrap justify-between items-center gap-2 relative overflow-hidden box-border w-full">
+    <div class="flex-shrink-0 bg-blue-900 text-white px-3 md:px-5 py-4 flex flex-wrap justify-between items-center gap-2 relative overflow-hidden box-border w-full">
       <div class="absolute inset-0 bg-gradient-to-r from-blue-400/20 to-transparent pointer-events-none"></div>
       <div class="flex items-center gap-3 relative z-10 min-w-0">
         <div class="bg-white p-1.5 rounded-2xl shadow-xl flex items-center justify-center overflow-hidden w-12 h-12 border-2 border-white/20 backdrop-blur-sm">
@@ -81,7 +81,7 @@ function shareCurrentBill() {
           <i class="fa-solid fa-layer-group text-blue-100 group-hover:text-white transition-colors text-lg"></i>
           <span v-if="configStore.totalKeysHasData" class="absolute -top-1 -right-1 flex h-4 w-4">
             <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
-            <span class="relative inline-flex rounded-full h-4 w-4 bg-red-500 border-2 border-[#1A237E]"></span>
+            <span class="relative inline-flex rounded-full h-4 w-4 bg-red-500 border-2 border-blue-900"></span>
           </span>
         </button>
       </div>
@@ -89,8 +89,8 @@ function shareCurrentBill() {
 
     <!-- TABS -->
     <div class="flex flex-nowrap overflow-x-auto w-full bg-white text-[10px] font-black border-b border-slate-100 uppercase tracking-widest shadow-sm relative z-10">
-      <button @click="ui.tab = 'history'; appStore.loadHistory(false)" :class="['flex-1 py-3.5 flex justify-center items-center gap-2 transition-all min-h-[46px] border-b-[3px]', ui.tab === 'history' ? 'text-[#1A237E] border-[#1A237E] bg-blue-50/50' : 'text-slate-400 border-transparent hover:text-slate-600 hover:bg-slate-50']"><i class="fa-solid fa-calendar-days text-sm"></i> Lịch Bàn</button>
-      <button @click="ui.tab = 'create'" :class="['flex-1 py-3.5 flex justify-center items-center gap-2 transition-all min-h-[46px] border-b-[3px]', ui.tab === 'create' ? 'text-[#1A237E] border-[#1A237E] bg-blue-50/50' : 'text-slate-400 border-transparent hover:text-slate-600 hover:bg-slate-50']"><i class="fa-solid fa-plus text-sm"></i> Tạo Phiếu</button>
+      <button @click="ui.tab = 'history'; appStore.loadHistory(false)" :class="['flex-1 py-3.5 flex justify-center items-center gap-2 transition-all min-h-[46px] border-b-[3px]', ui.tab === 'history' ? 'text-blue-900 border-blue-900 bg-blue-50/50' : 'text-slate-400 border-transparent hover:text-slate-600 hover:bg-slate-50']"><i class="fa-solid fa-calendar-days text-sm"></i> Lịch Bàn</button>
+      <button @click="ui.tab = 'create'" :class="['flex-1 py-3.5 flex justify-center items-center gap-2 transition-all min-h-[46px] border-b-[3px]', ui.tab === 'create' ? 'text-blue-900 border-blue-900 bg-blue-50/50' : 'text-slate-400 border-transparent hover:text-slate-600 hover:bg-slate-50']"><i class="fa-solid fa-plus text-sm"></i> Tạo Phiếu</button>
       <button @click="ui.tab = 'preview'" class="md:hidden flex-1 py-3.5 flex justify-center items-center gap-2 transition-all min-h-[46px] border-b-[3px] border-transparent text-slate-500 bg-slate-50 hover:bg-slate-100"><i class="fa-solid fa-eye text-sm"></i> Preview</button>
     </div>
 
@@ -119,7 +119,7 @@ function shareCurrentBill() {
     <HistoryList v-show="ui.tab === 'history'" />
 
     <!-- MOBILE FOOTER (Glassmorphism) -->
-    <div v-if="ui.tab === 'create' && !ui.isKeyboardOpen" class="md:hidden fixed bottom-4 left-4 right-4 p-2.5 bg-[#0D1658]/90 backdrop-blur-2xl border border-white/10 z-40 grid grid-cols-5 gap-2 shadow-[0_20px_50px_rgba(0,0,0,0.4)] rounded-2xl safe-area-pb">
+    <div v-if="ui.tab === 'create' && !ui.isKeyboardOpen" class="md:hidden fixed bottom-4 left-4 right-4 p-2.5 bg-blue-950/90 backdrop-blur-2xl border border-white/10 z-40 grid grid-cols-5 gap-2 shadow-[0_20px_50px_rgba(0,0,0,0.4)] rounded-2xl safe-area-pb">
       <button @click="doSave('save')" class="bg-emerald-500/10 text-emerald-400 py-3 rounded-xl font-black flex flex-col items-center text-[7px] gap-1 active:scale-90 transition-all uppercase tracking-widest border border-emerald-500/20 active-effect"><i class="fa-solid fa-cloud-arrow-up text-lg"></i> LƯU</button>
       <button @click="doSave('image')" class="bg-indigo-500/10 text-indigo-400 py-3 rounded-xl font-black flex flex-col items-center text-[7px] gap-1 active:scale-90 transition-all uppercase tracking-widest border border-indigo-500/20 active-effect"><i class="fa-solid fa-file-image text-lg"></i> ẢNH</button>
       <button @click="doSave('pdf')" class="bg-rose-500/10 text-rose-400 py-3 rounded-xl font-black flex flex-col items-center text-[7px] gap-1 active:scale-90 transition-all uppercase tracking-widest border border-rose-500/20 active-effect"><i class="fa-solid fa-file-pdf text-lg"></i> PDF</button>

@@ -92,20 +92,20 @@ onMounted(() => {
     <!-- PROMISE-BASED MODALS -->
     <!-- Alert -->
     <transition name="modal">
-    <div v-if="ui.modal.alert.show" class="fixed inset-0 bg-[#0D1658]/80 z-[99999] flex justify-center items-center p-4 backdrop-blur-md" @click.self="ui.resolveModal('alert')">
+    <div v-if="ui.modal.alert.show" class="fixed inset-0 bg-blue-950/80 z-[99999] flex justify-center items-center p-4 backdrop-blur-md" @click.self="ui.resolveModal('alert')">
       <div class="bg-white rounded-3xl shadow-2xl p-6 md:p-8 max-w-sm w-[95%] md:w-full flex flex-col relative overflow-hidden border border-white/20">
         <div class="absolute top-0 left-0 right-0 h-24 bg-gradient-to-r from-blue-600 to-cyan-500 rounded-t-3xl opacity-10"></div>
         <div class="flex justify-center items-center mb-6 relative z-10 flex-col gap-3">
           <div class="w-14 h-14 bg-blue-50 rounded-2xl flex items-center justify-center text-blue-500 text-2xl shadow-sm border border-blue-100">
             <i class="fa-solid fa-circle-info"></i>
           </div>
-          <h3 class="text-xl font-black text-[#1A237E] uppercase tracking-tighter text-center">{{ ui.modal.alert.title }}</h3>
+          <h3 class="text-xl font-black text-blue-900 uppercase tracking-tighter text-center">{{ ui.modal.alert.title }}</h3>
         </div>
         <div class="relative z-10 mb-8">
           <p class="text-sm text-slate-600 font-medium text-center whitespace-pre-line">{{ ui.modal.alert.msg }}</p>
         </div>
         <div class="relative z-10">
-          <button @click="ui.resolveModal('alert')" class="w-full py-4 bg-[#1A237E] text-white rounded-xl font-black uppercase tracking-widest text-[10px] shadow-lg shadow-blue-900/20 hover:bg-blue-800 active:scale-95 transition-all">ĐÃ HIỂU</button>
+          <button @click="ui.resolveModal('alert')" class="w-full py-4 bg-blue-900 text-white rounded-xl font-black uppercase tracking-widest text-[10px] shadow-lg shadow-blue-900/20 hover:bg-blue-800 active:scale-95 transition-all">ĐÃ HIỂU</button>
         </div>
       </div>
     </div>
@@ -113,14 +113,14 @@ onMounted(() => {
 
     <!-- Confirm -->
     <transition name="modal">
-    <div v-if="ui.modal.confirm.show" class="fixed inset-0 bg-[#0D1658]/80 z-[99999] flex justify-center items-center p-4 backdrop-blur-md" @click.self="ui.resolveModal('confirm', false)">
+    <div v-if="ui.modal.confirm.show" class="fixed inset-0 bg-blue-950/80 z-[99999] flex justify-center items-center p-4 backdrop-blur-md" @click.self="ui.resolveModal('confirm', false)">
       <div class="bg-white rounded-3xl shadow-2xl p-6 md:p-8 max-w-sm w-[95%] md:w-full flex flex-col relative overflow-hidden border border-white/20">
         <div class="absolute top-0 left-0 right-0 h-24 bg-gradient-to-r from-rose-500 to-orange-500 rounded-t-3xl opacity-10"></div>
         <div class="flex justify-center items-center mb-6 relative z-10 flex-col gap-3">
           <div class="w-14 h-14 bg-rose-50 rounded-2xl flex items-center justify-center text-rose-500 text-2xl shadow-sm border border-rose-100">
             <i class="fa-solid fa-triangle-exclamation"></i>
           </div>
-          <h3 class="text-xl font-black text-[#1A237E] uppercase tracking-tighter text-center">{{ ui.modal.confirm.title }}</h3>
+          <h3 class="text-xl font-black text-blue-900 uppercase tracking-tighter text-center">{{ ui.modal.confirm.title }}</h3>
         </div>
         <div class="relative z-10 mb-8">
           <p class="text-sm text-slate-600 font-medium text-center whitespace-pre-line">{{ ui.modal.confirm.msg }}</p>
@@ -135,14 +135,14 @@ onMounted(() => {
 
     <!-- Prompt -->
     <transition name="modal">
-    <div v-if="ui.modal.prompt.show" class="fixed inset-0 bg-[#0D1658]/80 z-[99999] flex justify-center items-center p-4 backdrop-blur-md" @click.self="ui.resolveModal('prompt', null)">
+    <div v-if="ui.modal.prompt.show" class="fixed inset-0 bg-blue-950/80 z-[99999] flex justify-center items-center p-4 backdrop-blur-md" @click.self="ui.resolveModal('prompt', null)">
       <div class="bg-white rounded-3xl shadow-2xl p-6 md:p-8 max-w-sm w-[95%] md:w-full flex flex-col relative overflow-hidden border border-white/20">
-        <div class="absolute top-0 left-0 right-0 h-24 bg-gradient-to-r from-purple-600 to-[#1A237E] rounded-t-3xl opacity-10"></div>
+        <div class="absolute top-0 left-0 right-0 h-24 bg-gradient-to-r from-purple-600 to-blue-900 rounded-t-3xl opacity-10"></div>
         <div class="flex justify-center items-center mb-6 relative z-10 flex-col gap-3">
           <div class="w-14 h-14 bg-purple-50 rounded-2xl flex items-center justify-center text-purple-600 text-2xl shadow-sm border border-purple-100">
             <i class="fa-solid fa-keyboard"></i>
           </div>
-          <h3 class="text-xl font-black text-[#1A237E] uppercase tracking-tighter text-center">{{ ui.modal.prompt.title }}</h3>
+          <h3 class="text-xl font-black text-blue-900 uppercase tracking-tighter text-center">{{ ui.modal.prompt.title }}</h3>
         </div>
         <div class="relative z-10 mb-6">
           <p class="text-[11px] font-black text-slate-500 uppercase tracking-widest text-center mb-4">{{ ui.modal.prompt.msg }}</p>
@@ -176,7 +176,7 @@ onMounted(() => {
           <i class="fa-solid fa-arrow-left"></i>
         </button>
         <div class="text-center flex-1">
-          <h2 class="text-xl font-black text-[#1A237E]">Cài đặt</h2>
+          <h2 class="text-xl font-black text-blue-900">Cài đặt</h2>
           <p class="text-[10px] font-bold text-slate-400 mt-0.5">Quản lý thông tin và thiết lập hệ thống</p>
         </div>
         <div class="w-10 h-10"></div> <!-- Placeholder for balance -->
@@ -294,14 +294,14 @@ onMounted(() => {
 
     <!-- STAFF SELECTOR MODAL (ON SAVE) -->
     <transition name="modal">
-    <div v-if="ui.showStaffSelector" class="fixed inset-0 bg-[#0D1658]/80 z-[10002] flex justify-center items-center p-4 backdrop-blur-md" @click.self="ui.showStaffSelector = false">
+    <div v-if="ui.showStaffSelector" class="fixed inset-0 bg-blue-950/80 z-[10002] flex justify-center items-center p-4 backdrop-blur-md" @click.self="ui.showStaffSelector = false">
       <div class="bg-white rounded-3xl shadow-2xl p-6 md:p-8 max-w-sm w-[95%] md:w-full flex flex-col relative overflow-hidden border border-white/20">
         <div class="absolute top-0 left-0 right-0 h-24 bg-gradient-to-r from-blue-600 to-cyan-500 rounded-t-3xl opacity-10"></div>
         <div class="flex justify-center items-center mb-6 relative z-10 flex-col gap-3">
           <div class="w-14 h-14 bg-blue-50 rounded-2xl flex items-center justify-center text-blue-500 text-2xl shadow-sm border border-blue-100">
             <i class="fa-solid fa-user-tag"></i>
           </div>
-          <h3 class="text-xl font-black text-[#1A237E] uppercase tracking-tighter text-center">CHỌN NGƯỜI TẠO PHIẾU</h3>
+          <h3 class="text-xl font-black text-blue-900 uppercase tracking-tighter text-center">CHỌN NGƯỜI TẠO PHIẾU</h3>
         </div>
         <div class="grid grid-cols-2 gap-3 max-h-[50vh] overflow-y-auto custom-scrollbar p-1 relative z-10">
           <button v-for="(staff, idx) in appStore.staffList" :key="idx"
@@ -330,7 +330,7 @@ onMounted(() => {
     <BookingDetailModal />
 
     <!-- DESKTOP SIDEBAR -->
-    <aside class="hidden lg:flex w-20 bg-[#0D1658] flex-col items-center py-8 gap-8 border-r border-white/5 z-30 shadow-[4px_0_24px_rgba(0,0,0,0.1)]">
+    <aside class="hidden lg:flex w-20 bg-blue-950 flex-col items-center py-8 gap-8 border-r border-white/5 z-30 shadow-[4px_0_24px_rgba(0,0,0,0.1)]">
       <div class="w-12 h-12 bg-blue-500 rounded-2xl flex items-center justify-center shadow-[0_4px_12px_rgba(59,130,246,0.3)] active:scale-95 transition-transform cursor-pointer border border-blue-400/30 relative overflow-hidden">
         <div class="absolute inset-0 bg-gradient-to-br from-white/20 to-transparent pointer-events-none"></div>
         <i class="fa-solid fa-crown text-white text-xl relative z-10"></i>
@@ -349,7 +349,7 @@ onMounted(() => {
       </nav>
 
       <div class="mt-auto flex flex-col gap-6 w-full px-4 items-center">
-        <div class="w-10 h-10 rounded-full border-2 border-[#1A237E] overflow-hidden cursor-pointer hover:border-blue-400 transition-colors shadow-lg">
+        <div class="w-10 h-10 rounded-full border-2 border-blue-900 overflow-hidden cursor-pointer hover:border-blue-400 transition-colors shadow-lg">
           <img src="https://api.dicebear.com/7.x/avataaars/svg?seed=Admin" alt="Admin">
         </div>
       </div>

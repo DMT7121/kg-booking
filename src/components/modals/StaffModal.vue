@@ -50,14 +50,14 @@ function handleSave() {
   <div v-if="ui.showStaffConfig" class="fixed inset-0 bg-slate-50 z-[12000] overflow-y-auto custom-scrollbar flex flex-col">
     <!-- Top Header -->
     <div class="bg-slate-50 px-4 py-4 flex items-center justify-between sticky top-0 z-10">
-      <button @click="ui.showStaffConfig = false" class="w-10 h-10 flex items-center justify-center text-[#1A237E] hover:bg-slate-50 rounded-full transition-colors active:scale-95">
+      <button @click="ui.showStaffConfig = false" class="w-10 h-10 flex items-center justify-center text-blue-900 hover:bg-slate-50 rounded-full transition-colors active:scale-95">
         <i class="fa-solid fa-arrow-left text-xl"></i>
       </button>
       <div class="text-center flex-1">
-        <h2 class="text-lg font-black text-[#1A237E]">Danh sách nhân sự</h2>
+        <h2 class="text-lg font-black text-blue-900">Danh sách nhân sự</h2>
         <p class="text-[10px] font-bold text-slate-400 mt-0.5 uppercase tracking-wider">Quản lý & Thiết lập</p>
       </div>
-      <button class="w-10 h-10 flex items-center justify-center text-[#1A237E] hover:bg-slate-50 rounded-full transition-colors">
+      <button class="w-10 h-10 flex items-center justify-center text-blue-900 hover:bg-slate-50 rounded-full transition-colors">
         <i class="fa-regular fa-circle-question text-xl"></i>
       </button>
     </div>
@@ -88,7 +88,7 @@ function handleSave() {
             <div class="flex items-center gap-3 flex-1">
               <img :src="`https://ui-avatars.com/api/?name=${encodeURIComponent(s.name)}&background=e0e7ff&color=1e40af&bold=true`" class="w-12 h-12 rounded-full object-cover border border-slate-100">
               <div>
-                <div class="font-black text-[13px] text-[#1A237E] mb-0.5">{{ s.name }}</div>
+                <div class="font-black text-[13px] text-blue-900 mb-0.5">{{ s.name }}</div>
                 <div class="inline-block bg-blue-50 text-blue-600 text-[9px] font-bold px-2 py-0.5 rounded-md">{{ s.role || 'Quản lý' }}</div>
               </div>
             </div>
@@ -128,7 +128,7 @@ function handleSave() {
           <!-- Search -->
           <div class="px-2 pt-2 pb-4">
             <div class="relative">
-              <input v-model="searchQuery" type="text" class="w-full pl-4 pr-10 py-3 rounded-xl border border-slate-100 bg-slate-50 font-bold text-slate-700 text-xs focus:border-[#1A237E] focus:bg-white outline-none transition-all placeholder-slate-400" placeholder="Tìm kiếm nhân viên...">
+              <input v-model="searchQuery" type="text" class="w-full pl-4 pr-10 py-3 rounded-xl border border-slate-100 bg-slate-50 font-bold text-slate-700 text-xs focus:border-blue-900 focus:bg-white outline-none transition-all placeholder-slate-400" placeholder="Tìm kiếm nhân viên...">
               <i class="fa-solid fa-magnifying-glass absolute right-4 top-1/2 -translate-y-1/2 text-slate-400"></i>
             </div>
           </div>
@@ -141,7 +141,7 @@ function handleSave() {
               <div class="flex items-center gap-3 flex-1 pl-2">
                 <img :src="`https://ui-avatars.com/api/?name=${encodeURIComponent(s.name)}&background=f1f5f9&color=64748b&bold=true`" class="w-12 h-12 rounded-full object-cover border border-slate-100 opacity-80">
                 <div>
-                  <div class="font-black text-[13px] text-[#1A237E] mb-0.5">{{ s.name }}</div>
+                  <div class="font-black text-[13px] text-blue-900 mb-0.5">{{ s.name }}</div>
                   <div class="inline-block bg-slate-100 text-slate-500 text-[9px] font-bold px-2 py-0.5 rounded-md">{{ s.role || 'Nhân viên' }}</div>
                 </div>
               </div>
@@ -186,7 +186,7 @@ function handleSave() {
     <!-- Fixed Bottom Footer -->
     <div class="fixed bottom-0 left-0 right-0 p-4 md:p-6 bg-slate-50 border-t border-slate-200 z-20 flex justify-center">
       <div class="max-w-2xl w-full">
-        <button @click="handleSave" class="w-full py-4 bg-[#0A192F] text-white rounded-2xl font-black text-[13px] shadow-lg shadow-blue-900/20 hover:bg-[#1A237E] active:scale-[0.98] transition-all flex justify-center items-center gap-2">
+        <button @click="handleSave" class="w-full py-4 bg-blue-950 text-white rounded-2xl font-black text-[13px] shadow-lg shadow-blue-900/20 hover:bg-blue-900 active:scale-[0.98] transition-all flex justify-center items-center gap-2">
           <i class="fa-regular fa-floppy-disk"></i> Lưu thay đổi
         </button>
       </div>

@@ -6,17 +6,25 @@ import { useConfigStore } from '@/stores/useConfigStore'
 const ui = useUIStore()
 const configStore = useConfigStore()
 const logoInput = ref<HTMLInputElement>()
+
+const themes = [
+  { id: 'blue', color: '#1A237E', name: 'Mặc định' },
+  { id: 'red', color: '#dc2626', name: 'Đỏ' },
+  { id: 'green', color: '#16a34a', name: 'Xanh lá' },
+  { id: 'orange', color: '#d97706', name: 'Cam' },
+  { id: 'purple', color: '#9333ea', name: 'Tím' }
+]
 </script>
 
 <template>
-  <div v-if="ui.showBrandingConfig" class="fixed inset-0 bg-[#0D1658]/80 z-[12000] flex justify-center items-center p-4 backdrop-blur-md" @click.self="ui.showBrandingConfig = false">
+  <div v-if="ui.showBrandingConfig" class="fixed inset-0 bg-blue-950/80 z-[12000] flex justify-center items-center p-4 backdrop-blur-md" @click.self="ui.showBrandingConfig = false">
     <div class="bg-white rounded-3xl shadow-2xl p-6 md:p-8 max-w-sm w-[95%] md:w-full flex flex-col relative overflow-hidden border border-white/20">
       
       <!-- Header BG Decoration -->
-      <div class="absolute top-0 left-0 right-0 h-24 bg-gradient-to-r from-blue-600 to-[#1A237E] rounded-t-3xl opacity-10"></div>
+      <div class="absolute top-0 left-0 right-0 h-24 bg-gradient-to-r from-blue-600 to-blue-900 rounded-t-3xl opacity-10"></div>
 
       <div class="flex justify-between items-center mb-6 relative z-10">
-        <h3 class="text-2xl font-black text-[#1A237E] uppercase tracking-tighter flex items-center gap-3">
+        <h3 class="text-2xl font-black text-blue-900 uppercase tracking-tighter flex items-center gap-3">
           <div class="w-10 h-10 bg-blue-50 rounded-xl flex items-center justify-center text-blue-600">
             <i class="fa-solid fa-palette"></i>
           </div>
@@ -36,29 +44,31 @@ const logoInput = ref<HTMLInputElement>()
               <img v-if="configStore.branding.logo" :src="configStore.branding.logo" class="w-full h-full object-contain p-1">
               <i v-else class="fa-solid fa-image text-2xl text-blue-200"></i>
             </div>
-            <button @click="logoInput?.click()" class="px-5 py-3 bg-white border border-blue-100 text-[#1A237E] rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-blue-50 active:scale-95 transition-all shadow-sm">TẢI LOGO LÊN</button>
+            <button @click="logoInput?.click()" class="px-5 py-3 bg-white border border-blue-100 text-blue-900 rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-blue-50 active:scale-95 transition-all shadow-sm">TẢI LOGO LÊN</button>
             <input type="file" ref="logoInput" @change="configStore.handleLogoUpload" class="hidden" accept="image/*">
           </div>
         </div>
 
-        <!-- Brand Color -->
+        <!-- Brand Color Theme -->
         <div class="bg-slate-50 p-5 rounded-2xl border border-slate-100 shadow-sm">
-          <label class="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-3">Màu chủ đạo</label>
-          <div class="flex items-center gap-4">
-            <div class="relative w-14 h-14 rounded-2xl overflow-hidden border-4 border-white shadow-md flex-shrink-0 cursor-pointer">
-              <input type="color" v-model="configStore.branding.color" class="absolute -top-4 -left-4 w-24 h-24 cursor-pointer">
-            </div>
-            <div class="flex flex-wrap gap-2.5">
-              <button v-for="c in ['#1A237E','#eab308','#ef4444','#10b981','#8b5cf6','#f97316','#ec4899','#1e293b']" :key="c"
-                @click="configStore.branding.color = c"
-                class="w-7 h-7 rounded-full shadow-sm border-2 transition-all active:scale-90"
-                :class="configStore.branding.color === c ? 'border-slate-800 scale-125 shadow-md' : 'border-white hover:scale-110'"
-                :style="{ backgroundColor: c }"></button>
-            </div>
+          <label class="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-3">Màu chủ đạo giao diện</label>
+          <div class="flex flex-wrap gap-3">
+            <button v-for="t in themes" :key="t.id"
+              @click="configStore.branding.theme = t.id"
+              class="flex flex-col items-center gap-1.5 p-2 rounded-xl transition-all active:scale-95 group"
+              :class="configStore.branding.theme === t.id ? 'bg-white shadow-sm border border-slate-200' : 'hover:bg-slate-100 border border-transparent'">
+              <div class="w-8 h-8 rounded-full shadow-inner border-2 flex items-center justify-center transition-all"
+                :class="configStore.branding.theme === t.id ? 'border-slate-800 scale-110' : 'border-white'"
+                :style="{ backgroundColor: t.color }">
+                <i v-if="configStore.branding.theme === t.id" class="fa-solid fa-check text-white text-[10px]"></i>
+              </div>
+              <span class="text-[9px] font-black text-slate-600 uppercase tracking-wider">{{ t.name }}</span>
+            </button>
           </div>
+          <p class="text-[10px] font-bold text-slate-400 mt-3 pl-1 flex items-center gap-1"><i class="fa-solid fa-palette text-slate-300"></i> Màu sẽ thay đổi toàn bộ nút bấm & giao diện.</p>
         </div>
 
-        <button @click="configStore.saveBranding()" class="w-full py-4 bg-[#1A237E] text-white rounded-xl font-black uppercase tracking-widest text-[11px] shadow-lg shadow-blue-900/20 active:scale-95 transition-all flex items-center justify-center gap-2 mt-2">
+        <button @click="configStore.saveBranding()" class="w-full py-4 bg-blue-900 text-white rounded-xl font-black uppercase tracking-widest text-[11px] shadow-lg shadow-blue-900/20 active:scale-95 transition-all flex items-center justify-center gap-2 mt-2">
           <i class="fa-solid fa-floppy-disk text-lg text-white/80"></i> LƯU GIAO DIỆN
         </button>
       </div>

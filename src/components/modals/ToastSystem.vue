@@ -14,7 +14,7 @@ const ui = useUIStore()
             <i :class="{ 'fa-solid fa-circle-check': t.type === 'success', 'fa-solid fa-circle-exclamation': t.type === 'error', 'fa-solid fa-triangle-exclamation': t.type === 'warning', 'fa-solid fa-circle-info': t.type === 'info' }"></i>
           </div>
           <div class="pr-6">
-            <div class="font-black text-[13px] uppercase tracking-widest text-[#1A237E] mb-1 leading-none mt-1">{{ t.title }}</div>
+            <div class="font-black text-[13px] uppercase tracking-widest text-blue-900 mb-1 leading-none mt-1">{{ t.title }}</div>
             <div class="text-[11px] text-slate-500 font-bold leading-snug" v-html="t.msg"></div>
           </div>
         </div>

@@ -38,14 +38,14 @@ async function handleKeyClick(pId: string, idx: number) {
   <div v-if="ui.showAiConfig" class="fixed inset-0 bg-slate-50 md:bg-white z-[12000] flex flex-col overflow-hidden">
     <!-- Header -->
     <div class="flex items-center justify-between px-4 py-3 border-b border-slate-100 bg-white shrink-0 shadow-sm relative z-20">
-      <button @click="ui.showAiConfig = false" class="w-10 h-10 flex items-center justify-center text-[#1A237E] hover:bg-slate-50 rounded-full transition-colors active:scale-95">
+      <button @click="ui.showAiConfig = false" class="w-10 h-10 flex items-center justify-center text-blue-900 hover:bg-slate-50 rounded-full transition-colors active:scale-95">
         <i class="fa-solid fa-arrow-left text-xl"></i>
       </button>
       <div class="text-center flex-1">
-        <h2 class="text-lg font-black text-[#1A237E]">Cấu hình AI</h2>
+        <h2 class="text-lg font-black text-blue-900">Cấu hình AI</h2>
         <p class="text-[10px] font-bold text-slate-400 mt-0.5 uppercase tracking-wider">Quản lý & Thiết lập</p>
       </div>
-      <button class="w-10 h-10 flex items-center justify-center text-[#1A237E] hover:bg-slate-50 rounded-full transition-colors">
+      <button class="w-10 h-10 flex items-center justify-center text-blue-900 hover:bg-slate-50 rounded-full transition-colors">
         <i class="fa-regular fa-circle-question text-xl"></i>
       </button>
     </div>
@@ -66,7 +66,7 @@ async function handleKeyClick(pId: string, idx: number) {
           <div class="flex items-center justify-between">
             <label class="text-xs font-black text-slate-800">Mô hình ngôn ngữ (LLM)</label>
             <div class="relative w-44 md:w-56">
-              <select v-model="configStore.defaults.text" class="w-full pl-3 pr-8 py-2 rounded-xl border border-slate-200 bg-white font-bold text-slate-800 text-[11px] focus:border-[#1A237E] focus:ring-2 focus:ring-blue-50 outline-none transition-all appearance-none text-right">
+              <select v-model="configStore.defaults.text" class="w-full pl-3 pr-8 py-2 rounded-xl border border-slate-200 bg-white font-bold text-slate-800 text-[11px] focus:border-blue-900 focus:ring-2 focus:ring-blue-50 outline-none transition-all appearance-none text-right">
                 <option v-for="m in configStore.textModels" :key="m.id" :value="m.id">{{ m.name }} (Tier {{ m.tier }})</option>
               </select>
               <i class="fa-solid fa-chevron-down absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 text-[10px] pointer-events-none"></i>
@@ -77,7 +77,7 @@ async function handleKeyClick(pId: string, idx: number) {
           <div class="flex items-center justify-between">
             <label class="text-xs font-black text-slate-800 flex items-center gap-1.5">Mô hình xử lý hình ảnh (Vision) <i class="fa-solid fa-circle-info text-slate-300"></i></label>
             <div class="relative w-44 md:w-56">
-              <select v-model="configStore.defaults.vision" class="w-full pl-3 pr-8 py-2 rounded-xl border border-slate-200 bg-white font-bold text-slate-800 text-[11px] focus:border-[#1A237E] focus:ring-2 focus:ring-blue-50 outline-none transition-all appearance-none text-right">
+              <select v-model="configStore.defaults.vision" class="w-full pl-3 pr-8 py-2 rounded-xl border border-slate-200 bg-white font-bold text-slate-800 text-[11px] focus:border-blue-900 focus:ring-2 focus:ring-blue-50 outline-none transition-all appearance-none text-right">
                 <option v-for="m in configStore.visionModels" :key="m.id" :value="m.id">{{ m.name }} (Tier {{ m.tier }})</option>
               </select>
               <i class="fa-solid fa-chevron-down absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 text-[10px] pointer-events-none"></i>
@@ -126,7 +126,7 @@ async function handleKeyClick(pId: string, idx: number) {
               
               <div class="flex items-center gap-3 mt-1">
                 <a :href="platform.getUrl" target="_blank" class="text-[11px] font-black text-blue-600 hover:text-blue-700 transition-colors flex items-center gap-1">Get Key <i class="fa-solid fa-arrow-up-right-from-square text-[9px]"></i></a>
-                <button class="text-slate-400 hover:text-[#1A237E] transition-colors p-1" @click="handlePlatformOptions(pId as string)"><i class="fa-solid fa-ellipsis-vertical"></i></button>
+                <button class="text-slate-400 hover:text-blue-900 transition-colors p-1" @click="handlePlatformOptions(pId as string)"><i class="fa-solid fa-ellipsis-vertical"></i></button>
               </div>
             </div>
 
@@ -134,7 +134,7 @@ async function handleKeyClick(pId: string, idx: number) {
             <div class="flex flex-wrap gap-2 pl-12" v-if="configStore.keys[pId]?.length > 0">
               <div v-for="(key, idx) in configStore.keys[pId].slice(0, 3)" :key="idx" class="flex items-center gap-1.5 bg-slate-50 border border-slate-200 px-2.5 py-1 rounded-md group">
                 <span @click="handleKeyClick(pId as string, idx)" class="font-mono text-[10px] font-bold text-slate-600 cursor-pointer hover:text-rose-500 transition-colors" title="Nhấn để xóa">{{ key.substring(0, 6) }}...{{ key.slice(-4) }}</span>
-                <i class="fa-regular fa-copy cursor-pointer text-slate-400 hover:text-[#1A237E] transition-colors text-[10px]" @click="copyToClipboard(key)"></i>
+                <i class="fa-regular fa-copy cursor-pointer text-slate-400 hover:text-blue-900 transition-colors text-[10px]" @click="copyToClipboard(key)"></i>
               </div>
               <div v-if="configStore.keys[pId].length > 3" class="flex items-center px-2 py-1 rounded-md text-[10px] font-bold text-slate-400">
                 +{{ configStore.keys[pId].length - 3 }} keys
@@ -144,7 +144,7 @@ async function handleKeyClick(pId: string, idx: number) {
             <div class="flex flex-wrap gap-2 pl-12" v-if="pId === 'pollinations'">
                <div class="flex items-center gap-1.5 bg-slate-50 border border-slate-200 px-2.5 py-1 rounded-md">
                 <span class="font-mono text-[10px] font-bold text-slate-600">free...free</span>
-                <i class="fa-regular fa-copy cursor-pointer text-slate-400 hover:text-[#1A237E] transition-colors text-[10px]" @click="copyToClipboard('free')"></i>
+                <i class="fa-regular fa-copy cursor-pointer text-slate-400 hover:text-blue-900 transition-colors text-[10px]" @click="copyToClipboard('free')"></i>
               </div>
             </div>
 

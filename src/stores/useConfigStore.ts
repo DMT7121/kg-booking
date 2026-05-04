@@ -9,8 +9,17 @@ export const useConfigStore = defineStore('config', () => {
 
   // --- Branding ---
   const branding = reactive(
-    JSON.parse(localStorage.getItem(CACHE_KEYS.BRANDING) || '{"logo": null, "color": "#eab308"}')
+    JSON.parse(localStorage.getItem(CACHE_KEYS.BRANDING) || '{"logo": null, "theme": "blue"}')
   )
+
+  // Apply theme on load & live preview
+  watch(() => branding.theme, (newTheme) => {
+    if (newTheme && newTheme !== 'blue') {
+      document.documentElement.setAttribute('data-theme', newTheme)
+    } else {
+      document.documentElement.removeAttribute('data-theme')
+    }
+  }, { immediate: true })
 
   // --- AI Keys (Platform-Centric) ---
   const savedKeys = JSON.parse(localStorage.getItem(CACHE_KEYS.KEYS) || '{}') as Record<string, string[]>

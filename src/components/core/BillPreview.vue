@@ -118,11 +118,11 @@ function openZaloChat() {
     
     <!-- Mobile Header -->
     <div class="md:hidden sticky top-0 z-[60] bg-white border-b border-slate-100 flex items-center justify-between px-4 py-3 shadow-sm">
-      <button @click="ui.tab = 'create'" class="w-10 h-10 flex items-center justify-center text-[#1A237E] rounded-full hover:bg-slate-50 active:scale-95 transition-all">
+      <button @click="ui.tab = 'create'" class="w-10 h-10 flex items-center justify-center text-blue-900 rounded-full hover:bg-slate-50 active:scale-95 transition-all">
         <i class="fa-solid fa-arrow-left text-xl"></i>
       </button>
-      <h2 class="text-[15px] font-black text-[#1A237E] uppercase tracking-widest">Xem trước phiếu đặt</h2>
-      <button @click="shareCurrentBill" class="w-10 h-10 flex items-center justify-center text-[#1A237E] rounded-full hover:bg-slate-50 active:scale-95 transition-all">
+      <h2 class="text-[15px] font-black text-blue-900 uppercase tracking-widest">Xem trước phiếu đặt</h2>
+      <button @click="shareCurrentBill" class="w-10 h-10 flex items-center justify-center text-blue-900 rounded-full hover:bg-slate-50 active:scale-95 transition-all">
         <i class="fa-solid fa-share-nodes text-lg"></i>
       </button>
     </div>
@@ -152,7 +152,7 @@ function openZaloChat() {
             <div class="flex justify-center mb-4">
               <img :src="configStore.branding.logo || '/favicon.svg'" class="h-32 object-contain print-no-shadow" alt="Logo" loading="lazy">
             </div>
-            <h1 class="font-black tracking-widest text-[#1A237E] uppercase text-4xl mb-2" style="font-family: 'Be Vietnam Pro', sans-serif;">KING'S GRILL</h1>
+            <h1 class="font-black tracking-widest text-blue-900 uppercase text-4xl mb-2" style="font-family: 'Be Vietnam Pro', sans-serif;">KING'S GRILL</h1>
             <h2 class="font-bold tracking-widest text-slate-500 uppercase text-xl" style="font-family: 'Inter', sans-serif;">PHIẾU ĐẶT BÀN</h2>
             <div class="w-24 h-1 mx-auto mt-6 rounded-full bg-yellow-400"></div>
           </div>
@@ -162,22 +162,22 @@ function openZaloChat() {
             <!-- Customer Info Grid -->
             <div class="grid grid-cols-[130px_1fr] gap-y-3.5 text-[15px] w-full lg:w-[70%]">
               <div class="flex items-center gap-3 text-slate-500 font-bold uppercase text-[11px] tracking-wider"><i class="fa-solid fa-user-tie w-4 text-center text-[13px]"></i> Khách hàng</div>
-              <div class="font-black text-[#0D1658] text-[14px]">{{ formStore.customer.name || '---' }}</div>
+              <div class="font-black text-blue-950 text-[14px]">{{ formStore.customer.name || '---' }}</div>
               
               <div class="flex items-center gap-3 text-slate-500 font-bold uppercase text-[11px] tracking-wider"><i class="fa-solid fa-phone w-4 text-center text-[13px]"></i> SĐT / Zalo</div>
-              <div class="font-black text-[#0D1658] text-[14px]">{{ formStore.customer.phone || '---' }}</div>
+              <div class="font-black text-blue-950 text-[14px]">{{ formStore.customer.phone || '---' }}</div>
               
               <div class="flex items-center gap-3 text-slate-500 font-bold uppercase text-[11px] tracking-wider"><i class="fa-regular fa-calendar-days w-4 text-center text-[13px]"></i> Thời gian</div>
-              <div class="font-black text-[#0D1658] text-[14px]">{{ formStore.customer.date || 'dd/mm/yyyy' }} • {{ formStore.customer.time || '--:--' }}</div>
+              <div class="font-black text-blue-950 text-[14px]">{{ formStore.customer.date || 'dd/mm/yyyy' }} • {{ formStore.customer.time || '--:--' }}</div>
               
               <div class="flex items-center gap-3 text-slate-500 font-bold uppercase text-[11px] tracking-wider"><i class="fa-solid fa-users w-4 text-center text-[13px]"></i> Số khách</div>
-              <div class="font-black text-[#0D1658] text-[14px]">{{ formStore.customer.pax || '0' }} người</div>
+              <div class="font-black text-blue-950 text-[14px]">{{ formStore.customer.pax || '0' }} người</div>
               
               <div class="flex items-center gap-3 text-slate-500 font-bold uppercase text-[11px] tracking-wider"><i class="fa-solid fa-border-all w-4 text-center text-[13px]"></i> Bàn</div>
-              <div class="font-black text-[#0D1658] text-[14px]">{{ formStore.customer.tables || '---' }}</div>
+              <div class="font-black text-blue-950 text-[14px]">{{ formStore.customer.tables || '---' }}</div>
               
               <div class="flex items-center gap-3 text-slate-500 font-bold uppercase text-[11px] tracking-wider"><i class="fa-solid fa-utensils w-4 text-center text-[13px]"></i> Loại tiệc</div>
-              <div class="font-black text-[#0D1658] text-[14px]">{{ formStore.customer.type || '---' }}</div>
+              <div class="font-black text-blue-950 text-[14px]">{{ formStore.customer.type || '---' }}</div>
             </div>
 
             <!-- Stamp -->
@@ -186,7 +186,7 @@ function openZaloChat() {
                 <div class="font-black text-3xl uppercase tracking-widest border-b-2 border-green-600 pb-2 mb-2">ĐÃ ĐẶT CỌC</div>
                 <div class="font-mono font-bold text-sm">{{ formStore.deposit.time }}</div>
               </div>
-              <div v-else class="border-4 border-[#1A237E] text-[#1A237E] p-4 rounded-xl text-center transform bg-white/90 backdrop-blur-sm shadow-xl flex flex-col items-center justify-center opacity-80">
+              <div v-else class="border-4 border-blue-900 text-blue-900 p-4 rounded-xl text-center transform bg-white/90 backdrop-blur-sm shadow-xl flex flex-col items-center justify-center opacity-80">
                 <img :src="configStore.branding.logo || '/favicon.svg'" class="h-20 opacity-90 mb-2 filter drop-shadow-sm" style="filter: brightness(0) saturate(100%) invert(13%) sepia(85%) saturate(3025%) hue-rotate(227deg) brightness(85%) contrast(106%);">
                 <div class="font-black text-4xl uppercase tracking-widest" style="font-family: 'Praise', cursive;">Chờ cọc</div>
               </div>
@@ -196,7 +196,7 @@ function openZaloChat() {
           <!-- MENU TABLE -->
           <table class="w-full mb-8 border-collapse">
             <thead>
-              <tr class="bg-[#0D1658] text-white">
+              <tr class="bg-blue-950 text-white">
                 <th class="py-3 px-4 text-left font-bold text-[13px] rounded-tl-xl w-12">#</th>
                 <th class="py-3 px-4 text-left font-bold text-[13px]">TÊN MÓN</th>
                 <th class="py-3 px-4 text-center font-bold text-[13px] w-16">SL</th>
@@ -219,7 +219,7 @@ function openZaloChat() {
                 </td>
                 <td class="py-4 px-4 text-center font-black text-slate-800">{{ item.qty }}</td>
                 <td class="py-4 px-4 text-right font-bold text-slate-600">{{ formatVND(item.price) }}</td>
-                <td class="py-4 px-4 text-right font-black text-[#1A237E]">{{ formatVND(item.price * item.qty) }}</td>
+                <td class="py-4 px-4 text-right font-black text-blue-900">{{ formatVND(item.price * item.qty) }}</td>
               </tr>
             </tbody>
           </table>
@@ -231,8 +231,8 @@ function openZaloChat() {
               <span class="font-black text-slate-800">{{ formatVND(formStore.calculatedTotals.sub) }}</span>
             </div>
             <div class="flex justify-between items-center pt-4 border-t-2 border-dashed border-slate-200">
-              <span class="text-2xl font-black text-[#1A237E] uppercase">TỔNG CỘNG</span>
-              <span class="text-3xl font-black text-[#1A237E]">{{ formatVND(formStore.calculatedTotals.final) }}</span>
+              <span class="text-2xl font-black text-blue-900 uppercase">TỔNG CỘNG</span>
+              <span class="text-3xl font-black text-blue-900">{{ formatVND(formStore.calculatedTotals.final) }}</span>
             </div>
             <div class="flex justify-between items-center pt-2">
               <span class="text-lg font-bold flex items-center gap-2" :class="formStore.deposit.isPaid ? 'text-green-600' : 'text-red-500'">
@@ -306,7 +306,7 @@ function openZaloChat() {
           <img src="https://upload.wikimedia.org/wikipedia/commons/1/12/Google_Drive_icon_%282020%29.svg" class="w-4 h-4">
           <span class="text-[12px] font-bold whitespace-nowrap">Lưu lên Drive</span>
         </button>
-        <button @click="shareCurrentBill" class="flex items-center justify-center bg-[#0D1658] text-white h-[44px] px-4 rounded-xl shrink-0 shadow-lg shadow-blue-900/20 gap-2 hover:bg-blue-900 active:scale-95 transition-all">
+        <button @click="shareCurrentBill" class="flex items-center justify-center bg-blue-950 text-white h-[44px] px-4 rounded-xl shrink-0 shadow-lg shadow-blue-900/20 gap-2 hover:bg-blue-900 active:scale-95 transition-all">
           <i class="fa-solid fa-share-nodes"></i>
           <span class="text-[12px] font-bold whitespace-nowrap">Chia sẻ phiếu</span>
         </button>

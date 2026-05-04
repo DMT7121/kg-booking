@@ -75,14 +75,14 @@ function getBankLogoColor(bin: string) {
     
     <!-- Header -->
     <div class="flex items-center justify-between px-4 py-3 border-b border-slate-100 bg-white shrink-0 shadow-sm relative z-20">
-      <button @click="ui.showBankConfig = false" class="w-10 h-10 flex items-center justify-center text-[#1A237E] hover:bg-slate-50 rounded-full transition-colors active:scale-95">
+      <button @click="ui.showBankConfig = false" class="w-10 h-10 flex items-center justify-center text-blue-900 hover:bg-slate-50 rounded-full transition-colors active:scale-95">
         <i class="fa-solid fa-arrow-left text-xl"></i>
       </button>
       <div class="text-center flex-1">
-        <h2 class="text-lg font-black text-[#1A237E]">Quản lý ngân hàng</h2>
+        <h2 class="text-lg font-black text-blue-900">Quản lý ngân hàng</h2>
         <p class="text-[10px] font-bold text-slate-400 mt-0.5 uppercase tracking-wider">Tài khoản & Thanh toán</p>
       </div>
-      <button class="w-10 h-10 flex items-center justify-center text-[#1A237E] hover:bg-slate-50 rounded-full transition-colors">
+      <button class="w-10 h-10 flex items-center justify-center text-blue-900 hover:bg-slate-50 rounded-full transition-colors">
         <i class="fa-regular fa-circle-question text-xl"></i>
       </button>
     </div>
@@ -115,7 +115,7 @@ function getBankLogoColor(bin: string) {
               
               <div class="flex-1 min-w-0">
                 <div class="flex items-center gap-2 mb-0.5">
-                  <h5 class="font-black text-[#1A237E] text-[15px] truncate">{{ b.name }}</h5>
+                  <h5 class="font-black text-blue-900 text-[15px] truncate">{{ b.name }}</h5>
                   <span v-if="idx === appStore.selectedBankIndex" class="bg-blue-100 text-blue-600 text-[10px] font-black uppercase px-2 py-0.5 rounded tracking-wider shrink-0 border border-blue-200">Mặc định</span>
                 </div>
                 <div class="font-bold text-slate-800 text-[15px] tracking-wide mb-1">{{ b.number }}</div>
@@ -141,7 +141,7 @@ function getBankLogoColor(bin: string) {
 
         <!-- Form Section -->
         <div class="bg-white p-5 rounded-3xl border border-slate-100 shadow-sm relative overflow-hidden" id="bank-form">
-          <div class="absolute top-0 left-0 w-1.5 h-full bg-[#1A237E] rounded-l-3xl"></div>
+          <div class="absolute top-0 left-0 w-1.5 h-full bg-blue-900 rounded-l-3xl"></div>
           
           <h4 class="text-xs font-black text-slate-500 uppercase tracking-widest mb-5 ml-2">{{ isEditing ? 'Chỉnh sửa ngân hàng' : 'Thêm ngân hàng' }}</h4>
           
@@ -186,7 +186,7 @@ function getBankLogoColor(bin: string) {
               <button @click="resetForm" class="flex-1 py-3.5 bg-slate-100 text-slate-600 rounded-xl text-[15px] font-black active:scale-95 transition-all hover:bg-slate-200">
                 Hủy
               </button>
-              <button @click="saveBank" class="flex-[2] py-3.5 bg-[#0D1658] text-white rounded-xl text-[15px] font-black shadow-lg shadow-blue-900/20 hover:bg-blue-900 active:scale-95 transition-all">
+              <button @click="saveBank" class="flex-[2] py-3.5 bg-blue-950 text-white rounded-xl text-[15px] font-black shadow-lg shadow-blue-900/20 hover:bg-blue-900 active:scale-95 transition-all">
                 Lưu ngân hàng
               </button>
             </div>

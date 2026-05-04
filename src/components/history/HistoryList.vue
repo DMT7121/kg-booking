@@ -135,17 +135,17 @@ async function deleteBatchOrders() {
   <div class="flex-grow flex flex-col overflow-hidden text-[13px] bg-slate-50">
     <!-- Header Title -->
     <div class="bg-slate-50 px-4 py-4 flex items-center justify-between sticky top-0 z-20 shadow-sm border-b border-slate-100">
-      <button @click="ui.tab = 'create'" class="w-10 h-10 flex items-center justify-center text-[#1A237E] text-xl active:scale-95 transition-transform">
+      <button @click="ui.tab = 'create'" class="w-10 h-10 flex items-center justify-center text-blue-900 text-xl active:scale-95 transition-transform">
         <i class="fa-solid fa-arrow-left"></i>
       </button>
       <div class="text-center flex-1">
-        <h2 class="text-xl font-black text-[#1A237E]">{{ currentView === 'list' ? 'Lịch sử tạo phiếu' : 'Lưới Đặt Bàn' }}</h2>
+        <h2 class="text-xl font-black text-blue-900">{{ currentView === 'list' ? 'Lịch sử tạo phiếu' : 'Lưới Đặt Bàn' }}</h2>
         <p v-if="currentView === 'list'" class="text-[10px] font-bold text-slate-400 mt-0.5">Tất cả lịch/phiếu đã tạo của nhà hàng</p>
       </div>
       
       <div class="flex bg-slate-200/50 p-1 rounded-xl">
-        <button @click="currentView = 'list'" :class="['w-8 h-8 rounded-lg flex items-center justify-center text-xs transition-all', currentView === 'list' ? 'bg-white text-[#1A237E] shadow-sm' : 'text-slate-500']"><i class="fa-solid fa-list"></i></button>
-        <button @click="currentView = 'timeline'" :class="['w-8 h-8 rounded-lg flex items-center justify-center text-xs transition-all', currentView === 'timeline' ? 'bg-white text-[#1A237E] shadow-sm' : 'text-slate-500']"><i class="fa-solid fa-calendar-days"></i></button>
+        <button @click="currentView = 'list'" :class="['w-8 h-8 rounded-lg flex items-center justify-center text-xs transition-all', currentView === 'list' ? 'bg-white text-blue-900 shadow-sm' : 'text-slate-500']"><i class="fa-solid fa-list"></i></button>
+        <button @click="currentView = 'timeline'" :class="['w-8 h-8 rounded-lg flex items-center justify-center text-xs transition-all', currentView === 'timeline' ? 'bg-white text-blue-900 shadow-sm' : 'text-slate-500']"><i class="fa-solid fa-calendar-days"></i></button>
       </div>
     </div>
 
@@ -159,7 +159,7 @@ async function deleteBatchOrders() {
       <div class="p-4 bg-slate-50 space-y-3 z-10 shrink-0">
         <div class="flex gap-2">
           <div class="relative flex-grow">
-            <input v-model="ui.historySearch" type="text" class="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-200 bg-white font-bold text-slate-700 text-[13px] focus:border-[#1A237E] outline-none transition-all placeholder-slate-400" placeholder="Tìm kiếm theo tên, SĐT, mã phiếu...">
+            <input v-model="ui.historySearch" type="text" class="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-200 bg-white font-bold text-slate-700 text-[13px] focus:border-blue-900 outline-none transition-all placeholder-slate-400" placeholder="Tìm kiếm theo tên, SĐT, mã phiếu...">
             <i class="fa-solid fa-magnifying-glass absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400"></i>
           </div>
           <button @click="ui.isBatchMode = !ui.isBatchMode" class="px-4 py-2.5 rounded-xl border font-bold text-[13px] flex items-center gap-2 active:scale-95 transition-all whitespace-nowrap" :class="ui.isBatchMode ? 'border-red-200 bg-red-50 text-red-600' : 'border-blue-200 bg-blue-50 text-blue-600'">
@@ -208,7 +208,7 @@ async function deleteBatchOrders() {
       <!-- Pull-to-refresh indicator -->
       <div class="relative overflow-hidden bg-slate-50" :style="{ height: pullDistance > 0 ? pullDistance + 'px' : '0px', transition: isRefreshing ? 'none' : 'height 0.3s ease' }">
         <div class="flex items-center justify-center h-full">
-          <div v-if="isRefreshing" class="w-6 h-6 border-2 border-slate-200 border-t-[#1A237E] rounded-full animate-spin"></div>
+          <div v-if="isRefreshing" class="w-6 h-6 border-2 border-slate-200 border-t-blue-900 rounded-full animate-spin"></div>
           <div v-else class="flex items-center gap-2 text-[10px] font-black text-slate-400 uppercase tracking-widest">
             <i class="fa-solid fa-arrow-down" :style="{ transform: pullDistance >= 80 ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }"></i>
             {{ pullDistance >= 80 ? 'Thả để làm mới' : 'Kéo xuống để làm mới' }}
@@ -252,7 +252,7 @@ async function deleteBatchOrders() {
               </div>
               
               <div>
-                <div class="font-black text-[14px] text-[#1A237E] leading-tight cursor-pointer" @click.stop="copyToClipboard(String(key))">#{{ String(key).substring(0, 11) }}</div>
+                <div class="font-black text-[14px] text-blue-900 leading-tight cursor-pointer" @click.stop="copyToClipboard(String(key))">#{{ String(key).substring(0, 11) }}</div>
                 <div class="flex gap-1.5 mt-1.5 flex-wrap">
                   <span class="text-[9px] font-black bg-purple-50 text-purple-600 px-2 py-0.5 rounded border border-purple-100">{{ group.latest.parsedCustomer?.type || 'Đặt bàn' }}</span>
                   <span class="text-[9px] font-black px-2 py-0.5 rounded border" :class="group.latest.isDeposited ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 'bg-orange-50 text-orange-600 border-orange-100'">{{ group.latest.isDeposited ? 'Đã xác nhận' : 'Chờ đặt cọc' }}</span>
@@ -261,7 +261,7 @@ async function deleteBatchOrders() {
             </div>
             <div class="flex flex-col items-end gap-1.5 shrink-0">
               <span class="text-[10px] font-bold text-slate-500">{{ group.latest.parsedCustomer?.date }} • {{ group.latest.parsedCustomer?.time }}</span>
-              <button class="text-slate-300 hover:text-[#1A237E] p-1"><i class="fa-solid fa-ellipsis-vertical"></i></button>
+              <button class="text-slate-300 hover:text-blue-900 p-1"><i class="fa-solid fa-ellipsis-vertical"></i></button>
             </div>
           </div>
 

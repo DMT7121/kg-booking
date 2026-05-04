@@ -119,7 +119,7 @@ function prefillBooking(zone: string, time: string) {
         <input ref="dateInputRef" type="date" v-model="selectedDateInput" class="absolute w-0 h-0 opacity-0 -z-10 overflow-hidden pointer-events-none">
       </div>
       
-      <button @click="resetForm(); ui.tab = 'create'" class="h-12 px-6 bg-[#1A237E] text-white rounded-xl font-black text-sm shadow-lg shadow-blue-900/20 active:scale-95 transition-all flex justify-center items-center gap-2 whitespace-nowrap">
+      <button @click="resetForm(); ui.tab = 'create'" class="h-12 px-6 bg-blue-900 text-white rounded-xl font-black text-sm shadow-lg shadow-blue-900/20 active:scale-95 transition-all flex justify-center items-center gap-2 whitespace-nowrap">
         <i class="fa-solid fa-plus text-white/70"></i> Tạo lịch đặt mới
       </button>
     </div>
@@ -129,7 +129,7 @@ function prefillBooking(zone: string, time: string) {
       <div class="min-w-[700px] bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden flex flex-col">
         
         <!-- Header Row -->
-        <div class="flex bg-[#0D1658] text-white sticky top-0 z-20 shadow-md">
+        <div class="flex bg-blue-950 text-white sticky top-0 z-20 shadow-md">
           <div class="w-20 flex-shrink-0 py-3 text-center font-bold text-xs uppercase tracking-widest border-r border-white/10">Giờ</div>
           <div v-for="z in ZONES" :key="z" class="flex-1 py-3 text-center font-bold text-xs border-r border-white/10 last:border-0">{{ z }}</div>
         </div>
@@ -150,7 +150,7 @@ function prefillBooking(zone: string, time: string) {
                 <div 
                   @click="openBookingDetail(timelineData[h][z])"
                   class="w-full h-full rounded-xl flex flex-col items-center justify-center p-1 text-center shadow-sm border cursor-pointer active:scale-95 transition-transform"
-                  :class="timelineData[h][z].isDeposited ? 'bg-blue-50 border-blue-200 text-[#1A237E] hover:bg-blue-100' : 'bg-rose-50 border-rose-200 text-rose-700 hover:bg-rose-100'"
+                  :class="timelineData[h][z].isDeposited ? 'bg-blue-50 border-blue-200 text-blue-900 hover:bg-blue-100' : 'bg-rose-50 border-rose-200 text-rose-700 hover:bg-rose-100'"
                 >
                   <div class="font-black text-xs leading-tight line-clamp-1 break-all px-1">{{ timelineData[h][z].parsedCustomer?.name }}</div>
                   <div class="text-[10px] font-bold opacity-80 mt-0.5">{{ timelineData[h][z].parsedCustomer?.pax }} người</div>

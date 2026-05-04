@@ -103,16 +103,16 @@ function handleViewBill() {
 </script>
 
 <template>
-  <div v-if="ui.showBookingDetailModal && ui.selectedBooking" class="fixed inset-0 bg-[#0D1658]/80 z-[12000] flex justify-center items-center p-4 backdrop-blur-md" @click.self="close">
+  <div v-if="ui.showBookingDetailModal && ui.selectedBooking" class="fixed inset-0 bg-blue-950/80 z-[12000] flex justify-center items-center p-4 backdrop-blur-md" @click.self="close">
     <div class="bg-white rounded-3xl shadow-2xl p-6 md:p-8 max-w-md w-[95%] md:w-full flex flex-col relative overflow-hidden border border-white/20">
       
       <!-- Header BG Decoration -->
-      <div class="absolute top-0 left-0 right-0 h-24 bg-gradient-to-r from-blue-600 to-[#1A237E] rounded-t-3xl opacity-10"></div>
+      <div class="absolute top-0 left-0 right-0 h-24 bg-gradient-to-r from-blue-600 to-blue-900 rounded-t-3xl opacity-10"></div>
       
       <!-- Header -->
       <div class="flex justify-between items-start mb-6 relative z-10">
         <div>
-          <h3 class="text-2xl font-black text-[#1A237E] uppercase tracking-tighter leading-tight">{{ ui.selectedBooking.parsedCustomer?.name || 'KHÁCH HÀNG' }}</h3>
+          <h3 class="text-2xl font-black text-blue-900 uppercase tracking-tighter leading-tight">{{ ui.selectedBooking.parsedCustomer?.name || 'KHÁCH HÀNG' }}</h3>
           <div class="text-sm font-bold text-slate-500 mt-1 flex items-center gap-2">
             <i class="fa-solid fa-phone text-xs"></i> {{ ui.selectedBooking.parsedCustomer?.phone || 'Chưa cung cấp' }}
           </div>
@@ -145,7 +145,7 @@ function handleViewBill() {
           </div>
           <div class="bg-slate-50 p-3 rounded-2xl border border-slate-100">
             <div class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Khu / Bàn</div>
-            <div class="font-black flex items-center gap-2" :class="ui.selectedBooking.parsedCustomer?.tables && !ui.selectedBooking.parsedCustomer.tables.toLowerCase().includes('chưa') && !ui.selectedBooking.parsedCustomer.tables.toLowerCase().includes('hoãn') ? 'text-[#1A237E]' : 'text-orange-500'">
+            <div class="font-black flex items-center gap-2" :class="ui.selectedBooking.parsedCustomer?.tables && !ui.selectedBooking.parsedCustomer.tables.toLowerCase().includes('chưa') && !ui.selectedBooking.parsedCustomer.tables.toLowerCase().includes('hoãn') ? 'text-blue-900' : 'text-orange-500'">
               <i class="fa-solid fa-chair text-slate-300"></i> {{ ui.selectedBooking.parsedCustomer?.tables || 'Chưa xếp' }}
             </div>
           </div>
@@ -164,7 +164,7 @@ function handleViewBill() {
 
       <!-- Action Buttons -->
       <div class="grid grid-cols-2 gap-3 mt-auto relative z-10">
-        <button @click="handleEdit" class="py-3.5 bg-[#1A237E] text-white rounded-xl font-black text-xs uppercase shadow-lg shadow-blue-900/20 active:scale-95 transition-all flex justify-center items-center gap-2">
+        <button @click="handleEdit" class="py-3.5 bg-blue-900 text-white rounded-xl font-black text-xs uppercase shadow-lg shadow-blue-900/20 active:scale-95 transition-all flex justify-center items-center gap-2">
           <i class="fa-solid fa-pen-to-square"></i> Sửa / Đổi lịch
         </button>
         <button @click="handlePending" class="py-3.5 bg-amber-100 text-amber-700 border border-amber-200 rounded-xl font-black text-xs uppercase shadow-sm hover:bg-amber-200 active:scale-95 transition-all flex justify-center items-center gap-2">
