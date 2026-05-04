@@ -337,13 +337,16 @@ onMounted(() => {
       </div>
       
       <nav class="flex-1 flex flex-col gap-6 w-full px-4">
-        <button @click="ui.tab = 'create'" :class="['w-12 h-12 rounded-2xl flex items-center justify-center transition-all group', ui.tab === 'create' ? 'bg-white/10 text-white shadow-inner border border-white/10' : 'text-blue-200 hover:text-white hover:bg-white/5']">
-          <i class="fa-solid fa-house-chimney text-lg group-hover:scale-110 transition-transform"></i>
-        </button>
-        <button @click="appStore.loadHistory(false)" :class="['w-12 h-12 rounded-2xl flex items-center justify-center transition-all group', ui.tab === 'history' ? 'bg-white/10 text-white shadow-inner border border-white/10' : 'text-blue-200 hover:text-white hover:bg-white/5']">
+        <button @click="ui.tab = 'timeline'; appStore.loadHistory(false)" :class="['w-12 h-12 rounded-2xl flex items-center justify-center transition-all group', ui.tab === 'timeline' ? 'bg-white/10 text-white shadow-inner border border-white/10' : 'text-blue-200 hover:text-white hover:bg-white/5']" title="Lịch Đặt Bàn">
           <i class="fa-solid fa-calendar-days text-lg group-hover:scale-110 transition-transform"></i>
         </button>
-        <button @click="ui.showSettingsHub = true" class="w-12 h-12 rounded-2xl flex items-center justify-center text-blue-200 hover:text-white hover:bg-white/5 transition-all group">
+        <button @click="ui.tab = 'history'; appStore.loadHistory(false)" :class="['w-12 h-12 rounded-2xl flex items-center justify-center transition-all group', ui.tab === 'history' ? 'bg-white/10 text-white shadow-inner border border-white/10' : 'text-blue-200 hover:text-white hover:bg-white/5']" title="Lịch Sử Tạo Phiếu">
+          <i class="fa-solid fa-list-ul text-lg group-hover:scale-110 transition-transform"></i>
+        </button>
+        <button @click="ui.tab = 'create'" :class="['w-12 h-12 rounded-2xl flex items-center justify-center transition-all group', ui.tab === 'create' ? 'bg-white/10 text-white shadow-inner border border-white/10' : 'text-blue-200 hover:text-white hover:bg-white/5']" title="Tạo Phiếu Đặt">
+          <i class="fa-solid fa-house-chimney text-lg group-hover:scale-110 transition-transform"></i>
+        </button>
+        <button @click="ui.showSettingsHub = true" class="w-12 h-12 rounded-2xl flex items-center justify-center text-blue-200 hover:text-white hover:bg-white/5 transition-all group mt-auto" title="Cài đặt">
           <i class="fa-solid fa-sliders text-lg group-hover:scale-110 transition-transform"></i>
         </button>
       </nav>

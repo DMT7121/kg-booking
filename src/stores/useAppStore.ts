@@ -156,7 +156,6 @@ export const useAppStore = defineStore('app', () => {
 
   // --- API Actions ---
   async function loadHistory(silent: boolean) {
-    if (!silent) uiStore.tab = 'history'
     uiStore.connectionStatus = 'syncing'
 
     // Cache-first: Show cached data instantly
