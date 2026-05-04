@@ -51,35 +51,7 @@ onUnmounted(() => {
   window.removeEventListener('resize', updatePreviewScale)
 })
 
-// --- KDS Vertical Slider ---
-const MODES = ['full', 'kitchen', 'bar'] as const
-const ITEM_HEIGHT = 72 // px per slider item
-
-const sliderIndicatorTop = computed(() => {
-  const idx = MODES.indexOf(formStore.billMode as any)
-  return `${idx * ITEM_HEIGHT}px`
-})
-
-let touchStartY = 0
-function onSliderTouchStart(e: TouchEvent) {
-  touchStartY = e.touches[0].clientY
-}
-function onSliderTouchMove(e: TouchEvent) {
-  e.preventDefault()
-}
-function onSliderTouchEnd(e: TouchEvent) {
-  const deltaY = touchStartY - e.changedTouches[0].clientY
-  if (Math.abs(deltaY) < 30) return
-const idx = MODES.indexOf(formStore.billMode as any)
-  if (deltaY > 0 && idx < MODES.length - 1) {
-    formStore.billMode = MODES[idx + 1]
-    haptic('light')
-  } else if (deltaY < 0 && idx > 0) {
-    formStore.billMode = MODES[idx - 1]
-    haptic('light')
-  }
-}
-
+// Removed KDS slider variables
 import { haptic } from '@/composables/useGestures'
 import paidStampImg from '@/assets/paid-stamp.png'
 

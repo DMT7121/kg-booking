@@ -59,7 +59,7 @@ function shareCurrentBill() {
 
 <template>
   <div
-    :class="['w-full md:w-5/12 bg-white flex flex-col shadow-2xl z-20 border-r border-gray-100 text-[13px] safe-area-pt', ui.tab === 'preview' ? 'h-auto shrink-0 md:h-full md:shrink' : 'h-full flex-1 md:flex-none']"
+    class="w-full h-full flex-1 bg-white flex flex-col shadow-2xl z-20 text-[13px] safe-area-pt"
     @touchstart="onSwipeStart"
     @touchend="onSwipeEnd"
   >

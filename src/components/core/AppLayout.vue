@@ -349,8 +349,5 @@ onMounted(() => {
 
     <!-- MAIN PANELS -->
     <LeftPanel />
-    <BillPreview />
-
-    </div>
   </div>
 </template>
