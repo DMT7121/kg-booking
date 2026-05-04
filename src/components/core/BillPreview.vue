@@ -152,9 +152,9 @@ function openZaloChat() {
                 <div class="font-black text-3xl uppercase tracking-widest border-b-2 border-green-600 pb-2 mb-2">ĐÃ ĐẶT CỌC</div>
                 <div class="font-mono font-bold text-sm">{{ formStore.deposit.time }}</div>
               </div>
-              <div v-else class="border-4 border-blue-900 text-blue-900 p-4 rounded-xl text-center transform bg-white/90 backdrop-blur-sm shadow-xl flex flex-col items-center justify-center opacity-80">
-                <img :src="configStore.branding.logo || '/favicon.svg'" class="h-20 opacity-90 mb-2 filter drop-shadow-sm" style="filter: brightness(0) saturate(100%) invert(13%) sepia(85%) saturate(3025%) hue-rotate(227deg) brightness(85%) contrast(106%);">
-                <div class="font-black text-4xl uppercase tracking-widest" style="font-family: 'Praise', cursive;">Chờ cọc</div>
+              <div v-else class="border-4 border-blue-800/30 text-blue-900/40 p-4 rounded-xl text-center transform backdrop-blur-sm flex flex-col items-center justify-center">
+                <div class="font-black text-4xl uppercase tracking-widest border-b-2 border-blue-800/30 pb-2 mb-2" style="font-family: 'Be Vietnam Pro', sans-serif;">CHỜ CỌC</div>
+                <div class="font-bold text-sm tracking-widest uppercase">Đang giữ chỗ</div>
               </div>
             </div>
           </div>
