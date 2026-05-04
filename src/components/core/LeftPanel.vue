@@ -12,6 +12,7 @@ import CustomerForm from '@/components/forms/CustomerForm.vue'
 import DepositManager from '@/components/forms/DepositManager.vue'
 import MenuItemsEditor from '@/components/forms/MenuItemsEditor.vue'
 import HistoryList from '@/components/history/HistoryList.vue'
+import HistoryTimeline from '@/components/history/HistoryTimeline.vue'
 
 const ui = useUIStore()
 const formStore = useFormStore()
@@ -23,13 +24,13 @@ const { copyBookingConfirmation, validateForm } = useForm()
 const doSave = (type: string) => { haptic('light'); triggerSave(type, validateForm) }
 
 // --- Tab Swipe (mobile only) ---
-const mobileTabs = ['create', 'history', 'preview']
+const mobileTabs = ['timeline', 'create', 'history', 'preview']
 const tabRef = computed(() => ui.tab)
 const { onSwipeStart, onSwipeEnd } = useTabSwipe(
   tabRef as any,
   mobileTabs,
   (tab) => {
-    if (tab === 'history') appStore.loadHistory(false)
+    if (tab === 'history' || tab === 'timeline') appStore.loadHistory(false)
     else ui.tab = tab as any
   }
 )
@@ -88,10 +89,11 @@ function shareCurrentBill() {
     </div>
 
     <!-- TABS -->
-    <div class="flex flex-nowrap overflow-x-auto w-full bg-white text-[10px] font-black border-b border-slate-100 uppercase tracking-widest shadow-sm relative z-10">
-      <button @click="ui.tab = 'history'; appStore.loadHistory(false)" :class="['flex-1 py-3.5 flex justify-center items-center gap-2 transition-all min-h-[46px] border-b-[3px]', ui.tab === 'history' ? 'text-blue-900 border-blue-900 bg-blue-50/50' : 'text-slate-400 border-transparent hover:text-slate-600 hover:bg-slate-50']"><i class="fa-solid fa-calendar-days text-sm"></i> Lịch Bàn</button>
-      <button @click="ui.tab = 'create'" :class="['flex-1 py-3.5 flex justify-center items-center gap-2 transition-all min-h-[46px] border-b-[3px]', ui.tab === 'create' ? 'text-blue-900 border-blue-900 bg-blue-50/50' : 'text-slate-400 border-transparent hover:text-slate-600 hover:bg-slate-50']"><i class="fa-solid fa-plus text-sm"></i> Tạo Phiếu</button>
-      <button @click="ui.tab = 'preview'" class="md:hidden flex-1 py-3.5 flex justify-center items-center gap-2 transition-all min-h-[46px] border-b-[3px] border-transparent text-slate-500 bg-slate-50 hover:bg-slate-100"><i class="fa-solid fa-eye text-sm"></i> Preview</button>
+    <div class="flex flex-nowrap overflow-x-auto w-full bg-white text-[10px] font-black border-b border-slate-100 uppercase tracking-widest shadow-sm relative z-10" style="scrollbar-width: none;">
+      <button @click="ui.tab = 'timeline'; appStore.loadHistory(false)" :class="['flex-1 py-3.5 flex justify-center items-center gap-2 transition-all min-h-[46px] border-b-[3px] whitespace-nowrap px-2', ui.tab === 'timeline' ? 'text-blue-900 border-blue-900 bg-blue-50/50' : 'text-slate-400 border-transparent hover:text-slate-600 hover:bg-slate-50']"><i class="fa-solid fa-calendar-days text-sm"></i> Lịch Đặt Bàn</button>
+      <button @click="ui.tab = 'create'" :class="['flex-1 py-3.5 flex justify-center items-center gap-2 transition-all min-h-[46px] border-b-[3px] whitespace-nowrap px-2', ui.tab === 'create' ? 'text-blue-900 border-blue-900 bg-blue-50/50' : 'text-slate-400 border-transparent hover:text-slate-600 hover:bg-slate-50']"><i class="fa-solid fa-plus text-sm"></i> Tạo Phiếu</button>
+      <button @click="ui.tab = 'history'; appStore.loadHistory(false)" :class="['flex-1 py-3.5 flex justify-center items-center gap-2 transition-all min-h-[46px] border-b-[3px] whitespace-nowrap px-2', ui.tab === 'history' ? 'text-blue-900 border-blue-900 bg-blue-50/50' : 'text-slate-400 border-transparent hover:text-slate-600 hover:bg-slate-50']"><i class="fa-solid fa-list-ul text-sm"></i> Lịch Sử</button>
+      <button @click="ui.tab = 'preview'" class="md:hidden flex-1 py-3.5 flex justify-center items-center gap-2 transition-all min-h-[46px] border-b-[3px] border-transparent text-slate-500 bg-slate-50 hover:bg-slate-100 whitespace-nowrap px-2"><i class="fa-solid fa-eye text-sm"></i> Preview</button>
     </div>
 
     <!-- CREATE TAB -->
@@ -114,6 +116,9 @@ function shareCurrentBill() {
       <button @click="copyBookingConfirmation" class="bg-amber-500 text-white py-3.5 rounded-2xl font-black text-[10px] hover:bg-amber-600 shadow-lg shadow-amber-100 transition-all hover:-translate-y-1 active:scale-95 flex flex-col items-center gap-1.5 uppercase tracking-wide min-h-[50px]"><i class="fa-solid fa-copy text-lg"></i> SAO CHÉP</button>
       <button @click="shareCurrentBill" class="bg-cyan-500 text-white py-3.5 rounded-2xl font-black text-[10px] hover:bg-cyan-600 shadow-lg shadow-cyan-100 transition-all hover:-translate-y-1 active:scale-95 flex flex-col items-center gap-1.5 uppercase tracking-wide min-h-[50px]"><i class="fa-solid fa-share-nodes text-lg"></i> CHIA SẺ</button>
     </div>
+
+    <!-- TIMELINE TAB -->
+    <HistoryTimeline v-show="ui.tab === 'timeline'" />
 
     <!-- HISTORY TAB -->
     <HistoryList v-show="ui.tab === 'history'" />

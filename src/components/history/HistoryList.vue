@@ -6,13 +6,9 @@ import { useForm } from '@/composables/useForm'
 import { formatVND } from '@/utils'
 import * as api from '@/services/api'
 import { usePullToRefresh, haptic } from '@/composables/useGestures'
-import HistoryTimeline from './HistoryTimeline.vue'
-
 const ui = useUIStore()
 const appStore = useAppStore()
 const { editHistoricOrder, resetForm } = useForm()
-
-const currentView = ref<'list' | 'timeline'>('timeline')
 
 // --- Stats Calculation ---
 const stats = computed(() => {
@@ -139,21 +135,15 @@ async function deleteBatchOrders() {
         <i class="fa-solid fa-arrow-left"></i>
       </button>
       <div class="text-center flex-1">
-        <h2 class="text-xl font-black text-blue-900">{{ currentView === 'list' ? 'Lịch sử tạo phiếu' : 'Lưới Đặt Bàn' }}</h2>
-        <p v-if="currentView === 'list'" class="text-[10px] font-bold text-slate-400 mt-0.5">Tất cả lịch/phiếu đã tạo của nhà hàng</p>
+        <h2 class="text-xl font-black text-blue-900">Lịch sử tạo phiếu</h2>
+        <p class="text-[10px] font-bold text-slate-400 mt-0.5">Tất cả lịch/phiếu đã tạo của nhà hàng</p>
       </div>
       
-      <div class="flex bg-slate-200/50 p-1 rounded-xl">
-        <button @click="currentView = 'list'" :class="['w-8 h-8 rounded-lg flex items-center justify-center text-xs transition-all', currentView === 'list' ? 'bg-white text-blue-900 shadow-sm' : 'text-slate-500']"><i class="fa-solid fa-list"></i></button>
-        <button @click="currentView = 'timeline'" :class="['w-8 h-8 rounded-lg flex items-center justify-center text-xs transition-all', currentView === 'timeline' ? 'bg-white text-blue-900 shadow-sm' : 'text-slate-500']"><i class="fa-solid fa-calendar-days"></i></button>
-      </div>
+      <div class="w-10"></div> <!-- Placeholder to balance header -->
     </div>
 
-    <!-- TIMELINE VIEW -->
-    <HistoryTimeline v-if="currentView === 'timeline'" />
-
     <!-- LIST VIEW -->
-    <div v-else class="flex-grow flex flex-col overflow-hidden bg-slate-50">
+    <div class="flex-grow flex flex-col overflow-hidden bg-slate-50">
       
       <!-- Search & Filters -->
       <div class="p-4 bg-slate-50 space-y-3 z-10 shrink-0">

@@ -117,6 +117,18 @@ function getStaff(order: any) {
 <template>
   <div class="flex-grow flex flex-col bg-slate-50 text-[13px] overflow-hidden">
     
+    <!-- Header Title -->
+    <div class="bg-slate-50 px-4 py-4 flex items-center justify-between sticky top-0 z-20 shadow-sm border-b border-slate-100 shrink-0">
+      <button @click="ui.tab = 'create'" class="w-10 h-10 flex items-center justify-center text-blue-900 text-xl active:scale-95 transition-transform">
+        <i class="fa-solid fa-arrow-left"></i>
+      </button>
+      <div class="text-center flex-1">
+        <h2 class="text-xl font-black text-blue-900">Lịch Đặt Bàn</h2>
+        <p class="text-[10px] font-bold text-slate-400 mt-0.5">Sơ đồ tình trạng bàn theo thời gian</p>
+      </div>
+      <div class="w-10"></div> <!-- Placeholder to balance header -->
+    </div>
+
     <!-- Top Controls -->
     <div class="p-4 bg-white border-b border-slate-100 flex gap-3 items-center z-10 shadow-sm">
       <div @click="dateInputRef?.showPicker()" class="relative flex-grow border border-slate-200 rounded-xl px-3 py-2 flex flex-col cursor-pointer hover:border-blue-400 transition-colors">
