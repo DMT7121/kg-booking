@@ -24,7 +24,7 @@ const { copyBookingConfirmation, validateForm } = useForm()
 const doSave = (type: string) => { haptic('light'); triggerSave(type, validateForm) }
 
 // --- Tab Swipe (mobile only) ---
-const mobileTabs = ['timeline', 'create', 'history', 'preview']
+const mobileTabs = ['timeline', 'history', 'create', 'preview']
 const tabRef = computed(() => ui.tab)
 const { onSwipeStart, onSwipeEnd } = useTabSwipe(
   tabRef as any,
@@ -91,9 +91,9 @@ function shareCurrentBill() {
     <!-- TABS -->
     <div class="flex flex-nowrap overflow-x-auto w-full bg-white text-[10px] font-black border-b border-slate-100 uppercase tracking-widest shadow-sm relative z-10" style="scrollbar-width: none;">
       <button @click="ui.tab = 'timeline'; appStore.loadHistory(false)" :class="['flex-1 py-3.5 flex justify-center items-center gap-2 transition-all min-h-[46px] border-b-[3px] whitespace-nowrap px-2', ui.tab === 'timeline' ? 'text-blue-900 border-blue-900 bg-blue-50/50' : 'text-slate-400 border-transparent hover:text-slate-600 hover:bg-slate-50']"><i class="fa-solid fa-calendar-days text-sm"></i> Lịch Đặt Bàn</button>
-      <button @click="ui.tab = 'create'" :class="['flex-1 py-3.5 flex justify-center items-center gap-2 transition-all min-h-[46px] border-b-[3px] whitespace-nowrap px-2', ui.tab === 'create' ? 'text-blue-900 border-blue-900 bg-blue-50/50' : 'text-slate-400 border-transparent hover:text-slate-600 hover:bg-slate-50']"><i class="fa-solid fa-plus text-sm"></i> Tạo Phiếu</button>
-      <button @click="ui.tab = 'history'; appStore.loadHistory(false)" :class="['flex-1 py-3.5 flex justify-center items-center gap-2 transition-all min-h-[46px] border-b-[3px] whitespace-nowrap px-2', ui.tab === 'history' ? 'text-blue-900 border-blue-900 bg-blue-50/50' : 'text-slate-400 border-transparent hover:text-slate-600 hover:bg-slate-50']"><i class="fa-solid fa-list-ul text-sm"></i> Lịch Sử</button>
-      <button @click="ui.tab = 'preview'" class="md:hidden flex-1 py-3.5 flex justify-center items-center gap-2 transition-all min-h-[46px] border-b-[3px] border-transparent text-slate-500 bg-slate-50 hover:bg-slate-100 whitespace-nowrap px-2"><i class="fa-solid fa-eye text-sm"></i> Preview</button>
+      <button @click="ui.tab = 'history'; appStore.loadHistory(false)" :class="['flex-1 py-3.5 flex justify-center items-center gap-2 transition-all min-h-[46px] border-b-[3px] whitespace-nowrap px-2', ui.tab === 'history' ? 'text-blue-900 border-blue-900 bg-blue-50/50' : 'text-slate-400 border-transparent hover:text-slate-600 hover:bg-slate-50']"><i class="fa-solid fa-list-ul text-sm"></i> Lịch Sử Tạo Phiếu</button>
+      <button @click="ui.tab = 'create'" :class="['flex-1 py-3.5 flex justify-center items-center gap-2 transition-all min-h-[46px] border-b-[3px] whitespace-nowrap px-2', ui.tab === 'create' ? 'text-blue-900 border-blue-900 bg-blue-50/50' : 'text-slate-400 border-transparent hover:text-slate-600 hover:bg-slate-50']"><i class="fa-solid fa-plus text-sm"></i> Tạo Phiếu Đặt</button>
+      <button @click="ui.tab = 'preview'" class="md:hidden flex-1 py-3.5 flex justify-center items-center gap-2 transition-all min-h-[46px] border-b-[3px] border-transparent text-slate-500 bg-slate-50 hover:bg-slate-100 whitespace-nowrap px-2"><i class="fa-solid fa-eye text-sm"></i> Xem Phiếu</button>
     </div>
 
     <!-- CREATE TAB -->
