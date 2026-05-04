@@ -72,7 +72,7 @@ function getBankLogoColor(bin: string) {
 </script>
 
 <template>
-  <div v-if="ui.activeSettingModal === 'bank'" class="flex flex-col h-full bg-slate-50 md:bg-white overflow-hidden w-full relative z-[12000] lg:z-10">
+  <div v-if="ui.activeSettingModal === 'bank'" class="flex flex-col h-full bg-slate-50 md:bg-white overflow-hidden w-full relative z-[1000] lg:z-10">
     
     <!-- Header -->
     <div class="flex items-center justify-between px-4 py-3 border-b border-slate-100 bg-white shrink-0 shadow-sm relative z-20">

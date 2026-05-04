@@ -5,7 +5,7 @@ import { useUIStore } from '@/stores/useUIStore'
 import { stripAccents, resizeImage, loadLibrary, isIOS, isAndroid, isMobile } from '@/utils'
 import { fetchWithRetry } from '@/services/api'
 import { smartUploadImage } from '@/services/r2'
-import { cacheBillImage } from '@/services/cache'
+import { cacheBillImage, addToOfflineQueue } from '@/services/cache'
 
 
 declare const html2canvas: any
@@ -294,10 +294,18 @@ function _createBillRender() {
               throw new Error(result?.message || 'Sync failed')
             }
           })
-          .catch((err: any) => {
+          .catch(async (err: any) => {
             console.error('[BG Sync] Failed:', err.message)
             uiStore.connectionStatus = 'error'
-            uiStore.showToast('⚠️ Lưu cục bộ OK — Đồng bộ Cloud thất bại: ' + err.message, 'warning', 5000)
+            uiStore.showToast('⚠️ Lưu cục bộ OK — Chờ mạng để đồng bộ', 'warning', 5000)
+            
+            // Add to offline queue for later sync
+            await addToOfflineQueue({
+              id: payload.id || crypto.randomUUID(),
+              action: 'saveOrder',
+              payload: payload,
+              timestamp: Date.now()
+            })
           })
 
         // If save-only mode, wait for sync to complete before switching tab

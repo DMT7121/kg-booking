@@ -103,7 +103,7 @@ function handleViewBill() {
 </script>
 
 <template>
-  <div v-if="ui.showBookingDetailModal && ui.selectedBooking" class="fixed inset-0 bg-blue-950/80 z-[12000] flex justify-center items-center p-4 backdrop-blur-md" @click.self="close">
+  <div v-if="ui.showBookingDetailModal && ui.selectedBooking" class="fixed inset-0 bg-blue-950/80 z-[1000] flex justify-center items-center p-4 backdrop-blur-md" @click.self="close">
     <div class="bg-white rounded-3xl shadow-2xl p-6 md:p-8 max-w-md w-[95%] md:w-full flex flex-col relative overflow-hidden border border-white/20">
       
       <!-- Header BG Decoration -->

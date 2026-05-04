@@ -8,7 +8,7 @@ const { confirmVerification } = useForm()
 </script>
 
 <template>
-  <div v-if="ui.verifyModal.show" class="fixed inset-0 bg-blue-950/80 z-[12000] flex justify-center items-center p-4 backdrop-blur-md">
+  <div v-if="ui.verifyModal.show" class="fixed inset-0 bg-blue-950/80 z-[1000] flex justify-center items-center p-4 backdrop-blur-md">
     <div class="bg-white rounded-3xl shadow-2xl p-6 md:p-8 max-w-sm w-[95%] md:w-full flex flex-col relative overflow-hidden border border-white/20">
       
       <!-- Header BG Decoration -->

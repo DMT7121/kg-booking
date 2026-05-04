@@ -75,7 +75,7 @@ function clearWebhook() {
 </script>
 
 <template>
-  <div v-if="ui.activeSettingModal === 'webhook'" class="flex-1 h-full flex justify-center items-center p-4 bg-slate-50 relative z-[12000] lg:z-10 w-full" @click.self="ui.closeConfig()">
+  <div v-if="ui.activeSettingModal === 'webhook'" class="flex-1 h-full flex justify-center items-center p-4 bg-slate-50 relative z-[1000] lg:z-10 w-full" @click.self="ui.closeConfig()">
     <div class="bg-white rounded-3xl shadow-2xl p-6 md:p-8 max-w-sm w-[95%] md:w-full flex flex-col relative overflow-hidden border border-slate-200">
       
       <!-- Header BG Decoration -->

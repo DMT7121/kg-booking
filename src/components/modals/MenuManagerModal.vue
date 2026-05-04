@@ -71,10 +71,52 @@ function getCategoryColor(category: string) {
     default: return 'text-slate-600 border-slate-200 bg-white'
   }
 }
+
+async function saveSelectedDish() {
+  if (!selectedDish.value) return;
+  
+  // Update local state
+  const index = appStore.menuList.findIndex(m => m.cleanName === selectedDish.value.cleanName);
+  if (index !== -1) {
+    appStore.menuList[index].name = selectedDish.value.name;
+    appStore.menuList[index].price = selectedDish.value.price;
+  }
+  
+  // Convert to raw text
+  const rawText = appStore.menuList.map(m => `${m.name} - ${m.price}`).join('\n');
+  
+  // Trigger upload
+  appStore.newMenuName = appStore.activeSheet;
+  appStore.newMenuContent = rawText;
+  ui.isUpdateMode = true;
+  
+  await appStore.uploadNewMenu();
+  selectedDish.value = null;
+}
+
+async function deleteSelectedDish() {
+  if (!selectedDish.value) return;
+  
+  const confirmed = await ui.showConfirm('Xóa món', `Bạn có chắc chắn muốn xóa món "${selectedDish.value.name}" khỏi thực đơn?`);
+  if (!confirmed) return;
+
+  const index = appStore.menuList.findIndex(m => m.cleanName === selectedDish.value.cleanName);
+  if (index !== -1) {
+    appStore.menuList.splice(index, 1);
+  }
+  
+  const rawText = appStore.menuList.map(m => `${m.name} - ${m.price}`).join('\n');
+  appStore.newMenuName = appStore.activeSheet;
+  appStore.newMenuContent = rawText;
+  ui.isUpdateMode = true;
+  
+  await appStore.uploadNewMenu();
+  selectedDish.value = null;
+}
 </script>
 
 <template>
-  <div v-if="ui.activeSettingModal === 'menu'" class="flex flex-col h-full bg-slate-50 md:bg-white overflow-hidden w-full relative z-[12000] lg:z-10">
+  <div v-if="ui.activeSettingModal === 'menu'" class="flex flex-col h-full bg-slate-50 md:bg-white overflow-hidden w-full relative z-[1000] lg:z-10">
     
     <!-- Header -->
     <div class="flex items-center justify-between px-4 py-3 border-b border-slate-100 bg-white shrink-0 shadow-sm relative z-20">
@@ -375,10 +417,10 @@ function getCategoryColor(category: string) {
             
             <!-- Actions -->
             <div class="mt-6 flex gap-3 pb-4 lg:pb-0">
-              <button class="px-4 py-3.5 bg-red-50 text-red-600 rounded-xl text-sm font-black flex items-center justify-center gap-2 hover:bg-red-100 transition-colors shrink-0 border border-red-100">
+              <button @click="deleteSelectedDish" class="px-4 py-3.5 bg-red-50 text-red-600 rounded-xl text-sm font-black flex items-center justify-center gap-2 hover:bg-red-100 transition-colors shrink-0 border border-red-100">
                 <i class="fa-regular fa-trash-can"></i> <span class="hidden sm:inline">Xóa món</span>
               </button>
-              <button class="flex-1 py-3.5 bg-blue-900 text-white rounded-xl text-sm font-black shadow-lg shadow-blue-900/20 hover:bg-blue-900 active:scale-95 transition-all uppercase tracking-wider">
+              <button @click="saveSelectedDish" class="flex-1 py-3.5 bg-blue-900 text-white rounded-xl text-sm font-black shadow-lg shadow-blue-900/20 hover:bg-blue-900 active:scale-95 transition-all uppercase tracking-wider">
                 Lưu thay đổi
               </button>
             </div>
@@ -390,7 +432,7 @@ function getCategoryColor(category: string) {
     </div>
     
     <!-- Legacy Upload Modal (Overlay on top of MenuManager) -->
-    <div v-if="showUploadModal" class="fixed inset-0 bg-blue-950/80 z-[13000] flex justify-center items-center p-4 backdrop-blur-sm" @click.self="showUploadModal = false">
+    <div v-if="showUploadModal" class="fixed inset-0 bg-blue-950/80 z-[1100] flex justify-center items-center p-4 backdrop-blur-sm" @click.self="showUploadModal = false">
       <div class="bg-white rounded-3xl shadow-2xl p-6 md:p-8 max-w-lg w-[95%] md:w-full flex flex-col relative overflow-hidden border border-white/20">
         <!-- Header -->
         <div class="flex justify-between items-center mb-6 relative z-10">
