@@ -89,11 +89,19 @@ function shareCurrentBill() {
     </div>
 
     <!-- TABS -->
-    <div class="flex flex-nowrap overflow-x-auto w-full bg-white text-[10px] md:text-xs font-black border-b border-slate-200 uppercase tracking-widest shadow-sm relative z-10 no-scrollbar items-stretch snap-x shrink-0">
-      <button @click="ui.tab = 'timeline'; appStore.loadHistory(false)" :class="['flex-1 min-w-fit shrink-0 py-3 md:py-4 flex justify-center items-center gap-2 transition-all min-h-[48px] md:min-h-[56px] border-b-[3px] whitespace-nowrap px-4 snap-start', ui.tab === 'timeline' ? 'text-blue-700 border-blue-600 bg-blue-50/80' : 'text-slate-400 border-transparent hover:text-slate-600 hover:bg-slate-50']"><i class="fa-solid fa-calendar-days text-sm md:text-base"></i> Lịch Đặt Bàn</button>
-      <button @click="ui.tab = 'history'; appStore.loadHistory(false)" :class="['flex-1 min-w-fit shrink-0 py-3 md:py-4 flex justify-center items-center gap-2 transition-all min-h-[48px] md:min-h-[56px] border-b-[3px] whitespace-nowrap px-4 snap-start', ui.tab === 'history' ? 'text-blue-700 border-blue-600 bg-blue-50/80' : 'text-slate-400 border-transparent hover:text-slate-600 hover:bg-slate-50']"><i class="fa-solid fa-list-ul text-sm md:text-base"></i> Lịch Sử Tạo Phiếu</button>
-      <button @click="ui.tab = 'create'" :class="['flex-1 min-w-fit shrink-0 py-3 md:py-4 flex justify-center items-center gap-2 transition-all min-h-[48px] md:min-h-[56px] border-b-[3px] whitespace-nowrap px-4 snap-start', ui.tab === 'create' ? 'text-blue-700 border-blue-600 bg-blue-50/80' : 'text-slate-400 border-transparent hover:text-slate-600 hover:bg-slate-50']"><i class="fa-solid fa-plus text-sm md:text-base"></i> Tạo Phiếu Đặt</button>
-      <button @click="ui.tab = 'preview'" :class="['md:hidden flex-1 min-w-fit shrink-0 py-3 flex justify-center items-center gap-2 transition-all min-h-[48px] border-b-[3px] whitespace-nowrap px-4 snap-start', ui.tab === 'preview' ? 'text-blue-700 border-blue-600 bg-blue-50/80' : 'text-slate-500 border-transparent hover:text-slate-600 hover:bg-slate-50']"><i class="fa-solid fa-eye text-sm"></i> Xem Phiếu</button>
+    <div class="flex w-full bg-white text-[8px] sm:text-[10px] md:text-xs font-black border-b border-slate-200 uppercase tracking-widest shadow-sm relative z-10 items-stretch shrink-0">
+      <button @click="ui.tab = 'timeline'; appStore.loadHistory(false)" :class="['flex-1 py-2 md:py-4 flex flex-col md:flex-row justify-center items-center gap-1 md:gap-2 transition-all min-h-[54px] md:min-h-[56px] border-b-[3px] px-1 md:px-4 text-center leading-tight whitespace-normal', ui.tab === 'timeline' ? 'text-blue-700 border-blue-600 bg-blue-50/80' : 'text-slate-400 border-transparent hover:text-slate-600 hover:bg-slate-50']">
+        <i class="fa-solid fa-calendar-days text-sm md:text-base"></i> <span>Lịch Đặt Bàn</span>
+      </button>
+      <button @click="ui.tab = 'history'; appStore.loadHistory(false)" :class="['flex-1 py-2 md:py-4 flex flex-col md:flex-row justify-center items-center gap-1 md:gap-2 transition-all min-h-[54px] md:min-h-[56px] border-b-[3px] px-1 md:px-4 text-center leading-tight whitespace-normal', ui.tab === 'history' ? 'text-blue-700 border-blue-600 bg-blue-50/80' : 'text-slate-400 border-transparent hover:text-slate-600 hover:bg-slate-50']">
+        <i class="fa-solid fa-list-ul text-sm md:text-base"></i> <span>Lịch Sử Tạo Phiếu</span>
+      </button>
+      <button @click="ui.tab = 'create'" :class="['flex-1 py-2 md:py-4 flex flex-col md:flex-row justify-center items-center gap-1 md:gap-2 transition-all min-h-[54px] md:min-h-[56px] border-b-[3px] px-1 md:px-4 text-center leading-tight whitespace-normal', ui.tab === 'create' ? 'text-blue-700 border-blue-600 bg-blue-50/80' : 'text-slate-400 border-transparent hover:text-slate-600 hover:bg-slate-50']">
+        <i class="fa-solid fa-plus text-sm md:text-base"></i> <span>Tạo Phiếu Đặt</span>
+      </button>
+      <button @click="ui.tab = 'preview'" :class="['md:hidden flex-1 py-2 flex flex-col justify-center items-center gap-1 transition-all min-h-[54px] border-b-[3px] px-1 text-center leading-tight whitespace-normal', ui.tab === 'preview' ? 'text-blue-700 border-blue-600 bg-blue-50/80' : 'text-slate-500 border-transparent hover:text-slate-600 hover:bg-slate-50']">
+        <i class="fa-solid fa-eye text-sm"></i> <span>Xem Phiếu</span>
+      </button>
     </div>
 
     <!-- TAB CONTENT WRAPPER -->
