@@ -44,6 +44,7 @@ export const useUIStore = defineStore('ui', () => {
   const showBrandingConfig = ref(false)
   const showStaffConfig = ref(false)
   const showWebhookConfig = ref(false)
+  const showFloorPlan = ref(false)
   
   const showStaffSelector = ref(false)
   const showBookingDetailModal = ref(false)
@@ -172,7 +173,7 @@ export const useUIStore = defineStore('ui', () => {
   return {
     tab, connectionStatus, isKeyboardOpen, isVoiceSupported,
     loading, activeRequests, isFetchingAPI, error,
-    showSettingsHub, activeSettingModal, showAiConfig, showBankConfig, showMenuManager, showBrandingConfig, showStaffConfig, showStaffSelector, showWebhookConfig, showBookingDetailModal, selectedBooking,
+    showSettingsHub, activeSettingModal, showAiConfig, showBankConfig, showMenuManager, showBrandingConfig, showStaffConfig, showStaffSelector, showWebhookConfig, showBookingDetailModal, showFloorPlan, selectedBooking,
     pendingAction, menuTab, isUpdateMode,
     historySearch, isBatchMode, selectedIds, historyFilters,
     focusIdx, listening, tempTable,

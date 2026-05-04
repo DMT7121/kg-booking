@@ -83,9 +83,14 @@ const selectedIcon = computed(() => {
       </div>
       <div class="space-y-1.5">
         <label class="text-[10px] font-black text-slate-500 uppercase tracking-wider ml-1">Khu / Bàn <span class="text-red-500">*</span></label>
-        <div class="relative">
-          <i class="fa-solid fa-map-location-dot absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"></i>
-          <input v-model="formStore.customer.tables" @focus="handleInputFocus" @blur="handleInputBlur" class="w-full border border-slate-200 rounded-xl pl-10 pr-4 py-3 text-sm font-semibold text-slate-800 focus:border-blue-500 focus:ring-4 focus:ring-blue-50 outline-none transition-all bg-white" placeholder="Nhập hoặc AI tự điền (VD: A1, B2)">
+        <div class="relative flex items-center gap-2">
+          <div class="relative flex-1">
+            <i class="fa-solid fa-map-location-dot absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"></i>
+            <input v-model="formStore.customer.tables" @focus="handleInputFocus" @blur="handleInputBlur" class="w-full border border-slate-200 rounded-xl pl-10 pr-4 py-3 text-sm font-semibold text-slate-800 focus:border-blue-500 focus:ring-4 focus:ring-blue-50 outline-none transition-all bg-white" placeholder="Nhập hoặc AI tự điền (VD: A1, B2)">
+          </div>
+          <button @click="ui.showFloorPlan = true" class="w-12 h-12 bg-blue-50 text-blue-600 hover:bg-blue-100 rounded-xl border border-blue-100 flex items-center justify-center transition-colors active:scale-95 shrink-0" title="Mở sơ đồ bàn">
+            <i class="fa-solid fa-border-all text-xl"></i>
+          </button>
         </div>
       </div>
     </div>

@@ -19,6 +19,7 @@ const BrandingModal = defineAsyncComponent(() => import('@/components/modals/Bra
 const VerifyTransferModal = defineAsyncComponent(() => import('@/components/modals/VerifyTransferModal.vue'))
 const WebhookConfigModal = defineAsyncComponent(() => import('@/components/modals/WebhookConfigModal.vue'))
 const BookingDetailModal = defineAsyncComponent(() => import('@/components/modals/BookingDetailModal.vue'))
+const FloorPlanModal = defineAsyncComponent(() => import('@/components/modals/FloorPlanModal.vue'))
 
 const ui = useUIStore()
 const formStore = useFormStore()
@@ -340,6 +341,7 @@ onMounted(() => {
     <!-- ALL CONFIG MODALS -->
     <VerifyTransferModal />
     <BookingDetailModal />
+    <FloorPlanModal />
 
     <!-- MAIN PANELS -->
     <LeftPanel />
