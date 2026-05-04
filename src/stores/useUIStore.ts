@@ -19,7 +19,7 @@ export interface ModalState {
 
 export const useUIStore = defineStore('ui', () => {
   // --- Tab & Panel ---
-  const tab = ref<'create' | 'timeline' | 'history' | 'preview'>('timeline')
+  const tab = ref<'create' | 'timeline' | 'history' | 'preview' | 'analytics'>('timeline')
   const connectionStatus = ref<'online' | 'syncing' | 'error'>('online')
   const isKeyboardOpen = ref(false)
   const isVoiceSupported = ref(false)

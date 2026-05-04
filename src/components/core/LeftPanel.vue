@@ -13,6 +13,7 @@ import DepositManager from '@/components/forms/DepositManager.vue'
 import MenuItemsEditor from '@/components/forms/MenuItemsEditor.vue'
 import HistoryList from '@/components/history/HistoryList.vue'
 import HistoryTimeline from '@/components/history/HistoryTimeline.vue'
+import AnalyticsDashboard from '@/components/history/AnalyticsDashboard.vue'
 
 const ui = useUIStore()
 const formStore = useFormStore()
@@ -29,7 +30,7 @@ function reloadApp() {
 }
 
 // --- Tab Swipe (mobile only) ---
-const mobileTabs = ['timeline', 'history', 'create', 'preview']
+const mobileTabs = ['timeline', 'history', 'analytics', 'create', 'preview']
 const tabRef = computed(() => ui.tab)
 const { onSwipeStart, onSwipeEnd } = useTabSwipe(
   tabRef as any,
@@ -121,10 +122,13 @@ function shareCurrentBill() {
         <i class="fa-solid fa-calendar-days text-sm md:text-base"></i> <span>Lịch Đặt Bàn</span>
       </button>
       <button @click="ui.tab = 'history'; appStore.loadHistory(false)" :class="['flex-1 py-2 md:py-4 flex flex-col md:flex-row justify-center items-center gap-1 md:gap-2 transition-all min-h-[54px] md:min-h-[56px] border-b-[3px] px-1 md:px-4 text-center leading-tight whitespace-normal', ui.tab === 'history' ? 'text-blue-700 border-blue-600 bg-blue-50/80' : 'text-slate-400 border-transparent hover:text-slate-600 hover:bg-slate-50']">
-        <i class="fa-solid fa-list-ul text-sm md:text-base"></i> <span>Lịch Sử Tạo Phiếu</span>
+        <i class="fa-solid fa-list-ul text-sm md:text-base"></i> <span>Lịch Sử</span>
+      </button>
+      <button @click="ui.tab = 'analytics'; appStore.loadHistory(false)" :class="['flex-1 py-2 md:py-4 flex flex-col md:flex-row justify-center items-center gap-1 md:gap-2 transition-all min-h-[54px] md:min-h-[56px] border-b-[3px] px-1 md:px-4 text-center leading-tight whitespace-normal', ui.tab === 'analytics' ? 'text-blue-700 border-blue-600 bg-blue-50/80' : 'text-slate-400 border-transparent hover:text-slate-600 hover:bg-slate-50']">
+        <i class="fa-solid fa-chart-pie text-sm md:text-base"></i> <span>Báo Cáo</span>
       </button>
       <button @click="ui.tab = 'create'" :class="['flex-1 py-2 md:py-4 flex flex-col md:flex-row justify-center items-center gap-1 md:gap-2 transition-all min-h-[54px] md:min-h-[56px] border-b-[3px] px-1 md:px-4 text-center leading-tight whitespace-normal', ui.tab === 'create' ? 'text-blue-700 border-blue-600 bg-blue-50/80' : 'text-slate-400 border-transparent hover:text-slate-600 hover:bg-slate-50']">
-        <i class="fa-solid fa-plus text-sm md:text-base"></i> <span>Tạo Phiếu Đặt</span>
+        <i class="fa-solid fa-plus text-sm md:text-base"></i> <span class="hidden sm:inline">Tạo Phiếu</span>
       </button>
       <button @click="ui.tab = 'preview'" :class="['md:hidden flex-1 py-2 flex flex-col justify-center items-center gap-1 transition-all min-h-[54px] border-b-[3px] px-1 text-center leading-tight whitespace-normal', ui.tab === 'preview' ? 'text-blue-700 border-blue-600 bg-blue-50/80' : 'text-slate-500 border-transparent hover:text-slate-600 hover:bg-slate-50']">
         <i class="fa-solid fa-eye text-sm"></i> <span>Xem Phiếu</span>
@@ -137,6 +141,7 @@ function shareCurrentBill() {
         <KeepAlive>
           <HistoryTimeline v-if="ui.tab === 'timeline'" key="timeline" />
           <HistoryList v-else-if="ui.tab === 'history'" key="history" />
+          <AnalyticsDashboard v-else-if="ui.tab === 'analytics'" key="analytics" />
           <div v-else-if="ui.tab === 'create'" key="create" class="flex-grow flex flex-col overflow-hidden relative min-h-0 h-full">
             <div class="flex-grow overflow-y-auto p-3 md:p-4 space-y-3 pb-28 md:pb-6 bg-gray-50/30 scroll-smooth custom-scrollbar">
               <AIInputPanel />
