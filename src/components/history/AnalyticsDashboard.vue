@@ -14,6 +14,19 @@ const stats = computed(() => {
   let depositedCount = 0
   const dishCounts: Record<string, { qty: number, revenue: number }> = {}
 
+  const last7Days: { date: string, display: string, revenue: number }[] = []
+  for (let i = 6; i >= 0; i--) {
+    const d = new Date()
+    d.setDate(d.getDate() - i)
+    // Avoid timezone offset issues when formatting YYYY-MM-DD
+    const isoDate = new Date(d.getTime() - (d.getTimezoneOffset() * 60000)).toISOString().split('T')[0]
+    last7Days.push({
+      date: isoDate,
+      display: `${d.getDate()}/${d.getMonth()+1}`,
+      revenue: 0
+    })
+  }
+
   keys.forEach(key => {
     const order = groups[key].latest
     totalPax += Number(order.parsedCustomer?.pax) || 0
@@ -22,6 +35,15 @@ const stats = computed(() => {
       depositedCount++
     }
     
+    // Add to 7-day chart if applicable
+    if (order.timestamp) {
+      const orderDate = new Date(new Date(order.timestamp).getTime() - (new Date(order.timestamp).getTimezoneOffset() * 60000)).toISOString().split('T')[0]
+      const dayStat = last7Days.find(d => d.date === orderDate)
+      if (dayStat) {
+        dayStat.revenue += (order.totalAmount || 0)
+      }
+    }
+
     if (order.menuItems && Array.isArray(order.menuItems)) {
       order.menuItems.forEach((item: any) => {
         const name = item.name
@@ -35,6 +57,8 @@ const stats = computed(() => {
     }
   })
   
+  const maxRevenue = Math.max(...last7Days.map(d => d.revenue), 1)
+
   const topDishes = Object.keys(dishCounts).map(name => ({
     name,
     qty: dishCounts[name].qty,
@@ -46,7 +70,9 @@ const stats = computed(() => {
     totalPax,
     totalBookings,
     depositRate: totalBookings ? Math.round((depositedCount / totalBookings) * 100) : 0,
-    topDishes
+    topDishes,
+    last7Days,
+    maxRevenue
   }
 })
 </script>
@@ -114,15 +140,29 @@ const stats = computed(() => {
         </div>
       </div>
 
-      <!-- Charts Area (Placeholder for Future Implementation) -->
-      <div class="lg:col-span-2 bg-white rounded-3xl p-6 md:p-8 shadow-sm border border-slate-100 flex flex-col items-center justify-center min-h-[300px] text-center">
-        <div class="w-20 h-20 bg-blue-50 rounded-full flex items-center justify-center text-3xl text-blue-300 mb-4">
-          <i class="fa-solid fa-chart-line"></i>
+      <!-- Charts Area -->
+      <div class="lg:col-span-2 bg-white rounded-3xl p-6 md:p-8 shadow-sm border border-slate-100 flex flex-col min-h-[300px]">
+        <h3 class="text-sm font-black text-slate-700 uppercase tracking-wide mb-8 flex items-center gap-2">
+          <i class="fa-solid fa-chart-simple text-blue-500"></i> Xu hướng doanh thu 7 ngày qua
+        </h3>
+        
+        <div class="flex-1 flex items-end gap-2 md:gap-4 h-[200px] mt-auto">
+          <div v-for="day in stats.last7Days" :key="day.date" class="flex-1 flex flex-col items-center gap-2 group h-full">
+            <div class="relative w-full flex justify-center flex-1 items-end">
+              <!-- Tooltip -->
+              <div class="absolute -top-10 bg-blue-900 text-white text-[10px] font-bold py-1 px-2 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none z-10 shadow-lg after:content-[''] after:absolute after:top-full after:left-1/2 after:-translate-x-1/2 after:border-4 after:border-transparent after:border-t-blue-900">
+                {{ formatVND(day.revenue) }}
+              </div>
+              <!-- Bar -->
+              <div class="w-full max-w-[40px] bg-slate-100 group-hover:bg-blue-100 rounded-t-lg transition-all duration-500 relative overflow-hidden" 
+                   :style="{ height: `${(day.revenue / stats.maxRevenue) * 100}%`, minHeight: day.revenue > 0 ? '4px' : '2px' }">
+                <div class="absolute bottom-0 w-full bg-blue-500 rounded-t-lg shadow-[inset_0_2px_4px_rgba(255,255,255,0.3)] transition-all duration-500 group-hover:bg-blue-600" :style="{ height: '100%' }"></div>
+              </div>
+            </div>
+            <!-- Date Label -->
+            <div class="text-[10px] font-bold text-slate-400 group-hover:text-blue-900 transition-colors">{{ day.display }}</div>
+          </div>
         </div>
-        <h3 class="text-base font-black text-slate-700 uppercase tracking-wide mb-2">Biểu Đồ Xu Hướng (Sắp ra mắt)</h3>
-        <p class="text-[13px] font-medium text-slate-500 max-w-sm">
-          Tính năng biểu đồ theo thời gian thực (doanh thu theo ngày, biểu đồ tròn phân bổ) đang được xây dựng và sẽ có mặt ở phiên bản tiếp theo.
-        </p>
       </div>
     </div>
   </div>
