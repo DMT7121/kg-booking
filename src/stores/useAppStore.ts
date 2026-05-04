@@ -31,6 +31,7 @@ export interface HistoryOrder {
   isDeposited: boolean
   transferImage?: string
   deposit?: { image?: string }
+  staff?: { name: string; phone: string }
   billUrl?: string
   billFileId?: string
   aiEngine?: string
