@@ -23,9 +23,10 @@ const appStore = useAppStore()
 const { triggerSave } = useBillRender()
 const { copyBookingConfirmation, validateForm } = useForm()
 
-const doSave = (type: string) => { haptic('light'); triggerSave(type, validateForm) }
+const doSave = (type: string) => { haptic('light'); triggerSave(type, validateForm); showActionSheet.value = false; }
 
 const showDropdown = ref(false)
+const showActionSheet = ref(false)
 function reloadApp() {
   window.location.reload()
 }
@@ -163,26 +164,65 @@ function shareCurrentBill() {
       </div>
     </div>
 
-    <!-- UNIFIED FOOTER (Always visible 6 buttons, except when keyboard is open) -->
-    <div v-show="!ui.isKeyboardOpen && ['create', 'preview'].includes(ui.tab)" class="grid grid-cols-6 gap-1 md:gap-3 p-2 md:p-4 border-t bg-white z-20 shadow-[0_-10px_20px_rgba(0,0,0,0.02)] shrink-0 safe-area-pb">
-      <button @click="doSave('save')" class="bg-emerald-600 text-white py-2.5 md:py-3.5 rounded-xl md:rounded-2xl font-black text-[8px] md:text-[10px] hover:bg-emerald-700 shadow-sm md:shadow-lg transition-all hover:-translate-y-1 active:scale-95 flex flex-col items-center justify-center gap-1 md:gap-1.5 uppercase tracking-wide min-h-[44px] md:min-h-[50px]">
-        <i class="fa-solid fa-cloud-arrow-up text-sm md:text-lg"></i> LƯU
-      </button>
-      <button @click="doSave('print')" class="bg-gray-800 text-white py-2.5 md:py-3.5 rounded-xl md:rounded-2xl font-black text-[8px] md:text-[10px] hover:bg-gray-900 shadow-sm md:shadow-lg transition-all hover:-translate-y-1 active:scale-95 flex flex-col items-center justify-center gap-1 md:gap-1.5 uppercase tracking-wide min-h-[44px] md:min-h-[50px]">
-        <i class="fa-solid fa-print text-sm md:text-lg"></i> IN BILL
-      </button>
-      <button @click="doSave('image')" class="bg-indigo-600 text-white py-2.5 md:py-3.5 rounded-xl md:rounded-2xl font-black text-[8px] md:text-[10px] hover:bg-indigo-700 shadow-sm md:shadow-lg transition-all hover:-translate-y-1 active:scale-95 flex flex-col items-center justify-center gap-1 md:gap-1.5 uppercase tracking-wide min-h-[44px] md:min-h-[50px]">
-        <i class="fa-solid fa-file-image text-sm md:text-lg"></i> XUẤT ẢNH
-      </button>
-      <button @click="doSave('pdf')" class="bg-rose-600 text-white py-2.5 md:py-3.5 rounded-xl md:rounded-2xl font-black text-[8px] md:text-[10px] hover:bg-rose-700 shadow-sm md:shadow-lg transition-all hover:-translate-y-1 active:scale-95 flex flex-col items-center justify-center gap-1 md:gap-1.5 uppercase tracking-wide min-h-[44px] md:min-h-[50px]">
-        <i class="fa-solid fa-file-pdf text-sm md:text-lg"></i> XUẤT PDF
-      </button>
-      <button @click="copyBookingConfirmation" class="bg-amber-500 text-white py-2.5 md:py-3.5 rounded-xl md:rounded-2xl font-black text-[8px] md:text-[10px] hover:bg-amber-600 shadow-sm md:shadow-lg transition-all hover:-translate-y-1 active:scale-95 flex flex-col items-center justify-center gap-1 md:gap-1.5 uppercase tracking-wide min-h-[44px] md:min-h-[50px]">
-        <i class="fa-solid fa-copy text-sm md:text-lg"></i> SAO CHÉP
-      </button>
-      <button @click="shareCurrentBill" class="bg-cyan-500 text-white py-2.5 md:py-3.5 rounded-xl md:rounded-2xl font-black text-[8px] md:text-[10px] hover:bg-cyan-600 shadow-sm md:shadow-lg transition-all hover:-translate-y-1 active:scale-95 flex flex-col items-center justify-center gap-1 md:gap-1.5 uppercase tracking-wide min-h-[44px] md:min-h-[50px]">
-        <i class="fa-solid fa-share-nodes text-sm md:text-lg"></i> CHIA SẺ
+    <!-- FLOATING ACTION BUTTON -->
+    <div v-show="!ui.isKeyboardOpen && ['create', 'preview'].includes(ui.tab)" class="absolute bottom-6 right-6 z-[100] safe-area-pb">
+      <button @click="showActionSheet = true" class="w-14 h-14 bg-blue-600 rounded-full shadow-xl shadow-blue-600/30 flex items-center justify-center text-white text-xl active:scale-90 transition-transform">
+        <i class="fa-solid fa-layer-group"></i>
       </button>
     </div>
+
+    <!-- ACTION MENU BOTTOM SHEET -->
+    <transition name="fade">
+      <div v-if="showActionSheet" class="absolute inset-0 z-[110] flex flex-col justify-end">
+        <div class="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" @click="showActionSheet = false"></div>
+        <transition name="slide-up" appear>
+          <div v-if="showActionSheet" class="bg-white rounded-t-3xl p-5 md:p-8 relative z-10 shadow-2xl pb-safe">
+            <div class="w-12 h-1.5 bg-slate-200 rounded-full mx-auto mb-6"></div>
+            <h3 class="text-center font-black text-slate-800 text-lg mb-6 uppercase tracking-widest">Thao tác</h3>
+            
+            <div class="grid grid-cols-3 gap-3 md:gap-4">
+              <button @click="doSave('save')" class="bg-emerald-50 text-emerald-600 py-4 rounded-2xl font-black text-[11px] hover:bg-emerald-100 transition-all active:scale-95 flex flex-col items-center justify-center gap-2 uppercase tracking-wide border border-emerald-100 shadow-sm">
+                <i class="fa-solid fa-cloud-arrow-up text-2xl"></i> LƯU
+              </button>
+              <button @click="doSave('print')" class="bg-gray-800 text-white py-4 rounded-2xl font-black text-[11px] hover:bg-gray-900 transition-all active:scale-95 flex flex-col items-center justify-center gap-2 uppercase tracking-wide shadow-md shadow-gray-900/20">
+                <i class="fa-solid fa-print text-2xl"></i> IN BILL
+              </button>
+              <button @click="doSave('image')" class="bg-indigo-50 text-indigo-600 py-4 rounded-2xl font-black text-[11px] hover:bg-indigo-100 transition-all active:scale-95 flex flex-col items-center justify-center gap-2 uppercase tracking-wide border border-indigo-100 shadow-sm">
+                <i class="fa-solid fa-file-image text-2xl"></i> XUẤT ẢNH
+              </button>
+              <button @click="doSave('pdf')" class="bg-rose-50 text-rose-600 py-4 rounded-2xl font-black text-[11px] hover:bg-rose-100 transition-all active:scale-95 flex flex-col items-center justify-center gap-2 uppercase tracking-wide border border-rose-100 shadow-sm">
+                <i class="fa-solid fa-file-pdf text-2xl"></i> XUẤT PDF
+              </button>
+              <button @click="copyBookingConfirmation(); showActionSheet = false" class="bg-amber-50 text-amber-600 py-4 rounded-2xl font-black text-[11px] hover:bg-amber-100 transition-all active:scale-95 flex flex-col items-center justify-center gap-2 uppercase tracking-wide border border-amber-100 shadow-sm">
+                <i class="fa-solid fa-copy text-2xl"></i> SAO CHÉP
+              </button>
+              <button @click="shareCurrentBill(); showActionSheet = false" class="bg-cyan-50 text-cyan-600 py-4 rounded-2xl font-black text-[11px] hover:bg-cyan-100 transition-all active:scale-95 flex flex-col items-center justify-center gap-2 uppercase tracking-wide border border-cyan-100 shadow-sm">
+                <i class="fa-solid fa-share-nodes text-2xl"></i> CHIA SẺ
+              </button>
+            </div>
+          </div>
+        </transition>
+      </div>
+    </transition>
   </div>
 </template>
+
+<style scoped>
+.slide-up-enter-active,
+.slide-up-leave-active {
+  transition: transform 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+}
+.slide-up-enter-from,
+.slide-up-leave-to {
+  transform: translateY(100%);
+}
+
+.fade-enter-active,
+.fade-leave-active {
+  transition: opacity 0.3s ease;
+}
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0;
+}
+</style>
