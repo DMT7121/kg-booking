@@ -62,7 +62,7 @@ function shareCurrentBill() {
     @touchend="onSwipeEnd"
   >
     <!-- HEADER -->
-    <div class="flex-shrink-0 bg-blue-900 text-white px-3 md:px-5 py-4 flex flex-wrap justify-between items-center gap-2 relative overflow-hidden box-border w-full">
+    <div class="flex-shrink-0 bg-blue-900 text-white px-3 md:px-5 py-4 flex flex-wrap justify-between items-center gap-2 relative z-20 box-border w-full">
       <div class="absolute inset-0 bg-gradient-to-r from-blue-400/20 to-transparent pointer-events-none"></div>
       <div class="flex items-center gap-3 relative z-10 min-w-0">
         <div class="bg-white p-1.5 rounded-2xl shadow-xl flex items-center justify-center overflow-hidden w-12 h-12 border-2 border-white/20 backdrop-blur-sm">
