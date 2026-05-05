@@ -237,7 +237,7 @@ onUnmounted(() => { if (timer) clearInterval(timer) })
             </div>
 
             <!-- STAMP -->
-            <div class="absolute top-1/2 right-0 -translate-y-1/2 pointer-events-none origin-right z-20" style="transform: scale(0.65) rotate(-5deg);">
+            <div class="absolute top-2 right-0 pointer-events-none origin-right z-20" style="transform: scale(0.65) rotate(-5deg);">
               <div class="relative w-[220px] h-[220px] flex flex-col items-center justify-center">
                 <img :src="order.isDeposited ? '/images/stamps/paid.png' : '/images/stamps/pending.png'" class="absolute inset-0 w-full h-full object-contain filter drop-shadow-md" alt="Stamp" />
                 <div v-if="order.isDeposited" class="absolute bottom-[23%] left-0 w-full text-center text-[#d11124] font-black tracking-widest whitespace-nowrap" style="font-family: 'Cal Sans', sans-serif; font-size: 15px;">

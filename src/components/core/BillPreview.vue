@@ -163,7 +163,7 @@ function openZaloChat() {
             </div>
 
             <!-- Stamp -->
-            <div class="absolute top-4 right-0 z-20 pointer-events-none" :style="{ transform: `rotate(-4deg) translate(${stampParallax.x}px, ${stampParallax.y}px)` }">
+            <div class="absolute -top-2 right-0 z-20 pointer-events-none" :style="{ transform: `rotate(-4deg) translate(${stampParallax.x}px, ${stampParallax.y}px)` }">
               <div class="relative w-[260px] h-[260px] flex flex-col items-center justify-center">
                 <img :src="formStore.deposit.isPaid ? '/images/stamps/paid.png' : '/images/stamps/pending.png'" class="absolute inset-0 w-full h-full object-contain filter drop-shadow-lg" alt="Stamp" />
                 <div v-if="formStore.deposit.isPaid" class="absolute bottom-[23%] left-0 w-full text-center text-[#d11124] font-black tracking-widest whitespace-nowrap" style="font-family: 'Cal Sans', sans-serif; font-size: 18px;">
