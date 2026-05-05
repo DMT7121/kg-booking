@@ -36,6 +36,7 @@ export interface HistoryOrder {
   billFileId?: string
   aiEngine?: string
   isSyncing?: boolean
+  isCared?: boolean
 }
 
 export interface MenuListItem {

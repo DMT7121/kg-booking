@@ -125,6 +125,12 @@ async function deleteBatchOrders() {
   ui.loading.is = false
   ui.showToast(`Đã xóa ${idsToDelete.length} bản ghi lịch sử.`, 'success')
 }
+
+// Check cared status from localStorage
+function isOrderCared(id: string) {
+  const caredStatus = JSON.parse(localStorage.getItem('kg_cared_status') || '{}')
+  return !!caredStatus[id]
+}
 </script>
 
 <template>
@@ -246,6 +252,7 @@ async function deleteBatchOrders() {
                 <div class="flex gap-1.5 mt-1.5 flex-wrap">
                   <span class="text-[9px] font-black bg-purple-50 text-purple-600 px-2 py-0.5 rounded border border-purple-100">{{ group.latest.parsedCustomer?.type || 'Đặt bàn' }}</span>
                   <span class="text-[9px] font-black px-2 py-0.5 rounded border" :class="group.latest.isDeposited ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 'bg-orange-50 text-orange-600 border-orange-100'">{{ group.latest.isDeposited ? 'Đã xác nhận' : 'Chờ đặt cọc' }}</span>
+                  <span v-if="isOrderCared(group.latest.id)" class="text-[9px] font-black bg-rose-50 text-rose-600 px-2 py-0.5 rounded border border-rose-100"><i class="fa-solid fa-heart mr-0.5"></i> Đã CSKH</span>
                 </div>
               </div>
             </div>
@@ -295,16 +302,19 @@ async function deleteBatchOrders() {
 
           <!-- Actions Bottom Bar -->
           <div class="flex justify-between items-center px-1" @click.stop>
+            <button @click="ui.activeOrderForCare = group.latest; ui.showCustomerCareModal = true" class="flex items-center gap-1.5 text-[11px] font-black text-rose-500 hover:text-rose-700 transition-colors active:scale-95">
+              <i class="fa-solid fa-heart"></i> CSKH
+            </button>
             <button @click="editHistoricOrder(group.latest)" class="flex items-center gap-1.5 text-[11px] font-black text-blue-600 hover:text-blue-800 transition-colors active:scale-95">
-              <i class="fa-solid fa-pen"></i> Chỉnh sửa
+              <i class="fa-solid fa-pen"></i> Sửa
             </button>
             <button @click="shareBillLink(group.latest.id, group.latest.parsedCustomer?.name)" class="flex items-center gap-1.5 text-[11px] font-black text-blue-600 hover:text-blue-800 transition-colors active:scale-95">
-              <i class="fa-solid fa-link"></i> Lấy liên kết
+              <i class="fa-solid fa-link"></i> Link
             </button>
             <button @click="ui.selectedBooking = group.latest; ui.showBookingDetailModal = true" class="flex items-center gap-1.5 text-[11px] font-black text-blue-600 hover:text-blue-800 transition-colors active:scale-95">
-              <i class="fa-solid fa-eye"></i> Xem preview
+              <i class="fa-solid fa-eye"></i> Xem
             </button>
-            <button @click="deleteHistoricOrder(group.latest.id)" class="flex items-center gap-1.5 text-[11px] font-black text-rose-500 hover:text-rose-700 transition-colors active:scale-95">
+            <button @click="deleteHistoricOrder(group.latest.id)" class="flex items-center gap-1.5 text-[11px] font-black text-slate-400 hover:text-red-600 transition-colors active:scale-95">
               <i class="fa-solid fa-trash-can"></i> Xóa
             </button>
           </div>
