@@ -73,15 +73,17 @@ onUnmounted(() => { if (timer) clearInterval(timer) })
 </script>
 
 <template>
-  <div class="min-h-screen bg-slate-50 flex items-start justify-center p-4 md:p-8">
+  <div class="min-h-screen bg-slate-100 flex items-center justify-center font-sans text-slate-800">
+    <div class="w-full max-w-[480px] h-screen min-h-[100dvh] md:h-[95vh] md:min-h-[auto] md:rounded-[2rem] md:shadow-2xl flex flex-col relative overflow-y-auto bg-slate-50 border border-slate-200 custom-scrollbar p-4 md:p-6 pb-8">
+    
     <!-- LOADING -->
-    <div v-if="loading" class="flex flex-col items-center justify-center py-32">
+    <div v-if="loading" class="flex flex-col items-center justify-center py-32 flex-1">
       <div class="w-14 h-14 border-4 border-slate-200 border-t-blue-500 rounded-full animate-spin mb-6"></div>
       <p class="text-blue-500 font-bold text-sm uppercase tracking-widest animate-pulse">Đang chuẩn bị Portal...</p>
     </div>
 
     <!-- ERROR -->
-    <div v-else-if="error" class="bg-white rounded-3xl shadow-sm border border-slate-100 p-10 max-w-md w-full text-center">
+    <div v-else-if="error" class="bg-white rounded-3xl shadow-sm border border-slate-100 p-10 w-full text-center m-auto">
       <div class="w-20 h-20 bg-red-50 text-red-500 rounded-full flex items-center justify-center text-4xl mx-auto mb-4">
         <i class="fa-solid fa-circle-exclamation"></i>
       </div>
@@ -90,7 +92,7 @@ onUnmounted(() => { if (timer) clearInterval(timer) })
     </div>
 
     <!-- PUBLIC PORTAL -->
-    <div v-else-if="order" class="w-full max-w-[400px]">
+    <div v-else-if="order" class="w-full h-full flex flex-col">
       
       <!-- Greeting & Countdown -->
       <div class="text-center mb-5 pt-2">
@@ -252,10 +254,11 @@ onUnmounted(() => { if (timer) clearInterval(timer) })
       </div>
 
       <!-- BACK BUTTON -->
-      <div class="text-center mt-6">
+      <div class="text-center mt-6 mb-4">
         <p class="text-slate-500 font-bold text-xs mb-1">&copy; 2024 King's Grill Manager</p>
         <p class="text-slate-600 font-bold text-[10px] uppercase tracking-widest">Hệ thống công nghệ nhà hàng</p>
       </div>
+    </div>
     </div>
     
     <LuckyWheel v-if="showLuckyWheel" :orderId="order.id" :customerName="order.customer?.name" @close="showLuckyWheel = false" />
