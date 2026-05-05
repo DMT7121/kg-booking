@@ -16,6 +16,22 @@ const configStore = useConfigStore()
 const { mobileScaleStyles, wrapperScaleStyles, triggerSave, updatePreviewScale } = useBillRender()
 const { depositTransferContent, qrImageUrl } = useForm()
 
+const formatDepositTime = (timeStr?: string): string => {
+  if (!timeStr) return '✓'
+  try {
+    const parts = timeStr.split(/[\s,]+/)
+    let datePart = parts.find(p => p.includes('/'))
+    let timePart = parts.find(p => p.includes(':'))
+    if (datePart && timePart) {
+      timePart = timePart.split(':').slice(0, 2).join(':')
+      return `${datePart} ${timePart}`
+    }
+    return timeStr
+  } catch (e) {
+    return timeStr
+  }
+}
+
 const currentTimestamp = ref('')
 let _timestampTimer: ReturnType<typeof setInterval> | null = null
 
@@ -147,14 +163,12 @@ function openZaloChat() {
             </div>
 
             <!-- Stamp -->
-            <div class="absolute top-0 right-0 z-20" :style="{ transform: `rotate(-4deg) translate(${stampParallax.x}px, ${stampParallax.y}px)` }">
-              <div v-if="formStore.deposit.isPaid" class="border-4 border-green-600 text-green-600 p-4 rounded-xl text-center transform bg-white/90 backdrop-blur-sm shadow-xl">
-                <div class="font-black text-3xl uppercase tracking-widest border-b-2 border-green-600 pb-2 mb-2">ĐÃ ĐẶT CỌC</div>
-                <div class="font-mono font-bold text-sm">{{ formStore.deposit.time }}</div>
-              </div>
-              <div v-else class="border-4 border-blue-800/30 text-blue-900/40 p-4 rounded-xl text-center transform backdrop-blur-sm flex flex-col items-center justify-center">
-                <div class="font-black text-4xl uppercase tracking-widest border-b-2 border-blue-800/30 pb-2 mb-2" style="font-family: 'Be Vietnam Pro', sans-serif;">CHỜ CỌC</div>
-                <div class="font-bold text-sm tracking-widest uppercase">Đang giữ chỗ</div>
+            <div class="absolute top-4 right-0 z-20 pointer-events-none" :style="{ transform: `rotate(-4deg) translate(${stampParallax.x}px, ${stampParallax.y}px)` }">
+              <div class="relative w-[260px] h-[260px] flex flex-col items-center justify-center">
+                <img :src="formStore.deposit.isPaid ? '/images/stamps/paid.png' : '/images/stamps/pending.png'" class="absolute inset-0 w-full h-full object-contain filter drop-shadow-lg" alt="Stamp" />
+                <div v-if="formStore.deposit.isPaid" class="absolute bottom-[23%] left-0 w-full text-center text-[#d11124] font-black tracking-widest whitespace-nowrap" style="font-family: 'Cal Sans', sans-serif; font-size: 18px;">
+                  {{ formatDepositTime(formStore.deposit.time) }}
+                </div>
               </div>
             </div>
           </div>
