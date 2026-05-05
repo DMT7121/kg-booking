@@ -2,6 +2,9 @@
 @tailwind components;
 @tailwind utilities;
 
+@import url('https://fonts.googleapis.com/css2?family=Cal+Sans&display=swap');
+
+
 /* --- GLOBAL STYLES --- */
 [v-cloak] { display: none; }
 /* --- THEMES --- */
@@ -447,10 +450,10 @@ input, textarea, button, select, a, div[role="button"] {
 
 .rubber-stamp-time {
     display: block;
-    font-family: 'Courier New', Courier, monospace;
-    font-weight: 900;
-    font-size: 11px;
-    letter-spacing: 0.15em;
+    font-family: 'Cal Sans', sans-serif;
+    font-weight: 600;
+    font-size: 14px;
+    letter-spacing: 0.05em;
     line-height: 1.2;
     margin-top: 4px;
     text-transform: uppercase;

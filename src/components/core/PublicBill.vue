@@ -18,6 +18,22 @@ const orderId = computed(() => {
 const formatVND = (v: number): string =>
   new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(v || 0)
 
+const formatDepositTime = (timeStr?: string): string => {
+  if (!timeStr) return '✓'
+  try {
+    const parts = timeStr.split(/[\s,]+/)
+    let datePart = parts.find(p => p.includes('/'))
+    let timePart = parts.find(p => p.includes(':'))
+    if (datePart && timePart) {
+      timePart = timePart.split(':').slice(0, 2).join(':')
+      return `${datePart} ${timePart}`
+    }
+    return timeStr
+  } catch (e) {
+    return timeStr
+  }
+}
+
 const depositTransferContent = computed(() => {
   if (!order.value) return ''
   const c = order.value.customer || {}
@@ -224,7 +240,7 @@ onUnmounted(() => { if (timer) clearInterval(timer) })
             <div class="absolute top-1/2 right-0 -translate-y-1/2 pointer-events-none opacity-90 scale-90 origin-right">
               <div class="rubber-stamp" :class="order.isDeposited ? 'rubber-stamp-paid' : 'rubber-stamp-pending'">
                 <span class="rubber-stamp-text">{{ order.isDeposited ? 'Đã Nhận Cọc' : 'Chờ Cọc' }}</span>
-                <span class="rubber-stamp-time">{{ order.isDeposited ? (order.deposit?.time || '✓') : 'PENDING' }}</span>
+                <span class="rubber-stamp-time">{{ order.isDeposited ? formatDepositTime(order.deposit?.time) : 'PENDING' }}</span>
               </div>
             </div>
           </div>
