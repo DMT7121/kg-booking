@@ -130,9 +130,9 @@ function openZaloChat() {
         <div id="bill-render" :style="mobileScaleStyles" class="bill-preview-container p-10 md:p-14 bg-white rounded-none md:rounded-3xl relative mx-auto" @mousemove="handleMouseMove" @mouseleave="resetParallax">
 
           <!-- HEADER -->
-          <div class="text-center mb-10">
+          <div class="text-center mb-10 mt-4">
             <div class="flex justify-center mb-4">
-              <img :src="configStore.branding.logo || '/favicon.svg'" class="h-32 object-contain print-no-shadow" alt="Logo" loading="lazy">
+              <img :src="configStore.branding.logo || '/favicon.svg'" class="h-[350px] object-contain print-no-shadow" alt="Logo" loading="lazy">
             </div>
             <h1 class="font-black tracking-widest text-blue-900 uppercase text-4xl mb-2" style="font-family: 'Be Vietnam Pro', sans-serif;">KING'S GRILL</h1>
             <h2 class="font-bold tracking-widest text-slate-500 uppercase text-xl" style="font-family: 'Inter', sans-serif;">PHIẾU ĐẶT BÀN</h2>
