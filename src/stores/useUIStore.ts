@@ -47,6 +47,7 @@ export const useUIStore = defineStore('ui', () => {
   const showFloorPlan = ref(false)
   const showCustomerCareModal = ref(false)
   const activeOrderForCare = ref<any>(null)
+  const isDarkMode = ref(localStorage.getItem('kg_dark_mode') === 'true')
   
   const showStaffSelector = ref(false)
   const showBookingDetailModal = ref(false)
@@ -162,6 +163,16 @@ export const useUIStore = defineStore('ui', () => {
     selectedIds.value = []
   }
 
+  function toggleDarkMode() {
+    isDarkMode.value = !isDarkMode.value
+    localStorage.setItem('kg_dark_mode', String(isDarkMode.value))
+    if (isDarkMode.value) {
+      document.documentElement.classList.add('dark-theme')
+    } else {
+      document.documentElement.classList.remove('dark-theme')
+    }
+  }
+
   function toggleSelection(group: any) {
     const id = group.latest.id
     const key = id || `${group.latest.parsedCustomer.name}|${group.latest.parsedCustomer.phone}|${group.latest.parsedCustomer.date}`
@@ -176,12 +187,12 @@ export const useUIStore = defineStore('ui', () => {
     tab, connectionStatus, isKeyboardOpen, isVoiceSupported,
     loading, activeRequests, isFetchingAPI, error,
     showSettingsHub, activeSettingModal, showAiConfig, showBankConfig, showMenuManager, showBrandingConfig, showStaffConfig, showStaffSelector, showWebhookConfig, showBookingDetailModal, showFloorPlan, showCustomerCareModal, activeOrderForCare, selectedBooking,
-    pendingAction, menuTab, isUpdateMode,
+    pendingAction, menuTab, isUpdateMode, isDarkMode,
     historySearch, isBatchMode, selectedIds, historyFilters,
     focusIdx, listening, tempTable,
     toasts, verifyModal, modal,
     showToast, removeToast,
     resolveModal, showAlert, showConfirm, showPrompt,
-    openConfig, closeConfig, toggleBatchMode, toggleSelection
+    openConfig, closeConfig, toggleBatchMode, toggleSelection, toggleDarkMode
   }
 })

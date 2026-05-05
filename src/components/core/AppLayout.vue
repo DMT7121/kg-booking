@@ -265,7 +265,7 @@ onMounted(() => {
         <div class="space-y-3">
           <h4 class="text-[11px] font-black text-slate-400 uppercase tracking-widest pl-2">Tùy chỉnh giao diện</h4>
           <div class="bg-white rounded-3xl shadow-sm border border-slate-100 overflow-hidden">
-            <button @click="ui.openConfig('branding')" :class="['w-full px-4 py-4 flex items-center gap-4 transition-colors group', ui.activeSettingModal === 'branding' ? 'bg-blue-50/50' : 'hover:bg-slate-50 active:bg-slate-100']">
+            <button @click="ui.openConfig('branding')" :class="['w-full px-4 py-4 flex items-center gap-4 transition-colors border-b border-slate-50 group', ui.activeSettingModal === 'branding' ? 'bg-blue-50/50' : 'hover:bg-slate-50 active:bg-slate-100']">
               <div class="w-12 h-12 rounded-2xl bg-orange-50 text-orange-500 flex items-center justify-center text-xl shrink-0 group-hover:scale-110 transition-transform">
                 <i class="fa-solid fa-pen-nib"></i>
               </div>
@@ -274,6 +274,20 @@ onMounted(() => {
                 <div class="text-[10px] font-bold text-slate-400 leading-tight">Tùy chỉnh logo, màu sắc, font chữ và<br>các yếu tố hiển thị trên phiếu đặt bàn</div>
               </div>
               <i class="fa-solid fa-chevron-right text-sm" :class="ui.activeSettingModal === 'branding' ? 'text-blue-500' : 'text-slate-300'"></i>
+            </button>
+            <button @click="ui.toggleDarkMode()" class="w-full px-4 py-4 flex items-center gap-4 transition-colors group hover:bg-slate-50 active:bg-slate-100">
+              <div class="w-12 h-12 rounded-2xl flex items-center justify-center text-xl shrink-0 group-hover:scale-110 transition-transform" :class="ui.isDarkMode ? 'bg-slate-800 text-yellow-400' : 'bg-slate-100 text-slate-600'">
+                <i class="fa-solid" :class="ui.isDarkMode ? 'fa-moon' : 'fa-sun'"></i>
+              </div>
+              <div class="flex-1 text-left">
+                <div class="font-black text-slate-800 text-[13px] mb-0.5">Chế độ ban đêm (Dark Mode)</div>
+                <div class="text-[10px] font-bold text-slate-400 leading-tight">Giao diện tối giúp bảo vệ mắt khi làm việc<br>vào buổi tối hoặc môi trường thiếu sáng</div>
+              </div>
+              <div class="w-12 flex justify-end">
+                <div class="w-10 h-6 bg-slate-200 rounded-full relative transition-colors" :class="{'!bg-blue-500': ui.isDarkMode}">
+                  <div class="w-5 h-5 bg-white rounded-full absolute top-0.5 left-0.5 transition-transform shadow-sm" :class="{'translate-x-4': ui.isDarkMode}"></div>
+                </div>
+              </div>
             </button>
           </div>
         </div>

@@ -682,3 +682,26 @@ html.is-ios .animate-pulse {
     from { opacity: 0; transform: translateY(-4px); }
     to { opacity: 1; transform: translateY(0); }
 }
+
+/* =========================================
+   DARK MODE HACK (Invert + Hue Rotate)
+   ========================================= */
+html.dark-theme {
+  filter: invert(0.93) hue-rotate(180deg);
+  background-color: #f8fafc; /* Inverts to dark grey */
+}
+
+/* Images, videos, canvas, and elements that shouldn't be inverted */
+html.dark-theme img,
+html.dark-theme video,
+html.dark-theme canvas,
+html.dark-theme .print-no-shadow,
+html.dark-theme .no-invert {
+  filter: invert(1) hue-rotate(180deg);
+}
+
+/* Prevent double inversion issues on backdrop filters */
+html.dark-theme .backdrop-blur-md,
+html.dark-theme .backdrop-blur-sm {
+  backdrop-filter: none !important;
+}
