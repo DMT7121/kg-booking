@@ -92,7 +92,7 @@ onUnmounted(() => { if (timer) clearInterval(timer) })
     </div>
 
     <!-- PUBLIC PORTAL -->
-    <div v-else-if="order" class="w-full h-full flex flex-col">
+    <div v-else-if="order" class="w-full flex flex-col shrink-0">
       
       <!-- Greeting & Countdown -->
       <div class="text-center mb-5 pt-2">
@@ -173,84 +173,126 @@ onUnmounted(() => { if (timer) clearInterval(timer) })
         </a>
       </div>
 
-      <div class="bg-white rounded-[2rem] shadow-sm border border-slate-100 p-6 md:p-8 relative overflow-hidden">
-        <!-- HEADER -->
-        <div class="text-center mb-6">
-          <h2 class="font-bold tracking-[0.2em] text-slate-400 uppercase mt-1 text-xs" style="font-family: 'Freeman', sans-serif;">THÔNG TIN ĐẶT CHỖ</h2>
-        </div>
-
-        <!-- INFO CARD -->
-        <div class="relative mb-6">
-          <div class="info-card">
-            <div class="info-row"><span class="info-label">Khách hàng</span><span class="info-value font-black text-lg">{{ order.customer?.name || '---' }}</span></div>
-            <div class="info-row"><span class="info-label">SĐT/Zalo</span><span class="info-value highlight">{{ order.customer?.phone || '---' }}</span></div>
-            <div class="info-row"><span class="info-label">Thời gian</span><span class="info-value">{{ order.customer?.time || '--:--' }} — {{ order.customer?.date || '' }}</span></div>
-            <div class="info-row"><span class="info-label">Số khách</span><span class="info-value">{{ order.customer?.pax || '0' }} người</span></div>
-            <div class="info-row"><span class="info-label">Bàn</span><span class="info-value highlight">{{ order.customer?.tables || '---' }}</span></div>
-            <div v-if="order.customer?.type" class="info-row"><span class="info-label">Loại tiệc</span><span class="info-value">{{ order.customer?.type }}</span></div>
-            <div v-if="order.customer?.note" class="info-row"><span class="info-label">Ghi chú</span><span class="info-value text-red-600 font-bold italic">{{ order.customer?.note }}</span></div>
+      <!-- TICKET / RECEIPT UI -->
+      <div class="relative bg-white shadow-sm border border-slate-200 mt-2 mb-6" style="border-radius: 16px; filter: drop-shadow(0 4px 6px rgba(0,0,0,0.02));">
+        
+        <!-- Serrated top/bottom (Optional subtle CSS pattern) -->
+        <div class="absolute -top-1.5 left-2 right-2 h-3 bg-slate-50" style="mask-image: radial-gradient(circle at 6px 0px, transparent 6px, black 6.5px); mask-size: 12px 12px; mask-repeat: repeat-x;"></div>
+        
+        <div class="p-6 md:p-7 relative overflow-hidden">
+          <!-- HEADER -->
+          <div class="text-center mb-6">
+            <img src="/favicon.svg" class="h-8 w-8 mx-auto mb-3 opacity-20 grayscale" alt="Logo">
+            <h2 class="font-bold tracking-[0.2em] text-slate-400 uppercase text-xs" style="font-family: 'Freeman', sans-serif;">PHIẾU ĐẶT BÀN</h2>
+            <div class="text-[10px] font-mono text-slate-300 mt-1">ID: #{{ order.id?.split('-')[0].toUpperCase() }}</div>
           </div>
 
-          <!-- STAMP -->
-          <div class="stamp-overlay">
-            <div class="rubber-stamp" :class="order.isDeposited ? 'rubber-stamp-paid' : 'rubber-stamp-pending'">
-              <span class="rubber-stamp-text">{{ order.isDeposited ? 'Đã Nhận Cọc' : 'Chờ Cọc' }}</span>
-              <span class="rubber-stamp-time">{{ order.isDeposited ? (order.deposit?.time || '✓') : 'PENDING' }}</span>
+          <!-- INFO CARD -->
+          <div class="relative mb-6">
+            <div class="space-y-2">
+              <div class="flex justify-between items-baseline border-b border-dashed border-slate-200 pb-2">
+                <span class="text-xs font-bold text-slate-500">Khách hàng</span>
+                <span class="font-black text-slate-800 text-sm">{{ order.customer?.name || '---' }}</span>
+              </div>
+              <div class="flex justify-between items-baseline border-b border-dashed border-slate-200 pb-2">
+                <span class="text-xs font-bold text-slate-500">SĐT/Zalo</span>
+                <span class="font-black text-blue-600 text-sm tracking-wider">{{ order.customer?.phone || '---' }}</span>
+              </div>
+              <div class="flex justify-between items-baseline border-b border-dashed border-slate-200 pb-2">
+                <span class="text-xs font-bold text-slate-500">Thời gian</span>
+                <span class="font-black text-slate-800 text-sm">{{ order.customer?.time || '--:--' }} &bull; {{ order.customer?.date || '' }}</span>
+              </div>
+              <div class="flex justify-between items-baseline border-b border-dashed border-slate-200 pb-2">
+                <span class="text-xs font-bold text-slate-500">Số khách</span>
+                <span class="font-black text-slate-800 text-sm">{{ order.customer?.pax || '0' }} người</span>
+              </div>
+              <div class="flex justify-between items-baseline border-b border-dashed border-slate-200 pb-2">
+                <span class="text-xs font-bold text-slate-500">Khu vực/Bàn</span>
+                <span class="font-black text-amber-600 text-sm">{{ order.customer?.tables || 'Chưa xếp' }}</span>
+              </div>
+              <div v-if="order.customer?.type" class="flex justify-between items-baseline border-b border-dashed border-slate-200 pb-2">
+                <span class="text-xs font-bold text-slate-500">Loại tiệc</span>
+                <span class="font-bold text-slate-800 text-sm">{{ order.customer?.type }}</span>
+              </div>
+              <div v-if="order.customer?.note" class="pt-2">
+                <span class="text-xs font-bold text-slate-500 block mb-1">Ghi chú:</span>
+                <span class="font-bold text-rose-600 text-xs italic">{{ order.customer?.note }}</span>
+              </div>
+            </div>
+
+            <!-- STAMP -->
+            <div class="absolute top-1/2 right-0 -translate-y-1/2 pointer-events-none opacity-90 scale-90 origin-right">
+              <div class="rubber-stamp" :class="order.isDeposited ? 'rubber-stamp-paid' : 'rubber-stamp-pending'">
+                <span class="rubber-stamp-text">{{ order.isDeposited ? 'Đã Nhận Cọc' : 'Chờ Cọc' }}</span>
+                <span class="rubber-stamp-time">{{ order.isDeposited ? (order.deposit?.time || '✓') : 'PENDING' }}</span>
+              </div>
             </div>
           </div>
-        </div>
 
-        <!-- MENU TABLE -->
-        <table v-if="order.items?.length" class="bill-table">
-          <thead><tr><th class="w-8 text-center">#</th><th>Tên món</th><th class="text-center w-14">SL</th><th class="text-right w-24">Đơn giá</th><th class="text-right w-28">Thành tiền</th></tr></thead>
-          <tbody>
-            <tr v-for="(item, i) in order.items" :key="i">
-              <td class="text-center font-bold text-slate-400">{{ i + 1 }}</td>
-              <td>
-                <div class="font-bold text-[14px]">{{ item.name }}</div>
-                <div v-if="item.note || item.notes" class="text-[11px] text-red-600 font-semibold mt-0.5 whitespace-pre-line italic">{{ item.note || item.notes }}</div>
-              </td>
-              <td class="text-center font-black text-base">{{ item.qty }}</td>
-              <td class="text-right font-bold text-slate-600 text-[13px]">{{ formatVND(item.price || 0) }}</td>
-              <td class="text-right font-black text-blue-700 text-[14px]">{{ formatVND(Number(item.price || 0) * Number(item.qty || 1)) }}</td>
-            </tr>
-          </tbody>
-        </table>
-
-        <!-- TOTALS -->
-        <div class="border-t-4 border-slate-900 pt-5 space-y-3 mb-8">
-          <div class="flex justify-between items-center pt-3">
-            <span class="text-xl font-black text-slate-900 uppercase tracking-tighter">TỔNG CỘNG</span>
-            <span class="text-3xl font-black text-amber-500">{{ formatVND(order.totalAmount) }}</span>
-          </div>
-          <div class="flex justify-between items-center">
-            <span class="text-base font-bold uppercase" :class="order.isDeposited ? 'text-emerald-600' : 'text-red-600'">
-              {{ order.isDeposited ? '✓ Đã đặt cọc' : '⏳ Yêu cầu đặt cọc' }}
-            </span>
-            <span class="text-xl font-black" :class="order.isDeposited ? 'text-emerald-600' : 'text-red-600'">{{ formatVND(order.depositAmount) }}</span>
-          </div>
-        </div>
-
-        <!-- QR TRANSFER (only if not paid) -->
-        <div v-if="!order.isDeposited && order.depositAmount > 0" class="bg-slate-50 border border-slate-200 rounded-2xl p-5 mb-6">
-          <h3 class="font-black text-xs text-slate-700 uppercase tracking-widest mb-4 text-center">CHUYỂN KHOẢN ĐẶT CỌC</h3>
-          <div class="flex flex-col items-center gap-4">
-            <div class="bg-white p-3 rounded-2xl shadow-lg border border-slate-100">
-              <img :src="`https://img.vietqr.io/image/970457-104029411095-compact.png?amount=${order.depositAmount}&addInfo=${encodeURIComponent(depositTransferContent)}&accountName=${encodeURIComponent('TRAN LE DUY')}`"
-                class="w-48 h-48 object-contain rounded-xl" alt="QR Code" loading="lazy">
-            </div>
-            <div class="bg-yellow-50 border border-yellow-300 p-3 rounded-xl w-full text-center">
-              <span class="text-[10px] font-bold text-red-500 uppercase block mb-1"><i class="fa-solid fa-triangle-exclamation mr-1"></i> Nội dung CK</span>
-              <span class="font-black text-indigo-700 text-sm tracking-wider uppercase">{{ depositTransferContent }}</span>
+          <!-- MENU TABLE -->
+          <div v-if="order.items?.length" class="mb-6">
+            <h3 class="font-bold tracking-[0.1em] text-slate-400 uppercase text-[10px] mb-3 text-center">THỰC ĐƠN ĐÃ CHỌN</h3>
+            <div class="overflow-x-auto custom-scrollbar pb-2">
+              <table class="w-full min-w-[280px]">
+                <thead>
+                  <tr class="border-y border-dashed border-slate-300 text-[9px] text-slate-400 uppercase tracking-wider">
+                    <th class="py-2 text-left font-bold w-1/2">Tên món</th>
+                    <th class="py-2 text-center font-bold">SL</th>
+                    <th class="py-2 text-right font-bold">Đơn giá</th>
+                  </tr>
+                </thead>
+                <tbody class="text-xs">
+                  <tr v-for="(item, i) in order.items" :key="i" class="border-b border-dashed border-slate-100 last:border-0">
+                    <td class="py-2.5">
+                      <div class="font-bold text-slate-800">{{ item.name }}</div>
+                      <div v-if="item.note || item.notes" class="text-[10px] text-rose-500 font-semibold mt-0.5 whitespace-pre-line italic">{{ item.note || item.notes }}</div>
+                    </td>
+                    <td class="py-2.5 text-center font-black text-slate-700">{{ item.qty }}</td>
+                    <td class="py-2.5 text-right font-black text-slate-700">{{ formatVND(item.price || 0) }}</td>
+                  </tr>
+                </tbody>
+              </table>
             </div>
           </div>
-        </div>
 
-        <!-- FOOTER -->
-        <div class="border-t-2 border-slate-100 pt-5 text-center space-y-2">
-          <p class="text-xs text-slate-400 font-bold">Nhân viên: <span class="text-slate-600 font-black">{{ order.staff?.name || 'Admin' }}</span></p>
-          <p class="text-[10px] text-slate-300 font-mono">King's Grill Manager AI v2.0 | {{ order.timestamp ? new Date(order.timestamp).toLocaleString('vi-VN') : '' }}</p>
+          <!-- TOTALS -->
+          <div class="border-t-2 border-dashed border-slate-300 pt-4 space-y-2 mb-6">
+            <div class="flex justify-between items-center">
+              <span class="text-[10px] font-bold text-slate-500 uppercase">Tổng tiền món</span>
+              <span class="text-sm font-black text-slate-600">{{ formatVND(order.totalAmount) }}</span>
+            </div>
+            <div class="flex justify-between items-center bg-slate-50 p-3 rounded-xl border border-slate-100">
+              <span class="text-[11px] font-black uppercase tracking-wider" :class="order.isDeposited ? 'text-emerald-600' : 'text-rose-500'">
+                <i class="fa-solid mr-1" :class="order.isDeposited ? 'fa-circle-check' : 'fa-hourglass-half'"></i> 
+                {{ order.isDeposited ? 'TIỀN CỌC (ĐÃ NHẬN)' : 'YÊU CẦU ĐẶT CỌC' }}
+              </span>
+              <span class="text-lg font-black" :class="order.isDeposited ? 'text-emerald-600' : 'text-rose-600'">{{ formatVND(order.depositAmount) }}</span>
+            </div>
+          </div>
+
+          <!-- QR TRANSFER (only if not paid) -->
+          <div v-if="!order.isDeposited && order.depositAmount > 0" class="bg-blue-50 border border-blue-100 rounded-2xl p-4 mb-4">
+            <h3 class="font-black text-[10px] text-blue-800 uppercase tracking-widest mb-3 text-center">QUÉT MÃ ĐỂ ĐẶT CỌC</h3>
+            <div class="flex flex-col items-center gap-3">
+              <div class="bg-white p-2 rounded-xl shadow-sm border border-blue-100">
+                <img :src="`https://img.vietqr.io/image/970457-104029411095-compact.png?amount=${order.depositAmount}&addInfo=${encodeURIComponent(depositTransferContent)}&accountName=${encodeURIComponent('TRAN LE DUY')}`"
+                  class="w-40 h-40 object-contain rounded-lg" alt="QR Code" loading="lazy">
+              </div>
+              <div class="w-full text-center">
+                <span class="text-[9px] font-bold text-blue-600 uppercase block mb-0.5">Nội dung chuyển khoản (bắt buộc)</span>
+                <div class="bg-white border border-blue-200 text-blue-700 font-black text-xs py-2 px-3 rounded-lg inline-block tracking-wider">{{ depositTransferContent }}</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- FOOTER -->
+          <div class="border-t border-dashed border-slate-200 pt-4 text-center">
+            <p class="text-[10px] text-slate-400 font-bold mb-0.5">Tiếp tân: <span class="text-slate-600">{{ order.staff?.name || 'Hệ thống' }}</span></p>
+            <p class="text-[9px] text-slate-300 font-mono">KG-SYS | {{ order.timestamp ? new Date(order.timestamp).toLocaleString('vi-VN') : '' }}</p>
+          </div>
         </div>
+        
+        <div class="absolute -bottom-1.5 left-2 right-2 h-3 bg-slate-50" style="mask-image: radial-gradient(circle at 6px 12px, transparent 6px, black 6.5px); mask-size: 12px 12px; mask-repeat: repeat-x;"></div>
       </div>
 
       <!-- BACK BUTTON -->
