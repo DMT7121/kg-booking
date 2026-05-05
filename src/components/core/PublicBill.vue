@@ -73,18 +73,20 @@ onUnmounted(() => { if (timer) clearInterval(timer) })
 </script>
 
 <template>
-  <div class="min-h-screen bg-slate-900 flex items-start justify-center p-4 md:p-8">
+  <div class="min-h-screen bg-slate-50 flex items-start justify-center p-4 md:p-8">
     <!-- LOADING -->
     <div v-if="loading" class="flex flex-col items-center justify-center py-32">
-      <div class="w-14 h-14 border-4 border-slate-700 border-t-amber-500 rounded-full animate-spin mb-6"></div>
-      <p class="text-amber-500 font-bold text-sm uppercase tracking-widest animate-pulse">Đang chuẩn bị Portal...</p>
+      <div class="w-14 h-14 border-4 border-slate-200 border-t-blue-500 rounded-full animate-spin mb-6"></div>
+      <p class="text-blue-500 font-bold text-sm uppercase tracking-widest animate-pulse">Đang chuẩn bị Portal...</p>
     </div>
 
     <!-- ERROR -->
-    <div v-else-if="error" class="bg-slate-800 rounded-3xl shadow-2xl p-10 max-w-md w-full text-center border-t-8 border-red-500">
-      <i class="fa-solid fa-circle-exclamation text-6xl text-red-400 mb-4"></i>
-      <h2 class="text-xl font-black text-white uppercase mb-3">Không tìm thấy</h2>
-      <p class="text-sm text-slate-400 mb-6">{{ error }}</p>
+    <div v-else-if="error" class="bg-white rounded-3xl shadow-sm border border-slate-100 p-10 max-w-md w-full text-center">
+      <div class="w-20 h-20 bg-red-50 text-red-500 rounded-full flex items-center justify-center text-4xl mx-auto mb-4">
+        <i class="fa-solid fa-circle-exclamation"></i>
+      </div>
+      <h2 class="text-xl font-black text-slate-800 uppercase mb-3">Không tìm thấy</h2>
+      <p class="text-sm text-slate-500 mb-6">{{ error }}</p>
     </div>
 
     <!-- PUBLIC PORTAL -->
@@ -92,28 +94,33 @@ onUnmounted(() => { if (timer) clearInterval(timer) })
       
       <!-- Greeting & Countdown -->
       <div class="text-center mb-5 pt-2">
-        <div class="inline-flex justify-center mb-4 bg-white/10 p-3 rounded-full border border-white/5 shadow-[0_0_20px_rgba(245,158,11,0.15)]">
+        <div class="inline-flex justify-center mb-4 bg-white p-3 rounded-full border border-slate-100 shadow-[0_4px_15px_rgba(0,0,0,0.05)]">
           <img src="/favicon.svg" class="h-12 w-12" alt="Logo">
         </div>
-        <h1 class="text-[22px] font-black text-white mb-1 tracking-tight">Xin chào, {{ order.customer?.name }}!</h1>
-        <p class="text-slate-400 text-[11px] mb-4">Cảm ơn bạn đã chọn King's Grill cho bữa tiệc của mình.</p>
+        <h1 class="text-[22px] font-black text-slate-800 mb-1 tracking-tight">Xin chào, {{ order.customer?.name }}!</h1>
+        <p class="text-slate-500 text-[11px] mb-4">Cảm ơn bạn đã chọn King's Grill cho bữa tiệc của mình.</p>
         
-        <div v-if="countdownText" class="inline-block bg-gradient-to-r from-amber-500/20 to-orange-600/20 border border-amber-500/30 px-5 py-2.5 rounded-[20px] backdrop-blur-sm">
-          <div class="text-[9px] text-amber-400 font-black uppercase tracking-widest mb-0.5">Thời gian đếm ngược</div>
+        <div v-if="countdownText" class="inline-block bg-amber-50 border border-amber-100 px-5 py-2.5 rounded-[20px]">
+          <div class="text-[9px] text-amber-600 font-black uppercase tracking-widest mb-0.5">Thời gian đếm ngược</div>
           <div class="text-lg font-black text-amber-500">{{ countdownText }}</div>
         </div>
       </div>
 
       <!-- Minigame Banner -->
-      <div class="mb-5 p-[3px] rounded-3xl bg-gradient-to-br from-rose-500 via-pink-500 to-purple-600 shadow-[0_8px_20px_rgba(225,29,72,0.25)] animate-pulse hover:animate-none cursor-pointer active:scale-95 transition-transform" @click="showLuckyWheel = true">
-        <div class="bg-slate-900/50 rounded-[21px] px-5 py-3.5 flex items-center justify-between backdrop-blur-md">
-          <div>
-            <h3 class="text-white font-black uppercase tracking-widest text-[13px] mb-0.5 flex items-center gap-2">
-              <i class="fa-solid fa-gift text-yellow-400"></i> Quà tặng chờ bạn!
-            </h3>
-            <p class="text-white/70 text-[10px] font-bold">Chơi Vòng Quay May Mắn ngay</p>
+      <div class="mb-5 bg-white border border-rose-100 rounded-3xl shadow-[0_8px_30px_rgba(225,29,72,0.08)] cursor-pointer active:scale-95 transition-transform overflow-hidden" @click="showLuckyWheel = true">
+        <div class="px-5 py-4 flex items-center justify-between">
+          <div class="flex items-center gap-4">
+            <div class="w-12 h-12 bg-rose-50 text-rose-500 rounded-2xl flex items-center justify-center text-xl animate-bounce">
+              <i class="fa-solid fa-gift"></i>
+            </div>
+            <div>
+              <h3 class="text-slate-800 font-black uppercase tracking-widest text-[13px] mb-0.5">
+                Quà tặng chờ bạn!
+              </h3>
+              <p class="text-slate-500 text-[10px] font-bold">Chơi Vòng Quay May Mắn ngay</p>
+            </div>
           </div>
-          <div class="w-8 h-8 bg-white/20 rounded-full flex items-center justify-center text-white backdrop-blur-md">
+          <div class="w-8 h-8 bg-slate-50 rounded-full flex items-center justify-center text-slate-400">
             <i class="fa-solid fa-chevron-right text-xs"></i>
           </div>
         </div>
@@ -137,10 +144,10 @@ onUnmounted(() => { if (timer) clearInterval(timer) })
           <div>
             <div class="text-[10px] font-bold text-slate-400 mb-0.5">Khách Hàng</div>
             <div class="text-sm font-black text-white uppercase tracking-wider">{{ order.customer?.name || 'KHÁCH HÀNG' }}</div>
-            <div class="text-[9px] font-bold text-slate-500 mt-1.5">Hạng: <span class="text-amber-400">GOLD MEMBER</span></div>
+            <div class="text-[9px] font-bold text-slate-500 mt-1.5">Hạng: <span class="text-amber-400">VIP MEMBER</span></div>
           </div>
           <div class="bg-white p-1 rounded-xl shrink-0">
-            <img :src="'https://quickchart.io/qr?text=' + order.id + '&size=60'" alt="QR" class="w-14 h-14 rounded-lg">
+            <img :src="'https://quickchart.io/qr?text=' + order.id + '&size=60&margin=0'" alt="QR" class="w-14 h-14 rounded-lg">
           </div>
         </div>
         
@@ -149,18 +156,22 @@ onUnmounted(() => { if (timer) clearInterval(timer) })
         </div>
       </div>
       <!-- Quick Actions -->
-      <div class="grid grid-cols-2 gap-2.5 mb-5">
-        <a href="https://maps.app.goo.gl/search/kings+grill" target="_blank" class="bg-rose-600 hover:bg-rose-500 text-white rounded-[20px] py-3.5 flex flex-col items-center justify-center gap-1.5 transition-all active:scale-95 shadow-[0_4px_15px_rgba(225,29,72,0.25)]">
-          <i class="fa-solid fa-location-dot text-lg"></i>
+      <div class="grid grid-cols-2 gap-3 mb-5">
+        <a href="https://maps.app.goo.gl/search/kings+grill" target="_blank" class="bg-white border border-slate-100 hover:bg-slate-50 text-slate-700 rounded-3xl py-4 flex flex-col items-center justify-center gap-1.5 transition-all active:scale-95 shadow-[0_4px_15px_rgba(0,0,0,0.03)]">
+          <div class="w-10 h-10 bg-blue-50 text-blue-500 rounded-full flex items-center justify-center mb-1">
+            <i class="fa-solid fa-location-dot text-lg"></i>
+          </div>
           <span class="text-[10px] font-black uppercase tracking-wider">Chỉ đường</span>
         </a>
-        <a href="#" @click.prevent="() => {}" class="bg-slate-800 hover:bg-slate-700 text-amber-400 rounded-[20px] py-3.5 flex flex-col items-center justify-center gap-1.5 transition-all active:scale-95 border border-slate-700">
-          <i class="fa-solid fa-book-open text-lg"></i>
+        <a href="#" @click.prevent="() => {}" class="bg-white border border-slate-100 hover:bg-slate-50 text-slate-700 rounded-3xl py-4 flex flex-col items-center justify-center gap-1.5 transition-all active:scale-95 shadow-[0_4px_15px_rgba(0,0,0,0.03)]">
+          <div class="w-10 h-10 bg-amber-50 text-amber-500 rounded-full flex items-center justify-center mb-1">
+            <i class="fa-solid fa-book-open text-lg"></i>
+          </div>
           <span class="text-[10px] font-black uppercase tracking-wider">Xem Menu</span>
         </a>
       </div>
 
-      <div class="bg-white rounded-[2rem] shadow-2xl p-6 md:p-8 relative overflow-hidden">
+      <div class="bg-white rounded-[2rem] shadow-sm border border-slate-100 p-6 md:p-8 relative overflow-hidden">
         <!-- HEADER -->
         <div class="text-center mb-6">
           <h2 class="font-bold tracking-[0.2em] text-slate-400 uppercase mt-1 text-xs" style="font-family: 'Freeman', sans-serif;">THÔNG TIN ĐẶT CHỖ</h2>
