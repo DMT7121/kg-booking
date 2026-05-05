@@ -1,6 +1,9 @@
 <script setup lang="ts">
 import { ref, onMounted, computed, onUnmounted } from 'vue'
 import { getOrderById } from '@/services/api'
+import LuckyWheel from './LuckyWheel.vue'
+
+const showLuckyWheel = ref(false)
 
 const order = ref<any>(null)
 const loading = ref(true)
@@ -101,6 +104,50 @@ onUnmounted(() => { if (timer) clearInterval(timer) })
         </div>
       </div>
 
+      <!-- Minigame Banner -->
+      <div class="mb-8 p-1 rounded-3xl bg-gradient-to-br from-rose-500 via-pink-500 to-purple-600 shadow-[0_10px_30px_rgba(225,29,72,0.3)] animate-pulse hover:animate-none cursor-pointer active:scale-95 transition-transform" @click="showLuckyWheel = true">
+        <div class="bg-slate-900/40 rounded-[22px] px-6 py-5 flex items-center justify-between backdrop-blur-sm">
+          <div>
+            <h3 class="text-white font-black uppercase tracking-widest text-sm mb-1 flex items-center gap-2">
+              <i class="fa-solid fa-gift text-yellow-400"></i> Quà tặng chờ bạn!
+            </h3>
+            <p class="text-white/80 text-xs font-bold">Chơi Vòng Quay May Mắn ngay</p>
+          </div>
+          <div class="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center text-white backdrop-blur-md">
+            <i class="fa-solid fa-chevron-right"></i>
+          </div>
+        </div>
+      </div>
+
+      <!-- Digital Loyalty Card -->
+      <div class="mb-8 relative rounded-3xl overflow-hidden bg-gradient-to-br from-slate-800 to-slate-900 border border-slate-700 shadow-2xl p-6">
+        <!-- Shine effect -->
+        <div class="absolute top-0 right-0 -mr-16 -mt-16 w-32 h-32 bg-white/10 blur-2xl rounded-full"></div>
+        <div class="absolute bottom-0 left-0 -ml-16 -mb-16 w-40 h-40 bg-blue-500/20 blur-3xl rounded-full"></div>
+        
+        <div class="relative z-10 flex justify-between items-start mb-6">
+          <div>
+            <div class="text-[10px] text-amber-400 font-black uppercase tracking-widest mb-1">Thẻ Thành Viên</div>
+            <div class="text-xl font-black text-white" style="font-family: 'Be Vietnam Pro', sans-serif;">KING'S GRILL VIP</div>
+          </div>
+          <img src="/favicon.svg" class="h-10 w-10 opacity-80" alt="Logo">
+        </div>
+
+        <div class="relative z-10 bg-slate-950/50 rounded-2xl p-4 flex items-center justify-between border border-slate-700/50 backdrop-blur-md">
+          <div>
+            <div class="text-xs font-bold text-slate-400 mb-0.5">Khách Hàng</div>
+            <div class="text-sm font-black text-white uppercase tracking-wider">{{ order.customer?.name || 'KHÁCH HÀNG' }}</div>
+            <div class="text-[10px] font-bold text-slate-500 mt-2">Hạng: <span class="text-amber-400">GOLD MEMBER</span></div>
+          </div>
+          <div class="bg-white p-1.5 rounded-xl shrink-0">
+            <img :src="'https://quickchart.io/qr?text=' + order.id + '&size=80'" alt="QR" class="w-16 h-16 rounded-lg">
+          </div>
+        </div>
+        
+        <div class="relative z-10 mt-4 text-center">
+          <p class="text-[9px] font-black uppercase tracking-widest text-slate-500">Đưa mã QR này cho nhân viên để tích điểm</p>
+        </div>
+      </div>
       <!-- Quick Actions -->
       <div class="grid grid-cols-2 gap-3 mb-6">
         <a href="https://maps.app.goo.gl/search/kings+grill" target="_blank" class="bg-blue-600 hover:bg-blue-500 text-white rounded-2xl p-4 flex flex-col items-center justify-center gap-2 transition-all active:scale-95 shadow-[0_8px_20px_rgba(37,99,235,0.2)]">
@@ -195,8 +242,11 @@ onUnmounted(() => { if (timer) clearInterval(timer) })
 
       <!-- BACK BUTTON -->
       <div class="text-center mt-6">
-        <p class="text-[10px] text-slate-400 font-bold uppercase tracking-widest mb-2">Powered by KG-BOOKING</p>
+        <p class="text-slate-500 font-bold text-xs mb-1">&copy; 2024 King's Grill Manager</p>
+        <p class="text-slate-600 font-bold text-[10px] uppercase tracking-widest">Hệ thống công nghệ nhà hàng</p>
       </div>
     </div>
+    
+    <LuckyWheel v-if="showLuckyWheel" :orderId="order.id" :customerName="order.customer?.name" @close="showLuckyWheel = false" />
   </div>
 </template>
