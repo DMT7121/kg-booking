@@ -88,75 +88,75 @@ onUnmounted(() => { if (timer) clearInterval(timer) })
     </div>
 
     <!-- PUBLIC PORTAL -->
-    <div v-else-if="order" class="w-full max-w-[500px]">
+    <div v-else-if="order" class="w-full max-w-[400px]">
       
       <!-- Greeting & Countdown -->
-      <div class="text-center mb-8 pt-4">
-        <div class="inline-flex justify-center mb-6 bg-white/10 p-4 rounded-full border border-white/5 shadow-[0_0_30px_rgba(245,158,11,0.2)]">
-          <img src="/favicon.svg" class="h-16 w-16" alt="Logo">
+      <div class="text-center mb-5 pt-2">
+        <div class="inline-flex justify-center mb-4 bg-white/10 p-3 rounded-full border border-white/5 shadow-[0_0_20px_rgba(245,158,11,0.15)]">
+          <img src="/favicon.svg" class="h-12 w-12" alt="Logo">
         </div>
-        <h1 class="text-2xl font-black text-white mb-2 tracking-tight">Xin chào, {{ order.customer?.name }}!</h1>
-        <p class="text-slate-400 text-sm mb-5">Cảm ơn bạn đã chọn King's Grill cho bữa tiệc của mình.</p>
+        <h1 class="text-[22px] font-black text-white mb-1 tracking-tight">Xin chào, {{ order.customer?.name }}!</h1>
+        <p class="text-slate-400 text-[11px] mb-4">Cảm ơn bạn đã chọn King's Grill cho bữa tiệc của mình.</p>
         
-        <div v-if="countdownText" class="inline-block bg-gradient-to-r from-amber-500/20 to-orange-600/20 border border-amber-500/30 px-6 py-3 rounded-2xl backdrop-blur-sm">
-          <div class="text-[10px] text-amber-400 font-black uppercase tracking-widest mb-1">Thời gian đếm ngược</div>
-          <div class="text-xl font-black text-amber-500">{{ countdownText }}</div>
+        <div v-if="countdownText" class="inline-block bg-gradient-to-r from-amber-500/20 to-orange-600/20 border border-amber-500/30 px-5 py-2.5 rounded-[20px] backdrop-blur-sm">
+          <div class="text-[9px] text-amber-400 font-black uppercase tracking-widest mb-0.5">Thời gian đếm ngược</div>
+          <div class="text-lg font-black text-amber-500">{{ countdownText }}</div>
         </div>
       </div>
 
       <!-- Minigame Banner -->
-      <div class="mb-8 p-1 rounded-3xl bg-gradient-to-br from-rose-500 via-pink-500 to-purple-600 shadow-[0_10px_30px_rgba(225,29,72,0.3)] animate-pulse hover:animate-none cursor-pointer active:scale-95 transition-transform" @click="showLuckyWheel = true">
-        <div class="bg-slate-900/40 rounded-[22px] px-6 py-5 flex items-center justify-between backdrop-blur-sm">
+      <div class="mb-5 p-[3px] rounded-3xl bg-gradient-to-br from-rose-500 via-pink-500 to-purple-600 shadow-[0_8px_20px_rgba(225,29,72,0.25)] animate-pulse hover:animate-none cursor-pointer active:scale-95 transition-transform" @click="showLuckyWheel = true">
+        <div class="bg-slate-900/50 rounded-[21px] px-5 py-3.5 flex items-center justify-between backdrop-blur-md">
           <div>
-            <h3 class="text-white font-black uppercase tracking-widest text-sm mb-1 flex items-center gap-2">
+            <h3 class="text-white font-black uppercase tracking-widest text-[13px] mb-0.5 flex items-center gap-2">
               <i class="fa-solid fa-gift text-yellow-400"></i> Quà tặng chờ bạn!
             </h3>
-            <p class="text-white/80 text-xs font-bold">Chơi Vòng Quay May Mắn ngay</p>
+            <p class="text-white/70 text-[10px] font-bold">Chơi Vòng Quay May Mắn ngay</p>
           </div>
-          <div class="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center text-white backdrop-blur-md">
-            <i class="fa-solid fa-chevron-right"></i>
+          <div class="w-8 h-8 bg-white/20 rounded-full flex items-center justify-center text-white backdrop-blur-md">
+            <i class="fa-solid fa-chevron-right text-xs"></i>
           </div>
         </div>
       </div>
 
       <!-- Digital Loyalty Card -->
-      <div class="mb-8 relative rounded-3xl overflow-hidden bg-gradient-to-br from-slate-800 to-slate-900 border border-slate-700 shadow-2xl p-6">
+      <div class="mb-5 relative rounded-3xl overflow-hidden bg-gradient-to-br from-slate-800 to-slate-900 border border-slate-700 shadow-2xl p-5">
         <!-- Shine effect -->
-        <div class="absolute top-0 right-0 -mr-16 -mt-16 w-32 h-32 bg-white/10 blur-2xl rounded-full"></div>
-        <div class="absolute bottom-0 left-0 -ml-16 -mb-16 w-40 h-40 bg-blue-500/20 blur-3xl rounded-full"></div>
+        <div class="absolute top-0 right-0 -mr-12 -mt-12 w-24 h-24 bg-white/10 blur-2xl rounded-full"></div>
+        <div class="absolute bottom-0 left-0 -ml-12 -mb-12 w-32 h-32 bg-blue-500/20 blur-3xl rounded-full"></div>
         
-        <div class="relative z-10 flex justify-between items-start mb-6">
+        <div class="relative z-10 flex justify-between items-start mb-4">
           <div>
-            <div class="text-[10px] text-amber-400 font-black uppercase tracking-widest mb-1">Thẻ Thành Viên</div>
-            <div class="text-xl font-black text-white" style="font-family: 'Be Vietnam Pro', sans-serif;">KING'S GRILL VIP</div>
+            <div class="text-[9px] text-amber-400 font-black uppercase tracking-widest mb-0.5">Thẻ Thành Viên</div>
+            <div class="text-lg font-black text-white" style="font-family: 'Be Vietnam Pro', sans-serif;">KING'S GRILL VIP</div>
           </div>
-          <img src="/favicon.svg" class="h-10 w-10 opacity-80" alt="Logo">
+          <img src="/favicon.svg" class="h-8 w-8 opacity-80" alt="Logo">
         </div>
 
-        <div class="relative z-10 bg-slate-950/50 rounded-2xl p-4 flex items-center justify-between border border-slate-700/50 backdrop-blur-md">
+        <div class="relative z-10 bg-slate-950/50 rounded-2xl p-3 flex items-center justify-between border border-slate-700/50 backdrop-blur-md">
           <div>
-            <div class="text-xs font-bold text-slate-400 mb-0.5">Khách Hàng</div>
+            <div class="text-[10px] font-bold text-slate-400 mb-0.5">Khách Hàng</div>
             <div class="text-sm font-black text-white uppercase tracking-wider">{{ order.customer?.name || 'KHÁCH HÀNG' }}</div>
-            <div class="text-[10px] font-bold text-slate-500 mt-2">Hạng: <span class="text-amber-400">GOLD MEMBER</span></div>
+            <div class="text-[9px] font-bold text-slate-500 mt-1.5">Hạng: <span class="text-amber-400">GOLD MEMBER</span></div>
           </div>
-          <div class="bg-white p-1.5 rounded-xl shrink-0">
-            <img :src="'https://quickchart.io/qr?text=' + order.id + '&size=80'" alt="QR" class="w-16 h-16 rounded-lg">
+          <div class="bg-white p-1 rounded-xl shrink-0">
+            <img :src="'https://quickchart.io/qr?text=' + order.id + '&size=60'" alt="QR" class="w-14 h-14 rounded-lg">
           </div>
         </div>
         
-        <div class="relative z-10 mt-4 text-center">
-          <p class="text-[9px] font-black uppercase tracking-widest text-slate-500">Đưa mã QR này cho nhân viên để tích điểm</p>
+        <div class="relative z-10 mt-3 text-center">
+          <p class="text-[8px] font-black uppercase tracking-widest text-slate-500">Đưa mã QR này cho nhân viên để tích điểm</p>
         </div>
       </div>
       <!-- Quick Actions -->
-      <div class="grid grid-cols-2 gap-3 mb-6">
-        <a href="https://maps.app.goo.gl/search/kings+grill" target="_blank" class="bg-blue-600 hover:bg-blue-500 text-white rounded-2xl p-4 flex flex-col items-center justify-center gap-2 transition-all active:scale-95 shadow-[0_8px_20px_rgba(37,99,235,0.2)]">
-          <i class="fa-solid fa-location-dot text-2xl"></i>
-          <span class="text-xs font-black uppercase tracking-wider">Chỉ đường</span>
+      <div class="grid grid-cols-2 gap-2.5 mb-5">
+        <a href="https://maps.app.goo.gl/search/kings+grill" target="_blank" class="bg-rose-600 hover:bg-rose-500 text-white rounded-[20px] py-3.5 flex flex-col items-center justify-center gap-1.5 transition-all active:scale-95 shadow-[0_4px_15px_rgba(225,29,72,0.25)]">
+          <i class="fa-solid fa-location-dot text-lg"></i>
+          <span class="text-[10px] font-black uppercase tracking-wider">Chỉ đường</span>
         </a>
-        <a href="#" @click.prevent="() => {}" class="bg-slate-800 hover:bg-slate-700 text-white rounded-2xl p-4 flex flex-col items-center justify-center gap-2 transition-all active:scale-95 border border-slate-700">
-          <i class="fa-solid fa-book-open text-2xl text-amber-400"></i>
-          <span class="text-xs font-black uppercase tracking-wider text-amber-400">Xem Menu</span>
+        <a href="#" @click.prevent="() => {}" class="bg-slate-800 hover:bg-slate-700 text-amber-400 rounded-[20px] py-3.5 flex flex-col items-center justify-center gap-1.5 transition-all active:scale-95 border border-slate-700">
+          <i class="fa-solid fa-book-open text-lg"></i>
+          <span class="text-[10px] font-black uppercase tracking-wider">Xem Menu</span>
         </a>
       </div>
 
