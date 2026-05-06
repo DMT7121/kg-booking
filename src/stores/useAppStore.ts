@@ -469,7 +469,7 @@ export const useAppStore = defineStore('app', () => {
   })
 
   return {
-    historyList, menuList, menuDetails, menuSheets, activeSheet, newMenuName, newMenuContent,
+    historyList, menuList, menuDetails, menuImages, menuSheets, activeSheet, newMenuName, newMenuContent,
     bankList, selectedBankIndex, newBank,
     staffList, newStaff,
     currentBank, groupedHistory, filteredHistory,
