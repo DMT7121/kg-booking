@@ -14,7 +14,7 @@ const { fillSampleMenu, prepareUpdate } = useForm()
 const { parseMenuAI } = useAI()
 
 // Tabs
-const activeTab = ref('manage') // 'manage' | 'add'
+
 
 // Manage Tab States
 const showAllMenus = ref(false)
@@ -48,12 +48,66 @@ const enhancedMenuList = computed(() => {
   })
 })
 
-function close() {
-  ui.showMenuManager = false
+
+
+const originalDishState = ref('')
+
+const isDishModified = computed(() => {
+  if (!selectedDish.value) return false
+  return JSON.stringify(selectedDish.value) !== originalDishState.value
+})
+
+async function close() {
+  if (isDishModified.value) {
+    const confirmed = await ui.showConfirm('Chưa lưu', 'Bạn có thay đổi chưa lưu! Đóng ngay sẽ làm mất dữ liệu. Vẫn đóng?')
+    if (confirmed) ui.showMenuManager = false
+  } else {
+    ui.showMenuManager = false
+  }
 }
 
-function selectDish(dish: any) {
-  selectedDish.value = dish
+async function selectDish(dish: any) {
+  if (isDishModified.value && dish && selectedDish.value && dish.cleanName !== selectedDish.value.cleanName) {
+    const confirmed = await ui.showConfirm('Chưa lưu', 'Bạn có thay đổi chưa lưu, chuyển sang món khác sẽ mất dữ liệu. Tiếp tục?')
+    if (!confirmed) return
+  }
+  
+  if (dish) {
+    selectedDish.value = { ...dish }
+    originalDishState.value = JSON.stringify(selectedDish.value)
+  } else {
+    if (isDishModified.value) {
+      const confirmed = await ui.showConfirm('Chưa lưu', 'Bạn có muốn ĐÓNG mà KHÔNG LƯU thay đổi không?')
+      if (!confirmed) return
+    }
+    selectedDish.value = null
+    originalDishState.value = ''
+  }
+}
+
+function cropAndResizeImage(file: File): Promise<string> {
+  return new Promise((resolve) => {
+    const img = new Image()
+    img.onload = () => {
+      const canvas = document.createElement('canvas')
+      const size = 800
+      canvas.width = size
+      canvas.height = size
+      const ctx = canvas.getContext('2d')
+      
+      const min = Math.min(img.width, img.height)
+      const sx = (img.width - min) / 2
+      const sy = (img.height - min) / 2
+      
+      ctx?.drawImage(img, sx, sy, min, min, 0, 0, size, size)
+      resolve(canvas.toDataURL('image/jpeg', 0.8))
+    }
+    const reader = new FileReader()
+    reader.onload = (e) => {
+      img.src = e.target?.result as string
+    }
+    reader.readAsDataURL(file)
+  })
 }
 
 function openUploadModal() {
@@ -94,6 +148,7 @@ async function saveSelectedDish() {
   
   await appStore.uploadNewMenu();
   selectedDish.value = null;
+  originalDishState.value = '';
 }
 
 async function deleteSelectedDish() {
@@ -114,6 +169,7 @@ async function deleteSelectedDish() {
   
   await appStore.uploadNewMenu();
   selectedDish.value = null;
+  originalDishState.value = '';
 }
 
 async function handleParseAI() {
@@ -140,7 +196,7 @@ function handleMenuImageUpload(event: Event) {
   reader.readAsDataURL(file)
 }
 
-function handleDishImageUpload(event: Event) {
+async function handleDishImageUpload(event: Event) {
   const file = (event.target as HTMLInputElement).files?.[0]
   if (!file) return
 
@@ -149,15 +205,12 @@ function handleDishImageUpload(event: Event) {
     return
   }
 
-  const reader = new FileReader()
-  reader.onload = async (e) => {
-    const base64 = e.target?.result as string
-    if (selectedDish.value) {
-      await appStore.uploadDishImageStore(selectedDish.value.cleanName, base64)
-      selectedDish.value.image = appStore.dishImages[selectedDish.value.cleanName]
-    }
+  const base64 = await cropAndResizeImage(file)
+  if (selectedDish.value) {
+    await appStore.uploadDishImageStore(selectedDish.value.cleanName, base64)
+    selectedDish.value.image = appStore.dishImages[selectedDish.value.cleanName]
+    originalDishState.value = JSON.stringify(selectedDish.value)
   }
-  reader.readAsDataURL(file)
 }
 </script>
 
@@ -178,170 +231,45 @@ function handleDishImageUpload(event: Event) {
       </button>
     </div>
 
-    <!-- Tabs -->
-    <div class="flex border-b border-slate-200 shrink-0 bg-white px-4 relative z-10 shadow-sm">
-      <button @click="activeTab = 'manage'" :class="['flex-1 py-3 text-sm font-bold text-center border-b-2 transition-colors relative', activeTab === 'manage' ? 'border-blue-900 text-blue-900' : 'border-transparent text-slate-400 hover:text-slate-600']">
-        Quản lý thực đơn
-      </button>
-      <button @click="activeTab = 'add'" :class="['flex-1 py-3 text-sm font-bold text-center border-b-2 transition-colors relative', activeTab === 'add' ? 'border-blue-900 text-blue-900' : 'border-transparent text-slate-400 hover:text-slate-600']">
-        Thêm món
-      </button>
-    </div>
-
     <!-- Scrollable Content Area -->
     <div class="flex-1 overflow-y-auto custom-scrollbar relative z-0">
       
-      <!-- TAB 1: QUẢN LÝ THỰC ĐƠN -->
-      <div v-if="activeTab === 'manage'" class="p-4 md:p-6 lg:p-8 max-w-5xl mx-auto space-y-6">
+      
+      <div class="flex flex-col lg:flex-row h-full max-w-7xl mx-auto w-full relative overflow-hidden">
         
-        <!-- AI Banner -->
-        <div class="bg-[#2D4FE0] rounded-2xl p-5 text-white shadow-lg shadow-blue-900/10 relative overflow-hidden flex items-center">
-          <div class="relative z-10 flex-1 pr-4">
-            <h3 class="text-base md:text-lg font-black mb-1.5 flex items-center gap-2 uppercase tracking-wide">
-              AI Phân tích thực đơn <i class="fa-solid fa-wand-magic-sparkles text-yellow-300"></i>
-            </h3>
-            <p class="text-[13px] text-blue-100 mb-4 leading-relaxed opacity-90">Nhập danh sách món, AI sẽ tách tên món và gợi ý giá bán cho bạn</p>
-            <button @click="openUploadModal" class="bg-white/10 hover:bg-white/20 backdrop-blur-md text-white px-4 py-2.5 rounded-xl text-sm font-bold flex items-center gap-2 transition-colors border border-white/20 active:scale-95 shadow-sm">
-              <i class="fa-regular fa-file-lines"></i> Nhập thực đơn từ văn bản
-            </button>
-          </div>
-          <div class="hidden sm:block w-32 h-32 bg-blue-400/20 rounded-2xl relative shrink-0 overflow-hidden border border-white/10 backdrop-blur-sm p-3 shadow-inner">
-             <div class="w-full h-full border border-dashed border-white/30 rounded-xl flex flex-col items-center justify-center text-white/50 relative">
-               <i class="fa-solid fa-list-ul text-2xl mb-1"></i>
-               <div class="absolute -bottom-2 -right-2 w-12 h-12 bg-gradient-to-br from-blue-400 to-blue-600 rounded-full flex items-center justify-center text-white font-black text-sm shadow-lg border-2 border-[#2D4FE0]">AI</div>
-             </div>
-          </div>
-        </div>
-
-        <!-- Danh sách thực đơn (Menus) -->
-        <div>
-          <div class="flex justify-between items-center mb-3">
-            <h4 class="text-xs font-black text-slate-500 uppercase tracking-widest">Danh sách thực đơn</h4>
-            <button @click="openUploadModal" class="bg-blue-900 text-white px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 hover:bg-blue-800 transition-all active:scale-95 shadow-md shadow-blue-900/20">
-              <i class="fa-solid fa-plus"></i> Thêm thực đơn
-            </button>
-          </div>
-          
-          <div class="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm">
-            <div class="flex flex-col">
-              <!-- Actual active sheet from store -->
-              <div v-for="sheet in appStore.menuSheets" :key="sheet" 
-                   @click="appStore.switchMenu(sheet)"
-                   :class="['flex items-center gap-4 p-4 border-b border-slate-100 last:border-0 hover:bg-slate-50 transition-colors cursor-pointer group', sheet === appStore.activeSheet ? 'bg-blue-50/50' : '']">
-                <div :class="['w-12 h-12 rounded-xl flex items-center justify-center text-xl shrink-0 transition-all', sheet === appStore.activeSheet ? 'bg-blue-100 text-blue-600' : 'bg-slate-100 text-slate-400 group-hover:bg-blue-50 group-hover:text-blue-500']">
-                  <i class="fa-solid fa-file-lines"></i>
-                </div>
-                <div class="flex-1 min-w-0">
-                  <h5 :class="['font-bold text-base truncate transition-colors', sheet === appStore.activeSheet ? 'text-blue-900' : 'text-slate-700']">{{ sheet }}</h5>
-                  <p class="text-[11px] text-slate-500 mt-0.5 truncate uppercase tracking-wide">{{ sheet === appStore.activeSheet ? 'Đang sử dụng' : 'Menu hệ thống' }}</p>
-                </div>
-                <div class="flex gap-1 shrink-0">
-                  <button @click.stop="prepareUpdate(sheet); showUploadModal = true" class="w-8 h-8 flex items-center justify-center text-slate-400 hover:text-blue-600 rounded-full hover:bg-blue-50 transition-colors">
-                    <i class="fa-solid fa-pen"></i>
-                  </button>
-                  <button @click.stop="appStore.deleteMenu(sheet)" class="w-8 h-8 flex items-center justify-center text-slate-400 hover:text-red-600 rounded-full hover:bg-red-50 transition-colors">
-                    <i class="fa-solid fa-trash-can"></i>
-                  </button>
-                </div>
-              </div>
-              
-              <!-- Mock visual placeholders to match design -->
-              <div v-if="appStore.menuSheets.length === 0" v-for="menu in mockMenus.slice(0,2)" :key="'mock'+menu.id" 
-                   class="flex items-center gap-4 p-4 border-b border-slate-100 hover:bg-slate-50 transition-colors cursor-pointer">
-                <div :class="['w-12 h-12 rounded-xl flex items-center justify-center text-xl shrink-0', menu.bg, menu.color]">
-                  <i :class="['fa-solid', menu.icon]"></i>
-                </div>
-                <div class="flex-1 min-w-0">
-                  <h5 class="font-bold text-slate-700 text-base truncate">{{ menu.name }}</h5>
-                  <p class="text-xs text-slate-500 mt-0.5 truncate">Tạo ngày {{ menu.date }} &bull; {{ menu.count }} món</p>
-                </div>
-                <button class="w-8 h-8 flex items-center justify-center text-slate-400 hover:text-blue-900 rounded-full hover:bg-slate-100 transition-colors shrink-0">
-                  <i class="fa-solid fa-ellipsis"></i>
-                </button>
-              </div>
-            </div>
-            
-            <button v-if="appStore.menuSheets.length > 3 || mockMenus.length > 2" class="w-full p-3 text-sm font-bold text-blue-600 hover:bg-slate-50 transition-colors flex items-center justify-center gap-2 border-t border-slate-100">
-              Xem tất cả <i class="fa-solid fa-chevron-down"></i>
-            </button>
-          </div>
-        </div>
-
-        <!-- Chi tiết thực đơn (Selected Menu) -->
-        <div class="pt-2">
-          <div class="flex flex-wrap items-center justify-between gap-4 mb-4">
-            <div class="flex items-center gap-3">
-              <h3 class="text-lg md:text-xl font-black text-blue-900 uppercase tracking-tight">{{ appStore.activeSheet || 'THỰC ĐƠN TRỐNG' }}</h3>
-              <span class="bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-widest border border-emerald-200">Đang sử dụng</span>
-            </div>
-            <div class="flex items-center gap-2">
-              <a v-if="appStore.menuImages[appStore.activeSheet]" :href="appStore.menuImages[appStore.activeSheet]" target="_blank" class="px-3 py-1.5 border border-blue-200 bg-blue-50 rounded-lg text-sm font-bold text-blue-600 flex items-center gap-2 hover:bg-blue-100 transition-colors shadow-sm">
-                <i class="fa-solid fa-image"></i> Xem Ảnh Menu
-              </a>
-              <label class="px-3 py-1.5 border border-slate-200 bg-white rounded-lg text-sm font-bold text-slate-600 flex items-center gap-2 hover:bg-slate-50 transition-colors shadow-sm cursor-pointer">
-                <i class="fa-solid fa-cloud-arrow-up text-emerald-500"></i> Up Ảnh Menu
-                <input type="file" class="hidden" accept="image/*" @change="handleMenuImageUpload">
-              </label>
-              <button @click="prepareUpdate(appStore.activeSheet); showUploadModal = true" class="px-3 py-1.5 border border-slate-200 bg-white rounded-lg text-sm font-bold text-slate-600 flex items-center gap-2 hover:bg-slate-50 transition-colors shadow-sm">
-                <i class="fa-solid fa-pen text-blue-500"></i> Sửa
-              </button>
-              <button class="px-3 py-1.5 border border-slate-200 bg-white rounded-lg text-sm font-bold text-slate-600 flex items-center gap-2 hover:bg-slate-50 transition-colors shadow-sm">
-                <i class="fa-solid fa-download text-blue-900"></i> Xuất file
-              </button>
-            </div>
-          </div>
-
-          <!-- Filters -->
-          <div class="flex flex-col md:flex-row md:items-center gap-3 mb-4">
-            <span class="text-sm font-bold text-slate-500 hidden md:block w-20">{{ enhancedMenuList.length }} món</span>
-            <div class="flex-1 relative">
-              <i class="fa-solid fa-magnifying-glass absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400"></i>
-              <input type="text" placeholder="Tìm kiếm món ăn..." class="w-full pl-10 pr-4 py-2.5 bg-white border border-slate-200 rounded-xl text-sm font-medium text-slate-700 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition-all shadow-sm">
-            </div>
-            <div class="flex items-center gap-3">
-              <span class="text-sm font-bold text-slate-500 md:hidden flex-1">{{ enhancedMenuList.length }} món</span>
-              <button class="px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-sm font-bold text-blue-900 flex items-center gap-2 hover:bg-slate-50 transition-colors shrink-0 shadow-sm">
-                <i class="fa-solid fa-filter"></i> Bộ lọc
-              </button>
-            </div>
-          </div>
-
-          <!-- Dish List -->
-          <div class="space-y-3 pb-8">
-            <div v-for="dish in enhancedMenuList" :key="dish.name" class="bg-white p-3 rounded-2xl border border-slate-200 shadow-sm flex items-center gap-4 hover:border-blue-300 transition-all group">
-              <img :src="dish.image" alt="dish" class="w-16 h-16 md:w-20 md:h-20 rounded-xl object-cover shrink-0 bg-slate-100 shadow-sm">
-              <div class="flex-1 min-w-0">
-                <div class="flex items-center gap-2 flex-wrap mb-1">
-                  <h4 class="font-bold text-slate-800 text-sm md:text-base truncate">{{ dish.name }}</h4>
-                  <span :class="['px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-wider shrink-0 border', getCategoryColor(dish.category)]">{{ dish.category }}</span>
-                </div>
-                <div v-if="dish.inUse" class="flex items-center gap-1.5 text-[11px] font-medium text-slate-500 bg-slate-50 inline-flex px-2 py-0.5 rounded-md">
-                  <i class="fa-solid fa-clipboard-check text-emerald-500"></i> Đã có trong phiếu đặt
-                </div>
-              </div>
-              <div class="text-right shrink-0 flex flex-col items-end gap-1">
-                <div class="font-black text-blue-900 text-sm md:text-base">{{ formatVND(dish.price) }}</div>
-                <button class="w-8 h-8 flex items-center justify-center text-slate-400 hover:text-blue-900 rounded-full hover:bg-blue-50 transition-colors opacity-0 group-hover:opacity-100 md:opacity-100">
-                  <i class="fa-solid fa-ellipsis"></i>
-                </button>
-              </div>
-            </div>
-            
-            <div v-if="enhancedMenuList.length === 0" class="text-center py-12 bg-white rounded-2xl border border-slate-200 border-dashed">
-              <i class="fa-solid fa-plate-wheat text-4xl text-slate-200 mb-3"></i>
-              <p class="text-slate-500 font-bold text-sm">Chưa có món ăn nào trong thực đơn này</p>
-            </div>
-          </div>
-        </div>
-
-      </div>
-
-      <!-- TAB 2: THÊM MÓN (GRID/LIST WITH EDIT PANEL) -->
-      <div v-if="activeTab === 'add'" class="flex flex-col lg:flex-row h-full max-w-7xl mx-auto w-full relative overflow-hidden">
-        <!-- Left Side: Dish Grid -->
+        <!-- Left Side: Menu Selector & Dish List -->
         <div class="flex-1 p-4 md:p-6 flex flex-col h-full bg-slate-50 overflow-hidden">
-          <!-- Toolbar -->
-          <div class="flex flex-wrap items-center gap-3 mb-5">
+          
+          <!-- Unified Menu Selector & Actions Toolbar -->
+          <div class="bg-white rounded-2xl border border-slate-200 p-4 mb-5 shadow-sm flex flex-col md:flex-row gap-4 justify-between items-center relative z-10 shrink-0">
+            <div class="flex items-center gap-3 w-full md:w-auto">
+              <div class="w-12 h-12 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center text-xl shrink-0">
+                <i class="fa-solid fa-book-open"></i>
+              </div>
+              <div class="flex-1 min-w-[200px]">
+                <p class="text-[10px] uppercase font-black tracking-widest text-slate-400 mb-0.5">Thực đơn hiện tại</p>
+                <select v-model="appStore.activeSheet" @change="appStore.switchMenu(appStore.activeSheet)" class="text-base font-black text-blue-900 bg-transparent outline-none cursor-pointer w-full appearance-none pr-6 bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIGZpbGw9Im5vbmUiIHZpZXdCb3g9IjAgMCAyNCAyNCIgc3Ryb2tlLXdpZHRoPSIyIiBzdHJva2U9IiMxZTNhOGEiPjxwYXRoIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgc3Ryb2tlLWxpbmVqb2luPSJyb3VuZCIgZD0iTTE5IDlsLTcgNy03LTciLz48L3N2Zz4=')] bg-[length:16px_16px] bg-[right_center] bg-no-repeat">
+                  <option v-if="appStore.menuSheets.length === 0" value="">-- Trống --</option>
+                  <option v-for="sheet in appStore.menuSheets" :key="sheet" :value="sheet">{{ sheet }}</option>
+                </select>
+              </div>
+            </div>
+            
+            <div class="flex flex-wrap items-center gap-2 w-full md:w-auto">
+              <button v-if="appStore.activeSheet" @click="prepareUpdate(appStore.activeSheet); showUploadModal = true" class="flex-1 md:flex-none px-4 py-2 bg-white border border-slate-200 text-slate-600 text-sm font-bold rounded-xl hover:bg-slate-50 transition-colors flex items-center justify-center gap-2 shadow-sm">
+                <i class="fa-solid fa-pen text-blue-500"></i> <span class="hidden sm:inline">Sửa</span>
+              </button>
+              <button v-if="appStore.activeSheet" @click="appStore.deleteMenu(appStore.activeSheet)" class="flex-1 md:flex-none px-4 py-2 bg-white border border-red-100 text-red-600 text-sm font-bold rounded-xl hover:bg-red-50 transition-colors flex items-center justify-center gap-2 shadow-sm">
+                <i class="fa-solid fa-trash-can"></i>
+              </button>
+              <button @click="openUploadModal" class="flex-1 md:flex-none px-4 py-2 bg-blue-900 text-white text-sm font-bold rounded-xl hover:bg-blue-800 transition-colors flex items-center justify-center gap-2 shadow-md shadow-blue-900/20">
+                <i class="fa-solid fa-plus"></i> <span class="hidden sm:inline">Thêm Menu mới</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Dish List Header & Toolbar -->
+          <div class="flex flex-wrap items-center gap-3 mb-5 shrink-0">
             <div class="flex-1 min-w-[200px] relative">
               <i class="fa-solid fa-magnifying-glass absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400"></i>
               <input type="text" placeholder="Tìm kiếm món ăn..." class="w-full pl-10 pr-4 py-2.5 bg-white border border-slate-200 rounded-xl text-sm font-medium text-slate-700 focus:outline-none focus:border-blue-500 shadow-sm transition-all">
@@ -351,13 +279,10 @@ function handleDishImageUpload(event: Event) {
                 <option value="">Loại món</option>
                 <option v-for="cat in mockCategories" :key="cat" :value="cat">{{ cat }}</option>
               </select>
-              <button class="px-3 py-2.5 bg-white border border-slate-200 rounded-xl text-sm font-bold text-slate-600 flex items-center gap-2 hover:bg-slate-50 shadow-sm">
-                <i class="fa-solid fa-filter text-slate-400"></i> Bộ lọc
-              </button>
             </div>
           </div>
 
-          <div class="flex justify-between items-center mb-4">
+          <div class="flex justify-between items-center mb-4 shrink-0">
             <h4 class="text-xs font-black text-slate-500 uppercase tracking-widest">Danh sách món ({{ enhancedMenuList.length }})</h4>
             <div class="flex bg-slate-200 p-1 rounded-xl shadow-inner">
               <button @click="viewMode = 'list'" :class="['px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all', viewMode === 'list' ? 'bg-white shadow-sm text-blue-900' : 'text-slate-500 hover:text-slate-700']">
@@ -369,28 +294,34 @@ function handleDishImageUpload(event: Event) {
             </div>
           </div>
 
-          <!-- Grid View -->
-          <div v-if="viewMode === 'grid'" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4 pb-32 lg:pb-8 overflow-y-auto custom-scrollbar pr-1">
-            <MenuGridItem 
-              v-for="dish in enhancedMenuList" 
-              :key="dish.name"
-              :dish="dish"
-              :getCategoryColor="getCategoryColor"
-              :isSelected="selectedDish?.name === dish.name"
-              @select="selectDish"
-            />
-          </div>
-
-          <!-- List View -->
-          <div v-else class="space-y-3 pb-32 lg:pb-8 overflow-y-auto custom-scrollbar pr-1">
-            <MenuListItem 
-              v-for="dish in enhancedMenuList" 
-              :key="dish.name"
-              :dish="dish"
-              :getCategoryColor="getCategoryColor"
-              :isSelected="selectedDish?.name === dish.name"
-              @select="selectDish"
-            />
+          <!-- Dish List Content (Scrollable) -->
+          <div class="flex-1 overflow-y-auto custom-scrollbar pr-1 pb-32 lg:pb-8">
+            <div v-if="enhancedMenuList.length === 0" class="text-center py-12 bg-white rounded-2xl border border-slate-200 border-dashed">
+              <i class="fa-solid fa-plate-wheat text-4xl text-slate-200 mb-3"></i>
+              <p class="text-slate-500 font-bold text-sm">Chưa có món ăn nào trong thực đơn này</p>
+            </div>
+            
+            <div v-else-if="viewMode === 'grid'" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
+              <MenuGridItem 
+                v-for="dish in enhancedMenuList" 
+                :key="dish.name"
+                :dish="dish"
+                :getCategoryColor="getCategoryColor"
+                :isSelected="selectedDish?.name === dish.name"
+                @select="selectDish"
+              />
+            </div>
+            
+            <div v-else class="space-y-3">
+              <MenuListItem 
+                v-for="dish in enhancedMenuList" 
+                :key="dish.name"
+                :dish="dish"
+                :getCategoryColor="getCategoryColor"
+                :isSelected="selectedDish?.name === dish.name"
+                @select="selectDish"
+              />
+            </div>
           </div>
         </div>
 
@@ -401,10 +332,10 @@ function handleDishImageUpload(event: Event) {
             <h3 class="font-black text-slate-700 uppercase text-[13px] tracking-widest flex items-center gap-2">
               <i class="fa-solid fa-pen-to-square text-blue-500"></i> Chỉnh sửa ảnh món
             </h3>
-            <button @click="selectedDish = null" class="w-8 h-8 flex lg:hidden items-center justify-center text-slate-400 hover:bg-slate-100 hover:text-slate-700 rounded-full transition-colors bg-slate-50">
+            <button @click="selectDish(null)" class="w-8 h-8 flex lg:hidden items-center justify-center text-slate-400 hover:bg-slate-100 hover:text-slate-700 rounded-full transition-colors bg-slate-50">
               <i class="fa-solid fa-chevron-down"></i>
             </button>
-            <button class="text-xs font-black text-blue-600 hidden lg:flex items-center gap-1.5 hover:bg-blue-50 px-3 py-1.5 rounded-lg transition-colors" @click="selectedDish = null">
+            <button class="text-xs font-black text-blue-600 hidden lg:flex items-center gap-1.5 hover:bg-blue-50 px-3 py-1.5 rounded-lg transition-colors" @click="selectDish(null)">
               Đóng <i class="fa-solid fa-xmark"></i>
             </button>
           </div>
@@ -422,15 +353,25 @@ function handleDishImageUpload(event: Event) {
               </a>
             </div>
             
+            
             <!-- Upload Box -->
-            <label class="block border-2 border-dashed border-blue-200 bg-blue-50/50 rounded-2xl p-6 text-center mb-6 cursor-pointer hover:bg-blue-50 hover:border-blue-400 transition-all group">
-              <input type="file" class="hidden" accept="image/*" @change="handleDishImageUpload">
-              <div class="w-12 h-12 bg-white rounded-xl shadow-sm text-blue-500 flex items-center justify-center text-xl mx-auto mb-3 group-hover:scale-110 group-hover:text-blue-600 transition-all border border-blue-100">
-                <i class="fa-solid fa-cloud-arrow-up"></i>
-              </div>
-              <h4 class="font-bold text-blue-700 text-sm mb-1.5">Thêm ảnh khác</h4>
-              <p class="text-[10px] text-slate-500 uppercase tracking-widest leading-relaxed">PNG, JPG, WebP (Tối đa 5MB)<br>Khuyến nghị: 800x800px, tỉ lệ 1:1</p>
-            </label>
+            <div class="flex gap-3 mb-6">
+              <label class="flex-1 border-2 border-dashed border-blue-200 bg-blue-50/50 rounded-2xl p-4 text-center cursor-pointer hover:bg-blue-50 hover:border-blue-400 transition-all group">
+                <input type="file" class="hidden" accept="image/*" @change="handleDishImageUpload">
+                <div class="w-10 h-10 bg-white rounded-xl shadow-sm text-blue-500 flex items-center justify-center text-lg mx-auto mb-2 group-hover:scale-110 transition-all">
+                  <i class="fa-regular fa-image"></i>
+                </div>
+                <h4 class="font-bold text-blue-700 text-[11px] uppercase tracking-wide">Tải ảnh lên</h4>
+              </label>
+              
+              <label class="flex-1 border-2 border-dashed border-emerald-200 bg-emerald-50/50 rounded-2xl p-4 text-center cursor-pointer hover:bg-emerald-50 hover:border-emerald-400 transition-all group">
+                <input type="file" class="hidden" accept="image/*" capture="environment" @change="handleDishImageUpload">
+                <div class="w-10 h-10 bg-white rounded-xl shadow-sm text-emerald-500 flex items-center justify-center text-lg mx-auto mb-2 group-hover:scale-110 transition-all">
+                  <i class="fa-solid fa-camera"></i>
+                </div>
+                <h4 class="font-bold text-emerald-700 text-[11px] uppercase tracking-wide">Chụp ảnh (1:1)</h4>
+              </label>
+            </div>
 
             <!-- Form Fields -->
             <div class="space-y-4 bg-slate-50/50 p-4 rounded-2xl border border-slate-100">

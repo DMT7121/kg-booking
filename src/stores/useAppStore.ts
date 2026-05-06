@@ -62,6 +62,7 @@ export const useAppStore = defineStore('app', () => {
   const activeSheet = ref(localStorage.getItem(CACHE_KEYS.MENU_SHEET) || 'Menu')
   const newMenuName = ref('')
   const newMenuContent = ref('')
+  const sessionPassword = ref('')
 
   // --- Bank ---
   const bankList = ref<any[]>(JSON.parse(localStorage.getItem(CACHE_KEYS.BANK) || DEFAULTS.BANKS))
@@ -255,11 +256,15 @@ export const useAppStore = defineStore('app', () => {
     if (!newMenuName.value || !newMenuContent.value) {
       return uiStore.showToast('Vui lòng nhập tên và nội dung menu!', 'warning')
     }
-    const pass = await uiStore.showPrompt('Bảo mật', 'Nhập mã PIN Quản Lý để cập nhật/tạo Menu lên Cloud:')
-    if (pass === null) return
+    
+    if (!sessionPassword.value) {
+      const pass = await uiStore.showPrompt('Bảo mật', `Nhập mã PIN Quản Lý để cập nhật/tạo Menu lên Cloud:`)
+      if (pass === null) return
+      sessionPassword.value = pass
+    }
 
     try {
-      const data = await api.createMenu(newMenuName.value, newMenuContent.value, pass)
+      const data = await api.createMenu(newMenuName.value, newMenuContent.value, sessionPassword.value)
       if (data.ok) {
         uiStore.showToast(uiStore.isUpdateMode ? 'Cập nhật thực đơn thành công!' : 'Tạo menu thành công!', 'success')
         await fetchSheets()
@@ -268,6 +273,7 @@ export const useAppStore = defineStore('app', () => {
         newMenuContent.value = ''
         uiStore.isUpdateMode = false
       } else {
+        if (data.message && data.message.includes('Từ chối')) sessionPassword.value = ''
         throw new Error(data.message)
       }
     } catch (e: any) {
@@ -276,11 +282,17 @@ export const useAppStore = defineStore('app', () => {
   }
 
   async function deleteMenu(sheetName: string) {
-    const pass = await uiStore.showPrompt('Xóa Bộ Thực Đơn', `Nhập mã PIN Quản Lý để xóa bộ thực đơn "${sheetName}":`)
-    if (pass === null) return
+    const confirm = await uiStore.showConfirm('Xóa Bộ Thực Đơn', `Bạn có chắc chắn muốn xóa bộ thực đơn "${sheetName}"?`)
+    if (!confirm) return
+
+    if (!sessionPassword.value) {
+      const pass = await uiStore.showPrompt('Xóa Bộ Thực Đơn', `Nhập mã PIN Quản Lý để xóa bộ thực đơn "${sheetName}":`)
+      if (pass === null) return
+      sessionPassword.value = pass
+    }
 
     try {
-      const data = await api.deleteMenu(sheetName, pass)
+      const data = await api.deleteMenu(sheetName, sessionPassword.value)
       if (data.ok) {
         uiStore.showToast(`Xóa menu "${sheetName}" thành công!`, 'success')
         await fetchSheets()
@@ -292,6 +304,7 @@ export const useAppStore = defineStore('app', () => {
           }
         }
       } else {
+        if (data.message && data.message.includes('Từ chối')) sessionPassword.value = ''
         throw new Error(data.message)
       }
     } catch (e: any) {
@@ -301,17 +314,22 @@ export const useAppStore = defineStore('app', () => {
 
   async function uploadMenuImageStore(base64: string) {
     if (!activeSheet.value) return uiStore.showToast('Không có menu nào đang chọn!', 'warning')
-    const pass = await uiStore.showPrompt('Bảo mật', `Nhập mã PIN Quản Lý để tải ảnh lên cho Menu "${activeSheet.value}":`)
-    if (pass === null) return
+    
+    if (!sessionPassword.value) {
+      const pass = await uiStore.showPrompt('Bảo mật', `Nhập mã PIN Quản Lý để thực hiện:`)
+      if (pass === null) return
+      sessionPassword.value = pass
+    }
 
     uiStore.loading.is = true
     uiStore.loading.msg = 'ĐANG TẢI ẢNH LÊN CLOUD...'
     try {
-      const data = await api.uploadMenuImage(activeSheet.value, base64, pass)
+      const data = await api.uploadMenuImage(activeSheet.value, base64, sessionPassword.value)
       if (data.ok && data.url) {
         uiStore.showToast('Tải ảnh thành công!', 'success')
         menuImages.value[activeSheet.value] = data.url
       } else {
+        if (data.message && data.message.includes('Từ chối')) sessionPassword.value = ''
         throw new Error(data.message)
       }
     } catch (e: any) {
@@ -323,17 +341,21 @@ export const useAppStore = defineStore('app', () => {
   }
 
   async function uploadDishImageStore(dishId: string, base64: string) {
-    const pass = await uiStore.showPrompt('Bảo mật', `Nhập mã PIN Quản Lý để tải ảnh lên cho món này:`)
-    if (pass === null) return
+    if (!sessionPassword.value) {
+      const pass = await uiStore.showPrompt('Bảo mật', `Nhập mã PIN Quản Lý để tải ảnh lên:`)
+      if (pass === null) return
+      sessionPassword.value = pass
+    }
 
     uiStore.loading.is = true
     uiStore.loading.msg = 'ĐANG TẢI ẢNH MÓN LÊN CLOUD...'
     try {
-      const data = await api.uploadDishImage(dishId, base64, pass)
+      const data = await api.uploadDishImage(dishId, base64, sessionPassword.value)
       if (data.ok && data.url) {
         uiStore.showToast('Tải ảnh món thành công!', 'success')
         dishImages.value[dishId] = data.url
       } else {
+        if (data.message && data.message.includes('Từ chối')) sessionPassword.value = ''
         throw new Error(data.message)
       }
     } catch (e: any) {
