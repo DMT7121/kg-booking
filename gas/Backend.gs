@@ -94,6 +94,7 @@ function doPost(e) {
       case "createMenu": result = createNewMenuSheet(data.name, data.rawText, data.password); break;
       case "deleteMenu": result = deleteMenuSheet(data.name, data.password); break;
       case "uploadMenuImage": result = uploadMenuImage(data.sheetName, data.base64, data.password); break;
+      case "uploadDishImage": result = uploadDishImage(data.dishId, data.base64, data.password); break;
       case "saveConfig": result = saveSystemConfig(data, data.password); break;
       case "getConfig": result = getSystemConfig(); break;
       case "renderPreview": result = renderPreview(data.data); break;
@@ -187,6 +188,24 @@ function uploadMenuImage(sheetName, base64, password) {
   if (!found) { sheet.appendRow([key, img.url]); }
   
   return { ok: true, url: img.url, message: "Upload ảnh Menu thành công!" };
+}
+
+function uploadDishImage(dishId, base64, password) {
+  if (password !== getAdminPass_()) return { ok: false, message: "Từ chối truy cập!" };
+  const img = uploadImageToDrive(base64, `Dish_${dishId}_${Date.now()}.jpg`);
+  if (!img.url) return { ok: false, message: "Lỗi upload ảnh" };
+  
+  const ss = SpreadsheetApp.openById(CONFIG.SS_ID);
+  const sheet = initSheetIfNeeded_(ss, CONFIG.SHEET_NAME_CONFIG, CONFIG.CONFIG_HEADERS, "#e9d5ff");
+  const key = `dishImage_${dishId}`;
+  const rows = sheet.getDataRange().getValues();
+  let found = false;
+  for (let i = 1; i < rows.length; i++) {
+    if (rows[i][0] === key) { sheet.getRange(i + 1, 2).setValue(img.url); found = true; break; }
+  }
+  if (!found) { sheet.appendRow([key, img.url]); }
+  
+  return { ok: true, url: img.url, message: "Upload ảnh món thành công!" };
 }
 
 function parseMenuRawData(text) {

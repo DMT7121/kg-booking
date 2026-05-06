@@ -139,6 +139,26 @@ function handleMenuImageUpload(event: Event) {
   }
   reader.readAsDataURL(file)
 }
+
+function handleDishImageUpload(event: Event) {
+  const file = (event.target as HTMLInputElement).files?.[0]
+  if (!file) return
+
+  if (file.size > 5 * 1024 * 1024) {
+    ui.showToast('Ảnh quá lớn, vui lòng chọn ảnh < 5MB', 'warning')
+    return
+  }
+
+  const reader = new FileReader()
+  reader.onload = async (e) => {
+    const base64 = e.target?.result as string
+    if (selectedDish.value) {
+      await appStore.uploadDishImageStore(selectedDish.value.cleanName, base64)
+      selectedDish.value.image = appStore.dishImages[selectedDish.value.cleanName]
+    }
+  }
+  reader.readAsDataURL(file)
+}
 </script>
 
 <template>
@@ -392,20 +412,25 @@ function handleMenuImageUpload(event: Event) {
           <div class="p-5 overflow-y-auto custom-scrollbar flex-1 pb-24 lg:pb-5">
             <!-- Large Image Preview -->
             <div class="relative rounded-2xl overflow-hidden bg-slate-100 mb-5 group border border-slate-200 shadow-sm">
-              <img :src="selectedDish.image" alt="dish" class="w-full aspect-square object-cover transition-transform duration-500 group-hover:scale-105">
-              <button class="absolute top-3 right-3 w-8 h-8 bg-black/50 hover:bg-black/70 text-white rounded-full flex items-center justify-center backdrop-blur-md transition-all opacity-0 group-hover:opacity-100 scale-90 group-hover:scale-100">
-                <i class="fa-solid fa-xmark"></i>
-              </button>
+              <a :href="selectedDish.image" target="_blank" class="block w-full h-full cursor-zoom-in">
+                <img :src="selectedDish.image" alt="dish" class="w-full aspect-square object-cover transition-transform duration-500 group-hover:scale-105">
+                <div class="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors flex items-center justify-center">
+                  <div class="w-12 h-12 bg-black/50 text-white rounded-full flex items-center justify-center backdrop-blur-md opacity-0 group-hover:opacity-100 scale-90 group-hover:scale-100 transition-all shadow-lg">
+                    <i class="fa-solid fa-expand text-xl"></i>
+                  </div>
+                </div>
+              </a>
             </div>
             
             <!-- Upload Box -->
-            <div class="border-2 border-dashed border-blue-200 bg-blue-50/50 rounded-2xl p-6 text-center mb-6 cursor-pointer hover:bg-blue-50 hover:border-blue-400 transition-all group">
+            <label class="block border-2 border-dashed border-blue-200 bg-blue-50/50 rounded-2xl p-6 text-center mb-6 cursor-pointer hover:bg-blue-50 hover:border-blue-400 transition-all group">
+              <input type="file" class="hidden" accept="image/*" @change="handleDishImageUpload">
               <div class="w-12 h-12 bg-white rounded-xl shadow-sm text-blue-500 flex items-center justify-center text-xl mx-auto mb-3 group-hover:scale-110 group-hover:text-blue-600 transition-all border border-blue-100">
                 <i class="fa-solid fa-cloud-arrow-up"></i>
               </div>
               <h4 class="font-bold text-blue-700 text-sm mb-1.5">Thêm ảnh khác</h4>
-              <p class="text-[10px] text-slate-500 uppercase tracking-widest leading-relaxed">PNG, JPG, WebP (Tối đa 2MB)<br>Khuyến nghị: 800x800px, tỉ lệ 1:1</p>
-            </div>
+              <p class="text-[10px] text-slate-500 uppercase tracking-widest leading-relaxed">PNG, JPG, WebP (Tối đa 5MB)<br>Khuyến nghị: 800x800px, tỉ lệ 1:1</p>
+            </label>
 
             <!-- Form Fields -->
             <div class="space-y-4 bg-slate-50/50 p-4 rounded-2xl border border-slate-100">

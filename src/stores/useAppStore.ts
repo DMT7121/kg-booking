@@ -57,6 +57,7 @@ export const useAppStore = defineStore('app', () => {
   const menuList = shallowRef<MenuListItem[]>([])
   const menuDetails = ref<Record<string, string>>({})
   const menuImages = ref<Record<string, string>>({})
+  const dishImages = ref<Record<string, string>>({})
   const menuSheets = ref<string[]>([])
   const activeSheet = ref(localStorage.getItem(CACHE_KEYS.MENU_SHEET) || 'Menu')
   const newMenuName = ref('')
@@ -321,6 +322,28 @@ export const useAppStore = defineStore('app', () => {
     }
   }
 
+  async function uploadDishImageStore(dishId: string, base64: string) {
+    const pass = await uiStore.showPrompt('Bảo mật', `Nhập mã PIN Quản Lý để tải ảnh lên cho món này:`)
+    if (pass === null) return
+
+    uiStore.loading.is = true
+    uiStore.loading.msg = 'ĐANG TẢI ẢNH MÓN LÊN CLOUD...'
+    try {
+      const data = await api.uploadDishImage(dishId, base64, pass)
+      if (data.ok && data.url) {
+        uiStore.showToast('Tải ảnh món thành công!', 'success')
+        dishImages.value[dishId] = data.url
+      } else {
+        throw new Error(data.message)
+      }
+    } catch (e: any) {
+      console.error(e)
+      uiStore.showToast('Lỗi: ' + e.message, 'error')
+    } finally {
+      uiStore.loading.is = false
+    }
+  }
+
   // --- Bank Actions ---
   function selectBank(idx: number) {
     selectedBankIndex.value = idx
@@ -401,6 +424,17 @@ export const useAppStore = defineStore('app', () => {
           localStorage.setItem('kg_v400_telegramChatId', result.data.telegramChatId)
           hasChanges = true
         }
+        
+        // Extract images
+        Object.keys(result.data).forEach(k => {
+          if (k.startsWith('dishImage_')) {
+            dishImages.value[k.replace('dishImage_', '')] = result.data[k]
+          }
+          if (k.startsWith('menuImage_')) {
+            menuImages.value[k.replace('menuImage_', '')] = result.data[k]
+          }
+        })
+        
         if (hasChanges) {
           uiStore.showToast('Đã đồng bộ cấu hình từ Server', 'info')
         }
@@ -469,12 +503,12 @@ export const useAppStore = defineStore('app', () => {
   })
 
   return {
-    historyList, menuList, menuDetails, menuImages, menuSheets, activeSheet, newMenuName, newMenuContent,
+    historyList, menuList, menuDetails, menuImages, dishImages, menuSheets, activeSheet, newMenuName, newMenuContent,
     bankList, selectedBankIndex, newBank,
     staffList, newStaff,
     currentBank, groupedHistory, filteredHistory,
     getCrmStatus, computeDiff,
-    loadHistory, fetchMenu, fetchSheets, switchMenu, uploadNewMenu, deleteMenu, uploadMenuImageStore,
+    loadHistory, fetchMenu, fetchSheets, switchMenu, uploadNewMenu, deleteMenu, uploadMenuImageStore, uploadDishImageStore,
     selectBank, addBank, removeBank,
     addStaff, removeStaff,
     fetchRemoteConfig, updateRemoteConfig,
