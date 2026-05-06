@@ -138,6 +138,11 @@ export async function uploadMenuImage(sheetName: string, base64: string, passwor
   return postGAS({ action: 'uploadMenuImage', sheetName, base64, password })
 }
 
+/** Upload dish image */
+export async function uploadDishImage(dishId: string, base64: string, password?: string): Promise<any> {
+  return postGAS({ action: 'uploadDishImage', dishId, base64, password })
+}
+
 /** Save API key to cloud */
 export async function saveApiKeyToCloud(provider: string, key: string, password: string): Promise<any> {
   return postGAS({ action: 'saveApiKey', provider, key, password })
