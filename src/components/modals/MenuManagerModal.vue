@@ -41,8 +41,8 @@ const enhancedMenuList = computed(() => {
     return {
       ...item,
       category: cat,
-      // Fixed placeholder images to avoid flickering
-      image: `https://picsum.photos/seed/${item.cleanName || index}/200/200`,
+      // Priority: dishImage from store > fallback placeholder
+      image: appStore.dishImages[item.cleanName] || `https://picsum.photos/seed/${item.cleanName || index}/200/200`,
       inUse: index % 3 === 0
     }
   })
