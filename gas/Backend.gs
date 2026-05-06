@@ -92,6 +92,8 @@ function doPost(e) {
       case "getMenuSheets": result = getMenuSheets(); break;
       case "getMenu": result = getMenuData(data.sheetName); break;
       case "createMenu": result = createNewMenuSheet(data.name, data.rawText, data.password); break;
+      case "deleteMenu": result = deleteMenuSheet(data.name, data.password); break;
+      case "uploadMenuImage": result = uploadMenuImage(data.sheetName, data.base64, data.password); break;
       case "saveConfig": result = saveSystemConfig(data, data.password); break;
       case "getConfig": result = getSystemConfig(); break;
       case "renderPreview": result = renderPreview(data.data); break;
@@ -150,6 +152,41 @@ function createNewMenuSheet(name, rawText, password) {
   const rows = parseMenuRawData(rawText);
   if (rows.length > 0) { sheet.getRange(2, 1, rows.length, 5).setValues(rows); }
   return { ok: true, message: "Menu Updated Successfully", sheetName: sheetName };
+}
+
+function deleteMenuSheet(name, password) {
+  if (password !== getAdminPass_()) {
+    return { ok: false, message: "Từ chối truy cập! Yêu cầu mật khẩu Admin để xóa Menu." };
+  }
+  const ss = SpreadsheetApp.openById(CONFIG.SS_ID);
+  const sheet = ss.getSheetByName(name);
+  if (!sheet) return { ok: false, message: "Không tìm thấy sheet Menu này." };
+  
+  const menuSheets = ss.getSheets().filter(s => s.getName().toLowerCase().includes("menu"));
+  if (menuSheets.length <= 1) {
+    return { ok: false, message: "Không thể xóa Menu cuối cùng của hệ thống." };
+  }
+  
+  ss.deleteSheet(sheet);
+  return { ok: true, message: "Xóa Menu thành công." };
+}
+
+function uploadMenuImage(sheetName, base64, password) {
+  if (password !== getAdminPass_()) return { ok: false, message: "Từ chối truy cập!" };
+  const img = uploadImageToDrive(base64, `Menu_${sheetName}_${Date.now()}.jpg`);
+  if (!img.url) return { ok: false, message: "Lỗi upload ảnh" };
+  
+  const ss = SpreadsheetApp.openById(CONFIG.SS_ID);
+  const sheet = initSheetIfNeeded_(ss, CONFIG.SHEET_NAME_CONFIG, CONFIG.CONFIG_HEADERS, "#e9d5ff");
+  const key = `menuImage_${sheetName}`;
+  const rows = sheet.getDataRange().getValues();
+  let found = false;
+  for (let i = 1; i < rows.length; i++) {
+    if (rows[i][0] === key) { sheet.getRange(i + 1, 2).setValue(img.url); found = true; break; }
+  }
+  if (!found) { sheet.appendRow([key, img.url]); }
+  
+  return { ok: true, url: img.url, message: "Upload ảnh Menu thành công!" };
 }
 
 function parseMenuRawData(text) {

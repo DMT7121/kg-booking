@@ -622,12 +622,46 @@ Output JSON: { "amount": Number, "content": "String", "bank": "String", "time": 
     }
   }
 
+  // ═══════════════════════════════════════════════════════════════
+  //  PARSE MENU WITH AI
+  // ═══════════════════════════════════════════════════════════════
+  async function parseMenuAI(text: string): Promise<string> {
+    uiStore.loading.is = true
+    uiStore.loading.msg = 'AI ĐANG PHÂN TÍCH MENU...'
+    try {
+      const sysPrompt = `Bạn là một trợ lý ảo chuyên phân tích thực đơn. Hãy trích xuất danh sách các món ăn từ đoạn văn bản lộn xộn của người dùng.
+Trả về kết quả dưới định dạng chuẩn sau, không thêm bất kì văn bản nào khác:
+[Tên món ăn] - [Giá tiền]
+Ví dụ:
+Sườn nướng tảng - 250000
+Salad bò - 120000
+(Lưu ý: Giá tiền chỉ bao gồm số, bỏ chữ k, vnd, đ)`
+      
+      const candidates = AI_MODELS
+        .filter(m => m.type === 'text')
+        .filter(m => m.provider === 'pollinations' || (configStore.keys[m.provider]?.length > 0))
+        .sort((a, b) => a.tier - b.tier)
+      
+      if (candidates.length === 0) throw new Error('Chưa cấu hình API Key')
+      
+      const rawText = await callAIModel(candidates[0], sysPrompt, text, null, false)
+      uiStore.showToast('✅ AI Phân tích thành công!', 'success')
+      return rawText || text
+    } catch (e: any) {
+      uiStore.showToast('Lỗi AI Phân tích Menu: ' + e.message, 'warning')
+      return text
+    } finally {
+      uiStore.loading.is = false
+    }
+  }
+
   return {
     callAIModel,
     repairJSON,
     smartRouter,
     processAI,
     verifyTransferImage,
-    ocrExtractText
+    ocrExtractText,
+    parseMenuAI
   }
 }

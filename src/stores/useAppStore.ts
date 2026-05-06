@@ -56,6 +56,7 @@ export const useAppStore = defineStore('app', () => {
   // --- Menu ---
   const menuList = shallowRef<MenuListItem[]>([])
   const menuDetails = ref<Record<string, string>>({})
+  const menuImages = ref<Record<string, string>>({})
   const menuSheets = ref<string[]>([])
   const activeSheet = ref(localStorage.getItem(CACHE_KEYS.MENU_SHEET) || 'Menu')
   const newMenuName = ref('')
@@ -297,6 +298,29 @@ export const useAppStore = defineStore('app', () => {
     }
   }
 
+  async function uploadMenuImageStore(base64: string) {
+    if (!activeSheet.value) return uiStore.showToast('Không có menu nào đang chọn!', 'warning')
+    const pass = await uiStore.showPrompt('Bảo mật', `Nhập mã PIN Quản Lý để tải ảnh lên cho Menu "${activeSheet.value}":`)
+    if (pass === null) return
+
+    uiStore.loading.is = true
+    uiStore.loading.msg = 'ĐANG TẢI ẢNH LÊN CLOUD...'
+    try {
+      const data = await api.uploadMenuImage(activeSheet.value, base64, pass)
+      if (data.ok && data.url) {
+        uiStore.showToast('Tải ảnh thành công!', 'success')
+        menuImages.value[activeSheet.value] = data.url
+      } else {
+        throw new Error(data.message)
+      }
+    } catch (e: any) {
+      console.error(e)
+      uiStore.showToast('Lỗi: ' + e.message, 'error')
+    } finally {
+      uiStore.loading.is = false
+    }
+  }
+
   // --- Bank Actions ---
   function selectBank(idx: number) {
     selectedBankIndex.value = idx
@@ -450,7 +474,7 @@ export const useAppStore = defineStore('app', () => {
     staffList, newStaff,
     currentBank, groupedHistory, filteredHistory,
     getCrmStatus, computeDiff,
-    loadHistory, fetchMenu, fetchSheets, switchMenu, uploadNewMenu, deleteMenu,
+    loadHistory, fetchMenu, fetchSheets, switchMenu, uploadNewMenu, deleteMenu, uploadMenuImageStore,
     selectBank, addBank, removeBank,
     addStaff, removeStaff,
     fetchRemoteConfig, updateRemoteConfig,

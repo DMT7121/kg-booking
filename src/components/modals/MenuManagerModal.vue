@@ -4,12 +4,14 @@ import { useUIStore } from '@/stores/useUIStore'
 import { useAppStore } from '@/stores/useAppStore'
 import { formatVND } from '@/utils'
 import { useForm } from '@/composables/useForm'
+import { useAI } from '@/composables/useAI'
 import MenuListItem from './MenuListItem.vue'
 import MenuGridItem from './MenuGridItem.vue'
 
 const ui = useUIStore()
 const appStore = useAppStore()
 const { fillSampleMenu, prepareUpdate } = useForm()
+const { parseMenuAI } = useAI()
 
 // Tabs
 const activeTab = ref('manage') // 'manage' | 'add'
@@ -112,6 +114,30 @@ async function deleteSelectedDish() {
   
   await appStore.uploadNewMenu();
   selectedDish.value = null;
+}
+
+async function handleParseAI() {
+  if (!appStore.newMenuContent) {
+    return ui.showToast('Vui lòng nhập/dán văn bản vào ô dưới để AI phân tích!', 'warning')
+  }
+  appStore.newMenuContent = await parseMenuAI(appStore.newMenuContent)
+}
+
+function handleMenuImageUpload(event: Event) {
+  const file = (event.target as HTMLInputElement).files?.[0]
+  if (!file) return
+
+  if (file.size > 5 * 1024 * 1024) {
+    ui.showToast('Ảnh quá lớn, vui lòng chọn ảnh < 5MB', 'warning')
+    return
+  }
+
+  const reader = new FileReader()
+  reader.onload = async (e) => {
+    const base64 = e.target?.result as string
+    await appStore.uploadMenuImageStore(base64)
+  }
+  reader.readAsDataURL(file)
 }
 </script>
 
@@ -229,6 +255,13 @@ async function deleteSelectedDish() {
               <span class="bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-widest border border-emerald-200">Đang sử dụng</span>
             </div>
             <div class="flex items-center gap-2">
+              <a v-if="appStore.menuImages[appStore.activeSheet]" :href="appStore.menuImages[appStore.activeSheet]" target="_blank" class="px-3 py-1.5 border border-blue-200 bg-blue-50 rounded-lg text-sm font-bold text-blue-600 flex items-center gap-2 hover:bg-blue-100 transition-colors shadow-sm">
+                <i class="fa-solid fa-image"></i> Xem Ảnh Menu
+              </a>
+              <label class="px-3 py-1.5 border border-slate-200 bg-white rounded-lg text-sm font-bold text-slate-600 flex items-center gap-2 hover:bg-slate-50 transition-colors shadow-sm cursor-pointer">
+                <i class="fa-solid fa-cloud-arrow-up text-emerald-500"></i> Up Ảnh Menu
+                <input type="file" class="hidden" accept="image/*" @change="handleMenuImageUpload">
+              </label>
               <button @click="prepareUpdate(appStore.activeSheet); showUploadModal = true" class="px-3 py-1.5 border border-slate-200 bg-white rounded-lg text-sm font-bold text-slate-600 flex items-center gap-2 hover:bg-slate-50 transition-colors shadow-sm">
                 <i class="fa-solid fa-pen text-blue-500"></i> Sửa
               </button>
@@ -455,11 +488,16 @@ async function deleteSelectedDish() {
           <div class="space-y-2">
             <div class="flex justify-between items-center">
               <label class="text-[10px] font-black text-slate-500 uppercase tracking-widest">Nội dung (Text)</label>
-              <button @click="fillSampleMenu" class="text-[10px] bg-blue-50 text-blue-600 px-3 py-1.5 rounded-lg font-black uppercase hover:bg-blue-100 active:scale-95 transition-all">
-                {{ appStore.menuList.length > 0 ? 'LẤY TỪ MENU HIỆN TẠI' : 'TẠO MẪU' }}
-              </button>
+              <div class="flex gap-2">
+                <button @click="handleParseAI" class="text-[10px] bg-indigo-50 text-indigo-600 px-3 py-1.5 rounded-lg font-black uppercase hover:bg-indigo-100 active:scale-95 transition-all flex items-center gap-1">
+                  <i class="fa-solid fa-wand-magic-sparkles"></i> AI PHÂN TÍCH
+                </button>
+                <button @click="fillSampleMenu" class="text-[10px] bg-blue-50 text-blue-600 px-3 py-1.5 rounded-lg font-black uppercase hover:bg-blue-100 active:scale-95 transition-all">
+                  {{ appStore.menuList.length > 0 ? 'LẤY TỪ MENU HIỆN TẠI' : 'TẠO MẪU' }}
+                </button>
+              </div>
             </div>
-            <textarea v-model="appStore.newMenuContent" rows="10" class="w-full p-4 rounded-xl border border-slate-200 bg-slate-50 font-mono text-[13px] leading-relaxed text-slate-800 focus:border-blue-500 focus:bg-white focus:ring-2 focus:ring-blue-100 outline-none transition-all resize-none custom-scrollbar" placeholder="Tên món - Giá&#10;VD:&#10;Bò nướng tảng - 250k&#10;Bia Tiger - 25k"></textarea>
+            <textarea v-model="appStore.newMenuContent" rows="10" class="w-full p-4 rounded-xl border border-slate-200 bg-slate-50 font-mono text-[13px] leading-relaxed text-slate-800 focus:border-blue-500 focus:bg-white focus:ring-2 focus:ring-blue-100 outline-none transition-all resize-none custom-scrollbar" placeholder="Dán văn bản lộn xộn vào đây rồi nhấn AI PHÂN TÍCH, hoặc nhập theo mẫu:&#10;Tên món - Giá&#10;VD:&#10;Bò nướng tảng - 250k"></textarea>
           </div>
           <button @click="appStore.uploadNewMenu(); showUploadModal = false" class="w-full h-14 bg-blue-900 text-white rounded-xl font-black text-sm uppercase shadow-lg shadow-blue-900/20 active:scale-95 transition-all flex items-center justify-center gap-2">
             <i class="fa-solid fa-cloud-arrow-up text-lg text-white/80"></i> {{ ui.isUpdateMode ? 'CẬP NHẬT MENU' : 'TẠO MENU MỚI' }}
