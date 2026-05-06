@@ -69,7 +69,7 @@ function handleSave() {
         <p class="text-[13px] font-bold text-slate-500 leading-relaxed">Danh sách nhân viên sẽ hiển thị trên phiếu đặt bàn để khách hàng liên hệ khi cần.</p>
       </div>
 
-      <div class="p-4 md:p-6 lg:p-8 max-w-2xl mx-auto w-full space-y-8 pb-32">
+      <div class="p-4 md:p-6 lg:p-8 max-w-2xl mx-auto w-full space-y-8 pb-8">
       <!-- Section: Displayed Staff -->
       <div class="space-y-4">
         <div class="flex justify-between items-center pl-2">
@@ -188,8 +188,8 @@ function handleSave() {
 
     </div>
 
-    <!-- Fixed Bottom Footer -->
-    <div class="fixed bottom-0 left-0 right-0 p-4 md:p-6 bg-slate-50 border-t border-slate-200 z-20 flex justify-center">
+    <!-- Bottom Footer -->
+    <div class="p-4 md:p-6 bg-slate-50 md:bg-white border-t border-slate-200 shrink-0 z-20 flex justify-center relative shadow-[0_-10px_30px_-15px_rgba(0,0,0,0.05)]">
       <div class="max-w-2xl w-full">
         <button @click="handleSave" class="w-full py-4 bg-blue-950 text-white rounded-2xl font-black text-[13px] shadow-lg shadow-blue-900/20 hover:bg-blue-900 active:scale-[0.98] transition-all flex justify-center items-center gap-2">
           <i class="fa-regular fa-floppy-disk"></i> Lưu thay đổi

@@ -241,49 +241,64 @@ async function handleDishImageUpload(event: Event) {
         <div class="flex-1 p-4 md:p-6 flex flex-col h-full bg-slate-50 overflow-hidden">
           
           <!-- Unified Menu Selector & Actions Toolbar -->
-          <div class="bg-white rounded-2xl border border-slate-200 p-4 mb-5 shadow-sm flex flex-col md:flex-row gap-4 justify-between items-center relative z-10 shrink-0">
-            <div class="flex items-center gap-3 w-full md:w-auto">
-              <div class="w-12 h-12 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center text-xl shrink-0">
+          <div class="bg-white rounded-2xl border border-slate-200 p-3 mb-5 shadow-sm flex flex-col gap-3 relative z-10 shrink-0">
+            <!-- Top Row: Select Menu -->
+            <div class="flex items-center gap-3 bg-slate-50 border border-slate-100 rounded-xl px-3 py-2 w-full min-w-0">
+              <div class="w-10 h-10 rounded-lg bg-white text-blue-600 flex items-center justify-center text-lg shrink-0 shadow-sm border border-slate-100">
                 <i class="fa-solid fa-book-open"></i>
               </div>
-              <div class="flex-1 min-w-[200px]">
-                <p class="text-[10px] uppercase font-black tracking-widest text-slate-400 mb-0.5">Thực đơn hiện tại</p>
-                <select v-model="appStore.activeSheet" @change="appStore.switchMenu(appStore.activeSheet)" class="text-base font-black text-blue-900 bg-transparent outline-none cursor-pointer w-full appearance-none pr-6 bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIGZpbGw9Im5vbmUiIHZpZXdCb3g9IjAgMCAyNCAyNCIgc3Ryb2tlLXdpZHRoPSIyIiBzdHJva2U9IiMxZTNhOGEiPjxwYXRoIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgc3Ryb2tlLWxpbmVqb2luPSJyb3VuZCIgZD0iTTE5IDlsLTcgNy03LTciLz48L3N2Zz4=')] bg-[length:16px_16px] bg-[right_center] bg-no-repeat">
+              <div class="flex-1 min-w-0">
+                <p class="text-[10px] uppercase font-black tracking-widest text-slate-400 mb-0.5 truncate">Thực đơn đang chọn</p>
+                <select v-model="appStore.activeSheet" @change="appStore.switchMenu(appStore.activeSheet)" class="text-sm font-black text-blue-900 bg-transparent outline-none cursor-pointer w-full appearance-none pr-6 bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIGZpbGw9Im5vbmUiIHZpZXdCb3g9IjAgMCAyNCAyNCIgc3Ryb2tlLXdpZHRoPSIyIiBzdHJva2U9IiMxZTNhOGEiPjxwYXRoIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgc3Ryb2tlLWxpbmVqb2luPSJyb3VuZCIgZD0iTTE5IDlsLTcgNy03LTciLz48L3N2Zz4=')] bg-[length:16px_16px] bg-[right_center] bg-no-repeat truncate">
                   <option v-if="appStore.menuSheets.length === 0" value="">-- Trống --</option>
                   <option v-for="sheet in appStore.menuSheets" :key="sheet" :value="sheet">{{ sheet }}</option>
                 </select>
               </div>
             </div>
             
-            <div class="flex flex-wrap items-center gap-2 w-full md:w-auto">
-              <button v-if="appStore.activeSheet" @click="prepareUpdate(appStore.activeSheet); showUploadModal = true" class="flex-1 md:flex-none px-4 py-2 bg-white border border-slate-200 text-slate-600 text-sm font-bold rounded-xl hover:bg-slate-50 transition-colors flex items-center justify-center gap-2 shadow-sm">
-                <i class="fa-solid fa-pen text-blue-500"></i> <span class="hidden sm:inline">Sửa</span>
+            <!-- Bottom Row: Action Buttons -->
+            <div class="grid grid-cols-3 gap-2 w-full">
+              <button @click="openUploadModal" class="col-span-1 px-2 py-2.5 bg-blue-900 text-white text-[11px] sm:text-xs font-bold rounded-xl hover:bg-blue-800 transition-colors flex items-center justify-center gap-2 shadow-sm min-w-0 active:scale-95">
+                <i class="fa-solid fa-plus text-white/80"></i> <span class="truncate">Thêm mới</span>
               </button>
-              <button v-if="appStore.activeSheet" @click="appStore.deleteMenu(appStore.activeSheet)" class="flex-1 md:flex-none px-4 py-2 bg-white border border-red-100 text-red-600 text-sm font-bold rounded-xl hover:bg-red-50 transition-colors flex items-center justify-center gap-2 shadow-sm">
-                <i class="fa-solid fa-trash-can"></i>
-              </button>
-              <button @click="openUploadModal" class="flex-1 md:flex-none px-4 py-2 bg-blue-900 text-white text-sm font-bold rounded-xl hover:bg-blue-800 transition-colors flex items-center justify-center gap-2 shadow-md shadow-blue-900/20">
-                <i class="fa-solid fa-plus"></i> <span class="hidden sm:inline">Thêm Menu mới</span>
-              </button>
+              
+              <template v-if="appStore.activeSheet">
+                <button @click="prepareUpdate(appStore.activeSheet); showUploadModal = true" class="col-span-1 px-2 py-2.5 bg-slate-50 border border-slate-200 text-slate-700 text-[11px] sm:text-xs font-bold rounded-xl hover:bg-slate-100 transition-colors flex items-center justify-center gap-2 shadow-sm min-w-0 active:scale-95">
+                  <i class="fa-solid fa-pen text-blue-500"></i> <span class="truncate">Sửa</span>
+                </button>
+                <button @click="appStore.deleteMenu(appStore.activeSheet)" class="col-span-1 px-2 py-2.5 bg-red-50 border border-red-100 text-red-600 text-[11px] sm:text-xs font-bold rounded-xl hover:bg-red-100 transition-colors flex items-center justify-center gap-2 shadow-sm min-w-0 active:scale-95">
+                  <i class="fa-solid fa-trash-can text-red-500"></i> <span class="truncate">Xóa</span>
+                </button>
+              </template>
+              <template v-else>
+                <div class="col-span-1 px-2 py-2.5 bg-slate-50 border border-slate-100 text-slate-300 text-[11px] sm:text-xs font-bold rounded-xl flex items-center justify-center gap-2 min-w-0 cursor-not-allowed">
+                  <i class="fa-solid fa-pen"></i> <span class="truncate">Sửa</span>
+                </div>
+                <div class="col-span-1 px-2 py-2.5 bg-slate-50 border border-slate-100 text-slate-300 text-[11px] sm:text-xs font-bold rounded-xl flex items-center justify-center gap-2 min-w-0 cursor-not-allowed">
+                  <i class="fa-solid fa-trash-can"></i> <span class="truncate">Xóa</span>
+                </div>
+              </template>
             </div>
           </div>
 
           <!-- Dish List Header & Toolbar -->
-          <div class="flex flex-wrap items-center gap-3 mb-5 shrink-0">
-            <div class="flex-1 min-w-[200px] relative">
+          <div class="flex flex-col sm:flex-row items-center gap-3 mb-5 shrink-0">
+            <div class="flex-1 w-full relative min-w-0">
               <i class="fa-solid fa-magnifying-glass absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400"></i>
-              <input type="text" placeholder="Tìm kiếm món ăn..." class="w-full pl-10 pr-4 py-2.5 bg-white border border-slate-200 rounded-xl text-sm font-medium text-slate-700 focus:outline-none focus:border-blue-500 shadow-sm transition-all">
+              <input type="text" placeholder="Tìm kiếm món ăn..." class="w-full pl-10 pr-4 py-2.5 bg-white border border-slate-200 rounded-xl text-sm font-medium text-slate-700 focus:outline-none focus:border-blue-500 shadow-sm transition-all truncate">
             </div>
-            <div class="flex gap-2 shrink-0">
-              <select v-model="selectedCategory" class="px-3 py-2.5 bg-white border border-slate-200 rounded-xl text-sm font-bold text-slate-600 focus:outline-none focus:border-blue-500 shadow-sm appearance-none pr-8 relative bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIGZpbGw9Im5vbmUiIHZpZXdCb3g9IjAgMCAyNCAyNCIgc3Ryb2tlLXdpZHRoPSIyIiBzdHJva2U9IiM2NDc0OGIiPjxwYXRoIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgc3Ryb2tlLWxpbmVqb2luPSJyb3VuZCIgZD0iTTE5IDlsLTcgNy03LTciLz48L3N2Zz4=')] bg-[length:16px_16px] bg-[right_10px_center] bg-no-repeat">
-                <option value="">Loại món</option>
+            <div class="w-full sm:w-auto shrink-0">
+              <select v-model="selectedCategory" class="w-full sm:w-auto px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-sm font-bold text-slate-600 focus:outline-none focus:border-blue-500 shadow-sm appearance-none pr-9 relative bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIGZpbGw9Im5vbmUiIHZpZXdCb3g9IjAgMCAyNCAyNCIgc3Ryb2tlLXdpZHRoPSIyIiBzdHJva2U9IiM2NDc0OGIiPjxwYXRoIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgc3Ryb2tlLWxpbmVqb2luPSJyb3VuZCIgZD0iTTE5IDlsLTcgNy03LTciLz48L3N2Zz4=')] bg-[length:16px_16px] bg-[right_12px_center] bg-no-repeat truncate">
+                <option value="">Tất cả loại món</option>
                 <option v-for="cat in mockCategories" :key="cat" :value="cat">{{ cat }}</option>
               </select>
             </div>
           </div>
 
           <div class="flex justify-between items-center mb-4 shrink-0">
-            <h4 class="text-xs font-black text-slate-500 uppercase tracking-widest">Danh sách món ({{ enhancedMenuList.length }})</h4>
+            <h4 class="text-[11px] font-black text-slate-500 uppercase tracking-widest flex items-center gap-2">
+              Danh sách món <span class="bg-slate-200 text-slate-700 px-2 py-0.5 rounded-full text-[10px]">{{ enhancedMenuList.length }}</span>
+            </h4>
             <div class="flex bg-slate-200 p-1 rounded-xl shadow-inner">
               <button @click="viewMode = 'list'" :class="['px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all', viewMode === 'list' ? 'bg-white shadow-sm text-blue-900' : 'text-slate-500 hover:text-slate-700']">
                 <i class="fa-solid fa-list"></i> <span class="hidden sm:inline">Danh sách</span>

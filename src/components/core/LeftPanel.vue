@@ -130,7 +130,7 @@ function shareCurrentBill() {
         <i class="fa-solid fa-chart-pie text-sm md:text-base"></i> <span>Báo Cáo</span>
       </button>
       <button @click="ui.tab = 'create'" :class="['flex-1 py-2 md:py-4 flex flex-col md:flex-row justify-center items-center gap-1 md:gap-2 transition-all min-h-[54px] md:min-h-[56px] border-b-[3px] px-1 md:px-4 text-center leading-tight whitespace-normal', ui.tab === 'create' ? 'text-blue-700 border-blue-600 bg-blue-50/80' : 'text-slate-400 border-transparent hover:text-slate-600 hover:bg-slate-50']">
-        <i class="fa-solid fa-plus text-sm md:text-base"></i> <span class="hidden sm:inline">Tạo Phiếu</span>
+        <i class="fa-solid fa-plus text-sm md:text-base"></i> <span>Tạo Phiếu</span>
       </button>
       <button v-if="formStore.customer.name || formStore.id" @click="ui.tab = 'preview'" :class="['flex-1 py-2 md:py-4 flex flex-col md:flex-row justify-center items-center gap-1 md:gap-2 transition-all min-h-[54px] md:min-h-[56px] border-b-[3px] px-1 md:px-4 text-center leading-tight whitespace-normal', ui.tab === 'preview' ? 'text-blue-700 border-blue-600 bg-blue-50/80' : 'text-slate-400 border-transparent hover:text-slate-600 hover:bg-slate-50']">
         <i class="fa-solid fa-eye text-sm md:text-base"></i> <span>Xem Phiếu</span>
