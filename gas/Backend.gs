@@ -433,7 +433,8 @@ function uploadImageToDrive(base64Data, fileName) {
     const folder = DriveApp.getFolderById(CONFIG.FOLDER_ID);
     const file = folder.createFile(blob);
     file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
-    return { url: file.getDownloadUrl(), fileId: file.getId() };
+    const fileId = file.getId();
+    return { url: `https://drive.google.com/thumbnail?id=${fileId}&sz=w1200`, fileId: fileId };
   } catch (e) { return { url: "", error: e.toString() }; }
 }
 

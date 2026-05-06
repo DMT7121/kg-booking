@@ -427,11 +427,16 @@ export const useAppStore = defineStore('app', () => {
         
         // Extract images
         Object.keys(result.data).forEach(k => {
+          let url = result.data[k]
+          if (typeof url === 'string' && url.includes('drive.google.com/uc?')) {
+            const match = url.match(/id=([^&]+)/)
+            if (match) url = `https://drive.google.com/thumbnail?id=${match[1]}&sz=w1200`
+          }
           if (k.startsWith('dishImage_')) {
-            dishImages.value[k.replace('dishImage_', '')] = result.data[k]
+            dishImages.value[k.replace('dishImage_', '')] = url
           }
           if (k.startsWith('menuImage_')) {
-            menuImages.value[k.replace('menuImage_', '')] = result.data[k]
+            menuImages.value[k.replace('menuImage_', '')] = url
           }
         })
         
