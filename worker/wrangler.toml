@@ -1,0 +1,17 @@
+name = "kg-images"
+main = "src/index.js"
+compatibility_date = "2024-01-01"
+
+# Cloudflare R2 Bucket Binding
+[[r2_buckets]]
+binding = "BUCKET"
+bucket_name = "kg-booking-images"
+
+[vars]
+CORS_ORIGIN = "*"
+# Also allow localhost for dev
+# MAX_FILE_SIZE = 10485760  # 10MB
+
+# Optional: Custom domain
+# [routes]
+# pattern = "images.kingsgrill.vn/*"

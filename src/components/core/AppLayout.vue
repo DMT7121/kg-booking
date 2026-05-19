@@ -1,0 +1,366 @@
+<script setup lang="ts">
+import { useUIStore } from '@/stores/useUIStore'
+import { useFormStore } from '@/stores/useFormStore'
+import { useAppStore } from '@/stores/useAppStore'
+import { useConfigStore } from '@/stores/useConfigStore'
+import { useBillRender } from '@/composables/useBillRender'
+import { useForm } from '@/composables/useForm'
+import { isIOS } from '@/utils'
+import { onMounted, watch, nextTick, defineAsyncComponent } from 'vue'
+import LeftPanel from './LeftPanel.vue'
+import BillPreview from './BillPreview.vue'
+
+// Lazy-loaded Modals (only fetched when user opens them → ~40% smaller initial bundle)
+const AiConfigModal = defineAsyncComponent(() => import('@/components/modals/AiConfigModal.vue'))
+const StaffModal = defineAsyncComponent(() => import('@/components/modals/StaffModal.vue'))
+const MenuManagerModal = defineAsyncComponent(() => import('@/components/modals/MenuManagerModal.vue'))
+const BankConfigModal = defineAsyncComponent(() => import('@/components/modals/BankConfigModal.vue'))
+const BrandingModal = defineAsyncComponent(() => import('@/components/modals/BrandingModal.vue'))
+const VerifyTransferModal = defineAsyncComponent(() => import('@/components/modals/VerifyTransferModal.vue'))
+const WebhookConfigModal = defineAsyncComponent(() => import('@/components/modals/WebhookConfigModal.vue'))
+const BookingDetailModal = defineAsyncComponent(() => import('@/components/modals/BookingDetailModal.vue'))
+const FloorPlanModal = defineAsyncComponent(() => import('@/components/modals/FloorPlanModal.vue'))
+const CustomerCareModal = defineAsyncComponent(() => import('@/components/modals/CustomerCareModal.vue'))
+
+const ui = useUIStore()
+const formStore = useFormStore()
+const appStore = useAppStore()
+const configStore = useConfigStore()
+const { updatePreviewScale, confirmStaffAndSave, triggerSave } = useBillRender()
+const { handleInputFocus, handleInputBlur, copyToClipboard, copyBookingConfirmation } = useForm()
+
+
+// --- Watchers ---
+watch(() => ui.tempTable, (val) => {
+  formStore.customer.tables = val.number ? `${val.zone}${val.number}` : ''
+}, { deep: true })
+
+watch(() => ui.tab, (v) => {
+  if (v === 'preview') {
+    nextTick(() => {
+      updatePreviewScale()
+      // Re-calc after layout settles
+      setTimeout(() => updatePreviewScale(), 100)
+      setTimeout(() => updatePreviewScale(), 300)
+    })
+  }
+})
+
+// --- Mounted ---
+onMounted(() => {
+  if (!formStore.id) formStore.id = crypto.randomUUID()
+  ui.isVoiceSupported = 'webkitSpeechRecognition' in window || 'SpeechRecognition' in window
+
+  appStore.fetchSheets()
+  appStore.fetchMenu()
+  appStore.loadHistory(true)
+  appStore.fetchRemoteConfig()
+
+  // Keyboard detection via visualViewport
+  if (window.visualViewport) {
+    const initialViewportHeight = window.visualViewport.height
+    window.visualViewport.addEventListener('resize', () => {
+      ui.isKeyboardOpen = window.visualViewport!.height < initialViewportHeight * 0.85
+    })
+  }
+
+  // Preview scaling
+  window.addEventListener('resize', () => {
+    if (ui.tab === 'preview') updatePreviewScale()
+  })
+
+  setTimeout(() => {
+    const observerTarget = document.getElementById('bill-render')
+    if (observerTarget && window.ResizeObserver) {
+      const resizeObserver = new ResizeObserver(() => {
+        if (ui.tab === 'preview') updatePreviewScale()
+      })
+      resizeObserver.observe(observerTarget)
+    }
+  }, 500)
+})
+</script>
+
+<template>
+  <div class="min-h-screen bg-slate-100 flex items-center justify-center font-sans text-slate-800">
+    <div id="app-root" class="w-full max-w-[480px] h-screen min-h-[100dvh] md:h-[95vh] md:min-h-[auto] md:rounded-[2rem] md:shadow-2xl flex flex-col relative overflow-hidden bg-white border border-slate-200" v-cloak>
+
+    <!-- GLOBAL PROGRESS BAR -->
+    <div class="fixed top-0 left-0 h-[3px] bg-blue-500 z-[999999] transition-all duration-300 ease-out shadow-[0_0_10px_rgba(59,130,246,0.5)]" 
+         :class="{'opacity-100 w-[85%]': ui.isFetchingAPI, 'opacity-0 w-full': !ui.isFetchingAPI}">
+    </div>
+
+    <!-- LOADING OVERLAY -->
+    <div v-if="ui.loading.is" class="fixed inset-0 bg-white/95 z-[9999] flex flex-col justify-center items-center backdrop-blur-sm text-center p-6">
+      <div class="w-14 h-14 border-4 border-gray-100 border-t-blue-600 rounded-full animate-spin-fast mb-6"></div>
+      <div class="text-slate-800 font-black text-xl tracking-tight animate-pulse whitespace-pre-line">{{ ui.loading.msg }}</div>
+      <div v-if="ui.loading.subMsg" class="mt-2 text-xs text-blue-600 font-bold uppercase tracking-widest">{{ ui.loading.subMsg }}</div>
+    </div>
+
+    <!-- PROMISE-BASED MODALS -->
+    <!-- Alert -->
+    <transition name="modal">
+    <div v-if="ui.modal.alert.show" class="fixed inset-0 bg-blue-950/80 z-[99999] flex justify-center items-center p-4 backdrop-blur-md" @click.self="ui.resolveModal('alert')">
+      <div class="bg-white rounded-3xl shadow-2xl p-6 md:p-8 max-w-sm w-[95%] md:w-full flex flex-col relative overflow-hidden border border-white/20">
+        <div class="absolute top-0 left-0 right-0 h-24 bg-gradient-to-r from-blue-600 to-cyan-500 rounded-t-3xl opacity-10"></div>
+        <div class="flex justify-center items-center mb-6 relative z-10 flex-col gap-3">
+          <div class="w-14 h-14 bg-blue-50 rounded-2xl flex items-center justify-center text-blue-500 text-2xl shadow-sm border border-blue-100">
+            <i class="fa-solid fa-circle-info"></i>
+          </div>
+          <h3 class="text-xl font-black text-blue-900 uppercase tracking-tighter text-center">{{ ui.modal.alert.title }}</h3>
+        </div>
+        <div class="relative z-10 mb-8">
+          <p class="text-sm text-slate-600 font-medium text-center whitespace-pre-line">{{ ui.modal.alert.msg }}</p>
+        </div>
+        <div class="relative z-10">
+          <button @click="ui.resolveModal('alert')" class="w-full py-4 bg-blue-900 text-white rounded-xl font-black uppercase tracking-widest text-[10px] shadow-lg shadow-blue-900/20 hover:bg-blue-800 active:scale-95 transition-all">ĐÃ HIỂU</button>
+        </div>
+      </div>
+    </div>
+    </transition>
+
+    <!-- Confirm -->
+    <transition name="modal">
+    <div v-if="ui.modal.confirm.show" class="fixed inset-0 bg-blue-950/80 z-[99999] flex justify-center items-center p-4 backdrop-blur-md" @click.self="ui.resolveModal('confirm', false)">
+      <div class="bg-white rounded-3xl shadow-2xl p-6 md:p-8 max-w-sm w-[95%] md:w-full flex flex-col relative overflow-hidden border border-white/20">
+        <div class="absolute top-0 left-0 right-0 h-24 bg-gradient-to-r from-rose-500 to-orange-500 rounded-t-3xl opacity-10"></div>
+        <div class="flex justify-center items-center mb-6 relative z-10 flex-col gap-3">
+          <div class="w-14 h-14 bg-rose-50 rounded-2xl flex items-center justify-center text-rose-500 text-2xl shadow-sm border border-rose-100">
+            <i class="fa-solid fa-triangle-exclamation"></i>
+          </div>
+          <h3 class="text-xl font-black text-blue-900 uppercase tracking-tighter text-center">{{ ui.modal.confirm.title }}</h3>
+        </div>
+        <div class="relative z-10 mb-8">
+          <p class="text-sm text-slate-600 font-medium text-center whitespace-pre-line">{{ ui.modal.confirm.msg }}</p>
+        </div>
+        <div class="grid grid-cols-2 gap-3 relative z-10">
+          <button @click="ui.resolveModal('confirm', false)" class="py-4 bg-slate-50 border border-slate-200 text-slate-500 hover:bg-slate-100 hover:text-slate-700 rounded-xl font-black uppercase tracking-widest text-[10px] active:scale-95 transition-all shadow-sm">HỦY BỎ</button>
+          <button @click="ui.resolveModal('confirm', true)" class="py-4 bg-rose-600 text-white rounded-xl font-black uppercase tracking-widest text-[10px] shadow-lg shadow-rose-600/20 hover:bg-rose-700 active:scale-95 transition-all">ĐỒNG Ý</button>
+        </div>
+      </div>
+    </div>
+    </transition>
+
+    <!-- Prompt -->
+    <transition name="modal">
+    <div v-if="ui.modal.prompt.show" class="fixed inset-0 bg-blue-950/80 z-[99999] flex justify-center items-center p-4 backdrop-blur-md" @click.self="ui.resolveModal('prompt', null)">
+      <div class="bg-white rounded-3xl shadow-2xl p-6 md:p-8 max-w-sm w-[95%] md:w-full flex flex-col relative overflow-hidden border border-white/20">
+        <div class="absolute top-0 left-0 right-0 h-24 bg-gradient-to-r from-purple-600 to-blue-900 rounded-t-3xl opacity-10"></div>
+        <div class="flex justify-center items-center mb-6 relative z-10 flex-col gap-3">
+          <div class="w-14 h-14 bg-purple-50 rounded-2xl flex items-center justify-center text-purple-600 text-2xl shadow-sm border border-purple-100">
+            <i class="fa-solid fa-keyboard"></i>
+          </div>
+          <h3 class="text-xl font-black text-blue-900 uppercase tracking-tighter text-center">{{ ui.modal.prompt.title }}</h3>
+        </div>
+        <div class="relative z-10 mb-6">
+          <p class="text-[11px] font-black text-slate-500 uppercase tracking-widest text-center mb-4">{{ ui.modal.prompt.msg }}</p>
+          <input v-model="ui.modal.prompt.value" class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-slate-800 focus:outline-none focus:bg-white focus:border-purple-500 focus:ring-2 focus:ring-purple-100 shadow-sm transition-all placeholder-slate-300 text-center" placeholder="Nhập nội dung...">
+        </div>
+        <div class="grid grid-cols-2 gap-3 relative z-10">
+          <button @click="ui.resolveModal('prompt', null)" class="py-4 bg-slate-50 border border-slate-200 text-slate-500 hover:bg-slate-100 hover:text-slate-700 rounded-xl font-black uppercase tracking-widest text-[10px] active:scale-95 transition-all shadow-sm">HỦY BỎ</button>
+          <button @click="ui.resolveModal('prompt', ui.modal.prompt.value)" class="py-4 bg-purple-600 text-white rounded-xl font-black uppercase tracking-widest text-[10px] shadow-lg shadow-purple-600/20 hover:bg-purple-700 active:scale-95 transition-all">XÁC NHẬN</button>
+        </div>
+      </div>
+    </div>
+    </transition>
+
+    <!-- ERROR MODAL -->
+    <div v-if="ui.error.show" class="fixed inset-0 bg-black/60 z-50 flex justify-center items-center p-4 backdrop-blur-sm" @click.self="ui.error.show = false">
+      <div class="bg-white rounded-2xl shadow-2xl p-6 max-w-sm w-[95%] md:w-full border-l-8 border-red-500">
+        <h3 class="text-xl font-black text-red-600 mb-4 flex items-center gap-2"><i class="fa-solid fa-bolt-lightning"></i> AI Error</h3>
+        <div class="bg-red-50 p-4 rounded-xl text-xs font-mono mb-4 max-h-40 overflow-y-auto border border-red-100">{{ ui.error.msg }}</div>
+        <div class="flex gap-3">
+          <button @click="copyToClipboard(ui.error.msg)" class="flex-1 py-3 bg-gray-100 rounded-xl font-bold text-gray-600 min-h-[44px]">Copy log</button>
+          <button @click="ui.error.show = false" class="px-6 py-3 bg-red-600 text-white rounded-xl font-bold shadow-lg shadow-red-200 min-h-[44px]">Đóng</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- SETTINGS HUB MODAL -->
+    <div v-if="ui.showSettingsHub" class="absolute inset-0 bg-slate-50 z-[12000] flex flex-col overflow-hidden">
+      <!-- Left Sidebar (Menu) -->
+      <div class="w-full bg-slate-50 flex flex-col h-full shrink-0 shadow-[4px_0_24px_rgba(0,0,0,0.02)] z-20 overflow-y-auto custom-scrollbar" :class="{'hidden': ui.activeSettingModal}">
+        <!-- Top Header -->
+        <div class="bg-white px-4 py-4 flex items-center justify-between sticky top-0 z-10 shadow-sm border-b border-slate-100">
+          <button @click="ui.showSettingsHub = false; ui.closeConfig()" class="w-10 h-10 flex items-center justify-center text-slate-800 text-xl active:scale-95 transition-transform">
+          <i class="fa-solid fa-arrow-left"></i>
+        </button>
+        <div class="text-center flex-1">
+          <h2 class="text-xl font-black text-blue-900">Cài đặt</h2>
+          <p class="text-[10px] font-bold text-slate-400 mt-0.5">Quản lý thông tin và thiết lập hệ thống</p>
+        </div>
+        <div class="w-10 h-10"></div> <!-- Placeholder for balance -->
+      </div>
+
+      <div class="p-4 md:p-6 max-w-2xl mx-auto w-full space-y-6 pb-20">
+        <!-- Brand Card -->
+        <div @click="ui.openConfig('branding')" class="bg-white rounded-2xl p-4 flex items-center justify-between shadow-sm border border-slate-100 active:scale-[0.98] transition-transform cursor-pointer hover:bg-slate-50">
+          <div class="flex items-center gap-4">
+            <div class="w-14 h-14 bg-slate-50 rounded-xl overflow-hidden border border-slate-100 p-1.5 flex items-center justify-center">
+              <img :src="configStore.branding.logo || 'https://ui-avatars.com/api/?name=King+Grill&background=1e293b&color=fff'" alt="Logo" class="w-full h-full object-contain rounded-lg">
+            </div>
+            <div>
+              <h3 class="font-black text-slate-800 text-base">King's Grill</h3>
+              <p class="text-[11px] font-bold text-slate-400 mt-0.5">Nhà hàng / Quản trị viên</p>
+            </div>
+          </div>
+          <i class="fa-solid fa-chevron-right text-slate-300 text-sm"></i>
+        </div>
+
+        <!-- Section: Content -->
+        <div class="space-y-3">
+          <h4 class="text-[11px] font-black text-slate-400 uppercase tracking-widest pl-2">Quản lý nội dung</h4>
+          <div class="bg-white rounded-3xl shadow-sm border border-slate-100 overflow-hidden">
+            <!-- Menu -->
+            <button @click="ui.openConfig('menu')" :class="['w-full px-4 py-4 flex items-center gap-4 transition-colors border-b border-slate-50 group', ui.activeSettingModal === 'menu' ? 'bg-blue-50/50' : 'hover:bg-slate-50 active:bg-slate-100']">
+              <div class="w-12 h-12 rounded-2xl bg-blue-50 text-blue-500 flex items-center justify-center text-xl shrink-0 group-hover:scale-110 transition-transform">
+                <i class="fa-solid fa-bell-concierge"></i>
+              </div>
+              <div class="flex-1 text-left">
+                <div class="font-black text-slate-800 text-[13px] mb-0.5">Thêm thực đơn</div>
+                <div class="text-[10px] font-bold text-slate-400 leading-tight">Quản lý và cập nhật các món ăn, đồ uống<br>hiển thị trên phiếu đặt bàn</div>
+              </div>
+              <i class="fa-solid fa-chevron-right text-sm" :class="ui.activeSettingModal === 'menu' ? 'text-blue-500' : 'text-slate-300'"></i>
+            </button>
+            
+            <!-- AI -->
+            <button @click="ui.openConfig('ai')" :class="['w-full px-4 py-4 flex items-center gap-4 transition-colors border-b border-slate-50 group', ui.activeSettingModal === 'ai' ? 'bg-blue-50/50' : 'hover:bg-slate-50 active:bg-slate-100']">
+              <div class="w-12 h-12 rounded-2xl bg-purple-50 text-purple-500 flex items-center justify-center text-xl shrink-0 group-hover:scale-110 transition-transform">
+                <i class="fa-solid fa-wand-magic-sparkles"></i>
+              </div>
+              <div class="flex-1 text-left">
+                <div class="font-black text-slate-800 text-[13px] mb-0.5">Thêm cấu hình AI</div>
+                <div class="text-[10px] font-bold text-slate-400 leading-tight">Thiết lập và tùy chỉnh AI hỗ trợ gợi ý số bàn,<br>phân tích và nhắc nhở</div>
+              </div>
+              <i class="fa-solid fa-chevron-right text-sm" :class="ui.activeSettingModal === 'ai' ? 'text-blue-500' : 'text-slate-300'"></i>
+            </button>
+
+            <!-- Staff -->
+            <button @click="ui.openConfig('staff')" :class="['w-full px-4 py-4 flex items-center gap-4 transition-colors border-b border-slate-50 group', ui.activeSettingModal === 'staff' ? 'bg-blue-50/50' : 'hover:bg-slate-50 active:bg-slate-100']">
+              <div class="w-12 h-12 rounded-2xl bg-emerald-50 text-emerald-500 flex items-center justify-center text-xl shrink-0 group-hover:scale-110 transition-transform">
+                <i class="fa-regular fa-user"></i>
+              </div>
+              <div class="flex-1 text-left">
+                <div class="font-black text-slate-800 text-[13px] mb-0.5">Thêm nhân viên nhận bàn</div>
+                <div class="text-[10px] font-bold text-slate-400 leading-tight">Thêm và quản lý nhân viên nhận bàn.<br>Thông tin sẽ hiển thị trên phiếu để khách hàng<br>liên hệ khi cần</div>
+              </div>
+              <i class="fa-solid fa-chevron-right text-sm" :class="ui.activeSettingModal === 'staff' ? 'text-blue-500' : 'text-slate-300'"></i>
+            </button>
+
+            <!-- Bank -->
+            <button @click="ui.openConfig('bank')" :class="['w-full px-4 py-4 flex items-center gap-4 transition-colors group', ui.activeSettingModal === 'bank' ? 'bg-blue-50/50' : 'hover:bg-slate-50 active:bg-slate-100']">
+              <div class="w-12 h-12 rounded-2xl bg-cyan-50 text-cyan-500 flex items-center justify-center text-xl shrink-0 group-hover:scale-110 transition-transform">
+                <i class="fa-solid fa-building-columns"></i>
+              </div>
+              <div class="flex-1 text-left">
+                <div class="font-black text-slate-800 text-[13px] mb-0.5">Thêm ngân hàng</div>
+                <div class="text-[10px] font-bold text-slate-400 leading-tight">Quản lý thông tin tài khoản ngân hàng<br>hiển thị trên phiếu đặt bàn</div>
+              </div>
+              <i class="fa-solid fa-chevron-right text-sm" :class="ui.activeSettingModal === 'bank' ? 'text-blue-500' : 'text-slate-300'"></i>
+            </button>
+          </div>
+        </div>
+
+        <!-- Section: UI -->
+        <div class="space-y-3">
+          <h4 class="text-[11px] font-black text-slate-400 uppercase tracking-widest pl-2">Tùy chỉnh giao diện</h4>
+          <div class="bg-white rounded-3xl shadow-sm border border-slate-100 overflow-hidden">
+            <button @click="ui.openConfig('branding')" :class="['w-full px-4 py-4 flex items-center gap-4 transition-colors border-b border-slate-50 group', ui.activeSettingModal === 'branding' ? 'bg-blue-50/50' : 'hover:bg-slate-50 active:bg-slate-100']">
+              <div class="w-12 h-12 rounded-2xl bg-orange-50 text-orange-500 flex items-center justify-center text-xl shrink-0 group-hover:scale-110 transition-transform">
+                <i class="fa-solid fa-pen-nib"></i>
+              </div>
+              <div class="flex-1 text-left">
+                <div class="font-black text-slate-800 text-[13px] mb-0.5">Tinh chỉnh giao diện</div>
+                <div class="text-[10px] font-bold text-slate-400 leading-tight">Tùy chỉnh logo, màu sắc, font chữ và<br>các yếu tố hiển thị trên phiếu đặt bàn</div>
+              </div>
+              <i class="fa-solid fa-chevron-right text-sm" :class="ui.activeSettingModal === 'branding' ? 'text-blue-500' : 'text-slate-300'"></i>
+            </button>
+            <button @click="ui.toggleDarkMode()" class="w-full px-4 py-4 flex items-center gap-4 transition-colors group hover:bg-slate-50 active:bg-slate-100">
+              <div class="w-12 h-12 rounded-2xl flex items-center justify-center text-xl shrink-0 group-hover:scale-110 transition-transform" :class="ui.isDarkMode ? 'bg-slate-800 text-yellow-400' : 'bg-slate-100 text-slate-600'">
+                <i class="fa-solid" :class="ui.isDarkMode ? 'fa-moon' : 'fa-sun'"></i>
+              </div>
+              <div class="flex-1 text-left">
+                <div class="font-black text-slate-800 text-[13px] mb-0.5">Chế độ ban đêm (Dark Mode)</div>
+                <div class="text-[10px] font-bold text-slate-400 leading-tight">Giao diện tối giúp bảo vệ mắt khi làm việc<br>vào buổi tối hoặc môi trường thiếu sáng</div>
+              </div>
+              <div class="w-12 flex justify-end">
+                <div class="w-10 h-6 bg-slate-200 rounded-full relative transition-colors" :class="{'!bg-blue-500': ui.isDarkMode}">
+                  <div class="w-5 h-5 bg-white rounded-full absolute top-0.5 left-0.5 transition-transform shadow-sm" :class="{'translate-x-4': ui.isDarkMode}"></div>
+                </div>
+              </div>
+            </button>
+          </div>
+        </div>
+
+        <!-- Section: Other -->
+        <div class="space-y-3">
+          <h4 class="text-[11px] font-black text-slate-400 uppercase tracking-widest pl-2">Khác</h4>
+          <div class="bg-white rounded-3xl shadow-sm border border-slate-100 overflow-hidden">
+            <button @click="ui.openConfig('webhook')" :class="['w-full px-4 py-4 flex items-center gap-4 transition-colors group', ui.activeSettingModal === 'webhook' ? 'bg-blue-50/50' : 'hover:bg-slate-50 active:bg-slate-100']">
+              <div class="w-12 h-12 rounded-2xl bg-slate-100 text-slate-600 flex items-center justify-center text-xl shrink-0 group-hover:scale-110 transition-transform">
+                <i class="fa-solid fa-gear"></i>
+              </div>
+              <div class="flex-1 text-left">
+                <div class="font-black text-slate-800 text-[13px] mb-0.5">Cài đặt hệ thống</div>
+                <div class="text-[10px] font-bold text-slate-400 leading-tight">Quản lý thông báo Telegram, cấu hình chung<br>và các thiết lập khác</div>
+              </div>
+              <i class="fa-solid fa-chevron-right text-sm" :class="ui.activeSettingModal === 'webhook' ? 'text-blue-500' : 'text-slate-300'"></i>
+            </button>
+          </div>
+        </div>
+
+        <button @click="appStore.logout()" class="w-full py-4 bg-white border border-rose-100 text-rose-500 rounded-2xl font-black text-sm shadow-sm active:scale-95 transition-all flex items-center justify-center gap-2 hover:bg-rose-50 mb-8">
+          <i class="fa-solid fa-arrow-right-from-bracket"></i> Đăng xuất
+        </button>
+      </div>
+      </div> <!-- Closes Sidebar -->
+
+      <!-- Right Content Area (Modals) -->
+      <div class="flex-1 h-full overflow-hidden relative bg-white flex flex-col" :class="{'hidden': !ui.activeSettingModal}">
+        <AiConfigModal />
+        <BankConfigModal />
+        <BrandingModal />
+        <MenuManagerModal />
+        <StaffModal />
+        <WebhookConfigModal />
+      </div>
+    </div>
+
+    <!-- STAFF SELECTOR MODAL (ON SAVE) -->
+    <transition name="modal">
+    <div v-if="ui.showStaffSelector" class="fixed inset-0 bg-blue-950/80 z-[10002] flex justify-center items-center p-4 backdrop-blur-md" @click.self="ui.showStaffSelector = false">
+      <div class="bg-white rounded-3xl shadow-2xl p-6 md:p-8 max-w-sm w-[95%] md:w-full flex flex-col relative overflow-hidden border border-white/20">
+        <div class="absolute top-0 left-0 right-0 h-24 bg-gradient-to-r from-blue-600 to-cyan-500 rounded-t-3xl opacity-10"></div>
+        <div class="flex justify-center items-center mb-6 relative z-10 flex-col gap-3">
+          <div class="w-14 h-14 bg-blue-50 rounded-2xl flex items-center justify-center text-blue-500 text-2xl shadow-sm border border-blue-100">
+            <i class="fa-solid fa-user-tag"></i>
+          </div>
+          <h3 class="text-xl font-black text-blue-900 uppercase tracking-tighter text-center">CHỌN NGƯỜI TẠO PHIẾU</h3>
+        </div>
+        <div class="grid grid-cols-2 gap-3 max-h-[50vh] overflow-y-auto custom-scrollbar p-1 relative z-10">
+          <button v-for="(staff, idx) in appStore.staffList" :key="idx"
+            @click="confirmStaffAndSave(staff)"
+            class="p-4 rounded-2xl bg-slate-50 border border-slate-200 hover:border-blue-500 hover:bg-blue-50 hover:shadow-md transition-all active:scale-95 flex flex-col items-center justify-center gap-1 group min-h-[80px]">
+            <i class="fa-solid fa-user-check text-2xl text-slate-300 group-hover:text-blue-500 mb-1 transition-colors"></i>
+            <span class="font-black text-xs uppercase text-slate-700 text-center leading-tight">{{ staff.name }}</span>
+            <span class="text-[9px] font-mono font-bold text-slate-400">{{ staff.phone }}</span>
+          </button>
+        </div>
+        <div class="relative z-10 mt-6">
+          <button @click="ui.showStaffSelector = false" class="w-full py-4 bg-slate-50 border border-slate-200 text-slate-500 hover:bg-slate-100 hover:text-slate-700 rounded-xl font-black uppercase tracking-widest text-[10px] active:scale-95 transition-all shadow-sm">HỦY BỎ</button>
+        </div>
+      </div>
+    </div>
+    </transition>
+
+    <!-- ALL CONFIG MODALS -->
+    <VerifyTransferModal />
+    <BookingDetailModal />
+    <FloorPlanModal />
+    <CustomerCareModal />
+
+    <!-- MAIN PANELS -->
+    <LeftPanel />
+  </div>
+  </div>
+</template>
