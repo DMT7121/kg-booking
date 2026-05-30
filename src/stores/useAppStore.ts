@@ -473,7 +473,13 @@ export const useAppStore = defineStore('app', () => {
   }
 
   async function updateRemoteConfig() {
-    const pass = await uiStore.showPrompt('Bảo Mật Cấu Hình', 'Nhập Password Admin để lưu Bank/Staff lên Cloud (hoặc Bỏ qua để chỉ lưu tại máy này):')
+    let pass = sessionPassword.value
+    if (!pass) {
+      pass = await uiStore.showPrompt('Bảo Mật Cấu Hinh', 'Nhập Password Admin để lưu Bank/Staff lên Cloud (hoặc Bỏ qua để chỉ lưu tại máy này):')
+      if (pass) {
+        sessionPassword.value = pass
+      }
+    }
     
     if (!pass) {
       uiStore.showToast('Chỉ lưu cấu hình trên máy này (Chưa đồng bộ Cloud)', 'warning')
@@ -487,14 +493,20 @@ export const useAppStore = defineStore('app', () => {
       JSON.stringify(staffList.value),
       pass
     ).then((data: any) => {
-      if (data.ok) uiStore.connectionStatus = 'online'
-      else {
+      if (data.ok) {
+        uiStore.connectionStatus = 'online'
+        uiStore.showToast('Đã lưu cấu hình thành công lên Server!', 'success')
+      } else {
         uiStore.connectionStatus = 'error'
         uiStore.showToast('Lỗi lưu cấu hình: ' + data.message, 'error')
+        if (data.message && data.message.includes('Từ chối')) {
+          sessionPassword.value = ''
+        }
       }
     }).catch((e: any) => {
       console.warn('Update Config Failed', e)
       uiStore.connectionStatus = 'error'
+      uiStore.showToast('Lỗi kết nối khi lưu cấu hình', 'error')
     })
   }
 
@@ -530,7 +542,7 @@ export const useAppStore = defineStore('app', () => {
   })
 
   return {
-    historyList, menuList, menuDetails, menuImages, dishImages, menuSheets, activeSheet, newMenuName, newMenuContent,
+    historyList, menuList, menuDetails, menuImages, dishImages, menuSheets, activeSheet, newMenuName, newMenuContent, sessionPassword,
     bankList, selectedBankIndex, newBank,
     staffList, newStaff,
     currentBank, groupedHistory, filteredHistory,
