@@ -21,28 +21,14 @@ const otherStaff = computed(() => {
   return list
 })
 
-async function verifyAdminAccess(): Promise<boolean> {
-  if (appStore.sessionPassword === 'ADMINDMT') {
-    return true
-  }
-  const pass = await ui.showPrompt('Xác thực Admin', 'Vui lòng nhập mật khẩu Admin ("ADMINDMT"):')
-  if (pass === 'ADMINDMT') {
-    appStore.sessionPassword = pass
-    return true
-  } else if (pass !== null) {
-    ui.showToast('Sai mật khẩu Admin!', 'error')
-  }
-  return false
-}
-
 async function toggleStaffActive(staff: any) {
-  const isAdmin = await verifyAdminAccess()
+  const isAdmin = await appStore.verifyAdminSession()
   if (!isAdmin) return
   staff.isActive = staff.isActive === false ? true : false
 }
 
 async function handleAddNewStaff() {
-  const isAdmin = await verifyAdminAccess()
+  const isAdmin = await appStore.verifyAdminSession()
   if (!isAdmin) return
 
   const name = await ui.showPrompt('Thêm Nhân Viên', 'Nhập Tên nhân viên:')
@@ -54,7 +40,7 @@ async function handleAddNewStaff() {
 }
 
 async function handleStaffOptions(staff: any, idx: number) {
-  const isAdmin = await verifyAdminAccess()
+  const isAdmin = await appStore.verifyAdminSession()
   if (!isAdmin) return
 
   const confirmed = await ui.showConfirm('Tùy chọn', `Xóa nhân viên ${staff.name}?`)

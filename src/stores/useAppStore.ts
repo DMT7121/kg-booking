@@ -62,7 +62,8 @@ export const useAppStore = defineStore('app', () => {
   const activeSheet = ref(localStorage.getItem(CACHE_KEYS.MENU_SHEET) || 'Menu')
   const newMenuName = ref('')
   const newMenuContent = ref('')
-  const sessionPassword = ref('')
+  const sessionPassword = ref(sessionStorage.getItem('kg_admin_session_pass') || '')
+  const lastAuthTime = ref(parseInt(sessionStorage.getItem('kg_admin_session_time') || '0'))
 
   // --- Bank ---
   const bankList = ref<any[]>(JSON.parse(localStorage.getItem(CACHE_KEYS.BANK) || DEFAULTS.BANKS))
@@ -472,13 +473,52 @@ export const useAppStore = defineStore('app', () => {
     }
   }
 
+  async function verifyAdminSession(): Promise<boolean> {
+    const now = Date.now()
+    const lastTime = lastAuthTime.value
+    const isSessionValid = sessionPassword.value === 'ADMINDMT' && 
+                           lastTime > 0 && 
+                           (now - lastTime) < 30 * 60 * 1000 // 30 minutes
+    
+    if (isSessionValid) {
+      lastAuthTime.value = now
+      sessionStorage.setItem('kg_admin_session_time', String(now))
+      return true
+    }
+    
+    // Clear expired or invalid session
+    sessionPassword.value = ''
+    lastAuthTime.value = 0
+    sessionStorage.removeItem('kg_admin_session_pass')
+    sessionStorage.removeItem('kg_admin_session_time')
+
+    const pass = await uiStore.showPrompt('Xác thực Admin', 'Vui lòng nhập mật khẩu Admin ("ADMINDMT"):')
+    if (pass === 'ADMINDMT') {
+      sessionPassword.value = pass
+      lastAuthTime.value = now
+      sessionStorage.setItem('kg_admin_session_pass', pass)
+      sessionStorage.setItem('kg_admin_session_time', String(now))
+      return true
+    } else if (pass !== null) {
+      uiStore.showToast('Sai mật khẩu Admin!', 'error')
+    }
+    return false
+  }
+
   async function updateRemoteConfig() {
     let pass = sessionPassword.value
     if (!pass) {
-      pass = await uiStore.showPrompt('Bảo Mật Cấu Hinh', 'Nhập Password Admin để lưu Bank/Staff lên Cloud (hoặc Bỏ qua để chỉ lưu tại máy này):')
-      if (pass) {
-        sessionPassword.value = pass
+      const isAuth = await verifyAdminSession()
+      if (!isAuth) {
+        uiStore.showToast('Chỉ lưu cấu hình trên máy này (Chưa đồng bộ Cloud)', 'warning')
+        return
       }
+      pass = sessionPassword.value
+    } else {
+      // Session is already valid, update activity timer since saving is an action
+      const now = Date.now()
+      lastAuthTime.value = now
+      sessionStorage.setItem('kg_admin_session_time', String(now))
     }
     
     if (!pass) {
@@ -501,6 +541,9 @@ export const useAppStore = defineStore('app', () => {
         uiStore.showToast('Lỗi lưu cấu hình: ' + data.message, 'error')
         if (data.message && data.message.includes('Từ chối')) {
           sessionPassword.value = ''
+          lastAuthTime.value = 0
+          sessionStorage.removeItem('kg_admin_session_pass')
+          sessionStorage.removeItem('kg_admin_session_time')
         }
       }
     }).catch((e: any) => {
@@ -542,7 +585,7 @@ export const useAppStore = defineStore('app', () => {
   })
 
   return {
-    historyList, menuList, menuDetails, menuImages, dishImages, menuSheets, activeSheet, newMenuName, newMenuContent, sessionPassword,
+    historyList, menuList, menuDetails, menuImages, dishImages, menuSheets, activeSheet, newMenuName, newMenuContent, sessionPassword, lastAuthTime,
     bankList, selectedBankIndex, newBank,
     staffList, newStaff,
     currentBank, groupedHistory, filteredHistory,
@@ -550,7 +593,7 @@ export const useAppStore = defineStore('app', () => {
     loadHistory, fetchMenu, fetchSheets, switchMenu, uploadNewMenu, deleteMenu, uploadMenuImageStore, uploadDishImageStore,
     selectBank, addBank, removeBank,
     addStaff, removeStaff,
-    fetchRemoteConfig, updateRemoteConfig,
+    fetchRemoteConfig, updateRemoteConfig, verifyAdminSession,
     logout
   }
 })

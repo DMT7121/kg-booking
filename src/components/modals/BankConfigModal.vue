@@ -38,16 +38,22 @@ function updateNewBankName() {
   if (b) appStore.newBank.name = b.shortName
 }
 
-function saveBank() {
+async function saveBank() {
   if (!appStore.newBank.bankId || !appStore.newBank.number || !appStore.newBank.owner) {
     ui.showAlert('Lỗi', 'Vui lòng điền đầy đủ thông tin bắt buộc.')
     return
   }
+
+  const isAdmin = await appStore.verifyAdminSession()
+  if (!isAdmin) return
+
   if (isEditing.value && editIndex.value >= 0) {
     appStore.bankList[editIndex.value] = { ...appStore.newBank }
     localStorage.setItem(CACHE_KEYS.BANK, JSON.stringify(appStore.bankList))
   } else {
     appStore.addBank()
+    resetForm()
+    return
   }
   appStore.updateRemoteConfig()
   resetForm()
@@ -60,10 +66,14 @@ function editBank(idx: number) {
   editIndex.value = idx
 }
 
-function deleteBank(idx: number) {
-  ui.showConfirm('Xóa ngân hàng', 'Bạn có chắc chắn muốn xóa tài khoản ngân hàng này?').then(yes => {
-    if (yes) appStore.removeBank(idx)
-  })
+async function deleteBank(idx: number) {
+  const confirmed = await ui.showConfirm('Xóa ngân hàng', 'Bạn có chắc chắn muốn xóa tài khoản ngân hàng này?')
+  if (!confirmed) return
+
+  const isAdmin = await appStore.verifyAdminSession()
+  if (!isAdmin) return
+
+  appStore.removeBank(idx)
 }
 
 // Generate simple colors based on bin to mimic logos

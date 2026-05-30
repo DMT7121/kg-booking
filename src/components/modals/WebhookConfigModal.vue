@@ -1,8 +1,10 @@
 <script setup lang="ts">
 import { ref, watch } from 'vue'
 import { useUIStore } from '@/stores/useUIStore'
+import { useAppStore } from '@/stores/useAppStore'
 
 const ui = useUIStore()
+const appStore = useAppStore()
 
 const webhookUrl = ref('')
 const telegramChatId = ref('')
@@ -43,13 +45,13 @@ async function saveWebhook() {
     return
   }
 
-  const pass = await ui.showPrompt('Bảo mật', 'Nhập mật khẩu Admin:')
-  if (pass === null) return
+  const isAdmin = await appStore.verifyAdminSession()
+  if (!isAdmin) return
 
   saving.value = true
   try {
     const { saveConfig } = await import('@/services/api')
-    const res = await saveConfig('', '', pass, webhookUrl.value.trim(), telegramChatId.value.trim())
+    const res = await saveConfig('', '', appStore.sessionPassword, webhookUrl.value.trim(), telegramChatId.value.trim())
     if (res.ok || res.message === 'Config Saved') {
       localStorage.setItem('kg_v400_webhookUrl', webhookUrl.value.trim())
       localStorage.setItem('kg_v400_telegramChatId', telegramChatId.value.trim())
