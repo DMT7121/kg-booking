@@ -2,6 +2,7 @@
 import { ref, computed } from 'vue'
 import { useUIStore } from '@/stores/useUIStore'
 import { useAppStore } from '@/stores/useAppStore'
+import { CACHE_KEYS } from '@/utils/constants'
 
 const ui = useUIStore()
 const appStore = useAppStore()
@@ -40,8 +41,10 @@ async function handleStaffOptions(staff: any, idx: number) {
   }
 }
 
-function handleSave() {
-  ui.showToast('Đã lưu thay đổi!', 'success')
+async function handleSave() {
+  localStorage.setItem(CACHE_KEYS.STAFF, JSON.stringify(appStore.staffList))
+  ui.showToast('Đang lưu thay đổi cấu hình...', 'info')
+  await appStore.updateRemoteConfig()
   ui.closeConfig()
 }
 </script>
