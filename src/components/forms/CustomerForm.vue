@@ -13,10 +13,17 @@ const selectedIcon = computed(() => {
   const found = PARTY_TYPES.find(p => p.name === formStore.customer.type)
   return found?.icon || 'fa-utensils'
 })
+
+const hasSoftWarning = computed(() => {
+  const meta = formStore.aiMetadata
+  const score = meta && typeof meta.confidence_score === 'number' ? meta.confidence_score : 1.0
+  return score < 0.80 || (formStore.warnings && formStore.warnings.length > 0)
+})
 </script>
 
 <template>
-  <div class="bg-white rounded-2xl shadow-[0_2px_10px_rgba(0,0,0,0.04)] border border-slate-100 p-5 space-y-5">
+  <div class="bg-white rounded-2xl shadow-[0_2px_10px_rgba(0,0,0,0.04)] border p-5 space-y-5 transition-all duration-300"
+       :class="hasSoftWarning ? 'border-amber-300 bg-amber-50/10' : 'border-slate-100'">
     <!-- Header -->
     <div class="flex items-center gap-2 mb-2">
       <i class="fa-solid fa-user text-blue-600 text-lg"></i>

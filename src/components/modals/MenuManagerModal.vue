@@ -18,7 +18,6 @@ const { parseMenuAI } = useAI()
 
 // Manage Tab States
 const showAllMenus = ref(false)
-const showUploadModal = ref(false)
 
 // Add/Edit Dish States
 const viewMode = ref('grid') // 'list' | 'grid'
@@ -114,7 +113,7 @@ function openUploadModal() {
   ui.isUpdateMode = false
   appStore.newMenuName = ''
   appStore.newMenuContent = ''
-  showUploadModal.value = true
+  ui.showMenuUploadModal = true
 }
 
 function getCategoryColor(category: string) {
@@ -263,7 +262,7 @@ async function handleDishImageUpload(event: Event) {
               </button>
               
               <template v-if="appStore.activeSheet">
-                <button @click="prepareUpdate(appStore.activeSheet); showUploadModal = true" class="col-span-1 px-2 py-2.5 bg-slate-50 border border-slate-200 text-slate-700 text-[11px] sm:text-xs font-bold rounded-xl hover:bg-slate-100 transition-colors flex items-center justify-center gap-2 shadow-sm min-w-0 active:scale-95">
+                <button @click="prepareUpdate(appStore.activeSheet); ui.showMenuUploadModal = true" class="col-span-1 px-2 py-2.5 bg-slate-50 border border-slate-200 text-slate-700 text-[11px] sm:text-xs font-bold rounded-xl hover:bg-slate-100 transition-colors flex items-center justify-center gap-2 shadow-sm min-w-0 active:scale-95">
                   <i class="fa-solid fa-pen text-blue-500"></i> <span class="truncate">Sửa</span>
                 </button>
                 <button @click="appStore.deleteMenu(appStore.activeSheet)" class="col-span-1 px-2 py-2.5 bg-red-50 border border-red-100 text-red-600 text-[11px] sm:text-xs font-bold rounded-xl hover:bg-red-100 transition-colors flex items-center justify-center gap-2 shadow-sm min-w-0 active:scale-95">
@@ -446,7 +445,7 @@ async function handleDishImageUpload(event: Event) {
     </div>
     
     <!-- Legacy Upload Modal (Overlay on top of MenuManager) -->
-    <div v-if="showUploadModal" class="fixed inset-0 bg-blue-950/80 z-[1100] flex justify-center items-center p-4 backdrop-blur-sm" @click.self="showUploadModal = false">
+    <div v-if="ui.showMenuUploadModal" class="fixed inset-0 bg-blue-950/80 z-[1100] flex justify-center items-center p-4 backdrop-blur-sm" @click.self="ui.showMenuUploadModal = false">
       <div class="bg-white rounded-3xl shadow-2xl p-6 md:p-8 max-w-lg w-[95%] md:w-full flex flex-col relative overflow-hidden border border-white/20">
         <!-- Header -->
         <div class="flex justify-between items-center mb-6 relative z-10">
@@ -456,7 +455,7 @@ async function handleDishImageUpload(event: Event) {
             </div>
             {{ ui.isUpdateMode ? 'Cập nhật Menu' : 'Tạo Menu Mới' }}
           </h3>
-          <button @click="showUploadModal = false" class="w-10 h-10 bg-slate-50 text-slate-400 rounded-xl hover:bg-red-50 hover:text-red-500 transition-all flex items-center justify-center shrink-0">
+          <button @click="ui.showMenuUploadModal = false" class="w-10 h-10 bg-slate-50 text-slate-400 rounded-xl hover:bg-red-50 hover:text-red-500 transition-all flex items-center justify-center shrink-0">
             <i class="fa-solid fa-xmark text-xl"></i>
           </button>
         </div>
@@ -480,7 +479,7 @@ async function handleDishImageUpload(event: Event) {
             </div>
             <textarea v-model="appStore.newMenuContent" rows="10" class="w-full p-4 rounded-xl border border-slate-200 bg-slate-50 font-mono text-[13px] leading-relaxed text-slate-800 focus:border-blue-500 focus:bg-white focus:ring-2 focus:ring-blue-100 outline-none transition-all resize-none custom-scrollbar" placeholder="Dán văn bản lộn xộn vào đây rồi nhấn AI PHÂN TÍCH, hoặc nhập theo mẫu:&#10;Tên món - Giá&#10;VD:&#10;Bò nướng tảng - 250k"></textarea>
           </div>
-          <button @click="appStore.uploadNewMenu(); showUploadModal = false" class="w-full h-14 bg-blue-900 text-white rounded-xl font-black text-sm uppercase shadow-lg shadow-blue-900/20 active:scale-95 transition-all flex items-center justify-center gap-2">
+          <button @click="appStore.uploadNewMenu(); ui.showMenuUploadModal = false" class="w-full h-14 bg-blue-900 text-white rounded-xl font-black text-sm uppercase shadow-lg shadow-blue-900/20 active:scale-95 transition-all flex items-center justify-center gap-2">
             <i class="fa-solid fa-cloud-arrow-up text-lg text-white/80"></i> {{ ui.isUpdateMode ? 'CẬP NHẬT MENU' : 'TẠO MENU MỚI' }}
           </button>
         </div>

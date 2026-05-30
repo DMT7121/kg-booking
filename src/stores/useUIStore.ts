@@ -57,6 +57,7 @@ export const useUIStore = defineStore('ui', () => {
   // --- Menu Tab ---
   const menuTab = ref<'select' | 'upload'>('select')
   const isUpdateMode = ref(false)
+  const showMenuUploadModal = ref(false)
 
   // --- History ---
   const historySearch = ref('')
@@ -187,7 +188,7 @@ export const useUIStore = defineStore('ui', () => {
     tab, connectionStatus, isKeyboardOpen, isVoiceSupported,
     loading, activeRequests, isFetchingAPI, error,
     showSettingsHub, activeSettingModal, showAiConfig, showBankConfig, showMenuManager, showBrandingConfig, showStaffConfig, showStaffSelector, showWebhookConfig, showBookingDetailModal, showFloorPlan, showCustomerCareModal, activeOrderForCare, selectedBooking,
-    pendingAction, menuTab, isUpdateMode, isDarkMode,
+    pendingAction, menuTab, isUpdateMode, isDarkMode, showMenuUploadModal,
     historySearch, isBatchMode, selectedIds, historyFilters,
     focusIdx, listening, tempTable,
     toasts, verifyModal, modal,

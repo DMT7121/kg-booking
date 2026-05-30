@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 import { useUIStore } from '@/stores/useUIStore'
 import { useFormStore } from '@/stores/useFormStore'
 import { useAppStore } from '@/stores/useAppStore'
@@ -9,10 +9,37 @@ import { formatVND } from '@/utils'
 const ui = useUIStore()
 const formStore = useFormStore()
 const appStore = useAppStore()
-const { handleInputFocus, handleInputBlur, addNewItem, onSearchInput, selectMenuItem, handleItemBlur, itemSuggestions } = useForm()
+const { handleInputFocus, handleInputBlur, addNewItem, onSearchInput, selectMenuItem, handleItemBlur, itemSuggestions, fillSampleMenu } = useForm()
 
 const draggedIndex = ref<number | null>(null)
 const dragOverIndex = ref<number | null>(null)
+
+function triggerCreateMenu() {
+  ui.activeSettingModal = 'menu'
+  ui.showMenuUploadModal = true
+}
+
+function triggerPasteMenu() {
+  ui.activeSettingModal = 'menu'
+  ui.showMenuUploadModal = true
+}
+
+function triggerUploadMenuImg() {
+  ui.activeSettingModal = 'menu'
+  ui.showMenuUploadModal = true
+}
+
+async function useSampleMenu() {
+  ui.loading.is = true
+  ui.loading.msg = 'ĐANG TẠO MENU MẪU...'
+  try {
+    appStore.newMenuName = 'Menu thường'
+    fillSampleMenu() // fills appStore.newMenuContent with SAMPLE_MENU
+    await appStore.uploadNewMenu()
+  } finally {
+    ui.loading.is = false
+  }
+}
 
 function onDragStart(e: DragEvent, index: number) {
   draggedIndex.value = index
@@ -40,10 +67,17 @@ function swapItem(idx1: number, idx2: number) {
   items[idx1] = items[idx2]
   items[idx2] = temp
 }
+
+const hasSoftWarning = computed(() => {
+  const meta = formStore.aiMetadata
+  const score = meta && typeof meta.confidence_score === 'number' ? meta.confidence_score : 1.0
+  return score < 0.80 || (formStore.warnings && formStore.warnings.length > 0)
+})
 </script>
 
 <template>
-  <div class="bg-white rounded-3xl shadow-xl shadow-blue-900/5 border border-slate-100 p-5 md:p-6">
+  <div class="bg-white rounded-3xl shadow-xl shadow-blue-900/5 border p-5 md:p-6 transition-all duration-300"
+       :class="hasSoftWarning ? 'border-amber-300 bg-amber-50/10' : 'border-slate-100'">
     <div class="flex justify-between items-center mb-6">
       <h3 class="font-black text-blue-900 text-xs uppercase tracking-widest flex items-center gap-3">
         <div class="w-8 h-8 bg-blue-50 text-blue-600 rounded-lg flex items-center justify-center">
@@ -55,6 +89,31 @@ function swapItem(idx1: number, idx2: number) {
       <button @click="ui.showMenuManager = true" class="text-[10px] bg-slate-50 px-3 py-1.5 rounded-lg text-slate-500 font-black border border-slate-200 hover:bg-slate-100 active:scale-95 transition-all uppercase tracking-widest flex items-center gap-2">
         <i class="fa-solid fa-book-open"></i> {{ appStore.activeSheet }}
       </button>
+    </div>
+
+    <!-- Alert when no menu is available -->
+    <div v-if="appStore.menuSheets.length === 0 || appStore.menuList.length === 0" class="bg-amber-50 border border-amber-200 rounded-2xl p-5 mb-5 text-center flex flex-col items-center justify-center">
+      <div class="w-12 h-12 bg-amber-100 text-amber-600 rounded-full flex items-center justify-center text-xl mb-3 shadow-inner">
+        <i class="fa-solid fa-triangle-exclamation"></i>
+      </div>
+      <h4 class="font-black text-amber-900 text-sm uppercase tracking-wide mb-1">Chưa có menu trong hệ thống</h4>
+      <p class="text-xs text-amber-700 max-w-md mb-4 leading-relaxed">
+        Vui lòng tạo menu trước để hệ thống nhận diện món, tự động dò thực đơn và tính tiền chính xác.
+      </p>
+      <div class="flex flex-wrap justify-center gap-2">
+        <button @click="triggerCreateMenu" class="px-4 py-2 bg-blue-900 text-white text-[11px] font-black rounded-lg uppercase tracking-wider active:scale-95 transition-all shadow-sm">
+          <i class="fa-solid fa-plus mr-1"></i> Tạo menu mới
+        </button>
+        <button @click="triggerPasteMenu" class="px-4 py-2 bg-white border border-slate-200 text-slate-700 text-[11px] font-black rounded-lg uppercase tracking-wider active:scale-95 transition-all shadow-sm">
+          <i class="fa-solid fa-paste mr-1"></i> Dán menu dạng văn bản
+        </button>
+        <button @click="triggerUploadMenuImg" class="px-4 py-2 bg-white border border-slate-200 text-slate-700 text-[11px] font-black rounded-lg uppercase tracking-wider active:scale-95 transition-all shadow-sm">
+          <i class="fa-solid fa-image mr-1"></i> Tải ảnh menu (AI đọc)
+        </button>
+        <button @click="useSampleMenu" class="px-4 py-2 bg-emerald-50 border border-emerald-100 text-emerald-700 text-[11px] font-black rounded-lg uppercase tracking-wider active:scale-95 transition-all shadow-sm">
+          <i class="fa-solid fa-circle-play mr-1"></i> Dùng menu mẫu tạm thời
+        </button>
+      </div>
     </div>
 
     <div class="space-y-4">

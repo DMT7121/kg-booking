@@ -5,6 +5,8 @@ import { useAppStore } from '@/stores/useAppStore'
 import { parseJSON, resizeImage, stripAccents, formatVND, formatSetNote, cleanPhoneNumber, formatDateStr } from '@/utils'
 import { AI_MODELS, SETS, ADVANCED_AI_PROMPT, IMAGE_OCR_PROMPT } from '@/utils/constants'
 import type { AIModel } from '@/utils/constants'
+import * as api from '@/services/api'
+import { getCachedMenu, cacheMenu } from '@/services/cache'
 
 /**
  * AI Core v6.0 APEX — Maximum Performance Engine
@@ -419,6 +421,207 @@ export function useAI() {
   }
 
   // ═══════════════════════════════════════════════════════════════
+  //  PIPELINE LAYERS: Pre-normalizer, Menu Routing, Post-validator
+  // ═══════════════════════════════════════════════════════════════
+  function preNormalize(text: string): string {
+    if (!text) return ''
+    
+    // Clean redundant whitespaces and linebreaks
+    let clean = text.replace(/\r\n/g, '\n').replace(/\n{2,}/g, '\n\n')
+    
+    // Standardize time/pax spacing
+    clean = clean.replace(/(\d+)(pax|người|khách|bàn|mon|chỗ|h|g|hàu|set|combo)/gi, '$1 $2')
+
+    // Normalize relative dates
+    const today = new Date()
+    const dd = String(today.getDate()).padStart(2, '0')
+    const mm = String(today.getMonth() + 1).padStart(2, '0')
+    const yyyy = today.getFullYear()
+    
+    clean = clean.replace(/hôm nay|nay/gi, `ngày ${dd}/${mm}/${yyyy}`)
+    
+    const tomorrow = new Date(today)
+    tomorrow.setDate(today.getDate() + 1)
+    const tDd = String(tomorrow.getDate()).padStart(2, '0')
+    const tMm = String(tomorrow.getMonth() + 1).padStart(2, '0')
+    const tYyyy = tomorrow.getFullYear()
+    clean = clean.replace(/ngày mai|mai/gi, `ngày ${tDd}/${tMm}/${tYyyy}`)
+    
+    const nextDay = new Date(today)
+    nextDay.setDate(today.getDate() + 2)
+    const nDd = String(nextDay.getDate()).padStart(2, '0')
+    const nMm = String(nextDay.getMonth() + 1).padStart(2, '0')
+    const nYyyy = nextDay.getFullYear()
+    clean = clean.replace(/ngày kia|mốt/gi, `ngày ${nDd}/${nMm}/${nYyyy}`)
+    
+    return clean.trim()
+  }
+
+  async function loadAllMenusData(): Promise<Record<string, any[]>> {
+    const allData: Record<string, any[]> = {}
+    let sheets = appStore.menuSheets
+    if (!sheets || sheets.length === 0) {
+      try {
+        const res = await api.getMenuSheets()
+        if (res.ok && res.sheets) {
+          sheets = res.sheets
+          appStore.menuSheets = sheets
+        }
+      } catch (e) {
+        console.error('Failed to load menu sheets', e)
+      }
+    }
+    if (!sheets || sheets.length === 0) return allData
+
+    for (const sheet of sheets) {
+      let menuItems = await getCachedMenu(sheet)
+      if (!menuItems || menuItems.length === 0) {
+        try {
+          const res = await api.getMenu(sheet)
+          if (res.ok && res.data) {
+            menuItems = res.data
+            cacheMenu(sheet, menuItems)
+          }
+        } catch (e) {
+          console.error(`Failed to load menu for sheet ${sheet}`, e)
+        }
+      }
+      if (menuItems) {
+        allData[sheet] = menuItems
+      }
+    }
+    return allData
+  }
+
+  function resolveBestMenuSheet(
+    text: string,
+    parsedItems: any[],
+    allMenus: Record<string, any[]>
+  ): { bestSheet: string; score: number; isBorderline: boolean } {
+    let bestSheet = appStore.activeSheet || ''
+    let maxScore = 0
+    const scores: Record<string, number> = {}
+
+    const sheets = Object.keys(allMenus)
+    if (sheets.length === 0) return { bestSheet, score: 0, isBorderline: false }
+
+    const normalizedText = stripAccents(text).toLowerCase()
+
+    for (const sheet of sheets) {
+      let score = 0
+      const items = allMenus[sheet] || []
+
+      const sheetNorm = stripAccents(sheet).toLowerCase()
+      if (sheetNorm.includes('sinh nhat') && normalizedText.includes('sinh nhat')) {
+        score += 3
+      }
+      if (sheetNorm.includes('cuoi') && (normalizedText.includes('cuoi') || normalizedText.includes('dam cuoi'))) {
+        score += 3
+      }
+      if (sheetNorm.includes('thuong') && (normalizedText.includes('thuong') || normalizedText.includes('goi mon'))) {
+        score += 2
+      }
+
+      for (const pItem of parsedItems) {
+        const pName = stripAccents(pItem.name || '').toLowerCase().trim()
+        if (!pName) continue
+        
+        const found = items.some(item => {
+          const mName = stripAccents(item.name || '').toLowerCase().trim()
+          return mName === pName || mName.includes(pName) || pName.includes(mName)
+        })
+        if (found) {
+          score += 1
+        }
+      }
+
+      scores[sheet] = score
+      if (score > maxScore) {
+        maxScore = score
+        bestSheet = sheet
+      }
+    }
+
+    let isBorderline = false
+    if (maxScore > 0) {
+      const otherScores = Object.entries(scores).filter(([s, sc]) => s !== bestSheet && sc > 0)
+      if (otherScores.length > 0) {
+        const runnerUpScore = Math.max(...otherScores.map(([_, sc]) => sc))
+        if (maxScore - runnerUpScore <= 1) {
+          isBorderline = true
+        }
+      } else {
+        if (maxScore === 1 && parsedItems.length >= 3) {
+          isBorderline = true
+        }
+      }
+    }
+
+    return { bestSheet, score: maxScore, isBorderline }
+  }
+
+  function postValidate(parsed: any) {
+    const warnings: string[] = []
+    const unresolved_items: string[] = []
+
+    if (!parsed.customer) {
+      parsed.customer = { name: 'Khách hàng', phone: '' }
+    } else {
+      if (!parsed.customer.name) parsed.customer.name = 'Khách hàng'
+    }
+
+    if (!parsed.reservation) {
+      parsed.reservation = { date: '', time: '', pax: '', type: 'Ăn thường', notes: '' }
+    }
+
+    if (parsed.items && Array.isArray(parsed.items)) {
+      parsed.items = parsed.items.map((item: any) => {
+        const rawName = (item.name || '').trim()
+        const match = fuzzyMatchMenu(rawName)
+        if (match) {
+          let note = item.notes || item.note || ''
+          let description = match.desc || appStore.menuDetails[match.name] || ''
+          
+          if (description) {
+            const isSet = /set|combo|goi|phan/i.test(match.name)
+            if (isSet) {
+              const formattedNote = formatSetNote(description)
+              note = note ? `${note}\n${formattedNote}` : formattedNote
+            } else {
+              note = note ? `${note} (${description})` : description
+            }
+          } else {
+            const isSet = /set|combo|goi|phan/i.test(match.name)
+            if (isSet) {
+              warnings.push(`Món "${match.name}" chưa có mô tả thành phần món con trong cột Description.`)
+            }
+          }
+
+          return {
+            name: match.name,
+            qty: parseInt(String(item.qty)) || 1,
+            price: match.price,
+            note: note.trim()
+          }
+        } else {
+          unresolved_items.push(rawName)
+          warnings.push(`Món "${rawName}" không tìm thấy trong thực đơn hiện tại. Giá được đặt về 0đ.`)
+          return {
+            name: rawName,
+            qty: parseInt(String(item.qty)) || 1,
+            price: 0,
+            note: (item.notes || item.note || '').trim()
+          }
+        }
+      })
+    }
+
+    parsed.warnings = warnings
+    parsed.unresolved_items = unresolved_items
+    return parsed
+  }
+
+  // ═══════════════════════════════════════════════════════════════
   //  MAIN ORCHESTRATOR V6.0 APEX
   // ═══════════════════════════════════════════════════════════════
   async function processAI() {
@@ -448,9 +651,12 @@ export function useAI() {
 
       const type = formStore.aiImage ? 'vision' : 'text'
       const optimizedImg = formStore.aiImage ? await resizeImage(formStore.aiImage, 1120) : null
-      const promptText = formStore.aiImage
+      let promptText = formStore.aiImage
         ? (formStore.rawInput || 'Phân tích ảnh này để lấy thông tin đặt bàn, khách hàng và danh sách món ăn.')
         : formStore.rawInput
+
+      // Layer 1: Pre-normalize the input
+      promptText = preNormalize(promptText)
       
       // ── CALL AI ──
       const rawResult = await smartRouter(type, systemPrompt, promptText, optimizedImg)
@@ -458,62 +664,71 @@ export function useAI() {
 
       if (!v5) throw new Error('AI trả về dữ liệu rỗng')
 
+      // Layer 2: Smart Menu Sheet Routing
+      try {
+        const allMenus = await loadAllMenusData()
+        const { bestSheet, score, isBorderline } = resolveBestMenuSheet(promptText, v5.items || [], allMenus)
+        
+        if (bestSheet && bestSheet !== appStore.activeSheet) {
+          if (isBorderline) {
+            const confirmed = await uiStore.showConfirm(
+              'Đổi thực đơn?',
+              `Hệ thống nhận diện bạn đang dùng thực đơn "${bestSheet}" (độ khớp trung bình). Bạn có muốn chuyển sang thực đơn này không?`
+            )
+            if (confirmed) {
+              await appStore.switchMenu(bestSheet)
+            }
+          } else {
+            await appStore.switchMenu(bestSheet)
+            uiStore.showToast(`Đã tự động chuyển sang thực đơn: ${bestSheet}`, 'success')
+          }
+        }
+      } catch (errSheet) {
+        console.warn('Menu sheet routing error:', errSheet)
+      }
+
+      // Layer 3: Post-validator & Mapping
+      const validated = postValidate(v5)
+
       // ══════════ MAP DATA TO FORM (like legacy v1.8.6) ══════════
 
       // 1. Customer
-      if (v5.customer) {
-        if (v5.customer.name) formStore.customer.name = v5.customer.name
-        if (v5.customer.phone) formStore.customer.phone = cleanPhoneNumber(v5.customer.phone)
+      if (validated.customer) {
+        if (validated.customer.name) formStore.customer.name = validated.customer.name
+        if (validated.customer.phone) formStore.customer.phone = cleanPhoneNumber(validated.customer.phone)
       }
 
       // 2. Reservation
-      if (v5.reservation) {
-        if (v5.reservation.date) formStore.customer.date = formatDateStr(v5.reservation.date)
-        if (v5.reservation.time) formStore.customer.time = v5.reservation.time
-        if (v5.reservation.pax) formStore.customer.pax = String(parseInt(String(v5.reservation.pax)) || formStore.customer.pax)
-        if (v5.reservation.notes) formStore.customer.note = v5.reservation.notes
-        if (v5.reservation.type) formStore.customer.type = v5.reservation.type
+      if (validated.reservation) {
+        if (validated.reservation.date) formStore.customer.date = formatDateStr(validated.reservation.date)
+        if (validated.reservation.time) formStore.customer.time = validated.reservation.time
+        if (validated.reservation.pax) formStore.customer.pax = String(parseInt(String(validated.reservation.pax)) || formStore.customer.pax)
+        if (validated.reservation.notes) formStore.customer.note = validated.reservation.notes
+        if (validated.reservation.type) formStore.customer.type = validated.reservation.type
         
         // Table normalization (4 cases)
-        const table = parseTableCode(v5.reservation.table_code)
+        const table = parseTableCode(validated.reservation.table_code)
         if (table) {
           uiStore.tempTable.zone = table.zone
           uiStore.tempTable.number = table.number
         }
       }
 
-      // 3. Menu Items (fuzzy matching like legacy)
-      if (v5.items && Array.isArray(v5.items) && v5.items.length > 0) {
-        formStore.items = v5.items.map((item: any) => {
-          const match = fuzzyMatchMenu(item.name || '')
-          
-          let note = item.notes || item.note || ''
-          if (match && !note) {
-            note = appStore.menuDetails[match.name] || ''
-            if (!note && SETS[match.name.toUpperCase()]) {
-              note = formatSetNote(SETS[match.name.toUpperCase()])
-            }
-          }
-
-          return {
-            name: match ? match.name : item.name,
-            price: match ? match.price : (item.price || 0),
-            qty: parseInt(String(item.qty)) || 1,
-            note
-          }
-        })
+      // 3. Menu Items
+      if (validated.items && Array.isArray(validated.items)) {
+        formStore.items = validated.items
       }
 
       // 4. Payment
-      if (v5.payment?.amount) {
-        formStore.deposit.amount = parseInt(String(v5.payment.amount)) || 0
-        if (v5.payment.method === 'transfer') {
-          formStore.deposit.note = `AI: ${v5.payment.bank_reference || 'Chuyển khoản'}`
+      if (validated.payment?.amount) {
+        formStore.deposit.amount = parseInt(String(validated.payment.amount)) || 0
+        if (validated.payment.method === 'transfer') {
+          formStore.deposit.note = `AI: ${validated.payment.bank_reference || 'Chuyển khoản'}`
         }
       }
 
       // ── SUCCESS TOAST ──
-      const rt = v5.routing || {}
+      const rt = validated.routing || {}
       const modeIcon = rt.mode === 'race' ? '🏎️' : '⚡'
       uiStore.showToast(
         `<b>V6.0 ${modeIcon} ${(rt.mode || 'direct').toUpperCase()}</b><br/>` +
@@ -522,6 +737,8 @@ export function useAI() {
         'success', 5000
       )
       formStore.aiMetadata = rt
+      formStore.warnings = validated.warnings || []
+      formStore.unresolvedItems = validated.unresolved_items || []
 
     } catch (e: any) {
       uiStore.error.show = true

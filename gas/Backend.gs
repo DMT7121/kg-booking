@@ -215,28 +215,98 @@ function uploadDishImage(dishId, base64, password) {
 }
 
 function parseMenuRawData(text) {
-  let cleanText = text.replace(/\|/g, '\n');
-  const lines = cleanText.split('\n').map(s => s.trim()).filter(s => s && s.length > 0);
+  const lines = text.split('\n').map(s => s.trim()).filter(s => s.length > 0);
   const rows = [];
   let currentItem = null;
-  const itemRegex = /^(.*?)[\s\-](\d{1,3}(?:[.,]\d{3})*|\d+)\s*(k|vnd|đ)?$/i;
-  lines.forEach(line => {
+
+  function extractPrice(str) {
+    if (!str) return 0;
+    const cleanStr = str.toLowerCase().replace(/[\s.,đđ]/g, '');
+    const match = cleanStr.match(/^(\d+)(k|vnd|triệu|trieu|cu|củ)?$/);
+    if (!match) return 0;
+    let priceVal = parseInt(match[1]);
+    const unit = match[2];
+    if (unit === 'k') priceVal *= 1000;
+    else if (unit === 'triệu' || unit === 'trieu' || unit === 'cu' || unit === 'củ') priceVal *= 1000000;
+    else if (priceVal < 1000 && !unit) priceVal *= 1000;
+    return priceVal;
+  }
+
+  function addCurrentItem() {
+    if (currentItem) {
+      let desc = currentItem.desc.trim();
+      desc = desc.replace(/^(Mô tả|Mo ta|Thành phần|Thanh phan|Chi tiết|Chi tiet)[:\-\s]*/i, '');
+      rows.push([
+        currentItem.name,
+        currentItem.price,
+        getAcronym(currentItem.name),
+        getCleanName(currentItem.name),
+        desc
+      ]);
+      currentItem = null;
+    }
+  }
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+
+    if (line.includes('|')) {
+      addCurrentItem();
+      const parts = line.split('|').map(p => p.trim());
+      const name = parts[0];
+      const price = extractPrice(parts[1]);
+      const desc = parts.slice(2).join(' | ');
+      currentItem = { name, price, desc };
+      continue;
+    }
+
+    const dashParts = line.split(/\s+-\s+/).map(p => p.trim());
+    if (dashParts.length >= 2) {
+      const p2Price = extractPrice(dashParts[1]);
+      if (p2Price > 0) {
+        addCurrentItem();
+        const name = dashParts[0];
+        const price = p2Price;
+        const desc = dashParts.slice(2).join(' - ');
+        currentItem = { name, price, desc };
+        continue;
+      }
+      const firstPartPriceMatch = dashParts[0].match(/(\d+)(k|vnd|đ)?$/i);
+      if (firstPartPriceMatch) {
+        const p1Price = extractPrice(firstPartPriceMatch[0]);
+        if (p1Price > 0) {
+          addCurrentItem();
+          const name = dashParts[0];
+          const price = p1Price;
+          const desc = dashParts.slice(1).join(' - ');
+          currentItem = { name, price, desc };
+          continue;
+        }
+      }
+    }
+
+    const itemRegex = /^(.*?)(?:\s+-\s+|\s+|\s*-\s*)(\d{1,3}(?:[.,]\d{3})*|\d+)\s*(k|vnd|đ)?$/i;
     const match = line.match(itemRegex);
     if (match) {
-      if (currentItem) {
-        rows.push([currentItem.name, currentItem.price, getAcronym(currentItem.name), getCleanName(currentItem.name), currentItem.desc.trim()]);
+      const namePart = match[1].trim();
+      if (namePart && !/^(mô tả|thành phần|mota|thanhphan)[:\-\s]/i.test(namePart)) {
+        addCurrentItem();
+        let name = namePart.replace(/[-:]+$/, '').trim();
+        let price = parseInt(match[2].replace(/[.,]/g, ''));
+        const unit = (match[3] || '').toLowerCase();
+        if (unit === 'k') price *= 1000;
+        else if (price < 1000) price *= 1000;
+        currentItem = { name, price, desc: '' };
+        continue;
       }
-      let name = match[1].replace(/[-:]+$/, '').trim();
-      let priceRaw = parseInt(match[2].replace(/[.,]/g, ''));
-      if (priceRaw < 1000) priceRaw *= 1000;
-      currentItem = { name: name, price: priceRaw, desc: '' };
-    } else {
-      if (currentItem) { currentItem.desc += (currentItem.desc ? '\n' : '') + line; }
     }
-  });
-  if (currentItem) {
-    rows.push([currentItem.name, currentItem.price, getAcronym(currentItem.name), getCleanName(currentItem.name), currentItem.desc.trim()]);
+
+    if (currentItem) {
+      currentItem.desc += (currentItem.desc ? '\n' : '') + line;
+    }
   }
+
+  addCurrentItem();
   return rows;
 }
 
@@ -274,6 +344,10 @@ function saveOrder(p) {
   if(transferUrl) p.deposit.image = transferUrl;
   const unifiedData = {
     customer: p.customer, items: p.items, staff: p.staff, deposit: p.deposit,
+    activeMenuSheet: p.activeMenuSheet || "",
+    aiMetadata: p.aiMetadata || null,
+    warnings: p.warnings || [],
+    unresolvedItems: p.unresolvedItems || [],
     meta: { createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() }
   };
   const ss = SpreadsheetApp.openById(CONFIG.SS_ID);
@@ -394,6 +468,10 @@ function getHistoryData() {
           totalAmount: Number(safeGet(5)) || 0, depositAmount: Number(safeGet(6)) || 0,
           isDeposited: safeGet(7) === "YES", transferImage: deposit.image || safeGet(8),
           billUrl: safeGet(9), menuItems: items, staff: staff, deposit: deposit,
+          activeMenuSheet: coreData.activeMenuSheet || "",
+          aiMetadata: coreData.aiMetadata || null,
+          warnings: coreData.warnings || [],
+          unresolvedItems: coreData.unresolvedItems || [],
           billFileId: extractFileId(safeGet(9)), _format: 'v3.0'
         };
       } else {

@@ -23,6 +23,12 @@ const appStore = useAppStore()
 const { triggerSave } = useBillRender()
 const { copyBookingConfirmation, validateForm } = useForm()
 
+const hasSoftWarning = computed(() => {
+  const meta = formStore.aiMetadata
+  const score = meta && typeof meta.confidence_score === 'number' ? meta.confidence_score : 1.0
+  return score < 0.80 || (formStore.warnings && formStore.warnings.length > 0)
+})
+
 const doSave = (type: string) => { haptic('light'); triggerSave(type, validateForm); showActionSheet.value = false; }
 
 const showDropdown = ref(false)
@@ -147,6 +153,23 @@ function shareCurrentBill() {
           <div v-else-if="ui.tab === 'create'" key="create" class="flex-grow flex flex-col overflow-hidden relative min-h-0 h-full">
             <div class="flex-grow overflow-y-auto p-3 md:p-4 space-y-3 pb-28 md:pb-6 bg-gray-50/30 scroll-smooth custom-scrollbar">
               <AIInputPanel />
+
+              <!-- Smart Warning Widget -->
+              <div v-if="hasSoftWarning" class="bg-amber-50/90 border border-amber-300 rounded-2xl p-4 shadow-sm space-y-2">
+                <div class="flex items-center gap-2 text-amber-850 font-black uppercase text-xs">
+                  <i class="fa-solid fa-triangle-exclamation text-amber-500 text-sm"></i>
+                  Cảnh báo phân tích AI
+                </div>
+                <ul class="list-disc pl-4 text-xs text-amber-700 space-y-1">
+                  <li v-if="formStore.aiMetadata && formStore.aiMetadata.confidence_score < 0.8">
+                    Đo độ tin cậy AI thấp ({{ Math.round(formStore.aiMetadata.confidence_score * 100) }}%). Vui lòng kiểm tra lại.
+                  </li>
+                  <li v-for="(warn, idx) in formStore.warnings" :key="idx">
+                    {{ warn }}
+                  </li>
+                </ul>
+              </div>
+
               <div class="space-y-4">
                 <CustomerForm />
                 <DepositManager />
