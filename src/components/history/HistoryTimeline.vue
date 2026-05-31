@@ -40,8 +40,10 @@ const HOURS = [
   '15:00', '16:00', '17:00', '18:00', '19:00', '20:00', '21:00', '22:00'
 ]
 
-const today = new Date()
-const selectedDateStr = ref(`${String(today.getDate()).padStart(2, '0')}/${String(today.getMonth() + 1).padStart(2, '0')}/${today.getFullYear()}`)
+const selectedDateStr = computed({
+  get: () => ui.selectedTimelineDate,
+  set: (val) => { ui.selectedTimelineDate = val }
+})
 
 // Format date for native input type="date"
 const selectedDateInput = computed({

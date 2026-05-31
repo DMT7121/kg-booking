@@ -25,6 +25,12 @@ export const useUIStore = defineStore('ui', () => {
   const isKeyboardOpen = ref(false)
   const isVoiceSupported = ref(false)
 
+  const todayStr = () => {
+    const d = new Date()
+    return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`
+  }
+  const selectedTimelineDate = ref(todayStr())
+
   // --- Loading ---
   const loading = reactive({ is: false, msg: '', subMsg: '' })
   const activeRequests = ref(0)
@@ -185,7 +191,7 @@ export const useUIStore = defineStore('ui', () => {
   }
 
   return {
-    tab, connectionStatus, isKeyboardOpen, isVoiceSupported,
+    tab, connectionStatus, isKeyboardOpen, isVoiceSupported, selectedTimelineDate,
     loading, activeRequests, isFetchingAPI, error,
     showSettingsHub, activeSettingModal, showAiConfig, showBankConfig, showMenuManager, showBrandingConfig, showStaffConfig, showStaffSelector, showWebhookConfig, showBookingDetailModal, showFloorPlan, showCustomerCareModal, activeOrderForCare, selectedBooking,
     pendingAction, menuTab, isUpdateMode, isDarkMode, showMenuUploadModal,

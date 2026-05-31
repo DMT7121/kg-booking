@@ -8,6 +8,96 @@ const ui = useUIStore()
 // Local storage for cared status to avoid backend changes
 const caredStatus = ref<Record<string, boolean>>(JSON.parse(localStorage.getItem('kg_cared_status') || '{}'))
 
+interface MessageTemplate {
+  id: string
+  name: string
+  icon: string
+  color: string
+  getMessage: (info: any) => string
+}
+
+const templates = ref<MessageTemplate[]>([
+  {
+    id: 'confirm',
+    name: 'Xác nhận đặt bàn',
+    icon: 'fa-calendar-check',
+    color: 'text-green-600 bg-green-50',
+    getMessage: (info) => {
+      const name = info.name || 'anh/chị'
+      const time = info.time || 'hôm nay'
+      const date = info.date || ''
+      const tables = info.tables || ''
+      const pax = info.pax || ''
+      return `Kính chào ${name}, nhà hàng King's Grill xác nhận thông tin đặt bàn của anh/chị:\n- Ngày: ${date}\n- Giờ: ${time}\n- Số khách: ${pax} người\n- Khu/Bàn: ${tables}\n\nNhà hàng rất mong được đón tiếp anh/chị. Chúc ${name} một ngày vui vẻ!\n- King's Grill -`
+    }
+  },
+  {
+    id: 'deposit_reminder',
+    name: 'Nhắc cọc',
+    icon: 'fa-hourglass-half',
+    color: 'text-amber-600 bg-amber-50',
+    getMessage: (info) => {
+      const name = info.name || 'anh/chị'
+      const amount = info.depositAmount || '500.000đ'
+      return `Dạ chào ${name}, để hoàn tất giữ bàn đặt tại King's Grill, anh/chị vui lòng chuyển khoản đặt cọc tối thiểu là ${amount} qua thông tin sau:\n- Ngân hàng: ...\n- Số tài khoản: ...\n- Chủ tài khoản: ...\n- Nội dung chuyển khoản: ${info.transferContent || ''}\n\nSau khi chuyển khoản, anh/chị chụp màn hình gửi lại để nhà hàng xác nhận nhé. Xin cảm ơn anh/chị!\n- King's Grill -`
+    }
+  },
+  {
+    id: 'deposit_received',
+    name: 'Xác nhận nhận cọc',
+    icon: 'fa-money-bill-wave',
+    color: 'text-emerald-600 bg-emerald-50',
+    getMessage: (info) => {
+      const name = info.name || 'anh/chị'
+      const amount = info.depositAmount || ''
+      return `Dạ chào ${name}, King's Grill xác nhận đã nhận được khoản cọc ${amount} của anh/chị cho lịch đặt bàn ngày ${info.date || ''} lúc ${info.time || ''}.\n\nBàn của anh/chị đã được xác nhận chính thức trên hệ thống. Rất mong được tiếp đón anh/chị và quý khách hàng!\n- King's Grill -`
+    }
+  },
+  {
+    id: 'reminder_1day',
+    name: 'Nhắc lịch trước 1 ngày',
+    icon: 'fa-bell',
+    color: 'text-blue-600 bg-blue-50',
+    getMessage: (info) => {
+      const name = info.name || 'anh/chị'
+      return `Kính chào ${name}, King's Grill xin phép nhắc lịch hẹn đặt bàn của anh/chị vào ngày mai (${info.date || ''}) lúc ${info.time || ''}.\n\nNhà hàng đã chuẩn bị bàn sẵn sàng. Nếu có bất kỳ thay đổi nào về giờ giấc hoặc số lượng khách, anh/chị vui lòng báo lại nhà hàng sớm nhé. Hẹn gặp anh/chị ngày mai!\n- King's Grill -`
+    }
+  },
+  {
+    id: 'preorder_bill',
+    name: 'Gửi phiếu món đặt trước',
+    icon: 'fa-file-invoice',
+    color: 'text-purple-600 bg-purple-50',
+    getMessage: (info) => {
+      const name = info.name || 'anh/chị'
+      const itemsList = info.menuItems ? info.menuItems.map((item: any) => `- ${item.name} x ${item.quantity}`).join('\n') : ''
+      return `Dạ chào ${name}, King's Grill gửi anh/chị danh sách các món ăn đã được chọn đặt trước:\n${itemsList || '- Thực đơn đặt theo set/yêu cầu'}\n\nNhà hàng sẽ chuẩn bị nguyên liệu phục vụ tươi ngon nhất cho tiệc của mình. Cảm ơn anh/chị!\n- King's Grill -`
+    }
+  },
+  {
+    id: 'feedback',
+    name: 'Xin feedback sau tiệc',
+    icon: 'fa-star',
+    color: 'text-rose-600 bg-rose-50',
+    getMessage: (info) => {
+      const name = info.name || 'anh/chị'
+      return `Kính chào ${name}, cảm ơn anh/chị đã tin tưởng và dùng bữa tại King's Grill. \n\nĐể cải thiện chất lượng phục vụ, nhà hàng rất mong nhận được những phản hồi, đóng góp ý kiến của anh/chị về món ăn và dịch vụ hôm nay ạ. \n\nChúc anh/chị luôn dồi dào sức khỏe và hạnh phúc! Hẹn gặp lại anh/chị.\n- King's Grill -`
+    }
+  },
+  {
+    id: 'missing_info',
+    name: 'Báo thiếu thông tin',
+    icon: 'fa-circle-exclamation',
+    color: 'text-red-600 bg-red-50',
+    getMessage: (info) => {
+      const name = info.name || 'anh/chị'
+      return `Dạ chào ${name}, King's Grill đang chuẩn bị sắp xếp lịch cho tiệc của mình nhưng còn thiếu một số thông tin (Số khách / Giờ đến / Món ăn...). \n\nAnh/chị vui lòng bổ sung sớm giúp nhà hàng để chuẩn bị đón tiếp chu đáo nhất nhé. Xin cảm ơn anh/chị!\n- King's Grill -`
+    }
+  }
+])
+
+const activeTemplateId = ref('confirm')
+
 const order = computed(() => ui.activeOrderForCare)
 const isCared = computed({
   get: () => {
@@ -25,11 +115,28 @@ const isCared = computed({
 const customerInfo = computed(() => order.value?.parsedCustomer || {})
 
 const templateMessage = computed(() => {
-  const name = customerInfo.value.name || 'anh/chị'
-  const time = customerInfo.value.time || 'hôm nay'
-  const date = customerInfo.value.date || ''
+  const current = templates.value.find(t => t.id === activeTemplateId.value)
+  if (!current) return ''
   
-  return `Kính chào ${name}, cảm ơn anh/chị đã đặt bàn tại King's Grill lúc ${time} ${date}. \n\nNhà hàng rất mong được đón tiếp anh/chị. Nếu cần hỗ trợ thêm thông tin hoặc thay đổi lịch, anh/chị vui lòng phản hồi lại tin nhắn này nhé!\n\nChúc ${name} một ngày vui vẻ! \n- King's Grill -`
+  // Format transfer content prefix
+  let n = (customerInfo.value.name || 'KH').substring(0, 20).toUpperCase().replace(/[^A-Z0-9 ]/g, '').trim()
+  const p = customerInfo.value.phone ? customerInfo.value.phone.replace(/\D/g, '').slice(-4) : ''
+  const idSuf = (order.value?.id || '').replace(/-/g, '').substring(0, 4).toUpperCase()
+  const transferContent = `${n} DAT COC ${p} ${idSuf}`.trim()
+
+  const info = {
+    name: customerInfo.value.name,
+    phone: customerInfo.value.phone,
+    date: customerInfo.value.date,
+    time: customerInfo.value.time,
+    pax: customerInfo.value.pax,
+    tables: customerInfo.value.tables,
+    depositAmount: order.value?.depositAmount ? `${(order.value.depositAmount).toLocaleString('vi-VN')}đ` : '500.000đ',
+    menuItems: order.value?.menuItems || [],
+    transferContent
+  }
+  
+  return current.getMessage(info)
 })
 
 function close() {
@@ -49,7 +156,6 @@ function openChannel(channel: 'zalo' | 'sms' | 'email' | 'messenger') {
   let url = ''
   let phone = customerInfo.value.phone || ''
   
-  // Clean phone number: remove spaces, +84 -> 0
   phone = phone.replace(/\s+/g, '')
   if (phone.startsWith('+84')) phone = '0' + phone.substring(3)
   
@@ -58,10 +164,8 @@ function openChannel(channel: 'zalo' | 'sms' | 'email' | 'messenger') {
   } else if (channel === 'sms') {
     url = `sms:${phone}`
   } else if (channel === 'email') {
-    // Assuming we don't have email in customerInfo, fallback to general mailto
     url = `mailto:?subject=Xác nhận đặt bàn King's Grill&body=${encodeURIComponent(templateMessage.value)}`
   } else if (channel === 'messenger') {
-    // Messenger usually requires an ID, but we can open the app
     url = `https://m.me/`
   }
   
@@ -96,10 +200,27 @@ function openChannel(channel: 'zalo' | 'sms' | 'email' | 'messenger') {
         <!-- Content -->
         <div class="p-5 space-y-5 bg-slate-50 flex-1 overflow-y-auto custom-scrollbar">
           
+          <!-- Template Selection Pills -->
+          <div class="space-y-2">
+            <label class="text-[10px] font-black uppercase tracking-widest text-slate-500">Chọn mẫu tin nhắn</label>
+            <div class="flex gap-2 overflow-x-auto pb-1.5 scrollbar-none -mx-1 px-1">
+              <button 
+                v-for="t in templates" 
+                :key="t.id" 
+                @click="activeTemplateId = t.id"
+                :class="['px-3 py-2 rounded-xl border text-[11px] font-bold whitespace-nowrap transition-all flex items-center gap-1.5 active:scale-95 shrink-0', 
+                  activeTemplateId === t.id ? 'bg-blue-900 border-blue-900 text-white shadow-sm' : 'bg-white border-slate-200 text-slate-600 hover:border-slate-300']"
+              >
+                <i class="fa-solid" :class="t.icon"></i>
+                {{ t.name }}
+              </button>
+            </div>
+          </div>
+
           <!-- Message Preview -->
           <div class="space-y-2">
             <div class="flex items-center justify-between">
-              <label class="text-[10px] font-black uppercase tracking-widest text-slate-500">Mẫu Tin Nhắn</label>
+              <label class="text-[10px] font-black uppercase tracking-widest text-slate-500">Nội dung gửi</label>
               <button @click="copyMessage" class="text-[10px] font-bold text-blue-600 bg-blue-50 px-2 py-1 rounded hover:bg-blue-100 transition-colors">
                 <i class="fa-regular fa-copy"></i> Copy
               </button>

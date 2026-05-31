@@ -682,8 +682,19 @@ export const useAppStore = defineStore('app', () => {
     }
   }
 
+  const offlineQueueCount = ref(0)
+  async function updateOfflineQueueCount() {
+    try {
+      const queue = await getOfflineQueue()
+      offlineQueueCount.value = queue.length
+    } catch (e) {
+      console.warn('Failed to read offline queue:', e)
+    }
+  }
+
   function autoSyncIfReady() {
     fetchRemoteConfig()
+    updateOfflineQueueCount()
   }
 
   // Auto trigger remote config fetch when app starts
@@ -692,12 +703,14 @@ export const useAppStore = defineStore('app', () => {
   // --- Offline Queue Processor ---
   async function processOfflineQueue() {
     const queue = await getOfflineQueue()
+    offlineQueueCount.value = queue.length
     if (queue.length === 0) return
     uiStore.showToast(`Đang đồng bộ ${queue.length} đơn offline...`, 'info')
     for (const item of queue) {
       try {
         await api.fetchWithRetry({ action: item.action, data: item.payload })
         await removeFromQueue(item.id)
+        await updateOfflineQueueCount()
       } catch (e) {
         console.warn('[OfflineQueue] Failed to sync item:', item.id, e)
         break // Stop on first failure, retry next time
@@ -733,6 +746,7 @@ export const useAppStore = defineStore('app', () => {
     selectBank, addBank, removeBank,
     addStaff, removeStaff,
     fetchRemoteConfig, updateRemoteConfig, verifyAdminSession,
-    logout
+    logout,
+    offlineQueueCount, updateOfflineQueueCount
   }
 })

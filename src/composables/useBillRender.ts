@@ -276,48 +276,62 @@ function _createBillRender() {
         // Run AI corrections auto-learning
         checkAndLogAiCorrections()
 
-        // Mark syncing indicator (non-blocking)
-        uiStore.connectionStatus = 'syncing'
+        if (!navigator.onLine) {
+          uiStore.connectionStatus = 'error'
+          uiStore.showToast('⚠️ Lưu cục bộ OK — Thiết bị ngoại tuyến', 'warning', 5000)
+          await addToOfflineQueue('saveOrder', payload)
+          appStore.updateOfflineQueueCount()
+          formStore.originalState = formStore.getDataSnapshot()
+          appStore.loadHistory(true)
+          if (formStore.saveType === 'save') {
+            uiStore.tab = 'history'
+            uiStore.loading.is = false
+          }
+        } else {
+          // Mark syncing indicator (non-blocking)
+          uiStore.connectionStatus = 'syncing'
 
-        // Fire-and-forget cloud sync
-        const syncPromise = fetchWithRetry({ action: 'saveOrder', data: payload })
-          .then((result: any) => {
-            if (result?.ok) {
-              formStore.originalState = formStore.getDataSnapshot()
-              uiStore.connectionStatus = 'online'
-              formStore.oldBillFileId = null
-              formStore.aiMetadata = null
+          // Fire-and-forget cloud sync
+          const syncPromise = fetchWithRetry({ action: 'saveOrder', data: payload })
+            .then(async (result: any) => {
+              if (result?.ok) {
+                formStore.originalState = formStore.getDataSnapshot()
+                uiStore.connectionStatus = 'online'
+                formStore.oldBillFileId = null
+                formStore.aiMetadata = null
 
-              if (result.syncResult && !result.syncResult.ok) {
-                uiStore.showToast(result.syncResult.msg, 'warning')
+                if (result.syncResult && !result.syncResult.ok) {
+                  uiStore.showToast(result.syncResult.msg, 'warning')
+                } else {
+                  // Only show sync toast if user hasn't navigated away
+                  const syncMsg = formStore.saveType === 'save'
+                    ? '☁️ Đồng bộ Cloud hoàn tất!'
+                    : '☁️ Đã đồng bộ ngầm thành công'
+                  uiStore.showToast(syncMsg, 'success', 2000)
+                }
+
+                // Refresh history in background
+                appStore.loadHistory(true)
+                if (formStore.saveType === 'save') uiStore.tab = 'history'
               } else {
-                // Only show sync toast if user hasn't navigated away
-                const syncMsg = formStore.saveType === 'save'
-                  ? '☁️ Đồng bộ Cloud hoàn tất!'
-                  : '☁️ Đã đồng bộ ngầm thành công'
-                uiStore.showToast(syncMsg, 'success', 2000)
+                throw new Error(result?.message || 'Sync failed')
               }
+            })
+            .catch(async (err: any) => {
+              console.error('[BG Sync] Failed:', err.message)
+              uiStore.connectionStatus = 'error'
+              uiStore.showToast('⚠️ Lưu cục bộ OK — Chờ mạng để đồng bộ', 'warning', 5000)
+              
+              // Add to offline queue for later sync
+              await addToOfflineQueue('saveOrder', payload)
+              appStore.updateOfflineQueueCount()
+            })
 
-              // Refresh history in background
-              appStore.loadHistory(true)
-              if (formStore.saveType === 'save') uiStore.tab = 'history'
-            } else {
-              throw new Error(result?.message || 'Sync failed')
-            }
-          })
-          .catch(async (err: any) => {
-            console.error('[BG Sync] Failed:', err.message)
-            uiStore.connectionStatus = 'error'
-            uiStore.showToast('⚠️ Lưu cục bộ OK — Chờ mạng để đồng bộ', 'warning', 5000)
-            
-            // Add to offline queue for later sync
-            await addToOfflineQueue('saveOrder', payload)
-          })
-
-        // If save-only mode, wait for sync to complete before switching tab
-        if (formStore.saveType === 'save') {
-          await syncPromise
-          uiStore.loading.is = false
+          // If save-only mode, wait for sync to complete before switching tab
+          if (formStore.saveType === 'save') {
+            await syncPromise
+            uiStore.loading.is = false
+          }
         }
       } else {
         uiStore.connectionStatus = 'online'

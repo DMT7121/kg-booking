@@ -5,8 +5,12 @@ import { useFormStore } from '@/stores/useFormStore'
 import { useForm } from '@/composables/useForm'
 import { PARTY_TYPES } from '@/utils/constants'
 
+import { useAppStore } from '@/stores/useAppStore'
+import { cleanPhoneNumber } from '@/utils'
+
 const ui = useUIStore()
 const formStore = useFormStore()
+const appStore = useAppStore()
 const { handleInputFocus, handleInputBlur, formatDate, checkCRM, crmStatus } = useForm()
 
 const selectedIcon = computed(() => {
@@ -18,6 +22,46 @@ const hasSoftWarning = computed(() => {
   const meta = formStore.aiMetadata
   const score = meta && typeof meta.confidence_score === 'number' ? meta.confidence_score : 1.0
   return score < 0.80 || (formStore.warnings && formStore.warnings.length > 0)
+})
+
+const customerCrmProfile = computed(() => {
+  const phone = formStore.customer.phone
+  if (!phone) return null
+  const cleaned = cleanPhoneNumber(phone)
+  const orders = appStore.historyList.filter(h => cleanPhoneNumber(h.parsedCustomer.phone) === cleaned)
+  if (orders.length === 0) return null
+
+  const vipStatus = appStore.getCrmStatus(phone)
+  const totalVisits = orders.length
+  
+  const sorted = [...orders].sort((a, b) => {
+    const dateA = a.parsedCustomer.date ? new Date(a.parsedCustomer.date.split('/').reverse().join('-')).getTime() : 0
+    const dateB = b.parsedCustomer.date ? new Date(b.parsedCustomer.date.split('/').reverse().join('-')).getTime() : 0
+    return dateB - dateA
+  })
+  
+  const lastOrder = sorted[0]
+  const noShowCount = orders.filter(o => o.status === 'NO_SHOW' || o.status === 'CANCELED').length
+
+  let greeting = `Chào anh/chị ${lastOrder.parsedCustomer.name || 'Khách'}, rất vui được đón tiếp anh/chị quay lại Kings Grill!`
+  let promo = ''
+  if (vipStatus === 'VIP') {
+    greeting = `Chào mừng Thượng khách VIP ${lastOrder.parsedCustomer.name || 'Khách'} trở lại! Đặc biệt chuẩn bị bàn tiếp đón tốt nhất.`
+    promo = 'Ưu đãi VIP: Giảm 10% tổng hóa đơn & Tặng 1 đĩa trái cây decor.'
+  } else if (vipStatus === 'Khách quen') {
+    greeting = `Chào mừng anh/chị ${lastOrder.parsedCustomer.name || 'Khách'} quay lại! Rất vui vì anh/chị tiếp tục ủng hộ nhà hàng.`
+    promo = 'Ưu đãi Khách quen: Tặng nước ngọt/bia miễn phí cho cả bàn.'
+  }
+
+  return {
+    name: lastOrder.parsedCustomer.name,
+    vipStatus,
+    totalVisits,
+    lastDate: lastOrder.parsedCustomer.date,
+    noShowCount,
+    greeting,
+    promo
+  }
 })
 </script>
 
@@ -53,6 +97,37 @@ const hasSoftWarning = computed(() => {
         <div class="relative">
           <i class="fa-solid fa-phone absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"></i>
           <input v-model="formStore.customer.phone" @focus="handleInputFocus" @blur="(e) => { handleInputBlur(); checkCRM(); }" class="w-full border rounded-xl pl-10 pr-4 py-3 text-sm font-semibold text-slate-800 focus:border-blue-500 focus:ring-4 focus:ring-blue-50 outline-none transition-all" :class="formStore.aiMetadata?.confidences?.phone?.needs_review ? 'border-amber-400 bg-amber-50/10 focus:border-amber-500 focus:ring-amber-100' : 'border-slate-200'" placeholder="09xxxxxxx">
+        </div>
+      </div>
+    </div>
+
+    <!-- CRM Profile Panel (Show when phone has history) -->
+    <div v-if="customerCrmProfile" class="bg-gradient-to-br from-blue-50 to-indigo-50/50 border border-blue-100 rounded-xl p-3.5 space-y-2 text-xs transition-all duration-300">
+      <div class="flex items-center justify-between">
+        <div class="flex items-center gap-2">
+          <span :class="['px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-wider', 
+            customerCrmProfile.vipStatus === 'VIP' ? 'bg-amber-100 text-amber-800 border border-amber-200' : 
+            customerCrmProfile.vipStatus === 'Khách quen' ? 'bg-blue-100 text-blue-800 border border-blue-200' : 'bg-slate-100 text-slate-800 border border-slate-200']">
+            {{ customerCrmProfile.vipStatus }}
+          </span>
+          <span class="font-black text-slate-700">Lịch sử: <span class="text-blue-700 font-extrabold">{{ customerCrmProfile.totalVisits }} lần</span></span>
+          <span v-if="customerCrmProfile.noShowCount > 0" class="px-1.5 py-0.5 rounded text-[9px] font-bold bg-rose-50 text-rose-700 border border-rose-100 flex items-center gap-1 animate-pulse">
+            <i class="fa-solid fa-triangle-exclamation"></i> Hủy/No-show: {{ customerCrmProfile.noShowCount }} lần
+          </span>
+        </div>
+        <span class="text-[10px] font-bold text-slate-400">Gần nhất: {{ customerCrmProfile.lastDate }}</span>
+      </div>
+
+      <!-- Quick Suggestion / Greeting -->
+      <div class="bg-white rounded-lg p-2.5 border border-slate-100 space-y-1">
+        <div class="text-[10px] font-black text-blue-800 uppercase tracking-wider flex items-center gap-1">
+          <i class="fa-regular fa-comment-dots"></i> Gợi ý câu chào:
+        </div>
+        <p class="text-slate-600 font-semibold italic text-[11px] leading-relaxed">
+          "{{ customerCrmProfile.greeting }}"
+        </p>
+        <div v-if="customerCrmProfile.promo" class="mt-1 text-[10px] font-bold text-emerald-600 flex items-center gap-1">
+          <i class="fa-solid fa-gift"></i> {{ customerCrmProfile.promo }}
         </div>
       </div>
     </div>
