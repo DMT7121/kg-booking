@@ -85,12 +85,113 @@ onMounted(() => {
       resizeObserver.observe(observerTarget)
     }
   }, 500)
+
+  window.addEventListener('keydown', handleGlobalKeydown)
 })
+
+onUnmounted(() => {
+  window.removeEventListener('keydown', handleGlobalKeydown)
+})
+
+const searchQuery = ref('')
+
+function getTodayStr() {
+  const d = new Date()
+  return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`
+}
+
+function getTomorrowStr() {
+  const d = new Date()
+  d.setDate(d.getDate() + 1)
+  return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`
+}
+
+const commands = [
+  { label: 'Tạo phiếu đặt bàn mới', cmd: '/create', desc: 'Xóa form và chuyển sang tab Tạo Phiếu', icon: 'fa-plus text-emerald-500' },
+  { label: 'Lịch đặt bàn hôm nay', cmd: '/today', desc: 'Xem timeline đặt bàn ngày hôm nay', icon: 'fa-calendar-day text-blue-500' },
+  { label: 'Lịch đặt bàn ngày mai', cmd: '/tomorrow', desc: 'Xem timeline đặt bàn ngày mai', icon: 'fa-calendar-plus text-indigo-500' },
+  { label: 'Xem phiếu chưa cọc', cmd: '/unpaid', desc: 'Lọc lịch sử các phiếu chưa cọc', icon: 'fa-hourglass-half text-amber-500' },
+  { label: 'Cài đặt hệ thống', cmd: '/settings', desc: 'Mở cửa sổ cài đặt hệ thống', icon: 'fa-gear text-slate-500' },
+  { label: 'Đồng bộ dữ liệu Cloud', cmd: '/sync', desc: 'Tải lại lịch sử đặt bàn từ server', icon: 'fa-rotate text-purple-500' }
+]
+
+const filteredCommands = computed(() => {
+  const q = searchQuery.value.trim().toLowerCase()
+  if (!q) return commands
+  if (q.startsWith('/')) {
+    return commands.filter(c => c.cmd.includes(q) || c.label.toLowerCase().includes(q))
+  }
+  return commands.filter(c => c.label.toLowerCase().includes(q))
+})
+
+const searchResults = computed(() => {
+  const q = searchQuery.value.trim().toLowerCase()
+  if (!q || q.startsWith('/')) return []
+  
+  const cleanQ = q.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase()
+  return appStore.historyList.filter(o => {
+    if (!o.parsedCustomer) return false
+    const name = (o.parsedCustomer.name || '').normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase()
+    const phone = (o.parsedCustomer.phone || '').replace(/\D/g, '')
+    const id = (o.id || '').toLowerCase()
+    const table = (o.parsedCustomer.tables || '').toLowerCase()
+    return name.includes(cleanQ) || phone.includes(cleanQ) || id.includes(cleanQ) || table.includes(cleanQ)
+  }).slice(0, 5)
+})
+
+function executeCommand(cmd: string) {
+  ui.showCommandPalette = false
+  searchQuery.value = ''
+  
+  if (cmd === '/create') {
+    formStore.$reset()
+    ui.tab = 'create'
+    ui.showToast('Đã khởi tạo phiếu mới!', 'success')
+  } else if (cmd === '/today') {
+    ui.selectedTimelineDate = getTodayStr()
+    ui.tab = 'timeline'
+    appStore.loadHistory(false)
+  } else if (cmd === '/tomorrow') {
+    ui.selectedTimelineDate = getTomorrowStr()
+    ui.tab = 'timeline'
+    appStore.loadHistory(false)
+  } else if (cmd === '/unpaid') {
+    ui.tab = 'history'
+    ui.historyFilters.deposit = 'unpaid'
+    appStore.loadHistory(false)
+  } else if (cmd === '/settings') {
+    ui.showSettingsHub = true
+  } else if (cmd === '/sync') {
+    appStore.loadHistory(false)
+  }
+}
+
+function handleResultClick(order: any) {
+  ui.showCommandPalette = false
+  searchQuery.value = ''
+  
+  const form = useForm()
+  form.editHistoricOrder(order)
+  ui.showToast(`Đang chỉnh sửa đơn của ${order.parsedCustomer.name}`, 'info')
+}
+
+function handleGlobalKeydown(e: KeyboardEvent) {
+  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
+    e.preventDefault()
+    ui.showCommandPalette = !ui.showCommandPalette
+    if (ui.showCommandPalette) {
+      nextTick(() => {
+        const inp = document.getElementById('palette-search')
+        if (inp) inp.focus()
+      })
+    }
+  }
+}
 </script>
 
 <template>
   <div class="min-h-screen bg-slate-100 flex items-center justify-center font-sans text-slate-800">
-    <div id="app-root" class="w-full max-w-[480px] h-screen min-h-[100dvh] md:h-[95vh] md:min-h-[auto] md:rounded-[2rem] md:shadow-2xl flex flex-col relative overflow-hidden bg-white border border-slate-200" v-cloak>
+    <div id="app-root" class="w-full max-w-[480px] lg:max-w-[1000px] xl:max-w-[1280px] h-screen min-h-[100dvh] md:h-[95vh] md:min-h-[auto] md:rounded-[2rem] md:shadow-2xl flex flex-col relative overflow-hidden bg-white border border-slate-200 transition-all duration-300" v-cloak>
 
     <!-- GLOBAL PROGRESS BAR -->
     <div class="fixed top-0 left-0 h-[3px] bg-blue-500 z-[999999] transition-all duration-300 ease-out shadow-[0_0_10px_rgba(59,130,246,0.5)]" 
@@ -365,6 +466,79 @@ onMounted(() => {
     <BookingDetailModal />
     <FloorPlanModal />
     <CustomerCareModal />
+
+    <!-- COMMAND PALETTE MODAL -->
+    <transition name="fade">
+      <div v-if="ui.showCommandPalette" class="fixed inset-0 z-[99999] flex items-start justify-center pt-[10vh] px-4 backdrop-blur-sm bg-slate-950/60" @click.self="ui.showCommandPalette = false">
+        <div class="bg-white rounded-3xl shadow-2xl border border-slate-100 w-full max-w-xl flex flex-col overflow-hidden max-h-[75vh] transition-all transform duration-300">
+          <!-- Search Header -->
+          <div class="p-4 border-b border-slate-100 flex items-center gap-3 bg-slate-50">
+            <i class="fa-solid fa-magnifying-glass text-slate-400 text-lg"></i>
+            <input
+              id="palette-search"
+              v-model="searchQuery"
+              class="flex-1 bg-transparent border-none outline-none font-bold text-slate-800 text-sm placeholder-slate-400"
+              placeholder="Tìm tên, SĐT, số bàn hoặc gõ lệnh /..."
+              autocomplete="off"
+            >
+            <kbd class="hidden md:inline-flex items-center gap-0.5 px-2 py-0.5 rounded border border-slate-200 bg-white text-[10px] font-bold text-slate-400 shadow-sm">ESC</kbd>
+          </div>
+
+          <!-- Content Area -->
+          <div class="flex-grow overflow-y-auto p-2 custom-scrollbar space-y-4 max-h-[50vh]">
+            <!-- Booking Search Results -->
+            <div v-if="searchResults.length > 0" class="space-y-1">
+              <div class="px-3 py-1.5 text-[10px] font-black uppercase text-slate-400 tracking-wider">Đơn đặt bàn khớp kết quả</div>
+              <button
+                v-for="order in searchResults"
+                :key="order.id"
+                @click="handleResultClick(order)"
+                class="w-full text-left px-3 py-2.5 rounded-xl hover:bg-blue-50/50 active:bg-blue-50 transition-colors flex items-center justify-between border border-transparent hover:border-blue-100/50"
+              >
+                <div class="min-w-0">
+                  <div class="font-black text-slate-800 text-xs flex items-center gap-2">
+                    <span>{{ order.parsedCustomer.name }}</span>
+                    <span v-if="order.parsedCustomer.tables" class="px-1.5 py-0.5 bg-blue-50 text-blue-700 rounded text-[9px] font-black border border-blue-100">Bàn {{ order.parsedCustomer.tables }}</span>
+                  </div>
+                  <div class="text-[10px] text-slate-400 font-semibold mt-0.5 flex items-center gap-3">
+                    <span><i class="fa-solid fa-phone text-[8px]"></i> {{ order.parsedCustomer.phone }}</span>
+                    <span><i class="fa-solid fa-calendar text-[8px]"></i> {{ order.parsedCustomer.date }} ({{ order.parsedCustomer.time }})</span>
+                  </div>
+                </div>
+                <i class="fa-solid fa-chevron-right text-slate-300 text-xs pr-1"></i>
+              </button>
+            </div>
+
+            <!-- Commands -->
+            <div class="space-y-1">
+              <div class="px-3 py-1.5 text-[10px] font-black uppercase text-slate-400 tracking-wider">Lệnh điều hướng nhanh</div>
+              <button
+                v-for="cmd in filteredCommands"
+                :key="cmd.cmd"
+                @click="executeCommand(cmd.cmd)"
+                class="w-full text-left px-3 py-2.5 rounded-xl hover:bg-slate-50 active:bg-slate-100 transition-colors flex items-center gap-3 border border-transparent hover:border-slate-100"
+              >
+                <div class="w-8 h-8 rounded-xl bg-slate-50 flex items-center justify-center border border-slate-100 shrink-0">
+                  <i class="fa-solid" :class="cmd.icon"></i>
+                </div>
+                <div class="flex-grow">
+                  <div class="font-black text-slate-800 text-xs flex items-center justify-between">
+                    <span>{{ cmd.label }}</span>
+                    <span class="text-[9px] font-mono font-bold text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded">{{ cmd.cmd }}</span>
+                  </div>
+                  <div class="text-[10px] text-slate-400 mt-0.5 font-semibold leading-tight">{{ cmd.desc }}</div>
+                </div>
+              </button>
+            </div>
+
+            <!-- No results -->
+            <div v-if="searchQuery && searchResults.length === 0 && filteredCommands.length === 0" class="text-center py-8 text-slate-400 font-semibold text-xs">
+               Không tìm thấy kết quả phù hợp cho "{{ searchQuery }}"
+            </div>
+          </div>
+        </div>
+      </div>
+    </transition>
 
     <!-- MAIN PANELS -->
     <LeftPanel />

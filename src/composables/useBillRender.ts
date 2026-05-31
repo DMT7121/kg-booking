@@ -438,8 +438,8 @@ function _createBillRender() {
     const el = document.getElementById('bill-render')
     if (!el) return
     
-    // Always fit inside a 480px max-width constraint (minus padding) or the window width on smaller devices.
-    const availableWidth = Math.min(window.innerWidth - 32, 480 - 32)
+    const parent = el.parentElement
+    const availableWidth = parent ? (parent.getBoundingClientRect().width - 32) : Math.min(window.innerWidth - 32, 480 - 32)
     
     if (availableWidth < 800) {
       const s = availableWidth / 800

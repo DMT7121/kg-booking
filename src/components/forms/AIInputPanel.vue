@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, watch } from 'vue'
 import { useUIStore } from '@/stores/useUIStore'
 import { useFormStore } from '@/stores/useFormStore'
 import { useConfigStore } from '@/stores/useConfigStore'
@@ -13,6 +13,33 @@ const { processAI, ocrExtractText } = useAI()
 const { handleInputFocus, handleInputBlur, toggleVoiceMode } = useForm()
 const aiFileIn = ref<HTMLInputElement>()
 const isDragging = ref(false)
+const showAiReview = ref(false)
+
+watch(() => formStore.aiMetadata, (newVal) => {
+  if (newVal) {
+    showAiReview.value = true
+  } else {
+    showAiReview.value = false
+  }
+})
+
+function clearText() {
+  formStore.rawInput = ''
+}
+
+async function pasteClipboard() {
+  try {
+    const text = await navigator.clipboard.readText()
+    if (text) {
+      formStore.rawInput = (formStore.rawInput ? formStore.rawInput + '\n' : '') + text
+      ui.showToast('📋 Đã dán nội dung từ Clipboard!', 'success')
+    } else {
+      ui.showToast('Không có nội dung dạng văn bản trong clipboard!', 'warning')
+    }
+  } catch (err: any) {
+    ui.showToast('Không thể đọc clipboard: ' + err.message, 'error')
+  }
+}
 
 async function processImage(f: File) {
   if (!f.type.startsWith('image/')) {
@@ -97,8 +124,16 @@ function onDrop(e: DragEvent) {
 
     <div class="space-y-2 relative z-10 text-white">
       <div class="relative">
-        <textarea v-model="formStore.rawInput" @focus="handleInputFocus" @blur="handleInputBlur" @paste="onPaste" rows="3" class="w-full p-3 border-none rounded-xl text-sm bg-white/95 text-slate-800 font-medium focus:ring-4 focus:ring-yellow-400 outline-none shadow-xl placeholder-slate-400 transition-all custom-scrollbar" placeholder="Dán nội dung đặt bàn, nói 'Hey King', hoặc kéo thả ảnh Bill vào đây..."></textarea>
-        <div class="absolute bottom-2 right-2 flex gap-1.5">
+        <textarea v-model="formStore.rawInput" @focus="handleInputFocus" @blur="handleInputBlur" @paste="onPaste" rows="3" class="w-full pt-10 pb-12 px-3 border-none rounded-xl text-sm bg-white/95 text-slate-800 font-medium focus:ring-4 focus:ring-yellow-400 outline-none shadow-xl placeholder-slate-400 transition-all custom-scrollbar" placeholder="Dán nội dung đặt bàn, nói 'Hey King', hoặc kéo thả ảnh Bill vào đây..."></textarea>
+        
+        <!-- Top Right Actions inside textarea -->
+        <div class="absolute top-2 right-2 flex gap-1 z-20 bg-slate-100/80 backdrop-blur rounded-lg p-0.5 border border-slate-200 shadow-sm">
+          <button @click.prevent="clearText" class="px-2 py-1 text-[9px] font-black text-slate-600 hover:text-red-600 uppercase tracking-widest rounded transition-all select-none cursor-pointer" title="Xóa hết chữ">Xóa</button>
+          <div class="w-[1px] h-3 bg-slate-300 align-middle my-auto"></div>
+          <button @click.prevent="pasteClipboard" class="px-2 py-1 text-[9px] font-black text-slate-600 hover:text-blue-600 uppercase tracking-widest rounded transition-all select-none cursor-pointer" title="Dán từ Clipboard">Dán nhanh</button>
+        </div>
+
+        <div class="absolute bottom-2 right-2 flex gap-1.5 z-20">
           <button v-if="ui.isVoiceSupported" @click="toggleVoiceMode" :class="['w-9 h-9 rounded-full flex items-center justify-center transition-all shadow-lg active-effect', ui.listening ? 'recording-active' : 'bg-white text-blue-600 hover-effect']" title="Voice Assistant"><i class="fa-solid fa-microphone text-sm"></i></button>
           <button @click="aiFileIn?.click()" class="w-9 h-9 rounded-full bg-white text-indigo-600 flex items-center justify-center transition-all shadow-lg active-effect hover-effect" title="Upload Image"><i class="fa-solid fa-image text-sm"></i></button>
           <input type="file" ref="aiFileIn" @change="onImageSelect" class="hidden" accept="image/*">
@@ -119,4 +154,80 @@ function onDrop(e: DragEvent) {
       <i class="fa-solid fa-rocket"></i> PHÂN TÍCH (QUICK EXTRACT)
     </button>
   </div>
+
+  <!-- Parsed Fields Review Card -->
+  <transition name="fade">
+    <div v-if="showAiReview && formStore.originalAiValues" class="mt-4 bg-white border border-slate-200 rounded-3xl p-5 shadow-xl text-slate-800 space-y-4 relative z-10">
+      <div class="flex items-center justify-between">
+        <div class="flex items-center gap-2">
+          <i class="fa-solid fa-wand-sparkles text-blue-600 text-sm animate-pulse"></i>
+          <span class="font-black text-slate-800 text-[11px] uppercase tracking-widest">Xác nhận kết quả AI</span>
+        </div>
+        <span class="px-2.5 py-1 bg-blue-50 text-blue-700 rounded-full text-[9px] font-black uppercase tracking-wider border border-blue-100">
+          Độ tin cậy: {{ Math.round((formStore.aiMetadata?.confidence_score || 0) * 100) }}%
+        </span>
+      </div>
+
+      <!-- Grid of fields -->
+      <div class="grid grid-cols-2 gap-2.5">
+        <!-- Name -->
+        <div class="p-3 rounded-2xl border transition-all" :class="formStore.aiMetadata?.confidences?.name?.needs_review ? 'bg-amber-50/50 border-amber-300 ring-2 ring-amber-100 animate-pulse' : 'bg-slate-50/50 border-slate-100'">
+          <div class="text-[9px] font-black text-slate-400 uppercase tracking-widest">Tên khách</div>
+          <div class="text-xs font-black text-slate-800 mt-1.5 flex items-center justify-between">
+            <span class="truncate">{{ formStore.originalAiValues.name || '---' }}</span>
+            <i v-if="formStore.aiMetadata?.confidences?.name?.needs_review" class="fa-solid fa-triangle-exclamation text-amber-500 text-xs ml-1 shrink-0 animate-bounce"></i>
+          </div>
+        </div>
+
+        <!-- Phone -->
+        <div class="p-3 rounded-2xl border transition-all" :class="formStore.aiMetadata?.confidences?.phone?.needs_review ? 'bg-amber-50/50 border-amber-300 ring-2 ring-amber-100 animate-pulse' : 'bg-slate-50/50 border-slate-100'">
+          <div class="text-[9px] font-black text-slate-400 uppercase tracking-widest">Số điện thoại</div>
+          <div class="text-xs font-black text-slate-800 mt-1.5 flex items-center justify-between">
+            <span class="truncate">{{ formStore.originalAiValues.phone || '---' }}</span>
+            <i v-if="formStore.aiMetadata?.confidences?.phone?.needs_review" class="fa-solid fa-triangle-exclamation text-amber-500 text-xs ml-1 shrink-0 animate-bounce"></i>
+          </div>
+        </div>
+
+        <!-- Date -->
+        <div class="p-3 rounded-2xl border transition-all" :class="formStore.aiMetadata?.confidences?.date?.needs_review ? 'bg-amber-50/50 border-amber-300 ring-2 ring-amber-100 animate-pulse' : 'bg-slate-50/50 border-slate-100'">
+          <div class="text-[9px] font-black text-slate-400 uppercase tracking-widest">Ngày tiệc</div>
+          <div class="text-xs font-black text-slate-800 mt-1.5 flex items-center justify-between">
+            <span>{{ formStore.originalAiValues.date || '---' }}</span>
+            <i v-if="formStore.aiMetadata?.confidences?.date?.needs_review" class="fa-solid fa-triangle-exclamation text-amber-500 text-xs ml-1 shrink-0 animate-bounce"></i>
+          </div>
+        </div>
+
+        <!-- Time -->
+        <div class="p-3 rounded-2xl border transition-all" :class="formStore.aiMetadata?.confidences?.time?.needs_review ? 'bg-amber-50/50 border-amber-300 ring-2 ring-amber-100 animate-pulse' : 'bg-slate-50/50 border-slate-100'">
+          <div class="text-[9px] font-black text-slate-400 uppercase tracking-widest">Giờ tiệc</div>
+          <div class="text-xs font-black text-slate-800 mt-1.5 flex items-center justify-between">
+            <span>{{ formStore.originalAiValues.time || '---' }}</span>
+            <i v-if="formStore.aiMetadata?.confidences?.time?.needs_review" class="fa-solid fa-triangle-exclamation text-amber-500 text-xs ml-1 shrink-0 animate-bounce"></i>
+          </div>
+        </div>
+
+        <!-- Pax -->
+        <div class="p-3 rounded-2xl border transition-all" :class="formStore.aiMetadata?.confidences?.pax?.needs_review ? 'bg-amber-50/50 border-amber-300 ring-2 ring-amber-100 animate-pulse' : 'bg-slate-50/50 border-slate-100'">
+          <div class="text-[9px] font-black text-slate-400 uppercase tracking-widest">Số khách</div>
+          <div class="text-xs font-black text-slate-800 mt-1.5 flex items-center justify-between">
+            <span>{{ formStore.originalAiValues.pax || '---' }}</span>
+            <i v-if="formStore.aiMetadata?.confidences?.pax?.needs_review" class="fa-solid fa-triangle-exclamation text-amber-500 text-xs ml-1 shrink-0 animate-bounce"></i>
+          </div>
+        </div>
+
+        <!-- Table -->
+        <div class="p-3 rounded-2xl border transition-all" :class="formStore.aiMetadata?.confidences?.tables?.needs_review ? 'bg-amber-50/50 border-amber-300 ring-2 ring-amber-100 animate-pulse' : 'bg-slate-50/50 border-slate-100'">
+          <div class="text-[9px] font-black text-slate-400 uppercase tracking-widest">Số bàn</div>
+          <div class="text-xs font-black text-slate-800 mt-1.5 flex items-center justify-between">
+            <span class="truncate">{{ formStore.originalAiValues.tables || '---' }}</span>
+            <i v-if="formStore.aiMetadata?.confidences?.tables?.needs_review" class="fa-solid fa-triangle-exclamation text-amber-500 text-xs ml-1 shrink-0 animate-bounce"></i>
+          </div>
+        </div>
+      </div>
+
+      <button @click.prevent="showAiReview = false" class="w-full bg-blue-600 hover:bg-blue-750 text-white rounded-2xl py-3.5 font-black text-xs uppercase tracking-widest transition-all active:scale-95 flex items-center justify-center gap-2 shadow-md border border-blue-500">
+        <i class="fa-solid fa-circle-check text-sm text-blue-200"></i> Áp Dụng Kết Quả
+      </button>
+    </div>
+  </transition>
 </template>

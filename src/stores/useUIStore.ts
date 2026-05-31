@@ -42,6 +42,7 @@ export const useUIStore = defineStore('ui', () => {
   // --- Modal Visibility ---
   const showSettingsHub = ref(false)
   const activeSettingModal = ref<string | null>(null)
+  const showCommandPalette = ref(false)
   
   // Modals that might still need individual visibility
   const showAiConfig = ref(false)
@@ -193,7 +194,7 @@ export const useUIStore = defineStore('ui', () => {
   return {
     tab, connectionStatus, isKeyboardOpen, isVoiceSupported, selectedTimelineDate,
     loading, activeRequests, isFetchingAPI, error,
-    showSettingsHub, activeSettingModal, showAiConfig, showBankConfig, showMenuManager, showBrandingConfig, showStaffConfig, showStaffSelector, showWebhookConfig, showBookingDetailModal, showFloorPlan, showCustomerCareModal, activeOrderForCare, selectedBooking,
+    showSettingsHub, activeSettingModal, showCommandPalette, showAiConfig, showBankConfig, showMenuManager, showBrandingConfig, showStaffConfig, showStaffSelector, showWebhookConfig, showBookingDetailModal, showFloorPlan, showCustomerCareModal, activeOrderForCare, selectedBooking,
     pendingAction, menuTab, isUpdateMode, isDarkMode, showMenuUploadModal,
     historySearch, isBatchMode, selectedIds, historyFilters,
     focusIdx, listening, tempTable,

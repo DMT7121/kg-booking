@@ -15,6 +15,26 @@ import HistoryList from '@/components/history/HistoryList.vue'
 import HistoryTimeline from '@/components/history/HistoryTimeline.vue'
 import AnalyticsDashboard from '@/components/history/AnalyticsDashboard.vue'
 import BillPreview from './BillPreview.vue'
+import { formatVND } from '@/utils'
+
+const showChecklist = ref(true)
+
+const checklistItems = computed(() => {
+  return [
+    { name: 'Khách & SĐT', done: !!(formStore.customer.name && formStore.customer.phone) },
+    { name: 'Ngày & Giờ tiệc', done: !!(formStore.customer.date && formStore.customer.time) },
+    { name: 'Số lượng khách', done: !!formStore.customer.pax },
+    { name: 'Khu & Số bàn', done: !!formStore.customer.tables },
+    { name: 'Thực đơn món ăn', done: formStore.items.length > 0 && formStore.items.some(i => i.name && i.qty > 0) },
+    { name: 'Thông tin cọc', done: formStore.deposit.amount > 0 || formStore.deposit.isPaid }
+  ]
+})
+
+const checklistPercent = computed(() => {
+  const total = checklistItems.value.length
+  const done = checklistItems.value.filter(item => item.done).length
+  return Math.round((done / total) * 100)
+})
 
 const ui = useUIStore()
 const formStore = useFormStore()
@@ -153,6 +173,12 @@ function goToTomorrowTimeline() {
             }}
           </span>
         </div>
+        
+        <!-- Search Button (Ctrl+K Command Palette trigger) -->
+        <button @click="ui.showCommandPalette = true" class="w-11 h-11 rounded-xl bg-white/10 hover:bg-white/25 flex items-center justify-center border border-white/10 transition-all active:scale-95 group relative shadow-sm text-blue-100 hover:text-white" title="Tìm kiếm & Phím tắt (Ctrl+K)">
+          <i class="fa-solid fa-magnifying-glass text-lg"></i>
+        </button>
+
         <div class="relative">
           <button @click="showDropdown = !showDropdown" class="w-11 h-11 rounded-xl bg-white/10 hover:bg-white/25 flex items-center justify-center border border-white/10 transition-all active:scale-95 group relative shadow-sm">
             <i class="fa-solid fa-ellipsis-vertical text-blue-100 group-hover:text-white transition-colors text-lg"></i>
@@ -205,55 +231,98 @@ function goToTomorrowTimeline() {
     </div>
 
     <!-- TAB CONTENT WRAPPER -->
-    <div class="flex-grow relative overflow-hidden flex flex-col bg-slate-50 z-0 min-h-0 h-full">
-      <transition name="tab-fade" mode="out-in">
-        <KeepAlive>
-          <HistoryTimeline v-if="ui.tab === 'timeline'" key="timeline" />
-          <HistoryList v-else-if="ui.tab === 'history'" key="history" />
-          <AnalyticsDashboard v-else-if="ui.tab === 'analytics'" key="analytics" />
-          <div v-else-if="ui.tab === 'create'" key="create" class="flex-grow flex flex-col overflow-hidden relative min-h-0 h-full">
-            <div class="flex-grow overflow-y-auto p-3 md:p-4 space-y-3 pb-28 md:pb-6 bg-gray-50/30 scroll-smooth custom-scrollbar">
-              <AIInputPanel />
+    <div class="flex-grow relative overflow-hidden flex flex-col lg:flex-row bg-slate-50 z-0 min-h-0 h-full w-full">
+      <!-- Left side: active tab content -->
+      <div class="flex-grow flex flex-col overflow-hidden relative min-h-0 h-full w-full lg:w-[55%] lg:border-r lg:border-slate-200">
+        <transition name="tab-fade" mode="out-in">
+          <KeepAlive>
+            <HistoryTimeline v-if="ui.tab === 'timeline'" key="timeline" />
+            <HistoryList v-else-if="ui.tab === 'history'" key="history" />
+            <AnalyticsDashboard v-else-if="ui.tab === 'analytics'" key="analytics" />
+            <div v-else-if="ui.tab === 'create'" key="create" class="flex-grow flex flex-col overflow-hidden relative min-h-0 h-full">
+              <div class="flex-grow overflow-y-auto p-3 md:p-4 space-y-3 pb-6 bg-gray-50/30 scroll-smooth custom-scrollbar">
+                <AIInputPanel />
 
-              <!-- Smart Warning Widget -->
-              <div v-if="hasSoftWarning" class="bg-amber-50/90 border border-amber-300 rounded-2xl p-4 shadow-sm space-y-2">
-                <div class="flex items-center gap-2 text-amber-850 font-black uppercase text-xs">
-                  <i class="fa-solid fa-triangle-exclamation text-amber-500 text-sm"></i>
-                  Cảnh báo phân tích AI
+                <!-- Smart Checklist Widget -->
+                <div class="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm space-y-3">
+                  <div class="flex items-center justify-between cursor-pointer" @click="showChecklist = !showChecklist">
+                    <div class="flex items-center gap-2">
+                      <i class="fa-solid fa-list-check text-blue-600 text-sm"></i>
+                      <span class="font-black text-slate-800 text-[11px] uppercase tracking-widest">Tiến độ hoàn thiện phiếu</span>
+                      <span class="px-2 py-0.5 rounded-full text-[10px] font-black" :class="checklistPercent === 100 ? 'bg-green-100 text-green-700' : 'bg-blue-50 text-blue-700'">
+                        {{ checklistPercent }}%
+                      </span>
+                    </div>
+                    <i class="fa-solid text-slate-400 text-xs transition-transform" :class="showChecklist ? 'fa-chevron-up' : 'fa-chevron-down'"></i>
+                  </div>
+                  
+                  <div v-show="showChecklist" class="space-y-2 pt-2 border-t border-slate-100 transition-all duration-350">
+                    <!-- Progress Bar -->
+                    <div class="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
+                      <div class="bg-gradient-to-r from-blue-500 to-indigo-600 h-full transition-all duration-500" :style="{ width: `${checklistPercent}%` }"></div>
+                    </div>
+                    
+                    <div class="grid grid-cols-2 gap-2 text-xs pt-1">
+                      <div v-for="item in checklistItems" :key="item.name" class="flex items-center gap-2 p-2 rounded-xl border transition-all" :class="item.done ? 'bg-green-50/40 border-green-100 text-green-750 font-bold' : 'bg-slate-50/45 border-slate-100 text-slate-400 font-semibold'">
+                        <i class="fa-solid" :class="item.done ? 'fa-circle-check text-green-500' : 'fa-circle text-slate-300'"></i>
+                        <span>{{ item.name }}</span>
+                      </div>
+                    </div>
+                  </div>
                 </div>
-                <ul class="list-disc pl-4 text-xs text-amber-700 space-y-1">
-                  <li v-if="formStore.aiMetadata && typeof formStore.aiMetadata.confidence_score === 'number' && formStore.aiMetadata.confidence_score < 0.8">
-                    Đo độ tin cậy AI thấp ({{ Math.round(formStore.aiMetadata.confidence_score * 100) }}%). Vui lòng kiểm tra lại.
-                  </li>
-                  <li v-for="(warn, idx) in formStore.warnings" :key="idx">
-                    {{ warn }}
-                  </li>
-                </ul>
+
+                <!-- Smart Warning Widget -->
+                <div v-if="hasSoftWarning" class="bg-amber-50/90 border border-amber-300 rounded-2xl p-4 shadow-sm space-y-2">
+                  <div class="flex items-center gap-2 text-amber-850 font-black uppercase text-xs">
+                    <i class="fa-solid fa-triangle-exclamation text-amber-500 text-sm"></i>
+                    Cảnh báo phân tích AI
+                  </div>
+                  <ul class="list-disc pl-4 text-xs text-amber-700 space-y-1">
+                    <li v-if="formStore.aiMetadata && typeof formStore.aiMetadata.confidence_score === 'number' && formStore.aiMetadata.confidence_score < 0.8">
+                      Đo độ tin cậy AI thấp ({{ Math.round(formStore.aiMetadata.confidence_score * 100) }}%). Vui lòng kiểm tra lại.
+                    </li>
+                    <li v-for="(warn, idx) in formStore.warnings" :key="idx">
+                      {{ warn }}
+                    </li>
+                  </ul>
+                </div>
+
+                <div class="space-y-4">
+                  <CustomerForm />
+                  <DepositManager />
+                  <MenuItemsEditor />
+                </div>
               </div>
 
-              <div class="space-y-4">
-                <CustomerForm />
-                <DepositManager />
-                <MenuItemsEditor />
-              </div>
-              
-              <!-- Direct Save / Update Button at the bottom of the form -->
-              <div class="mt-6 mb-8 px-1">
-                <button v-if="formStore.id" @click="doSave('save')" class="w-full bg-blue-600 hover:bg-blue-700 text-white rounded-2xl py-4 font-black text-sm uppercase shadow-[0_8px_20px_rgba(37,99,235,0.25)] flex items-center justify-center gap-2 transition-all active:scale-95 border border-blue-500">
-                  <i class="fa-solid fa-cloud-arrow-up text-lg text-blue-200"></i> Cập Nhật Nhanh
-                </button>
-                <button v-else-if="formStore.customer.name" @click="doSave('save')" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl py-4 font-black text-sm uppercase shadow-[0_8px_20px_rgba(5,150,105,0.25)] flex items-center justify-center gap-2 transition-all active:scale-95 border border-emerald-500">
-                  <i class="fa-solid fa-check-double text-lg text-emerald-200"></i> Tạo Đơn Mới
-                </button>
+              <!-- Sticky bottom bar -->
+              <div class="bg-white border-t border-slate-200 p-4 shrink-0 shadow-[0_-4px_16px_rgba(0,0,0,0.05)] flex items-center justify-between gap-4 z-10 safe-area-pb">
+                <div class="min-w-0">
+                  <div class="text-[9px] font-black uppercase tracking-wider text-slate-400">Tổng tạm tính</div>
+                  <div class="text-base font-black text-slate-800 tracking-tight leading-none mt-1">
+                    {{ formatVND(formStore.calculatedTotals.final) }}
+                  </div>
+                </div>
+                <div class="flex-grow max-w-[200px]">
+                  <button v-if="formStore.id" @click="doSave('save')" class="w-full bg-blue-600 hover:bg-blue-700 text-white rounded-2xl py-3 px-4 font-black text-xs uppercase shadow-[0_4px_12px_rgba(37,99,235,0.25)] flex items-center justify-center gap-1.5 transition-all active:scale-95 border border-blue-500">
+                    <i class="fa-solid fa-cloud-arrow-up text-sm text-blue-200"></i> Cập Nhật
+                  </button>
+                  <button v-else-if="formStore.customer.name" @click="doSave('save')" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl py-3 px-4 font-black text-xs uppercase shadow-[0_4px_12px_rgba(5,150,105,0.25)] flex items-center justify-center gap-1.5 transition-all active:scale-95 border border-emerald-500">
+                    <i class="fa-solid fa-check-double text-sm text-emerald-200"></i> Tạo Đơn
+                  </button>
+                </div>
               </div>
             </div>
+          </KeepAlive>
+        </transition>
+      </div>
 
-          </div>
-        </KeepAlive>
-      </transition>
-
-      <!-- BILL PREVIEW (Always in DOM for instant html2canvas capturing on iPhones) -->
-      <div v-show="ui.tab === 'preview'" class="absolute inset-0 z-10 bg-slate-50 flex flex-col">
+      <!-- Bill Preview (Right side on desktop, overlay on mobile under preview tab) -->
+      <div 
+        :class="[
+          'bg-slate-100 flex-col shrink-0 border-l border-slate-200 overflow-y-auto custom-scrollbar',
+          ui.tab === 'preview' ? 'absolute inset-0 z-10 flex w-full' : 'hidden lg:flex lg:w-[45%]'
+        ]"
+      >
         <BillPreview />
       </div>
     </div>

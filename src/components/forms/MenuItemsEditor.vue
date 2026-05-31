@@ -159,8 +159,25 @@ const hasSoftWarning = computed(() => {
           <!-- Qty, Price, Delete -->
           <div class="flex gap-3 items-center justify-end">
             <div class="flex items-center gap-2 bg-slate-50 p-1.5 rounded-xl border border-slate-200 flex-grow md:flex-grow-0 justify-center shadow-inner">
-              <input type="number" v-model="item.qty" @focus="handleInputFocus" @blur="handleInputBlur" class="w-12 text-center font-black border-none bg-transparent text-base md:text-sm outline-none text-slate-700 placeholder-slate-400" placeholder="SL">
-              <div class="h-6 w-[1px] bg-slate-200"></div>
+              <button 
+                @click.prevent="if (item.qty > 1) item.qty--; else formStore.items.splice(index, 1)" 
+                class="w-7 h-7 rounded-lg bg-white hover:bg-slate-100 flex items-center justify-center border border-slate-200 text-slate-500 font-bold active:scale-90 transition-transform cursor-pointer select-none"
+                title="Giảm số lượng"
+              >
+                <i class="fa-solid fa-minus text-[10px]"></i>
+              </button>
+              
+              <input type="number" v-model="item.qty" @focus="handleInputFocus" @blur="handleInputBlur" class="w-8 text-center font-black border-none bg-transparent text-base md:text-sm outline-none text-slate-700 placeholder-slate-400" placeholder="SL">
+              
+              <button 
+                @click.prevent="item.qty++" 
+                class="w-7 h-7 rounded-lg bg-white hover:bg-slate-100 flex items-center justify-center border border-slate-200 text-slate-500 font-bold active:scale-90 transition-transform cursor-pointer select-none"
+                title="Tăng số lượng"
+              >
+                <i class="fa-solid fa-plus text-[10px]"></i>
+              </button>
+
+              <div class="h-6 w-[1px] bg-slate-200 animate-pulse"></div>
               <input type="number" v-model="item.price" @focus="handleInputFocus" @blur="handleInputBlur" class="w-28 text-right font-black text-blue-900 bg-transparent text-base md:text-sm outline-none placeholder-slate-400" placeholder="Giá">
             </div>
             <button @click="formStore.items.splice(index, 1)" class="w-12 h-12 bg-white border border-rose-200 text-rose-400 hover:bg-rose-50 hover:text-rose-600 hover:border-rose-300 transition-colors rounded-xl flex items-center justify-center active:scale-95 shadow-sm"><i class="fa-solid fa-trash-can"></i></button>

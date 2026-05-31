@@ -66,6 +66,23 @@ const customerCrmProfile = computed(() => {
     promo
   }
 })
+
+function getTodayStr() {
+  const d = new Date()
+  return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`
+}
+
+function getTomorrowStr() {
+  const d = new Date()
+  d.setDate(d.getDate() + 1)
+  return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`
+}
+
+function getDayAfterTomorrowStr() {
+  const d = new Date()
+  d.setDate(d.getDate() + 2)
+  return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`
+}
 </script>
 
 <template>
@@ -137,34 +154,52 @@ const customerCrmProfile = computed(() => {
 
     <!-- Row 2: Date, Time, Pax -->
     <div class="grid grid-cols-3 gap-3 md:gap-4">
-      <div class="space-y-1.5">
+      <div class="space-y-1.5 flex flex-col">
         <label class="text-[10px] font-black text-slate-500 uppercase tracking-wider ml-1 flex items-center">
           Ngày <span class="text-red-500 ml-0.5">*</span>
           <span v-if="formStore.aiMetadata?.confidences?.date?.needs_review" class="text-amber-600 text-[9px] font-bold bg-amber-100/60 px-1.5 py-0.5 rounded ml-2 animate-pulse"><i class="fa-solid fa-triangle-exclamation"></i> Cần kiểm tra</span>
         </label>
         <div class="relative">
           <i class="fa-regular fa-calendar absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"></i>
-          <input v-model="formStore.customer.date" @focus="handleInputFocus" @blur="(e) => { handleInputBlur(); formatDate(); }" class="w-full border rounded-xl pl-9 pr-2 py-3 text-sm font-semibold text-slate-800 focus:border-blue-500 focus:ring-4 focus:ring-blue-50 outline-none transition-all" :class="formStore.aiMetadata?.confidences?.date?.needs_review ? 'border-amber-400 bg-amber-50/10 focus:border-amber-500 focus:ring-amber-100' : 'border-slate-200'" placeholder="dd/mm/yyyy">
+          <input v-model="formStore.customer.date" @focus="handleInputFocus" @blur="(e) => { handleInputBlur(); formatDate(); }" class="w-full border rounded-xl pl-9 pr-2 py-3 text-xs font-semibold text-slate-800 focus:border-blue-500 focus:ring-4 focus:ring-blue-50 outline-none transition-all" :class="formStore.aiMetadata?.confidences?.date?.needs_review ? 'border-amber-400 bg-amber-50/10 focus:border-amber-500 focus:ring-amber-100' : 'border-slate-200'" placeholder="dd/mm/yyyy">
+        </div>
+        <!-- Quick Chips for Date -->
+        <div class="flex gap-1 mt-1.5 flex-wrap">
+          <button @click.prevent="formStore.customer.date = getTodayStr()" class="px-1.5 py-0.5 text-[8px] font-black uppercase tracking-wider rounded bg-slate-50 border border-slate-200 text-slate-500 hover:bg-blue-50 hover:text-blue-600 hover:border-blue-200 active:scale-95 transition-all">Hôm nay</button>
+          <button @click.prevent="formStore.customer.date = getTomorrowStr()" class="px-1.5 py-0.5 text-[8px] font-black uppercase tracking-wider rounded bg-slate-50 border border-slate-200 text-slate-500 hover:bg-blue-50 hover:text-blue-600 hover:border-blue-200 active:scale-95 transition-all">Mai</button>
         </div>
       </div>
-      <div class="space-y-1.5">
+      <div class="space-y-1.5 flex flex-col">
         <label class="text-[10px] font-black text-slate-500 uppercase tracking-wider ml-1 flex items-center">
           Giờ <span class="text-red-500 ml-0.5">*</span>
           <span v-if="formStore.aiMetadata?.confidences?.time?.needs_review" class="text-amber-600 text-[9px] font-bold bg-amber-100/60 px-1.5 py-0.5 rounded ml-2 animate-pulse"><i class="fa-solid fa-triangle-exclamation"></i> Cần kiểm tra</span>
         </label>
         <div class="relative">
           <i class="fa-regular fa-clock absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"></i>
-          <input v-model="formStore.customer.time" @focus="handleInputFocus" @blur="handleInputBlur" class="w-full border rounded-xl pl-9 pr-2 py-3 text-sm font-semibold text-slate-800 focus:border-blue-500 focus:ring-4 focus:ring-blue-50 outline-none transition-all" :class="formStore.aiMetadata?.confidences?.time?.needs_review ? 'border-amber-400 bg-amber-50/10 focus:border-amber-500 focus:ring-amber-100' : 'border-slate-200'" placeholder="18:30">
+          <input v-model="formStore.customer.time" @focus="handleInputFocus" @blur="handleInputBlur" class="w-full border rounded-xl pl-9 pr-2 py-3 text-xs font-semibold text-slate-800 focus:border-blue-500 focus:ring-4 focus:ring-blue-50 outline-none transition-all" :class="formStore.aiMetadata?.confidences?.time?.needs_review ? 'border-amber-400 bg-amber-50/10 focus:border-amber-500 focus:ring-amber-100' : 'border-slate-200'" placeholder="18:30">
+        </div>
+        <!-- Quick Chips for Time -->
+        <div class="flex gap-1 mt-1.5 flex-wrap">
+          <button @click.prevent="formStore.customer.time = '11:30'" class="px-1.5 py-0.5 text-[8px] font-black uppercase tracking-wider rounded bg-slate-50 border border-slate-200 text-slate-500 hover:bg-blue-50 hover:text-blue-600 hover:border-blue-200 active:scale-95 transition-all">11:30</button>
+          <button @click.prevent="formStore.customer.time = '18:00'" class="px-1.5 py-0.5 text-[8px] font-black uppercase tracking-wider rounded bg-slate-50 border border-slate-200 text-slate-500 hover:bg-blue-50 hover:text-blue-600 hover:border-blue-200 active:scale-95 transition-all">18:00</button>
+          <button @click.prevent="formStore.customer.time = '19:00'" class="px-1.5 py-0.5 text-[8px] font-black uppercase tracking-wider rounded bg-slate-50 border border-slate-200 text-slate-500 hover:bg-blue-50 hover:text-blue-600 hover:border-blue-200 active:scale-95 transition-all">19:00</button>
         </div>
       </div>
-      <div class="space-y-1.5">
+      <div class="space-y-1.5 flex flex-col">
         <label class="text-[10px] font-black text-slate-500 uppercase tracking-wider ml-1 flex items-center">
           Khách <span class="text-red-500 ml-0.5">*</span>
           <span v-if="formStore.aiMetadata?.confidences?.pax?.needs_review" class="text-amber-600 text-[9px] font-bold bg-amber-100/60 px-1.5 py-0.5 rounded ml-2 animate-pulse"><i class="fa-solid fa-triangle-exclamation"></i> Cần kiểm tra</span>
         </label>
         <div class="relative">
           <i class="fa-solid fa-user-group absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"></i>
-          <input v-model="formStore.customer.pax" @focus="handleInputFocus" @blur="handleInputBlur" class="w-full border rounded-xl pl-9 pr-2 py-3 text-sm font-semibold text-slate-800 focus:border-blue-500 focus:ring-4 focus:ring-blue-50 outline-none transition-all" :class="formStore.aiMetadata?.confidences?.pax?.needs_review ? 'border-amber-400 bg-amber-50/10 focus:border-amber-500 focus:ring-amber-100' : 'border-slate-200'" placeholder="SL">
+          <input v-model="formStore.customer.pax" @focus="handleInputFocus" @blur="handleInputBlur" class="w-full border rounded-xl pl-9 pr-2 py-3 text-xs font-semibold text-slate-800 focus:border-blue-500 focus:ring-4 focus:ring-blue-50 outline-none transition-all" :class="formStore.aiMetadata?.confidences?.pax?.needs_review ? 'border-amber-400 bg-amber-50/10 focus:border-amber-500 focus:ring-amber-100' : 'border-slate-200'" placeholder="SL">
+        </div>
+        <!-- Quick Chips for Pax -->
+        <div class="flex gap-1 mt-1.5 flex-wrap">
+          <button @click.prevent="formStore.customer.pax = '2'" class="px-1.5 py-0.5 text-[8px] font-black uppercase tracking-wider rounded bg-slate-50 border border-slate-200 text-slate-500 hover:bg-blue-50 hover:text-blue-600 hover:border-blue-200 active:scale-95 transition-all">2</button>
+          <button @click.prevent="formStore.customer.pax = '4'" class="px-1.5 py-0.5 text-[8px] font-black uppercase tracking-wider rounded bg-slate-50 border border-slate-200 text-slate-500 hover:bg-blue-50 hover:text-blue-600 hover:border-blue-200 active:scale-95 transition-all">4</button>
+          <button @click.prevent="formStore.customer.pax = '6'" class="px-1.5 py-0.5 text-[8px] font-black uppercase tracking-wider rounded bg-slate-50 border border-slate-200 text-slate-500 hover:bg-blue-50 hover:text-blue-600 hover:border-blue-200 active:scale-95 transition-all">6</button>
+          <button @click.prevent="formStore.customer.pax = '10'" class="px-1.5 py-0.5 text-[8px] font-black uppercase tracking-wider rounded bg-slate-50 border border-slate-200 text-slate-500 hover:bg-blue-50 hover:text-blue-600 hover:border-blue-200 active:scale-95 transition-all">10</button>
         </div>
       </div>
     </div>
@@ -179,6 +214,12 @@ const customerCrmProfile = computed(() => {
             <option v-for="pt in PARTY_TYPES" :key="pt.name" :value="pt.name">{{ pt.name }}</option>
           </select>
           <i class="fa-solid fa-chevron-down absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 text-xs pointer-events-none"></i>
+        </div>
+        <!-- Quick Chips for Party Type -->
+        <div class="flex gap-1 mt-1.5 flex-wrap">
+          <button @click.prevent="formStore.customer.type = 'Ăn thường'" class="px-2 py-0.5 text-[8px] font-black uppercase tracking-wider rounded bg-slate-50 border border-slate-200 text-slate-500 hover:bg-blue-50 hover:text-blue-600 hover:border-blue-200 active:scale-95 transition-all">Ăn thường</button>
+          <button @click.prevent="formStore.customer.type = 'Sinh nhật'" class="px-2 py-0.5 text-[8px] font-black uppercase tracking-wider rounded bg-slate-50 border border-slate-200 text-slate-500 hover:bg-blue-50 hover:text-blue-600 hover:border-blue-200 active:scale-95 transition-all">Sinh nhật</button>
+          <button @click.prevent="formStore.customer.type = 'Liên hoan'" class="px-2 py-0.5 text-[8px] font-black uppercase tracking-wider rounded bg-slate-50 border border-slate-200 text-slate-500 hover:bg-blue-50 hover:text-blue-600 hover:border-blue-200 active:scale-95 transition-all">Liên hoan</button>
         </div>
       </div>
       <div class="space-y-1.5">
