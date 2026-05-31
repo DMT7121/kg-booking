@@ -253,6 +253,7 @@ function openZaloChat() {
           <i class="fa-solid" :class="isFullscreen ? 'fa-compress text-blue-600' : 'fa-expand'"></i>
         </button>
       </div>
+    </div>
 
 
     <!-- Scrollable container for Bill -->
