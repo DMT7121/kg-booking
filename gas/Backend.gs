@@ -616,6 +616,21 @@ function saveSystemConfig(data, password) {
   const ss = SpreadsheetApp.openById(CONFIG.SS_ID);
   const sheet = initSheetIfNeeded_(ss, CONFIG.SHEET_NAME_CONFIG, CONFIG.CONFIG_HEADERS, "#e9d5ff");
   
+  // Read current system_config JSON
+  let config = {};
+  const rows = sheet.getDataRange().getValues();
+  let systemConfigRowIdx = -1;
+  
+  for (let i = 1; i < rows.length; i++) {
+    if (rows[i][0] === 'system_config') {
+      systemConfigRowIdx = i + 1;
+      try {
+        config = JSON.parse(rows[i][1]);
+      } catch(e) {}
+      break;
+    }
+  }
+
   // Backwards compatibility for bots/external integrations
   if (data.bankList !== undefined && data.bankList !== null) {
     data.banks = data.bankList;
@@ -625,16 +640,27 @@ function saveSystemConfig(data, password) {
   }
   
   const keysToSave = ['bankList', 'staffList', 'banks', 'staff', 'webhookUrl', 'telegramChatId'];
-  const rows = sheet.getDataRange().getValues();
   keysToSave.forEach(key => {
     if (data[key] !== undefined && data[key] !== null) {
-      let found = false;
-      for (let i = 1; i < rows.length; i++) {
-        if (rows[i][0] === key) { sheet.getRange(i + 1, 2).setValue(data[key]); found = true; break; }
+      if (typeof data[key] === 'string' && (data[key].startsWith('[') || data[key].startsWith('{'))) {
+        try {
+          config[key] = JSON.parse(data[key]);
+        } catch(e) {
+          config[key] = data[key];
+        }
+      } else {
+        config[key] = data[key];
       }
-      if (!found) { sheet.appendRow([key, data[key]]); }
     }
   });
+
+  const jsonStr = JSON.stringify(config);
+  if (systemConfigRowIdx !== -1) {
+    sheet.getRange(systemConfigRowIdx, 2).setValue(jsonStr);
+  } else {
+    sheet.appendRow(['system_config', jsonStr]);
+  }
+
   return { ok: true, message: "Config Saved" };
 }
 
@@ -643,7 +669,30 @@ function getSystemConfig() {
   const sheet = initSheetIfNeeded_(ss, CONFIG.SHEET_NAME_CONFIG, CONFIG.CONFIG_HEADERS, "#e9d5ff");
   const config = {};
   const rows = sheet.getDataRange().getValues();
-  for (let i = 1; i < rows.length; i++) { config[rows[i][0]] = rows[i][1]; }
+  
+  // First load flat keys (images, legacy configs, etc.)
+  for (let i = 1; i < rows.length; i++) {
+    if (rows[i][0] && rows[i][0] !== 'system_config') {
+      config[rows[i][0]] = rows[i][1];
+    }
+  }
+  
+  // Merge system_config JSON
+  for (let i = 1; i < rows.length; i++) {
+    if (rows[i][0] === 'system_config') {
+      try {
+        const parsed = JSON.parse(rows[i][1]);
+        for (const k in parsed) {
+          if (typeof parsed[k] === 'object' && parsed[k] !== null) {
+            config[k] = JSON.stringify(parsed[k]);
+          } else {
+            config[k] = parsed[k];
+          }
+        }
+      } catch(e) {}
+      break;
+    }
+  }
   return { ok: true, data: config };
 }
 
@@ -689,7 +738,21 @@ function sendNotification_(orderData, orderId, billUrl) {
   if (!configSheet) return;
   const rows = configSheet.getDataRange().getValues();
   const cfg = {};
+  
+  // Load flat keys first
   for (let i = 1; i < rows.length; i++) { cfg[rows[i][0]] = rows[i][1]; }
+  
+  // Merge keys from system_config JSON
+  for (let i = 1; i < rows.length; i++) {
+    if (rows[i][0] === 'system_config') {
+      try {
+        const parsed = JSON.parse(rows[i][1]);
+        Object.assign(cfg, parsed);
+      } catch(e) {}
+      break;
+    }
+  }
+
   const webhookUrl = cfg['webhookUrl'];
   if (!webhookUrl) return;
 
