@@ -6,7 +6,7 @@ import { useConfigStore } from '@/stores/useConfigStore'
 import { useBillRender } from '@/composables/useBillRender'
 import { useForm } from '@/composables/useForm'
 import { isIOS } from '@/utils'
-import { onMounted, watch, nextTick, defineAsyncComponent } from 'vue'
+import { onMounted, onUnmounted, ref, computed, watch, nextTick, defineAsyncComponent } from 'vue'
 import LeftPanel from './LeftPanel.vue'
 import BillPreview from './BillPreview.vue'
 
