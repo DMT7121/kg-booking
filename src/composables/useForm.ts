@@ -83,19 +83,40 @@ function _createForm() {
   }
 
   function autoCalcDeposit() {
-    const total = formStore.calculatedTotals.final
-    if (total < 1500000) {
-      formStore.deposit.amount = 500000
+    const hasFood = formStore.items.length > 0 && formStore.items.some(item => item.name?.trim() && item.qty > 0)
+    
+    if (!hasFood) {
+      // Bàn chưa có món
+      const pax = parseInt(formStore.customer.pax) || 0
+      if (pax >= 20) {
+        formStore.deposit.amount = 1000000
+      } else {
+        formStore.deposit.amount = 500000
+      }
     } else {
-      const oneThird = total / 3
-      formStore.deposit.amount = Math.round(oneThird / 500000) * 500000
+      // Bàn đã có món (logic hiện tại)
+      const total = formStore.calculatedTotals.final
+      if (total < 1500000) {
+        formStore.deposit.amount = 500000
+      } else {
+        const oneThird = total / 3
+        formStore.deposit.amount = Math.round(oneThird / 500000) * 500000
+      }
     }
   }
 
-  // Auto-recalc deposit when total changes
-  watch(() => formStore.calculatedTotals.final, () => {
-    if (!formStore.deposit.isPaid) autoCalcDeposit()
-  })
+  // Auto-recalc deposit when total, pax count, or items change
+  watch(
+    [
+      () => formStore.calculatedTotals.final,
+      () => formStore.customer.pax,
+      () => formStore.items
+    ],
+    () => {
+      if (!formStore.deposit.isPaid) autoCalcDeposit()
+    },
+    { deep: true }
+  )
 
   async function toggleDepositState() {
     if (!formStore.deposit.isPaid) {

@@ -313,8 +313,15 @@ function openZaloChat() {
                 <tbody>
                   <tr v-if="!formStore.filteredBillItems.length">
                     <td colspan="5" class="py-8 text-center text-slate-400 font-semibold bg-slate-50 border-b border-slate-200">
-                      <i class="fa-regular fa-bell mb-2 text-xl block"></i>
-                      Chưa có món nào được thêm
+                      <i class="fa-regular fa-bell mb-2 text-xl block text-slate-300"></i>
+                      Chưa có món đặt trước (Món ăn gọi trực tiếp tại nhà hàng)
+                      <div class="mt-3 text-[11px] text-amber-700 font-black bg-amber-50 px-4 py-2 rounded-xl border border-amber-100 inline-block leading-relaxed max-w-[95%]">
+                        <i class="fa-solid fa-circle-info mr-1 text-amber-500"></i>
+                        Cọc giữ bàn mặc định: {{ formatVND(formStore.deposit.amount) }} <br>
+                        <span class="text-[9px] font-bold text-slate-400">
+                          (Áp dụng cho bàn chưa đặt món trước {{ (parseInt(formStore.customer.pax) || 0) >= 20 ? 'từ 20 khách trở lên' : 'dưới 20 khách' }})
+                        </span>
+                      </div>
                     </td>
                   </tr>
                   <tr v-for="(item, i) in formStore.filteredBillItems" :key="i" class="border-b border-slate-100">

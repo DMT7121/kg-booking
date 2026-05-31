@@ -297,6 +297,18 @@ onUnmounted(() => { if (timer) clearInterval(timer) })
               </table>
             </div>
           </div>
+          <!-- NO MENU ITEMS NOTICE -->
+          <div v-else class="mb-6 bg-slate-50 border border-slate-200/60 rounded-3xl p-5 text-center shadow-inner">
+            <i class="fa-solid fa-circle-info text-blue-500 text-lg mb-2 block"></i>
+            <span class="text-xs font-black text-slate-800 block uppercase tracking-wide">Chưa đặt món trước</span>
+            <span class="text-[10px] text-slate-400 font-bold block mt-1">Quý khách gọi món trực tiếp tại nhà hàng khi dùng tiệc.</span>
+            <div class="mt-3 text-[10px] text-amber-700 font-black bg-amber-50 border border-amber-100 rounded-2xl p-3 leading-relaxed">
+              Cọc giữ bàn mặc định: {{ formatVND(order.depositAmount) }} <br>
+              <span class="text-[9px] font-bold text-slate-500">
+                (Áp dụng cho bàn chưa đặt món trước {{ (parseInt(order.customer?.pax) || 0) >= 20 ? 'từ 20 khách trở lên' : 'dưới 20 khách' }})
+              </span>
+            </div>
+          </div>
 
           <!-- TOTALS -->
           <div class="border-t-2 border-dashed border-slate-300 pt-4 space-y-2 mb-6">

@@ -141,97 +141,120 @@ function goToTomorrowTimeline() {
     @touchend="onSwipeEnd"
   >
     <!-- HEADER -->
-    <div class="flex-shrink-0 bg-blue-900 text-white px-3 md:px-5 py-4 flex flex-wrap justify-between items-center gap-2 relative z-20 box-border w-full">
-      <div class="absolute inset-0 bg-gradient-to-r from-blue-400/20 to-transparent pointer-events-none"></div>
+    <div class="flex-shrink-0 bg-slate-900 text-white px-4 py-3 flex items-center justify-between gap-3 relative z-20 box-border w-full border-b border-slate-800">
+      <div class="absolute inset-0 bg-gradient-to-r from-blue-500/10 to-transparent pointer-events-none"></div>
+      
+      <!-- LEFT: LOGO / APP NAME -->
       <div class="flex items-center gap-3 relative z-10 min-w-0">
-        <div class="bg-white p-1.5 rounded-2xl shadow-xl flex items-center justify-center overflow-hidden w-12 h-12 border-2 border-white/20 backdrop-blur-sm">
+        <div class="bg-white p-1 rounded-xl shadow-xl flex items-center justify-center overflow-hidden w-9 h-9 border border-white/10 shrink-0">
           <img :src="configStore.branding.logo || '/favicon.svg'" class="w-full h-full object-contain" alt="KG Logo" loading="lazy" />
         </div>
-        <div>
-          <h1 class="font-black text-xl tracking-wider leading-none text-white uppercase flex items-center gap-2 drop-shadow-md" style="font-family: 'Be Vietnam Pro', sans-serif;">
+        <div class="min-w-0">
+          <h1 class="font-black text-sm tracking-widest leading-none text-white uppercase flex items-center gap-1.5 drop-shadow-sm" style="font-family: 'Be Vietnam Pro', sans-serif;">
             KING'S GRILL
-            <span class="w-2 h-2 rounded-full bg-green-400 animate-pulse shadow-[0_0_8px_rgba(74,222,128,0.8)]"></span>
+            <span class="w-2 h-2 rounded-full bg-green-400 animate-pulse shadow-[0_0_8px_rgba(74,222,128,0.8)] shrink-0"></span>
           </h1>
-          <div class="flex items-center gap-2 mt-1.5">
-            <span class="text-[9px] px-2.5 py-0.5 rounded-md font-black uppercase tracking-widest inline-block text-blue-900 bg-white shadow-sm border border-blue-100">AI MANAGER v6.0</span>
+          <div class="flex items-center gap-1.5 mt-1">
+            <span class="text-[8px] font-black text-slate-400 uppercase tracking-widest">
+              {{ 
+                ui.connectionStatus === 'syncing' ? 'Đang đồng bộ' : 
+                ui.connectionStatus === 'error' ? 'Ngoại tuyến' : 
+                appStore.offlineQueueCount > 0 ? `${appStore.offlineQueueCount} đơn chờ` : 'Trực tuyến'
+              }}
+            </span>
           </div>
         </div>
       </div>
-      <div class="flex items-center gap-3 relative z-10">
-        <div class="flex items-center gap-2 bg-white/10 px-3 py-1.5 rounded-xl border border-white/10 hover:bg-white/20 transition-all cursor-default shadow-inner">
-          <div class="w-2 h-2 rounded-full transition-colors" 
-               :class="{
-                 'bg-green-400 shadow-[0_0_8px_rgba(74,222,128,0.8)]': ui.connectionStatus === 'online' && appStore.offlineQueueCount === 0, 
-                 'bg-yellow-400 animate-pulse shadow-[0_0_8px_rgba(250,204,21,0.8)]': ui.connectionStatus === 'syncing', 
-                 'bg-amber-400 animate-pulse shadow-[0_0_8px_rgba(245,158,11,0.8)]': ui.connectionStatus === 'online' && appStore.offlineQueueCount > 0,
-                 'bg-red-400 shadow-[0_0_8px_rgba(248,113,113,0.8)]': ui.connectionStatus === 'error'
-               }"></div>
-          <span class="text-[10px] font-black text-blue-50 uppercase tracking-widest">
-            {{ 
-              ui.connectionStatus === 'syncing' ? 'Đang đồng bộ' : 
-              ui.connectionStatus === 'error' ? 'Ngoại tuyến' : 
-              appStore.offlineQueueCount > 0 ? `${appStore.offlineQueueCount} đơn chờ` : 'Trực tuyến'
-            }}
-          </span>
+
+      <!-- CENTER: NAVIGATION TABS (DESKTOP) -->
+      <div class="hidden md:flex items-center gap-1 bg-slate-800/40 p-1 rounded-2xl border border-slate-700/30 mx-4 max-w-xl flex-1 justify-center relative z-10">
+        <button @click="ui.tab = 'dashboard'" :class="['px-3 py-2 rounded-xl text-[11px] font-black uppercase tracking-wider transition-all flex items-center gap-1.5 min-h-[36px]', ui.tab === 'dashboard' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-400 hover:text-white hover:bg-slate-800/50']">
+          <i class="fa-solid fa-gauge-high"></i>
+          <span>Điều Khiển</span>
+        </button>
+        <button @click="ui.tab = 'timeline'; appStore.loadHistory(false)" :class="['px-3 py-2 rounded-xl text-[11px] font-black uppercase tracking-wider transition-all flex items-center gap-1.5 min-h-[36px]', ui.tab === 'timeline' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-400 hover:text-white hover:bg-slate-800/50']">
+          <i class="fa-solid fa-calendar-days"></i>
+          <span>Lịch</span>
+        </button>
+        <button @click="ui.tab = 'create'" :class="['px-3 py-2 rounded-xl text-[11px] font-black uppercase tracking-wider transition-all flex items-center gap-1.5 min-h-[36px]', ui.tab === 'create' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-400 hover:text-white hover:bg-slate-800/50']">
+          <i class="fa-solid fa-plus"></i>
+          <span>Tạo Phiếu</span>
+        </button>
+        <button @click="ui.tab = 'history'; appStore.loadHistory(false)" :class="['px-3 py-2 rounded-xl text-[11px] font-black uppercase tracking-wider transition-all flex items-center gap-1.5 min-h-[36px]', ui.tab === 'history' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-400 hover:text-white hover:bg-slate-800/50']">
+          <i class="fa-solid fa-list-ul"></i>
+          <span>Lịch Sử</span>
+        </button>
+        <button @click="ui.tab = 'analytics'; appStore.loadHistory(false)" :class="['px-3 py-2 rounded-xl text-[11px] font-black uppercase tracking-wider transition-all flex items-center gap-1.5 min-h-[36px]', ui.tab === 'analytics' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-400 hover:text-white hover:bg-slate-800/50']">
+          <i class="fa-solid fa-chart-pie"></i>
+          <span>Báo Cáo</span>
+        </button>
+        <button v-if="formStore.customer.name || formStore.id" @click="ui.tab = 'preview'" :class="['px-3 py-2 rounded-xl text-[11px] font-black uppercase tracking-wider transition-all flex items-center gap-1.5 min-h-[36px]', ui.tab === 'preview' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-400 hover:text-white hover:bg-slate-800/50']">
+          <i class="fa-solid fa-eye"></i>
+          <span>Xem Phiếu</span>
+        </button>
+      </div>
+
+      <!-- RIGHT: QUICK ACTIONS / SYSTEM -->
+      <div class="flex items-center gap-2 relative z-10 shrink-0">
+        <!-- Online/Offline Status Indicator (Mobile Only) -->
+        <div class="md:hidden w-8 h-8 rounded-xl bg-slate-800/60 flex items-center justify-center border border-slate-700/40"
+             :title="ui.connectionStatus === 'online' ? 'Trực tuyến' : 'Ngoại tuyến'">
+          <span class="w-2.5 h-2.5 rounded-full" 
+                :class="{
+                  'bg-green-400 shadow-[0_0_6px_rgba(74,222,128,0.8)]': ui.connectionStatus === 'online' && appStore.offlineQueueCount === 0, 
+                  'bg-yellow-400 animate-pulse': ui.connectionStatus === 'syncing', 
+                  'bg-amber-400 animate-pulse': ui.connectionStatus === 'online' && appStore.offlineQueueCount > 0,
+                  'bg-red-400': ui.connectionStatus === 'error'
+                }"></span>
         </div>
-        
-        <!-- Search Button (Ctrl+K Command Palette trigger) -->
-        <button @click="ui.showCommandPalette = true" class="w-11 h-11 rounded-xl bg-white/10 hover:bg-white/25 flex items-center justify-center border border-white/10 transition-all active:scale-95 group relative shadow-sm text-blue-100 hover:text-white" title="Tìm kiếm & Phím tắt (Ctrl+K)">
-          <i class="fa-solid fa-magnifying-glass text-lg"></i>
+
+        <!-- Search Command Palette -->
+        <button @click="ui.showCommandPalette = true" class="w-9 h-9 rounded-xl bg-slate-800 hover:bg-slate-750 flex items-center justify-center border border-slate-700/30 transition-all active:scale-95 text-slate-300 hover:text-white min-h-[36px]" title="Tìm kiếm nhanh (Ctrl+K)">
+          <i class="fa-solid fa-magnifying-glass text-sm"></i>
         </button>
 
-        <div class="relative">
-          <button @click="showDropdown = !showDropdown" class="w-11 h-11 rounded-xl bg-white/10 hover:bg-white/25 flex items-center justify-center border border-white/10 transition-all active:scale-95 group relative shadow-sm">
-            <i class="fa-solid fa-ellipsis-vertical text-blue-100 group-hover:text-white transition-colors text-lg"></i>
-            <span v-if="configStore.totalKeysHasData" class="absolute -top-1 -right-1 flex h-4 w-4">
-              <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
-              <span class="relative inline-flex rounded-full h-4 w-4 bg-red-500 border-2 border-blue-900"></span>
-            </span>
+        <!-- Sync Button (Desktop) -->
+        <button @click="appStore.loadHistory(false)" class="hidden md:flex w-9 h-9 rounded-xl bg-slate-800 hover:bg-slate-750 items-center justify-center border border-slate-700/30 transition-all active:scale-95 text-slate-300 hover:text-white min-h-[36px]" title="Đồng bộ dữ liệu Cloud">
+          <i class="fa-solid fa-rotate text-sm"></i>
+        </button>
+
+        <!-- Settings Button -->
+        <button @click="ui.showSettingsHub = true" class="w-9 h-9 rounded-xl bg-slate-800 hover:bg-slate-750 flex items-center justify-center border border-slate-700/30 transition-all active:scale-95 text-slate-300 hover:text-white min-h-[36px]" title="Cài đặt hệ thống">
+          <i class="fa-solid fa-gear text-sm"></i>
+        </button>
+
+        <!-- Logout Button (Desktop) -->
+        <button @click="appStore.logout()" class="hidden md:flex w-9 h-9 rounded-xl bg-red-950/40 hover:bg-red-900/60 items-center justify-center border border-red-900/20 transition-all active:scale-95 text-red-300 hover:text-red-100 min-h-[36px]" title="Đăng xuất">
+          <i class="fa-solid fa-arrow-right-from-bracket text-sm"></i>
+        </button>
+
+        <!-- Dropdown Menu for Mobile -->
+        <div class="relative md:hidden">
+          <button @click="showDropdown = !showDropdown" class="w-9 h-9 rounded-xl bg-slate-800 hover:bg-slate-750 flex items-center justify-center border border-slate-700/30 transition-all active:scale-95 text-slate-300 hover:text-white min-h-[36px]">
+            <i class="fa-solid fa-ellipsis-vertical text-sm"></i>
           </button>
           
           <div v-if="showDropdown" @click="showDropdown = false" class="fixed inset-0 z-[100]"></div>
 
           <transition enter-active-class="transition ease-out duration-100" enter-from-class="transform opacity-0 scale-95" enter-to-class="transform opacity-100 scale-100" leave-active-class="transition ease-in duration-75" leave-from-class="transform opacity-100 scale-100" leave-to-class="transform opacity-0 scale-95">
-            <div v-if="showDropdown" class="absolute top-full right-0 mt-2 w-56 bg-white rounded-2xl shadow-xl border border-slate-100 py-2 z-[101]">
-              <button @click="reloadApp" class="w-full text-left px-4 py-3 flex items-center gap-3 hover:bg-slate-50 transition-colors">
-                <div class="w-6 text-center"><i class="fa-solid fa-rotate-right text-slate-400"></i></div>
-                <span class="font-bold text-[13px] text-slate-700">Tải lại (Refresh)</span>
+            <div v-if="showDropdown" class="absolute top-full right-0 mt-2 w-48 bg-white rounded-2xl shadow-xl border border-slate-150 py-1.5 z-[101] text-slate-800">
+              <button @click="reloadApp" class="w-full text-left px-4 py-2.5 flex items-center gap-3 hover:bg-slate-50 transition-colors">
+                <i class="fa-solid fa-rotate-right text-slate-400"></i>
+                <span class="font-bold text-xs text-slate-700">Tải lại (Refresh)</span>
               </button>
-              <button @click="appStore.loadHistory(false); showDropdown = false" class="w-full text-left px-4 py-3 flex items-center gap-3 hover:bg-slate-50 transition-colors">
-                <div class="w-6 text-center"><i class="fa-solid fa-cloud-arrow-down text-slate-400"></i></div>
-                <span class="font-bold text-[13px] text-slate-700">Đồng bộ Cloud</span>
+              <button @click="appStore.loadHistory(false); showDropdown = false" class="w-full text-left px-4 py-2.5 flex items-center gap-3 hover:bg-slate-50 transition-colors">
+                <i class="fa-solid fa-cloud-arrow-down text-slate-400"></i>
+                <span class="font-bold text-xs text-slate-700">Đồng bộ Cloud</span>
               </button>
               <div class="h-[1px] bg-slate-100 my-1"></div>
-              <button @click="ui.showSettingsHub = true; showDropdown = false" class="w-full text-left px-4 py-3 flex items-center gap-3 hover:bg-slate-50 transition-colors group">
-                <div class="w-6 text-center"><i class="fa-solid fa-layer-group text-slate-400 group-hover:text-blue-500 transition-colors"></i></div>
-                <span class="font-bold text-[13px] text-slate-700">Cài đặt hệ thống</span>
+              <button @click="appStore.logout()" class="w-full text-left px-4 py-2.5 flex items-center gap-3 hover:bg-rose-50 text-rose-650 transition-colors">
+                <i class="fa-solid fa-arrow-right-from-bracket"></i>
+                <span class="font-bold text-xs">Đăng xuất</span>
               </button>
             </div>
           </transition>
         </div>
       </div>
-    </div>
-
-    <!-- TABS (Desktop only, hidden on mobile for bottom nav style) -->
-    <div class="hidden md:flex w-full bg-white text-[8px] sm:text-[10px] md:text-xs font-black border-b border-slate-200 uppercase tracking-widest shadow-sm relative z-10 items-stretch shrink-0">
-      <button @click="ui.tab = 'dashboard'" :class="['flex-grow flex-1 py-2 md:py-4 flex flex-col md:flex-row justify-center items-center gap-1 md:gap-2 transition-all min-h-[54px] md:min-h-[56px] border-b-[3px] px-1 md:px-4 text-center leading-tight whitespace-normal', ui.tab === 'dashboard' ? 'text-blue-700 border-blue-600 bg-blue-50/80' : 'text-slate-400 border-transparent hover:text-slate-600 hover:bg-slate-50']">
-        <i class="fa-solid fa-gauge-high text-sm md:text-base"></i> <span>Điều Khiển</span>
-      </button>
-      <button @click="ui.tab = 'timeline'; appStore.loadHistory(false)" :class="['flex-grow flex-1 py-2 md:py-4 flex flex-col md:flex-row justify-center items-center gap-1 md:gap-2 transition-all min-h-[54px] md:min-h-[56px] border-b-[3px] px-1 md:px-4 text-center leading-tight whitespace-normal', ui.tab === 'timeline' ? 'text-blue-700 border-blue-600 bg-blue-50/80' : 'text-slate-400 border-transparent hover:text-slate-600 hover:bg-slate-50']">
-        <i class="fa-solid fa-calendar-days text-sm md:text-base"></i> <span>Lịch Đặt Bàn</span>
-      </button>
-      <button @click="ui.tab = 'history'; appStore.loadHistory(false)" :class="['flex-grow flex-1 py-2 md:py-4 flex flex-col md:flex-row justify-center items-center gap-1 md:gap-2 transition-all min-h-[54px] md:min-h-[56px] border-b-[3px] px-1 md:px-4 text-center leading-tight whitespace-normal', ui.tab === 'history' ? 'text-blue-700 border-blue-600 bg-blue-50/80' : 'text-slate-400 border-transparent hover:text-slate-600 hover:bg-slate-50']">
-        <i class="fa-solid fa-list-ul text-sm md:text-base"></i> <span>Lịch Sử</span>
-      </button>
-      <button @click="ui.tab = 'analytics'; appStore.loadHistory(false)" :class="['flex-grow flex-1 py-2 md:py-4 flex flex-col md:flex-row justify-center items-center gap-1 md:gap-2 transition-all min-h-[54px] md:min-h-[56px] border-b-[3px] px-1 md:px-4 text-center leading-tight whitespace-normal', ui.tab === 'analytics' ? 'text-blue-700 border-blue-600 bg-blue-50/80' : 'text-slate-400 border-transparent hover:text-slate-600 hover:bg-slate-50']">
-        <i class="fa-solid fa-chart-pie text-sm md:text-base"></i> <span>Báo Cáo</span>
-      </button>
-      <button @click="ui.tab = 'create'" :class="['flex-grow flex-1 py-2 md:py-4 flex flex-col md:flex-row justify-center items-center gap-1 md:gap-2 transition-all min-h-[54px] md:min-h-[56px] border-b-[3px] px-1 md:px-4 text-center leading-tight whitespace-normal', ui.tab === 'create' ? 'text-blue-700 border-blue-600 bg-blue-50/80' : 'text-slate-400 border-transparent hover:text-slate-600 hover:bg-slate-50']">
-        <i class="fa-solid fa-plus text-sm md:text-base"></i> <span>Tạo Phiếu</span>
-      </button>
-      <button v-if="formStore.customer.name || formStore.id" @click="ui.tab = 'preview'" :class="['flex-grow flex-1 py-2 md:py-4 flex flex-col md:flex-row justify-center items-center gap-1 md:gap-2 transition-all min-h-[54px] md:min-h-[56px] border-b-[3px] px-1 md:px-4 text-center leading-tight whitespace-normal', ui.tab === 'preview' ? 'text-blue-700 border-blue-600 bg-blue-50/80' : 'text-slate-400 border-transparent hover:text-slate-600 hover:bg-slate-50']">
-        <i class="fa-solid fa-eye text-sm md:text-base"></i> <span>Xem Phiếu</span>
-      </button>
     </div>
 
     <!-- TAB CONTENT WRAPPER -->

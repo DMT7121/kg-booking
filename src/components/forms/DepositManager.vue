@@ -66,9 +66,20 @@ function onDrop(e: DragEvent) {
         <button @click="autoCalcDeposit" class="text-[9px] bg-indigo-100 px-3 py-1 rounded-full text-indigo-700 font-black hover:bg-indigo-200 transition active-effect hover-effect min-h-[30px]">AUTO 1/3</button>
       </div>
     </div>
-    <div class="relative mb-4">
+    <div class="relative mb-3">
       <input type="number" v-model="formStore.deposit.amount" @focus="handleInputFocus" @blur="handleInputBlur" class="w-full h-14 border-2 border-slate-100 rounded-2xl p-4 font-black text-red-600 text-3xl text-right bg-white focus:border-red-400 outline-none shadow-inner">
       <span class="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300 font-black text-lg uppercase tracking-widest">VNĐ</span>
+    </div>
+
+    <!-- Cọc giữ bàn info when no items -->
+    <div v-if="!formStore.items.length || !formStore.items.some(i => i.name?.trim() && i.qty > 0)" class="mb-4 text-xs text-amber-700 bg-amber-50 border border-amber-100 rounded-2xl p-3 flex items-start gap-2">
+      <i class="fa-solid fa-circle-info mt-0.5 text-amber-500"></i>
+      <div>
+        <div class="font-black text-[10px] uppercase tracking-wider">Mặc định giữ bàn (Chưa đặt món)</div>
+        <div class="text-[10px] mt-0.5 leading-relaxed font-semibold">
+          Quy định: cọc <span class="font-black text-red-650">500.000đ</span> (dưới 20 khách) hoặc <span class="font-black text-red-650">1.000.000đ</span> (từ 20 khách trở lên).
+        </div>
+      </div>
     </div>
 
     <div class="flex items-center justify-between bg-white/50 p-4 rounded-2xl border border-slate-100 mb-4 shadow-sm transition-all hover:border-emerald-200">
