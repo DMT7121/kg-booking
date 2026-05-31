@@ -223,6 +223,7 @@ onUnmounted(() => { if (timer) clearInterval(timer) })
           <div class="text-center mb-6 mt-0">
             <img src="/favicon.svg" class="h-16 w-auto mx-auto mb-2 opacity-90 object-contain" alt="Logo">
             <h1 class="font-black tracking-[0.1em] text-slate-800 uppercase text-lg mb-1" style="font-family: 'Be Vietnam Pro', sans-serif;">KING'S GRILL</h1>
+            <p class="text-slate-500 text-[9px] font-semibold mb-2">ĐC: Số 34, Đường Hoàng Văn Thụ, Phường Thủ Dầu Một, Thành phố Hồ Chí Minh</p>
             <h2 class="font-bold tracking-[0.2em] text-slate-400 uppercase text-[10px]" style="font-family: 'Inter', sans-serif;">PHIẾU ĐẶT BÀN</h2>
             <div class="text-[9px] font-mono text-slate-300 mt-1">ID: #{{ order.id?.split('-')[0].toUpperCase() }}</div>
           </div>
@@ -253,15 +254,6 @@ onUnmounted(() => { if (timer) clearInterval(timer) })
               <div v-if="order.customer?.type" class="flex justify-between items-baseline border-b border-dashed border-slate-200 pb-2">
                 <span class="text-xs font-bold text-slate-500">Loại tiệc</span>
                 <span class="font-bold text-slate-800 text-sm">{{ order.customer?.type }}</span>
-              </div>
-              <div v-if="order.staff?.name" class="flex justify-between items-baseline border-b border-dashed border-slate-200 pb-2">
-                <span class="text-xs font-bold text-slate-500">Nhân viên liên hệ</span>
-                <span class="font-black text-slate-800 text-sm">
-                  {{ order.staff.name }}
-                  <span v-if="order.staff.phone">
-                    - <a :href="'tel:' + order.staff.phone" class="text-blue-600 font-bold hover:underline"><i class="fa-solid fa-phone text-[10px]"></i> {{ order.staff.phone }}</a>
-                  </span>
-                </span>
               </div>
               <div v-if="order.customer?.note" class="pt-2">
                 <span class="text-xs font-bold text-slate-500 block mb-1">Ghi chú:</span>
@@ -360,7 +352,7 @@ onUnmounted(() => { if (timer) clearInterval(timer) })
           <!-- FOOTER -->
           <div class="border-t border-dashed border-slate-200 pt-4 text-center">
             <p class="text-[10px] text-slate-400 font-bold mb-0.5">
-              Tiếp tân: <span class="text-slate-600">{{ order.staff?.name || 'Hệ thống' }}</span>
+              Nhân viên hỗ trợ: <span class="text-slate-600">{{ order.staff?.name || 'Hệ thống' }}</span>
               <span v-if="order.staff?.phone" class="text-slate-500 font-medium"> - 
                 <a :href="'tel:' + order.staff.phone" class="text-blue-500 underline font-bold hover:text-blue-700">{{ order.staff.phone }}</a>
               </span>

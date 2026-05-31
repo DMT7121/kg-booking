@@ -135,6 +135,7 @@ function openZaloChat() {
               <img :src="configStore.branding.logo || '/favicon.svg'" class="h-[200px] object-contain print-no-shadow" alt="Logo" loading="lazy">
             </div>
             <h1 class="font-black tracking-widest text-blue-900 uppercase text-3xl mb-1" style="font-family: 'Be Vietnam Pro', sans-serif;">KING'S GRILL</h1>
+            <p class="text-slate-500 text-xs font-semibold mb-2" style="font-family: 'Inter', sans-serif;">ĐC: Số 34, Đường Hoàng Văn Thụ, Phường Thủ Dầu Một, Thành phố Hồ Chí Minh</p>
             <h2 class="font-bold tracking-widest text-slate-500 uppercase text-xl" style="font-family: 'Inter', sans-serif;">PHIẾU ĐẶT BÀN</h2>
             <div class="w-24 h-1 mx-auto mt-4 rounded-full bg-yellow-400"></div>
           </div>
@@ -160,9 +161,6 @@ function openZaloChat() {
               
               <div class="flex items-center gap-3 text-slate-500 font-bold uppercase text-[11px] tracking-wider"><i class="fa-solid fa-utensils w-4 text-center text-[13px]"></i> Loại tiệc</div>
               <div class="font-black text-blue-950 text-[14px]">{{ formStore.customer.type || '---' }}</div>
-
-              <div class="flex items-center gap-3 text-slate-500 font-bold uppercase text-[11px] tracking-wider"><i class="fa-solid fa-headset w-4 text-center text-[13px]"></i> Nhân viên liên hệ</div>
-              <div class="font-black text-blue-950 text-[14px]">{{ formStore.staff.name || '---' }} <span v-if="formStore.staff.phone" class="font-bold text-blue-600">({{ formStore.staff.phone }})</span></div>
             </div>
 
             <!-- Stamp -->
@@ -285,6 +283,11 @@ function openZaloChat() {
 
           <!-- FOOTER -->
           <div class="pt-8 text-center mt-12 border-t border-slate-100">
+            <div class="mb-4 text-slate-600 font-bold text-[13px] uppercase tracking-wider flex items-center justify-center gap-2">
+              <i class="fa-solid fa-headset text-blue-600 text-sm"></i>
+              <span>Nhân viên hỗ trợ: {{ formStore.staff.name || '---' }}</span>
+              <span v-if="formStore.staff.phone" class="text-blue-600 font-black ml-1">({{ formStore.staff.phone }})</span>
+            </div>
             <p class="text-slate-500 font-bold mb-2">❤ Cảm ơn quý khách đã tin tưởng lựa chọn King's Grill!</p>
             <p class="text-slate-400 font-medium italic">Hẹn gặp lại!</p>
           </div>
