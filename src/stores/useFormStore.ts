@@ -41,6 +41,7 @@ export interface AIMetadata {
   fallback_count: number
   repair_applied: boolean
   latency: string
+  confidence_score?: number
 }
 
 export const useFormStore = defineStore('form', () => {

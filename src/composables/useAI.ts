@@ -251,7 +251,8 @@ export function useAI() {
       parsed.routing = {
         pipeline: type, tier_used: model.tier,
         model_used: model.name, fallback_count: fallbackCount,
-        repair_applied: repairApplied, latency, mode
+        repair_applied: repairApplied, latency, mode,
+        confidence_score: typeof parsed.menu_selection?.confidence === 'number' ? parsed.menu_selection.confidence : 1.0
       }
       // Cache for next time
       if (!image) setCache(getCacheKey(type + ':' + userPrompt), parsed)
@@ -480,7 +481,7 @@ export function useAI() {
           const res = await api.getMenu(sheet)
           if (res.ok && res.data) {
             menuItems = res.data
-            cacheMenu(sheet, menuItems)
+            cacheMenu(sheet, res.data)
           }
         } catch (e) {
           console.error(`Failed to load menu for sheet ${sheet}`, e)
