@@ -13,6 +13,7 @@ const { handleInputFocus, handleInputBlur, addNewItem, onSearchInput, selectMenu
 
 const draggedIndex = ref<number | null>(null)
 const dragOverIndex = ref<number | null>(null)
+const expandedNotes = ref<Record<number, boolean>>({})
 
 function triggerCreateMenu() {
   ui.activeSettingModal = 'menu'
@@ -150,10 +151,18 @@ const hasSoftWarning = computed(() => {
 
           <!-- Note -->
           <div class="w-full">
-            <textarea v-model="item.note" @focus="handleInputFocus" @blur="handleInputBlur"
-              :rows="item.note ? Math.min(item.note.split('\n').length + 1, 8) : 1"
-              class="w-full text-xs text-rose-600 font-bold bg-rose-50/30 rounded-xl p-3 border border-rose-100 focus:border-rose-300 focus:bg-rose-50 outline-none resize-none transition-all placeholder-rose-300"
-              placeholder="Ghi chú / Yêu cầu thêm..."></textarea>
+            <div class="relative">
+              <textarea v-model="item.note" @focus="handleInputFocus" @blur="handleInputBlur"
+                :rows="expandedNotes[index] ? Math.max(item.note ? item.note.split('\n').length + 1 : 1, 5) : 3"
+                class="w-full text-xs text-rose-600 font-bold bg-rose-50/30 rounded-xl p-3 pb-8 border border-rose-100 focus:border-rose-300 focus:bg-rose-50 outline-none resize-none transition-all placeholder-rose-300 custom-scrollbar"
+                placeholder="Ghi chú / Yêu cầu thêm..."></textarea>
+              
+              <div v-if="item.note && item.note.split('\n').length > 3" class="absolute bottom-2 right-2 z-10">
+                <button @click.prevent="expandedNotes[index] = !expandedNotes[index]" class="px-2 py-1 bg-white border border-rose-200 text-rose-600 text-[9px] font-black rounded-lg uppercase tracking-wider active:scale-95 transition-all shadow-sm">
+                  {{ expandedNotes[index] ? 'Thu gọn' : 'Xem thêm' }}
+                </button>
+              </div>
+            </div>
           </div>
 
           <!-- Qty, Price, Delete -->

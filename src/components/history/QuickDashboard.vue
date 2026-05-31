@@ -97,6 +97,7 @@ const displayedTodoItems = computed(() => {
 const calendarSummary = computed(() => {
   const summary: any[] = []
   const weekdayNames = ['Chủ Nhật', 'Thứ 2', 'Thứ 3', 'Thứ 4', 'Thứ 5', 'Thứ 6', 'Thứ 7']
+  const shortWeekdayNames = ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7']
   
   for (let i = 0; i < 7; i++) {
     const dateObj = new Date()
@@ -116,13 +117,23 @@ const calendarSummary = computed(() => {
     })
 
     let label = ''
-    if (i === 0) label = 'Hôm nay'
-    else if (i === 1) label = 'Ngày mai'
-    else label = weekdayNames[dateObj.getDay()]
+    let shortLabel = ''
+    if (i === 0) {
+      label = 'Hôm nay'
+      shortLabel = 'Hôm'
+    } else if (i === 1) {
+      label = 'Ngày mai'
+      shortLabel = 'Mai'
+    } else {
+      label = weekdayNames[dateObj.getDay()]
+      shortLabel = shortWeekdayNames[dateObj.getDay()]
+    }
 
     summary.push({
       dateStr,
       label,
+      shortLabel,
+      dayOfMonth: String(dateObj.getDate()).padStart(2, '0'),
       dateShort: `${dateObj.getDate()}/${dateObj.getMonth() + 1}`,
       bookings: totalBookings,
       guests: totalGuests,
@@ -377,10 +388,10 @@ function handleRecentClick(order: any) {
             }"
           >
             <div class="flex items-center gap-3">
-              <div class="w-9 h-9 rounded-xl flex flex-col items-center justify-center font-black"
-                   :class="day.isToday ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-600'">
-                <span class="text-[9px] uppercase font-black leading-none mt-1">{{ day.label.substring(0, 3) }}</span>
-                <span class="text-xs leading-none mb-1 mt-0.5">{{ day.dateShort.split('/')[0] }}</span>
+              <div class="w-11 h-11 rounded-xl flex flex-col items-center justify-center font-black shrink-0 border border-slate-200/50"
+                   :class="day.isToday ? 'bg-blue-600 text-white border-blue-600' : 'bg-slate-100 text-slate-600'">
+                <span class="text-xs leading-none font-black mt-1">{{ day.dayOfMonth }}</span>
+                <span class="text-[9px] uppercase font-black tracking-wider leading-none mb-1 mt-0.5" :class="day.isToday ? 'text-blue-100' : 'text-slate-400'">{{ day.shortLabel }}</span>
               </div>
               <div>
                 <div class="font-black text-xs text-slate-800 flex items-center gap-2">
@@ -392,12 +403,15 @@ function handleRecentClick(order: any) {
             </div>
             
             <div class="flex items-center gap-2 shrink-0">
-              <div v-if="day.bookings > 0" class="text-right">
-                <span class="px-2.5 py-1 bg-indigo-50 border border-indigo-100 text-indigo-700 rounded-lg font-black text-[10px]">
-                  {{ day.bookings }} tiệc / {{ day.guests }}k
+              <div v-if="day.bookings > 0" class="text-right flex flex-col items-end gap-0.5">
+                <span class="px-2.5 py-0.5 bg-indigo-50 border border-indigo-100 text-indigo-700 rounded-lg font-black text-[10px] uppercase tracking-wide">
+                  {{ day.bookings }} tiệc
+                </span>
+                <span class="text-[9px] font-black text-slate-500 uppercase tracking-wider pr-1">
+                  {{ day.guests }} khách
                 </span>
               </div>
-              <div v-else class="text-[10px] text-slate-300 font-semibold italic">
+              <div v-else class="text-[10px] text-slate-300 font-semibold italic pr-1">
                 Trống
               </div>
               <i class="fa-solid fa-chevron-right text-[10px] text-slate-300"></i>
