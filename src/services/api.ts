@@ -160,7 +160,16 @@ export async function getConfig(): Promise<any> {
 
 /** Save config to remote */
 export async function saveConfig(bankList: string, staffList: string, password?: string, webhookUrl?: string, telegramChatId?: string): Promise<any> {
-  return postGAS({ action: 'saveConfig', bankList, staffList, webhookUrl, telegramChatId, password })
+  return postGAS({
+    action: 'saveConfig',
+    bankList,
+    staffList,
+    banks: bankList,
+    staff: staffList,
+    webhookUrl,
+    telegramChatId,
+    password
+  })
 }
 
 /** Fetch public order by ID (GET request) */

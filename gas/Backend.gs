@@ -608,7 +608,16 @@ function saveSystemConfig(data, password) {
   }
   const ss = SpreadsheetApp.openById(CONFIG.SS_ID);
   const sheet = initSheetIfNeeded_(ss, CONFIG.SHEET_NAME_CONFIG, CONFIG.CONFIG_HEADERS, "#e9d5ff");
-  const keysToSave = ['bankList', 'staffList', 'webhookUrl', 'telegramChatId'];
+  
+  // Backwards compatibility for bots/external integrations
+  if (data.bankList !== undefined && data.bankList !== null) {
+    data.banks = data.bankList;
+  }
+  if (data.staffList !== undefined && data.staffList !== null) {
+    data.staff = data.staffList;
+  }
+  
+  const keysToSave = ['bankList', 'staffList', 'banks', 'staff', 'webhookUrl', 'telegramChatId'];
   const rows = sheet.getDataRange().getValues();
   keysToSave.forEach(key => {
     if (data[key] !== undefined && data[key] !== null) {
