@@ -150,3 +150,16 @@ export const escapeHtml = (unsafe: string): string => {
     .replace(/'/g, '&#039;')
 }
 
+/** Generate unique booking ID: KG-YYYYMMDD-HHMMSS-RANDOM */
+export const generateBookingId = (): string => {
+  const now = new Date()
+  const yyyymmdd = now.getFullYear() +
+    String(now.getMonth() + 1).padStart(2, '0') +
+    String(now.getDate()).padStart(2, '0')
+  const hhmmss = String(now.getHours()).padStart(2, '0') +
+    String(now.getMinutes()).padStart(2, '0') +
+    String(now.getSeconds()).padStart(2, '0')
+  const rand = Math.random().toString(36).substring(2, 6).toUpperCase()
+  return `KG-${yyyymmdd}-${hhmmss}-${rand}`
+}
+

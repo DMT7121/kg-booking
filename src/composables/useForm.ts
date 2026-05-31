@@ -2,7 +2,7 @@ import { ref, computed, watch } from 'vue'
 import { useFormStore } from '@/stores/useFormStore'
 import { useAppStore } from '@/stores/useAppStore'
 import { useUIStore } from '@/stores/useUIStore'
-import { stripAccents, formatVND, cleanPhoneNumber, formatDateStr, isIOS, formatSetNote, escapeHtml } from '@/utils'
+import { stripAccents, formatVND, cleanPhoneNumber, formatDateStr, isIOS, formatSetNote, escapeHtml, generateBookingId } from '@/utils'
 import { SETS, SAMPLE_MENU } from '@/utils/constants'
 import { saveFormDraft, getFormDraft, clearFormDraft } from '@/services/cache'
 
@@ -178,7 +178,7 @@ function _createForm() {
     formStore.deposit.image = o.transferImage || (o.deposit && o.deposit.image) || null
     formStore.oldBillFileId = o.billFileId || null
 
-    formStore.id = o.id || crypto.randomUUID()
+    formStore.id = o.id || generateBookingId()
     formStore.version = o.version || 1
 
     const match = (o.parsedCustomer.tables || '').match(/^([A-E])(\d+)$/i)

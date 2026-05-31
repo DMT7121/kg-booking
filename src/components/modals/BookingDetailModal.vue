@@ -154,6 +154,18 @@ function handleViewBill() {
           </div>
         </div>
 
+        <!-- Booking ID & Menu Sheet/Version -->
+        <div class="bg-slate-50 p-3 rounded-2xl border border-slate-100 space-y-1.5 text-xs text-slate-500 font-bold">
+          <div class="flex justify-between">
+            <span>Mã phiếu (ID):</span>
+            <span class="text-slate-800 font-black truncate max-w-[200px]" :title="ui.selectedBooking.id">{{ ui.selectedBooking.id }}</span>
+          </div>
+          <div class="flex justify-between" v-if="ui.selectedBooking.activeMenuSheet">
+            <span>Thực đơn (Version):</span>
+            <span class="text-slate-800 font-black">{{ ui.selectedBooking.activeMenuSheet }}</span>
+          </div>
+        </div>
+
         <!-- Deposit Status -->
         <div class="p-3 rounded-2xl flex items-center justify-between border" :class="ui.selectedBooking.isDeposited ? 'bg-emerald-50 border-emerald-100' : 'bg-rose-50 border-rose-100'">
           <div class="flex items-center gap-2">

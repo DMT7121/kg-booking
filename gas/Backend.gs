@@ -359,29 +359,82 @@ function saveOrder(p) {
   }
   p.billUrl = billUrl;
   if(transferUrl) p.deposit.image = transferUrl;
+
+  const ss = SpreadsheetApp.openById(CONFIG.SS_ID);
+  const sheet = initSheetIfNeeded_(ss, CONFIG.SHEET_NAME_ORDERS, CONFIG.ORDER_HEADERS, "#dbeafe");
+  
+  const bookingId = p.id || Utilities.getUuid();
+  
+  // Find existing booking row by ID to prevent duplication
+  let foundRowIndex = -1;
+  const values = sheet.getDataRange().getValues();
+  for (let i = 1; i < values.length; i++) {
+    if (values[i][0] === bookingId) {
+      foundRowIndex = i + 1;
+      break;
+    }
+  }
+
+  const isNew = (foundRowIndex === -1);
+  const createdAt = isNew ? new Date().toISOString() : (values[foundRowIndex - 1][1] || new Date().toISOString());
+  const updatedAt = new Date().toISOString();
+
   const unifiedData = {
     customer: p.customer, items: p.items, staff: p.staff, deposit: p.deposit,
     activeMenuSheet: p.activeMenuSheet || "",
     aiMetadata: p.aiMetadata || null,
     warnings: p.warnings || [],
     unresolvedItems: p.unresolvedItems || [],
-    meta: { createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() }
+    meta: { createdAt: createdAt, updatedAt: updatedAt }
   };
-  const ss = SpreadsheetApp.openById(CONFIG.SS_ID);
-  const sheet = initSheetIfNeeded_(ss, CONFIG.SHEET_NAME_ORDERS, CONFIG.ORDER_HEADERS, "#dbeafe");
+
   const row = [
-    p.id || Utilities.getUuid(), new Date().toISOString(), p.customer.name,
+    bookingId, createdAt, p.customer.name,
     "'" + p.customer.phone, JSON.stringify(unifiedData), p.total,
     p.deposit.amount, p.deposit.isPaid ? "YES" : "NO", transferUrl, billUrl
   ];
-  sheet.appendRow(row);
-  try { syncToCalendar(p); } catch(e) { console.log("Calendar Sync Failed: " + e.message); }
-  try { sendNotification_(p, row[0], billUrl); } catch(e) { console.log("Notification Failed: " + e.message); }
-  return { message: "Order Saved (V3.6.0)", id: row[0], billUrl: billUrl };
+
+  if (isNew) {
+    sheet.appendRow(row);
+  } else {
+    sheet.getRange(foundRowIndex, 1, 1, row.length).setValues([row]);
+  }
+
+  try { syncToCalendar(p, bookingId, billUrl, transferUrl); } catch(e) { console.log("Calendar Sync Failed: " + e.message); }
+  try { sendNotification_(p, bookingId, billUrl); } catch(e) { console.log("Notification Failed: " + e.message); }
+  return { message: "Order Saved (V3.6.0)", id: bookingId, billUrl: billUrl };
 }
 
-function syncToCalendar(data) {
+function clearCalendarEntryById(ss, bookingId) {
+  if (!bookingId) return;
+  const sheets = ss.getSheets();
+  for (let s = 0; s < sheets.length; s++) {
+    const sheet = sheets[s];
+    if (!sheet.getName().startsWith('📅')) continue;
+    
+    const maxRow = 150;
+    const range = sheet.getRange(1, 1, maxRow, 14);
+    const notes = range.getNotes();
+    
+    for (let r = 0; r < notes.length; r++) {
+      for (let c = 0; c < notes[r].length; c++) {
+        if (notes[r][c] === bookingId) {
+          sheet.getRange(r + 1, c + 1).setValue("").setNote("");
+          sheet.getRange(r + 1, c + 2, 6, 1).setValues([[""], [""], [""], [""], [""], [""]]);
+          return;
+        }
+      }
+    }
+  }
+}
+
+function syncToCalendar(data, bookingId, billUrl, transferUrl) {
   const ss = SpreadsheetApp.openById(CONFIG.LINKED_CALENDAR_ID);
+  
+  if (bookingId) {
+    try { clearCalendarEntryById(ss, bookingId); } catch(e) { console.log("Clear Calendar failed: " + e.message); }
+  }
+  
   const dateStr = data.customer.date;
   if (!dateStr) return;
   const sheetName = '📅' + dateStr;
@@ -404,9 +457,11 @@ function syncToCalendar(data) {
     if (!values[i][0]) { targetRow = i + 3; break; }
   }
   if (targetRow === -1) return;
+  
   const rawName = data.customer.name || "Khách";
   const safeName = rawName.replace(/"/g, '""');
-  const row1 = data.billUrl ? `=HYPERLINK("${data.billUrl}";"${safeName}")` : rawName;
+  const actualBillUrl = billUrl || data.billUrl || "";
+  const row1 = actualBillUrl ? `=HYPERLINK("${actualBillUrl}";"${safeName}")` : rawName;
   const paxNum = (data.customer.pax || "0").toString().replace(/\D/g, '');
   let timeStr = data.customer.time || "";
   if (timeStr.includes(':')) { let parts = timeStr.split(':'); timeStr = `${parts[0]}h${parts[1] === '00' ? '' : parts[1]}`; }
@@ -455,7 +510,7 @@ function syncToCalendar(data) {
 
   const row6 = finalNoteLines.join('\n').trim();
   const blockData = [[row1], [row2], [row3], [row4], [row5], [row6]];
-  sheet.getRange(targetRow, startCol).setValue(data.customer.tables).setFontWeight("bold").setHorizontalAlignment("center").setVerticalAlignment("middle");
+  sheet.getRange(targetRow, startCol).setValue(data.customer.tables).setFontWeight("bold").setHorizontalAlignment("center").setVerticalAlignment("middle").setNote(bookingId);
   const infoRange = sheet.getRange(targetRow, infoCol, 6, 1);
   infoRange.setValues(blockData);
   infoRange.setWrap(true);

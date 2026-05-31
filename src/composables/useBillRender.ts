@@ -2,7 +2,7 @@ import { ref, nextTick } from 'vue'
 import { useFormStore } from '@/stores/useFormStore'
 import { useAppStore } from '@/stores/useAppStore'
 import { useUIStore } from '@/stores/useUIStore'
-import { stripAccents, resizeImage, loadLibrary, isIOS, isAndroid, isMobile } from '@/utils'
+import { stripAccents, resizeImage, loadLibrary, isIOS, isAndroid, isMobile, generateBookingId } from '@/utils'
 import { fetchWithRetry } from '@/services/api'
 import { smartUploadImage } from '@/services/r2'
 import { cacheBillImage, addToOfflineQueue } from '@/services/cache'
@@ -48,6 +48,7 @@ function _createBillRender() {
 
   // --- Trigger Save ---
   async function triggerSave(type: string, validateFn?: () => boolean) {
+    if (uiStore.loading.is) return
     if (validateFn && !validateFn()) return
     const isAdmin = await appStore.verifyAdminSession()
     if (!isAdmin) return
@@ -57,6 +58,7 @@ function _createBillRender() {
 
   // --- Confirm Staff & Save ---
   async function confirmStaffAndSave(staff: { name: string; phone: string }) {
+    if (uiStore.loading.is) return
     formStore.staff.name = staff.name
     formStore.staff.phone = staff.phone
     await nextTick()
@@ -217,7 +219,7 @@ function _createBillRender() {
         items: formStore.items,
         deposit: { ...formStore.deposit, image: transferUpload.url },
         staff: formStore.staff,
-        id: formStore.id || crypto.randomUUID(),
+        id: formStore.id || generateBookingId(),
         version: formStore.version || 1,
         total: formStore.calculatedTotals.final,
         billImage: billUpload.source === 'r2' ? billUpload.url : lowResBase64,
@@ -225,7 +227,8 @@ function _createBillRender() {
         oldBillFileId: formStore.oldBillFileId,
         smartIndex: metadata,
         renderPdf: formStore.saveType === 'pdf',
-        imageSource: billUpload.source
+        imageSource: billUpload.source,
+        activeMenuSheet: appStore.activeSheet
       }
 
       if (formStore.saveType === 'pdf') {

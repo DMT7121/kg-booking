@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import { reactive, ref, computed } from 'vue'
-import { stripAccents, cleanPhoneNumber } from '@/utils'
+import { stripAccents, cleanPhoneNumber, generateBookingId } from '@/utils'
 import { ALCOHOL_KEYS, DRINK_KEYS } from '@/utils/constants'
 
 export interface MenuItem {
@@ -124,7 +124,7 @@ export const useFormStore = defineStore('form', () => {
 
   // --- Reset Form ---
   function $reset() {
-    id.value = crypto.randomUUID()
+    id.value = generateBookingId()
     version.value = 1
     originalState.value = null
     Object.assign(customer, { name: '', phone: '', date: '', time: '', pax: '', tables: '', type: '', note: '' })
