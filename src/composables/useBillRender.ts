@@ -499,10 +499,13 @@ function _createBillRender() {
       s = zoomScale.value
     }
     
-    // Enforce readable minimum scale on desktop screens
-    const isDesktop = window.innerWidth >= 1024
-    const minScale = isDesktop ? 0.75 : 0.35
-    if (s < minScale) s = minScale
+    // Only enforce minScale if zoomMode is NOT 'fit-width' and NOT 'fit-screen'
+    // (If in fit modes, we must allow it to scale down to fit the container perfectly without horizontal scroll)
+    if (zoomMode.value === 'manual') {
+      const isDesktop = window.innerWidth >= 1024
+      const minScale = isDesktop ? 0.5 : 0.25
+      if (s < minScale) s = minScale
+    }
     if (s > 2.0) s = 2.0
     
     requestAnimationFrame(() => {

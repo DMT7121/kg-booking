@@ -1971,3 +1971,11 @@ function getAiCorrections(token) {
   return { ok: true, data: corrections };
 }
 
+// Helper to manually trigger authorization dialog in Apps Script editor
+function triggerAuthFlow() {
+  const res = UrlFetchApp.fetch("https://www.google.com");
+  const root = DriveApp.getRootFolder();
+  Logger.log("UrlFetch response: " + res.getResponseCode());
+  Logger.log("Drive Root Folder: " + root.getName());
+}
+

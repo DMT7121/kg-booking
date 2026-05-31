@@ -259,14 +259,9 @@ function goToTomorrowTimeline() {
     </div>
 
     <!-- TAB CONTENT WRAPPER -->
-    <div class="flex-grow relative overflow-hidden flex flex-col lg:flex-row bg-slate-50 z-0 min-h-0 w-full">
-      <!-- Left side: active tab content -->
-      <div 
-        :class="[
-          'flex-grow flex flex-col overflow-hidden relative min-h-0',
-          ui.tab === 'create' ? 'w-full lg:w-[58%] xl:w-[62%] lg:border-r lg:border-slate-200' : 'w-full lg:w-full xl:w-full lg:border-r-0'
-        ]"
-      >
+    <div class="flex-grow relative overflow-hidden flex flex-col bg-slate-50 z-0 min-h-0 w-full">
+      <!-- Active tab content (Always 100% width) -->
+      <div class="flex-grow flex flex-col overflow-hidden relative min-h-0 w-full">
         <transition name="tab-fade" mode="out-in">
           <KeepAlive>
             <QuickDashboard v-if="ui.tab === 'dashboard'" key="dashboard" />
@@ -350,24 +345,18 @@ function goToTomorrowTimeline() {
         </transition>
       </div>
 
-      <!-- Bill Preview (Right side on desktop, overlay on mobile under preview tab) -->
+      <!-- Bill Preview (Overlay độc lập cho cả desktop và mobile) -->
       <div 
-        :class="[
-          'bg-slate-100 flex-col shrink-0 overflow-y-auto custom-scrollbar',
-          ui.tab === 'preview' 
-            ? 'absolute inset-0 z-10 flex w-full h-full' 
-            : ui.tab === 'create' 
-              ? 'hidden lg:flex lg:w-[42%] xl:w-[38%] border-l border-slate-200' 
-              : 'hidden'
-        ]"
+        v-if="ui.tab === 'preview'" 
+        class="absolute inset-0 z-[110] bg-slate-100 flex flex-col w-full h-full overflow-hidden animate-fade-in"
       >
         <BillPreview />
       </div>
     </div>
 
     <!-- FLOATING ACTION BUTTON -->
-    <div v-show="!ui.isKeyboardOpen && ['create', 'preview'].includes(ui.tab)" class="absolute bottom-6 right-6 z-[100] safe-area-pb">
-      <button @click="showActionSheet = true" class="w-14 h-14 bg-blue-600 rounded-full shadow-xl shadow-blue-600/30 flex items-center justify-center text-white text-xl active:scale-90 transition-transform">
+    <div v-show="!ui.isKeyboardOpen && ui.tab === 'create'" class="absolute bottom-[84px] md:bottom-6 right-6 z-[100] safe-area-pb">
+      <button @click="showActionSheet = true" class="w-14 h-14 bg-amber-500 hover:bg-amber-600 rounded-full shadow-xl shadow-amber-500/30 flex items-center justify-center text-white text-xl active:scale-90 transition-transform quick-action-fab">
         <i class="fa-solid fa-layer-group"></i>
       </button>
     </div>
@@ -529,7 +518,7 @@ function goToTomorrowTimeline() {
     </transition>
 
     <!-- MOBILE BOTTOM NAV -->
-    <div class="flex md:hidden w-full bg-slate-900 border-t border-slate-800 text-[10px] font-bold uppercase tracking-wider relative z-20 items-stretch shrink-0 pb-safe-bottom shadow-[0_-8px_30px_rgba(0,0,0,0.3)]">
+    <div v-show="ui.tab !== 'preview'" class="flex md:hidden w-full bg-slate-900 border-t border-slate-800 text-[10px] font-bold uppercase tracking-wider relative z-20 items-stretch shrink-0 pb-safe-bottom shadow-[0_-8px_30px_rgba(0,0,0,0.3)]">
       <button @click="ui.tab = 'dashboard'" :class="['flex-grow flex-1 py-2 flex flex-col justify-center items-center gap-0.5 transition-all duration-200 select-none min-h-[48px]', ui.tab === 'dashboard' ? 'text-blue-400 bg-slate-800/50' : 'text-slate-400 hover:text-slate-300']">
         <div class="relative flex items-center justify-center w-8 h-8 rounded-full transition-all" :class="ui.tab === 'dashboard' ? 'bg-blue-500/15 text-blue-400 scale-105' : ''">
           <i class="fa-solid fa-gauge-high text-base"></i>
@@ -585,5 +574,20 @@ function goToTomorrowTimeline() {
 .fade-enter-from,
 .fade-leave-to {
   opacity: 0;
+}
+
+.quick-action-fab {
+  animation: fab-pulse 2s infinite;
+}
+@keyframes fab-pulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.6);
+  }
+  70% {
+    box-shadow: 0 0 0 12px rgba(245, 158, 11, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(245, 158, 11, 0);
+  }
 }
 </style>

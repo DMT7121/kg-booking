@@ -169,9 +169,10 @@ function openZaloChat() {
     ]">
       <!-- Left: Navigation / Page Info -->
       <div class="flex items-center gap-2">
-        <button @click="ui.tab = 'create'" class="md:hidden w-8 h-8 rounded-xl bg-slate-100 flex items-center justify-center hover:bg-slate-200 transition-colors text-slate-700">
+        <button @click="ui.tab = 'create'" class="w-8 h-8 rounded-xl bg-slate-100 flex items-center justify-center hover:bg-slate-200 transition-colors text-slate-700" title="Quay lại">
           <i class="fa-solid fa-arrow-left"></i>
         </button>
+        <h3 class="font-black text-slate-800 text-xs hidden sm:inline-block">Xem trước phiếu đặt bàn</h3>
         <span :class="[
           'px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider shadow-sm',
           formStore.deposit.isPaid 
@@ -211,7 +212,7 @@ function openZaloChat() {
           'px-2.5 py-1 rounded-full text-[10px] font-black transition-all',
           zoomMode === 'fit-width' ? 'bg-blue-600 text-white shadow-sm' : 'hover:bg-slate-200 text-slate-500'
         ]" title="Vừa chiều ngang">
-          Fit rộng
+          Vừa màn hình
         </button>
       </div>
 

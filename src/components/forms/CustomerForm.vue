@@ -97,27 +97,27 @@ function getDayAfterTomorrowStr() {
       </div>
     </div>
 
-    <!-- Row 1: Name & Phone -->
-    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-      <div class="space-y-1.5">
-        <label class="text-[10px] font-black text-slate-500 uppercase tracking-wider ml-1 flex items-center">
-          Người đặt <span class="text-red-500 ml-0.5">*</span>
-          <span v-if="formStore.aiMetadata?.confidences?.name?.needs_review" class="text-amber-600 text-[9px] font-bold bg-amber-100/60 px-1.5 py-0.5 rounded ml-2 animate-pulse"><i class="fa-solid fa-triangle-exclamation"></i> Cần kiểm tra</span>
-        </label>
-        <div class="relative">
-          <i class="fa-regular fa-user absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"></i>
-          <input v-model="formStore.customer.name" @focus="handleInputFocus" @blur="handleInputBlur" class="w-full border rounded-xl pl-10 pr-4 py-3 text-sm font-semibold text-slate-800 focus:border-blue-500 focus:ring-4 focus:ring-blue-50 outline-none transition-all" :class="formStore.aiMetadata?.confidences?.name?.needs_review ? 'border-amber-400 bg-amber-50/10 focus:border-amber-500 focus:ring-amber-100' : 'border-slate-200'" placeholder="Tên khách">
-        </div>
+    <!-- Row 1: Name -->
+    <div class="space-y-1.5 w-full">
+      <label class="text-[10px] font-black text-slate-500 uppercase tracking-wider ml-1 flex items-center">
+        Người đặt <span class="text-red-500 ml-0.5">*</span>
+        <span v-if="formStore.aiMetadata?.confidences?.name?.needs_review" class="text-amber-600 text-[9px] font-bold bg-amber-100/60 px-1.5 py-0.5 rounded ml-2 animate-pulse"><i class="fa-solid fa-triangle-exclamation"></i> Cần kiểm tra</span>
+      </label>
+      <div class="relative">
+        <i class="fa-regular fa-user absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"></i>
+        <input v-model="formStore.customer.name" @focus="handleInputFocus" @blur="handleInputBlur" class="w-full border rounded-xl pl-10 pr-4 py-3 text-[16px] font-semibold text-slate-800 focus:border-blue-500 focus:ring-4 focus:ring-blue-50 outline-none transition-all" :class="formStore.aiMetadata?.confidences?.name?.needs_review ? 'border-amber-400 bg-amber-50/10 focus:border-amber-500 focus:ring-amber-100' : 'border-slate-200'" placeholder="Nhập tên khách hàng">
       </div>
-      <div class="space-y-1.5">
-        <label class="text-[10px] font-black text-slate-500 uppercase tracking-wider ml-1 flex items-center">
-          SĐT / Zalo <span class="text-red-500 ml-0.5">*</span>
-          <span v-if="formStore.aiMetadata?.confidences?.phone?.needs_review" class="text-amber-600 text-[9px] font-bold bg-amber-100/60 px-1.5 py-0.5 rounded ml-2 animate-pulse"><i class="fa-solid fa-triangle-exclamation"></i> Cần kiểm tra</span>
-        </label>
-        <div class="relative">
-          <i class="fa-solid fa-phone absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"></i>
-          <input v-model="formStore.customer.phone" @focus="handleInputFocus" @blur="(e) => { handleInputBlur(); checkCRM(); }" class="w-full border rounded-xl pl-10 pr-4 py-3 text-sm font-semibold text-slate-800 focus:border-blue-500 focus:ring-4 focus:ring-blue-50 outline-none transition-all" :class="formStore.aiMetadata?.confidences?.phone?.needs_review ? 'border-amber-400 bg-amber-50/10 focus:border-amber-500 focus:ring-amber-100' : 'border-slate-200'" placeholder="09xxxxxxx">
-        </div>
+    </div>
+
+    <!-- Row 2: Phone -->
+    <div class="space-y-1.5 w-full">
+      <label class="text-[10px] font-black text-slate-500 uppercase tracking-wider ml-1 flex items-center">
+        SĐT / Zalo <span class="text-red-500 ml-0.5">*</span>
+        <span v-if="formStore.aiMetadata?.confidences?.phone?.needs_review" class="text-amber-600 text-[9px] font-bold bg-amber-100/60 px-1.5 py-0.5 rounded ml-2 animate-pulse"><i class="fa-solid fa-triangle-exclamation"></i> Cần kiểm tra</span>
+      </label>
+      <div class="relative">
+        <i class="fa-solid fa-phone absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"></i>
+        <input v-model="formStore.customer.phone" inputmode="tel" @focus="handleInputFocus" @blur="(e) => { handleInputBlur(); checkCRM(); }" class="w-full border rounded-xl pl-10 pr-4 py-3 text-[16px] font-semibold text-slate-800 focus:border-blue-500 focus:ring-4 focus:ring-blue-50 outline-none transition-all" :class="formStore.aiMetadata?.confidences?.phone?.needs_review ? 'border-amber-400 bg-amber-50/10 focus:border-amber-500 focus:ring-amber-100' : 'border-slate-200'" placeholder="09xxxxxxx">
       </div>
     </div>
 
@@ -152,16 +152,17 @@ function getDayAfterTomorrowStr() {
       </div>
     </div>
 
-    <!-- Row 2: Date, Time, Pax -->
-    <div class="grid grid-cols-3 gap-3 md:gap-4">
-      <div class="space-y-1.5 flex flex-col">
+    <!-- Row 3: Date & Time -->
+    <div class="flex gap-4 w-full">
+      <!-- Ngày (60%) -->
+      <div class="w-[60%] space-y-1.5 flex flex-col">
         <label class="text-[10px] font-black text-slate-500 uppercase tracking-wider ml-1 flex items-center">
           Ngày <span class="text-red-500 ml-0.5">*</span>
           <span v-if="formStore.aiMetadata?.confidences?.date?.needs_review" class="text-amber-600 text-[9px] font-bold bg-amber-100/60 px-1.5 py-0.5 rounded ml-2 animate-pulse"><i class="fa-solid fa-triangle-exclamation"></i> Cần kiểm tra</span>
         </label>
         <div class="relative">
           <i class="fa-regular fa-calendar absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"></i>
-          <input v-model="formStore.customer.date" @focus="handleInputFocus" @blur="(e) => { handleInputBlur(); formatDate(); }" class="w-full border rounded-xl pl-9 pr-2 py-3 text-xs font-semibold text-slate-800 focus:border-blue-500 focus:ring-4 focus:ring-blue-50 outline-none transition-all" :class="formStore.aiMetadata?.confidences?.date?.needs_review ? 'border-amber-400 bg-amber-50/10 focus:border-amber-500 focus:ring-amber-100' : 'border-slate-200'" placeholder="dd/mm/yyyy">
+          <input v-model="formStore.customer.date" @focus="handleInputFocus" @blur="(e) => { handleInputBlur(); formatDate(); }" class="w-full border rounded-xl pl-9 pr-2 py-3 text-[16px] font-semibold text-slate-800 focus:border-blue-500 focus:ring-4 focus:ring-blue-50 outline-none transition-all" :class="formStore.aiMetadata?.confidences?.date?.needs_review ? 'border-amber-400 bg-amber-50/10 focus:border-amber-500 focus:ring-amber-100' : 'border-slate-200'" placeholder="dd/mm/yyyy">
         </div>
         <!-- Quick Chips for Date -->
         <div class="flex gap-1 mt-1.5 flex-wrap">
@@ -169,14 +170,15 @@ function getDayAfterTomorrowStr() {
           <button @click.prevent="formStore.customer.date = getTomorrowStr()" class="px-1.5 py-0.5 text-[8px] font-black uppercase tracking-wider rounded bg-slate-50 border border-slate-200 text-slate-500 hover:bg-blue-50 hover:text-blue-600 hover:border-blue-200 active:scale-95 transition-all">Mai</button>
         </div>
       </div>
-      <div class="space-y-1.5 flex flex-col">
+      <!-- Giờ (40%) -->
+      <div class="w-[40%] space-y-1.5 flex flex-col">
         <label class="text-[10px] font-black text-slate-500 uppercase tracking-wider ml-1 flex items-center">
           Giờ <span class="text-red-500 ml-0.5">*</span>
           <span v-if="formStore.aiMetadata?.confidences?.time?.needs_review" class="text-amber-600 text-[9px] font-bold bg-amber-100/60 px-1.5 py-0.5 rounded ml-2 animate-pulse"><i class="fa-solid fa-triangle-exclamation"></i> Cần kiểm tra</span>
         </label>
         <div class="relative">
           <i class="fa-regular fa-clock absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"></i>
-          <input v-model="formStore.customer.time" @focus="handleInputFocus" @blur="handleInputBlur" class="w-full border rounded-xl pl-9 pr-2 py-3 text-xs font-semibold text-slate-800 focus:border-blue-500 focus:ring-4 focus:ring-blue-50 outline-none transition-all" :class="formStore.aiMetadata?.confidences?.time?.needs_review ? 'border-amber-400 bg-amber-50/10 focus:border-amber-500 focus:ring-amber-100' : 'border-slate-200'" placeholder="18:30">
+          <input v-model="formStore.customer.time" @focus="handleInputFocus" @blur="handleInputBlur" class="w-full border rounded-xl pl-9 pr-2 py-3 text-[16px] font-semibold text-slate-800 focus:border-blue-500 focus:ring-4 focus:ring-blue-50 outline-none transition-all" :class="formStore.aiMetadata?.confidences?.time?.needs_review ? 'border-amber-400 bg-amber-50/10 focus:border-amber-500 focus:ring-amber-100' : 'border-slate-200'" placeholder="18:30">
         </div>
         <!-- Quick Chips for Time -->
         <div class="flex gap-1 mt-1.5 flex-wrap">
@@ -185,66 +187,72 @@ function getDayAfterTomorrowStr() {
           <button @click.prevent="formStore.customer.time = '19:00'" class="px-1.5 py-0.5 text-[8px] font-black uppercase tracking-wider rounded bg-slate-50 border border-slate-200 text-slate-500 hover:bg-blue-50 hover:text-blue-600 hover:border-blue-200 active:scale-95 transition-all">19:00</button>
         </div>
       </div>
-      <div class="space-y-1.5 flex flex-col">
+    </div>
+
+    <!-- Row 4: Pax & Tables -->
+    <div class="flex gap-4 w-full">
+      <!-- Số khách (45%) -->
+      <div class="w-[45%] space-y-1.5 flex flex-col">
         <label class="text-[10px] font-black text-slate-500 uppercase tracking-wider ml-1 flex items-center">
           Khách <span class="text-red-500 ml-0.5">*</span>
           <span v-if="formStore.aiMetadata?.confidences?.pax?.needs_review" class="text-amber-600 text-[9px] font-bold bg-amber-100/60 px-1.5 py-0.5 rounded ml-2 animate-pulse"><i class="fa-solid fa-triangle-exclamation"></i> Cần kiểm tra</span>
         </label>
         <div class="relative">
           <i class="fa-solid fa-user-group absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"></i>
-          <input v-model="formStore.customer.pax" @focus="handleInputFocus" @blur="handleInputBlur" class="w-full border rounded-xl pl-9 pr-2 py-3 text-xs font-semibold text-slate-800 focus:border-blue-500 focus:ring-4 focus:ring-blue-50 outline-none transition-all" :class="formStore.aiMetadata?.confidences?.pax?.needs_review ? 'border-amber-400 bg-amber-50/10 focus:border-amber-500 focus:ring-amber-100' : 'border-slate-200'" placeholder="SL">
+          <input v-model="formStore.customer.pax" inputmode="numeric" @focus="handleInputFocus" @blur="handleInputBlur" class="w-full border rounded-xl pl-9 pr-2 py-3 text-[16px] font-semibold text-slate-800 focus:border-blue-500 focus:ring-4 focus:ring-blue-50 outline-none transition-all" :class="formStore.aiMetadata?.confidences?.pax?.needs_review ? 'border-amber-400 bg-amber-50/10 focus:border-amber-500 focus:ring-amber-100' : 'border-slate-200'" placeholder="SL">
         </div>
         <!-- Quick Chips for Pax -->
         <div class="flex gap-1 mt-1.5 flex-wrap">
           <button @click.prevent="formStore.customer.pax = '2'" class="px-1.5 py-0.5 text-[8px] font-black uppercase tracking-wider rounded bg-slate-50 border border-slate-200 text-slate-500 hover:bg-blue-50 hover:text-blue-600 hover:border-blue-200 active:scale-95 transition-all">2</button>
           <button @click.prevent="formStore.customer.pax = '4'" class="px-1.5 py-0.5 text-[8px] font-black uppercase tracking-wider rounded bg-slate-50 border border-slate-200 text-slate-500 hover:bg-blue-50 hover:text-blue-600 hover:border-blue-200 active:scale-95 transition-all">4</button>
-          <button @click.prevent="formStore.customer.pax = '6'" class="px-1.5 py-0.5 text-[8px] font-black uppercase tracking-wider rounded bg-slate-50 border border-slate-200 text-slate-500 hover:bg-blue-50 hover:text-blue-600 hover:border-blue-200 active:scale-95 transition-all">6</button>
           <button @click.prevent="formStore.customer.pax = '10'" class="px-1.5 py-0.5 text-[8px] font-black uppercase tracking-wider rounded bg-slate-50 border border-slate-200 text-slate-500 hover:bg-blue-50 hover:text-blue-600 hover:border-blue-200 active:scale-95 transition-all">10</button>
         </div>
       </div>
-    </div>
-
-    <!-- Row 3: Type & Table -->
-    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-      <div class="space-y-1.5">
-        <label class="text-[10px] font-black text-slate-500 uppercase tracking-wider ml-1">Loại tiệc <span class="text-red-500">*</span></label>
-        <div class="relative">
-          <i class="fa-solid absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" :class="selectedIcon"></i>
-          <select v-model="formStore.customer.type" class="w-full border border-slate-200 rounded-xl pl-10 pr-10 py-3 text-sm font-semibold text-slate-800 focus:border-blue-500 focus:ring-4 focus:ring-blue-50 outline-none transition-all appearance-none bg-white">
-            <option v-for="pt in PARTY_TYPES" :key="pt.name" :value="pt.name">{{ pt.name }}</option>
-          </select>
-          <i class="fa-solid fa-chevron-down absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 text-xs pointer-events-none"></i>
-        </div>
-        <!-- Quick Chips for Party Type -->
-        <div class="flex gap-1 mt-1.5 flex-wrap">
-          <button @click.prevent="formStore.customer.type = 'Ăn thường'" class="px-2 py-0.5 text-[8px] font-black uppercase tracking-wider rounded bg-slate-50 border border-slate-200 text-slate-500 hover:bg-blue-50 hover:text-blue-600 hover:border-blue-200 active:scale-95 transition-all">Ăn thường</button>
-          <button @click.prevent="formStore.customer.type = 'Sinh nhật'" class="px-2 py-0.5 text-[8px] font-black uppercase tracking-wider rounded bg-slate-50 border border-slate-200 text-slate-500 hover:bg-blue-50 hover:text-blue-600 hover:border-blue-200 active:scale-95 transition-all">Sinh nhật</button>
-          <button @click.prevent="formStore.customer.type = 'Liên hoan'" class="px-2 py-0.5 text-[8px] font-black uppercase tracking-wider rounded bg-slate-50 border border-slate-200 text-slate-500 hover:bg-blue-50 hover:text-blue-600 hover:border-blue-200 active:scale-95 transition-all">Liên hoan</button>
-        </div>
-      </div>
-      <div class="space-y-1.5">
+      <!-- Khu / Bàn (55%) -->
+      <div class="w-[55%] space-y-1.5">
         <label class="text-[10px] font-black text-slate-500 uppercase tracking-wider ml-1 flex items-center">
           Khu / Bàn <span class="text-red-500 ml-0.5">*</span>
           <span v-if="formStore.aiMetadata?.confidences?.tables?.needs_review" class="text-amber-600 text-[9px] font-bold bg-amber-100/60 px-1.5 py-0.5 rounded ml-2 animate-pulse"><i class="fa-solid fa-triangle-exclamation"></i> Cần kiểm tra</span>
         </label>
-        <div class="relative flex items-center gap-2">
+        <div class="relative flex items-center gap-1.5">
           <div class="relative flex-1">
-            <i class="fa-solid fa-map-location-dot absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"></i>
-            <input v-model="formStore.customer.tables" @focus="handleInputFocus" @blur="handleInputBlur" class="w-full border rounded-xl pl-10 pr-4 py-3 text-sm font-semibold text-slate-800 focus:border-blue-500 focus:ring-4 focus:ring-blue-50 outline-none transition-all bg-white" :class="formStore.aiMetadata?.confidences?.tables?.needs_review ? 'border-amber-400 bg-amber-50/10 focus:border-amber-500 focus:ring-amber-100' : 'border-slate-200'" placeholder="Nhập hoặc AI tự điền (VD: A1, B2)">
+            <i class="fa-solid fa-map-location-dot absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"></i>
+            <input v-model="formStore.customer.tables" @focus="handleInputFocus" @blur="handleInputBlur" class="w-full border rounded-xl pl-9 pr-2 py-3 text-[16px] font-semibold text-slate-800 focus:border-blue-500 focus:ring-4 focus:ring-blue-50 outline-none transition-all bg-white" :class="formStore.aiMetadata?.confidences?.tables?.needs_review ? 'border-amber-400 bg-amber-50/10 focus:border-amber-500 focus:ring-amber-100' : 'border-slate-200'" placeholder="VD: A1, B2, Sảnh...">
           </div>
-          <button @click="ui.showFloorPlan = true" class="w-12 h-12 bg-blue-50 text-blue-600 hover:bg-blue-100 rounded-xl border border-blue-100 flex items-center justify-center transition-colors active:scale-95 shrink-0" title="Mở sơ đồ bàn">
-            <i class="fa-solid fa-border-all text-xl"></i>
+          <button @click.prevent="ui.showFloorPlan = true" class="w-10 h-10 bg-blue-50 text-blue-600 hover:bg-blue-100 rounded-xl border border-blue-100 flex items-center justify-center transition-colors active:scale-95 shrink-0" title="Mở sơ đồ bàn">
+            <i class="fa-solid fa-border-all text-lg"></i>
           </button>
         </div>
       </div>
     </div>
 
+    <!-- Row 5: Party Type -->
+    <div class="space-y-1.5 w-full">
+      <label class="text-[10px] font-black text-slate-500 uppercase tracking-wider ml-1">Loại tiệc <span class="text-red-500">*</span></label>
+      <div class="relative">
+        <i class="fa-solid absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" :class="selectedIcon"></i>
+        <select v-model="formStore.customer.type" class="w-full border border-slate-200 rounded-xl pl-10 pr-10 py-3 text-[16px] font-semibold text-slate-800 focus:border-blue-500 focus:ring-4 focus:ring-blue-50 outline-none transition-all appearance-none bg-white">
+          <option v-for="pt in PARTY_TYPES" :key="pt.name" :value="pt.name">{{ pt.name }}</option>
+        </select>
+        <i class="fa-solid fa-chevron-down absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 text-xs pointer-events-none"></i>
+      </div>
+      <!-- Quick Chips for Party Type -->
+      <div class="flex gap-1 mt-1.5 flex-wrap">
+        <button @click.prevent="formStore.customer.type = 'Ăn thường'" class="px-2 py-0.5 text-[8px] font-black uppercase tracking-wider rounded bg-slate-50 border border-slate-200 text-slate-500 hover:bg-blue-50 hover:text-blue-600 hover:border-blue-200 active:scale-95 transition-all">Ăn thường</button>
+        <button @click.prevent="formStore.customer.type = 'Sinh nhật'" class="px-2 py-0.5 text-[8px] font-black uppercase tracking-wider rounded bg-slate-50 border border-slate-200 text-slate-500 hover:bg-blue-50 hover:text-blue-600 hover:border-blue-200 active:scale-95 transition-all">Sinh nhật</button>
+        <button @click.prevent="formStore.customer.type = 'Liên hoan'" class="px-2 py-0.5 text-[8px] font-black uppercase tracking-wider rounded bg-slate-50 border border-slate-200 text-slate-500 hover:bg-blue-50 hover:text-blue-600 hover:border-blue-200 active:scale-95 transition-all">Liên hoan</button>
+        <button @click.prevent="formStore.customer.type = 'Công ty'" class="px-2 py-0.5 text-[8px] font-black uppercase tracking-wider rounded bg-slate-50 border border-slate-200 text-slate-500 hover:bg-blue-50 hover:text-blue-600 hover:border-blue-200 active:scale-95 transition-all">Công ty</button>
+        <button @click.prevent="formStore.customer.type = 'Gia đình'" class="px-2 py-0.5 text-[8px] font-black uppercase tracking-wider rounded bg-slate-50 border border-slate-200 text-slate-500 hover:bg-blue-50 hover:text-blue-600 hover:border-blue-200 active:scale-95 transition-all">Gia đình</button>
+        <button @click.prevent="formStore.customer.type = 'Khác'" class="px-2 py-0.5 text-[8px] font-black uppercase tracking-wider rounded bg-slate-50 border border-slate-200 text-slate-500 hover:bg-blue-50 hover:text-blue-600 hover:border-blue-200 active:scale-95 transition-all">Khác</button>
+      </div>
+    </div>
+
     <!-- Notes -->
-    <div class="space-y-1.5">
+    <div class="space-y-1.5 w-full">
       <label class="text-[10px] font-black text-slate-500 uppercase tracking-wider ml-1">Ghi chú yêu cầu</label>
       <div class="relative">
         <i class="fa-solid fa-pen absolute left-4 top-3.5 text-slate-400"></i>
-        <textarea v-model="formStore.customer.note" @focus="handleInputFocus" @blur="handleInputBlur" class="w-full border border-slate-200 rounded-xl pl-10 pr-4 py-3 text-sm font-semibold text-slate-800 focus:border-blue-500 focus:ring-4 focus:ring-blue-50 outline-none transition-all resize-none" rows="2" placeholder="VD: Trang trí sinh nhật, không lấy đá..."></textarea>
+        <textarea v-model="formStore.customer.note" @focus="handleInputFocus" @blur="handleInputBlur" class="w-full border border-slate-200 rounded-xl pl-10 pr-4 py-3 text-[16px] font-semibold text-slate-800 focus:border-blue-500 focus:ring-4 focus:ring-blue-50 outline-none transition-all resize-none" rows="2" placeholder="VD: Trang trí sinh nhật, không lấy đá..."></textarea>
       </div>
     </div>
   </div>

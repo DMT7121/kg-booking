@@ -119,6 +119,10 @@ function _createForm() {
   )
 
   async function toggleDepositState() {
+    if (!formStore.customer.name) {
+      uiStore.showAlert('Thiếu thông tin bắt buộc', 'Chưa có tên khách hàng. Vui lòng nhập tên khách hoặc nạp lại dữ liệu trước khi xuất/xác nhận phiếu.')
+      return
+    }
     if (!formStore.deposit.isPaid) {
       const note = await uiStore.showPrompt('Xác Nhận Đặt Cọc', 'Nhập lý do/ghi chú:', 'CK Thành công')
       if (note !== null) {
@@ -173,8 +177,11 @@ function _createForm() {
   // --- Validation ---
   function validateForm(): boolean {
     const c = formStore.customer
+    if (!c.name?.trim()) {
+      uiStore.showAlert('Thiếu thông tin bắt buộc', 'Chưa có tên khách hàng. Vui lòng nhập tên khách hoặc nạp lại dữ liệu trước khi xuất/xác nhận phiếu.')
+      return false
+    }
     const missing: string[] = []
-    if (!c.name) missing.push('Người đặt')
     if (!c.phone) missing.push('SĐT/Zalo')
     if (!c.date) missing.push('Ngày')
     if (!c.time) missing.push('Giờ')
