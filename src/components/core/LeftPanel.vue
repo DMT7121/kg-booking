@@ -520,21 +520,36 @@ function goToTomorrowTimeline() {
     </transition>
 
     <!-- MOBILE BOTTOM NAV -->
-    <div v-show="!ui.isKeyboardOpen" class="flex md:hidden w-full bg-white border-t border-slate-200/85 text-[9px] font-black uppercase tracking-wider relative z-20 items-stretch shrink-0 pb-safe-bottom shadow-[0_-4px_16px_rgba(0,0,0,0.03)] bg-white/95 backdrop-blur-md">
-      <button @click="ui.tab = 'dashboard'" :class="['flex-grow flex-1 py-2 flex flex-col justify-center items-center gap-1 transition-all', ui.tab === 'dashboard' ? 'text-blue-700 bg-blue-50/40' : 'text-slate-400']">
-        <i class="fa-solid fa-gauge-high text-sm"></i> <span>Tổng quan</span>
+    <div v-show="!ui.isKeyboardOpen" class="flex md:hidden w-full bg-slate-900 border-t border-slate-800 text-[10px] font-bold uppercase tracking-wider relative z-20 items-stretch shrink-0 pb-safe-bottom shadow-[0_-8px_30px_rgba(0,0,0,0.3)]">
+      <button @click="ui.tab = 'dashboard'" :class="['flex-grow flex-1 py-2 flex flex-col justify-center items-center gap-0.5 transition-all duration-200 select-none min-h-[48px]', ui.tab === 'dashboard' ? 'text-blue-400 bg-slate-850/50' : 'text-slate-400 hover:text-slate-300']">
+        <div class="relative flex items-center justify-center w-8 h-8 rounded-full transition-all" :class="ui.tab === 'dashboard' ? 'bg-blue-500/15 text-blue-400 scale-105' : ''">
+          <i class="fa-solid fa-gauge-high text-base"></i>
+        </div>
+        <span class="text-[9px] font-extrabold tracking-tight">Tổng quan</span>
       </button>
-      <button @click="ui.tab = 'create'" :class="['flex-grow flex-1 py-2 flex flex-col justify-center items-center gap-1 transition-all', ui.tab === 'create' ? 'text-blue-700 bg-blue-50/40' : 'text-slate-400']">
-        <i class="fa-solid fa-plus text-sm"></i> <span>Tạo</span>
+      <button @click="ui.tab = 'create'" :class="['flex-grow flex-1 py-2 flex flex-col justify-center items-center gap-0.5 transition-all duration-200 select-none min-h-[48px]', ui.tab === 'create' ? 'text-blue-400 bg-slate-850/50' : 'text-slate-400 hover:text-slate-300']">
+        <div class="relative flex items-center justify-center w-8 h-8 rounded-full transition-all" :class="ui.tab === 'create' ? 'bg-blue-500/15 text-blue-400 scale-105' : ''">
+          <i class="fa-solid fa-plus text-base"></i>
+        </div>
+        <span class="text-[9px] font-extrabold tracking-tight">Tạo</span>
       </button>
-      <button @click="ui.tab = 'timeline'; appStore.loadHistory(false)" :class="['flex-grow flex-1 py-2 flex flex-col justify-center items-center gap-1 transition-all', ui.tab === 'timeline' ? 'text-blue-700 bg-blue-50/40' : 'text-slate-400']">
-        <i class="fa-solid fa-calendar-days text-sm"></i> <span>Lịch</span>
+      <button @click="ui.tab = 'timeline'; appStore.loadHistory(false)" :class="['flex-grow flex-1 py-2 flex flex-col justify-center items-center gap-0.5 transition-all duration-200 select-none min-h-[48px]', ui.tab === 'timeline' ? 'text-blue-400 bg-slate-850/50' : 'text-slate-400 hover:text-slate-300']">
+        <div class="relative flex items-center justify-center w-8 h-8 rounded-full transition-all" :class="ui.tab === 'timeline' ? 'bg-blue-500/15 text-blue-400 scale-105' : ''">
+          <i class="fa-solid fa-calendar-days text-base"></i>
+        </div>
+        <span class="text-[9px] font-extrabold tracking-tight">Lịch</span>
       </button>
-      <button @click="ui.tab = 'preview'" :class="['flex-grow flex-1 py-2 flex flex-col justify-center items-center gap-1 transition-all', ui.tab === 'preview' ? 'text-blue-700 bg-blue-50/40' : 'text-slate-400']">
-        <i class="fa-solid fa-eye text-sm"></i> <span>Phiếu</span>
+      <button @click="ui.tab = 'preview'" :class="['flex-grow flex-1 py-2 flex flex-col justify-center items-center gap-0.5 transition-all duration-200 select-none min-h-[48px]', ui.tab === 'preview' ? 'text-blue-400 bg-slate-850/50' : 'text-slate-400 hover:text-slate-300']">
+        <div class="relative flex items-center justify-center w-8 h-8 rounded-full transition-all" :class="ui.tab === 'preview' ? 'bg-blue-500/15 text-blue-400 scale-105' : ''">
+          <i class="fa-solid fa-eye text-base"></i>
+        </div>
+        <span class="text-[9px] font-extrabold tracking-tight">Phiếu</span>
       </button>
-      <button @click="showMoreSheet = true" :class="['flex-grow flex-1 py-2 flex flex-col justify-center items-center gap-1 transition-all', showMoreSheet ? 'text-blue-700 bg-blue-50/40' : 'text-slate-400']">
-        <i class="fa-solid fa-ellipsis text-sm"></i> <span>Thêm</span>
+      <button @click="showMoreSheet = true" :class="['flex-grow flex-1 py-2 flex flex-col justify-center items-center gap-0.5 transition-all duration-200 select-none min-h-[48px]', showMoreSheet ? 'text-blue-400 bg-slate-850/50' : 'text-slate-400 hover:text-slate-300']">
+        <div class="relative flex items-center justify-center w-8 h-8 rounded-full transition-all" :class="showMoreSheet ? 'bg-blue-500/15 text-blue-400 scale-105' : ''">
+          <i class="fa-solid fa-ellipsis text-base"></i>
+        </div>
+        <span class="text-[9px] font-extrabold tracking-tight">Thêm</span>
       </button>
     </div>
   </div>
