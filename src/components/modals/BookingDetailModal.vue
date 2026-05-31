@@ -14,8 +14,10 @@ function close() {
   ui.selectedBooking = null
 }
 
-function handleEdit() {
+async function handleEdit() {
   if (!ui.selectedBooking) return
+  const isAdmin = await appStore.verifyAdminSession()
+  if (!isAdmin) return
   editHistoricOrder(ui.selectedBooking)
   ui.tab = 'create'
   close()
@@ -26,8 +28,9 @@ async function handleDelete() {
   const confirmed = await ui.showConfirm('Xác Nhận Xóa', 'Bạn có chắc chắn muốn xóa bản ghi này?')
   if (!confirmed) return
   
-  const pass = await ui.showPrompt('Bảo mật', 'Nhập Password Quản Trị để xóa đơn:')
-  if (pass === null) return
+  const isAdmin = await appStore.verifyAdminSession()
+  if (!isAdmin) return
+  const pass = appStore.sessionPassword
 
   ui.loading.is = true
   ui.loading.msg = 'ĐANG XÓA...'

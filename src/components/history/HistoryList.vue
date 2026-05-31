@@ -66,13 +66,21 @@ function shareBillLink(orderId: string, name: string) {
   })
 }
 
+// --- Edit ---
+async function handleEditOrder(order: any) {
+  const isAdmin = await appStore.verifyAdminSession()
+  if (!isAdmin) return
+  editHistoricOrder(order)
+}
+
 // --- Delete ---
 async function deleteHistoricOrder(id: string) {
   const confirmed = await ui.showConfirm('Xác Nhận Xóa', 'Bạn có chắc chắn muốn xóa bản ghi này?')
   if (!confirmed) return
   
-  const pass = await ui.showPrompt('Bảo mật', 'Nhập Password Quản Trị để xóa đơn:')
-  if (pass === null) return
+  const isAdmin = await appStore.verifyAdminSession()
+  if (!isAdmin) return
+  const pass = appStore.sessionPassword
 
   ui.loading.is = true
   ui.loading.msg = 'ĐANG XÓA...'
@@ -95,8 +103,9 @@ async function deleteBatchOrders() {
   const confirmed = await ui.showConfirm('Xóa Nhiều Đơn', `Bạn có chắc chắn muốn xóa vĩnh viễn ${ui.selectedIds.length} phiếu đã chọn?\nHành động này không thể hoàn tác.`)
   if (!confirmed) return
 
-  const pass = await ui.showPrompt('Bảo mật', 'Nhập Password Quản Trị để xóa hàng loạt:')
-  if (pass === null) return
+  const isAdmin = await appStore.verifyAdminSession()
+  if (!isAdmin) return
+  const pass = appStore.sessionPassword
 
   ui.loading.is = true
   ui.loading.msg = 'ĐANG XÓA...'
@@ -305,7 +314,7 @@ function isOrderCared(id: string) {
             <button @click="ui.activeOrderForCare = group.latest; ui.showCustomerCareModal = true" class="flex items-center gap-1.5 text-[11px] font-black text-rose-500 hover:text-rose-700 transition-colors active:scale-95">
               <i class="fa-solid fa-heart"></i> CSKH
             </button>
-            <button @click="editHistoricOrder(group.latest)" class="flex items-center gap-1.5 text-[11px] font-black text-blue-600 hover:text-blue-800 transition-colors active:scale-95">
+            <button @click="handleEditOrder(group.latest)" class="flex items-center gap-1.5 text-[11px] font-black text-blue-600 hover:text-blue-800 transition-colors active:scale-95">
               <i class="fa-solid fa-pen"></i> Sửa
             </button>
             <button @click="shareBillLink(group.latest.id, group.latest.parsedCustomer?.name)" class="flex items-center gap-1.5 text-[11px] font-black text-blue-600 hover:text-blue-800 transition-colors active:scale-95">

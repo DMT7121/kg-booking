@@ -47,8 +47,10 @@ function _createBillRender() {
   }
 
   // --- Trigger Save ---
-  function triggerSave(type: string, validateFn?: () => boolean) {
+  async function triggerSave(type: string, validateFn?: () => boolean) {
     if (validateFn && !validateFn()) return
+    const isAdmin = await appStore.verifyAdminSession()
+    if (!isAdmin) return
     uiStore.pendingAction = type
     uiStore.showStaffSelector = true
   }
