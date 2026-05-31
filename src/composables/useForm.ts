@@ -56,7 +56,7 @@ function _createForm() {
   }
 
   // --- Input Focus/Blur (keyboard detection) ---
-  function handleInputFocus(e: FocusEvent) {
+  function handleInputFocus(e?: FocusEvent) {
     uiStore.isKeyboardOpen = true
     if (!isIOS) {
       setTimeout(() => {
