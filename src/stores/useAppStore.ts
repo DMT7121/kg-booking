@@ -397,14 +397,12 @@ export const useAppStore = defineStore('app', () => {
     staffList.value.push({ ...newStaff })
     localStorage.setItem(CACHE_KEYS.STAFF, JSON.stringify(staffList.value))
     Object.assign(newStaff, { name: '', phone: '' })
-    updateRemoteConfig()
   }
 
   function removeStaff(idx: number) {
     if (staffList.value.length > 1) {
       staffList.value.splice(idx, 1)
       localStorage.setItem(CACHE_KEYS.STAFF, JSON.stringify(staffList.value))
-      updateRemoteConfig()
     } else {
       uiStore.showToast('Phải giữ lại ít nhất 1 nhân viên!', 'warning')
     }
@@ -476,7 +474,7 @@ export const useAppStore = defineStore('app', () => {
   async function verifyAdminSession(): Promise<boolean> {
     const now = Date.now()
     const lastTime = lastAuthTime.value
-    const isSessionValid = sessionPassword.value === 'ADMINDMT' && 
+    const isSessionValid = sessionPassword.value && 
                            lastTime > 0 && 
                            (now - lastTime) < 30 * 60 * 1000 // 30 minutes
     
@@ -492,15 +490,15 @@ export const useAppStore = defineStore('app', () => {
     sessionStorage.removeItem('kg_admin_session_pass')
     sessionStorage.removeItem('kg_admin_session_time')
 
-    const pass = await uiStore.showPrompt('Xác thực Admin', 'Vui lòng nhập mật khẩu Admin ("ADMINDMT"):')
-    if (pass === 'ADMINDMT') {
+    const pass = await uiStore.showPrompt('Xác thực Admin', 'Vui lòng nhập mật khẩu cấu hình:')
+    if (pass) {
       sessionPassword.value = pass
       lastAuthTime.value = now
       sessionStorage.setItem('kg_admin_session_pass', pass)
       sessionStorage.setItem('kg_admin_session_time', String(now))
       return true
     } else if (pass !== null) {
-      uiStore.showToast('Sai mật khẩu Admin!', 'error')
+      uiStore.showToast('Vui lòng nhập mật khẩu!', 'warning')
     }
     return false
   }

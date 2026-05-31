@@ -21,18 +21,13 @@ const otherStaff = computed(() => {
   return list
 })
 
-async function toggleStaffActive(staff: any) {
-  const isAdmin = await appStore.verifyAdminSession()
-  if (!isAdmin) return
+function toggleStaffActive(staff: any) {
   staff.isActive = staff.isActive === false ? true : false
   localStorage.setItem(CACHE_KEYS.STAFF, JSON.stringify(appStore.staffList))
-  await appStore.updateRemoteConfig()
+  ui.showToast('Đã cập nhật trạng thái hiển thị', 'success')
 }
 
 async function handleAddNewStaff() {
-  const isAdmin = await appStore.verifyAdminSession()
-  if (!isAdmin) return
-
   const name = await ui.showPrompt('Thêm Nhân Viên', 'Nhập Tên nhân viên:')
   if (!name) return
   const phone = await ui.showPrompt('Thêm Nhân Viên', 'Nhập Số điện thoại:')
@@ -40,13 +35,9 @@ async function handleAddNewStaff() {
   appStore.staffList.push({ name, phone, isActive: false, role: 'Nhân viên' })
   ui.showToast('Đã thêm nhân viên mới', 'success')
   localStorage.setItem(CACHE_KEYS.STAFF, JSON.stringify(appStore.staffList))
-  await appStore.updateRemoteConfig()
 }
 
 async function handleStaffOptions(staff: any, idx: number) {
-  const isAdmin = await appStore.verifyAdminSession()
-  if (!isAdmin) return
-
   const choice = await ui.showConfirm('Quản lý nhân sự', `Nhấn "OK" để SỬA thông tin của ${staff.name}.\nNhấn "Cancel/Hủy" để XÓA nhân viên này.`)
   if (choice) {
     const newName = await ui.showPrompt('Sửa Tên', 'Nhập Tên nhân viên mới:', staff.name)
@@ -59,7 +50,6 @@ async function handleStaffOptions(staff: any, idx: number) {
     
     ui.showToast('Đã cập nhật thông tin nhân viên', 'success')
     localStorage.setItem(CACHE_KEYS.STAFF, JSON.stringify(appStore.staffList))
-    await appStore.updateRemoteConfig()
   } else {
     const confirmDelete = await ui.showConfirm('Xác nhận xóa', `Bạn có chắc chắn muốn XÓA nhân viên ${staff.name}?`)
     if (!confirmDelete) return
@@ -68,17 +58,15 @@ async function handleStaffOptions(staff: any, idx: number) {
       appStore.staffList.splice(idx, 1)
       ui.showToast('Đã xóa nhân viên', 'success')
       localStorage.setItem(CACHE_KEYS.STAFF, JSON.stringify(appStore.staffList))
-      await appStore.updateRemoteConfig()
     } else {
       ui.showToast('Phải giữ lại ít nhất 1 nhân viên!', 'warning')
     }
   }
 }
 
-async function handleSave() {
+function handleSave() {
   localStorage.setItem(CACHE_KEYS.STAFF, JSON.stringify(appStore.staffList))
-  ui.showToast('Đang lưu thay đổi cấu hình...', 'info')
-  await appStore.updateRemoteConfig()
+  ui.showToast('Đã lưu thay đổi cấu hình nhân sự!', 'success')
   ui.closeConfig()
 }
 </script>
