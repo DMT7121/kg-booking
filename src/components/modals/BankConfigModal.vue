@@ -12,13 +12,13 @@ const editIndex = ref(-1)
 
 // Initialize form
 function resetForm() {
-  appStore.newBank = {
+  Object.assign(appStore.newBank, {
     bankId: '',
     name: '',
     number: '',
     owner: '',
     template: 'compact'
-  }
+  })
   isEditing.value = false
   editIndex.value = -1
 }
@@ -50,18 +50,16 @@ async function saveBank() {
   if (isEditing.value && editIndex.value >= 0) {
     appStore.bankList[editIndex.value] = { ...appStore.newBank }
     localStorage.setItem(CACHE_KEYS.BANK, JSON.stringify(appStore.bankList))
+    await appStore.updateRemoteConfig('bank')
   } else {
-    appStore.addBank()
-    resetForm()
-    return
+    await appStore.addBank()
   }
-  appStore.updateRemoteConfig()
   resetForm()
 }
 
 function editBank(idx: number) {
   const bank = appStore.bankList[idx]
-  appStore.newBank = { ...bank }
+  Object.assign(appStore.newBank, bank)
   isEditing.value = true
   editIndex.value = idx
 }
@@ -73,7 +71,7 @@ async function deleteBank(idx: number) {
   const isAdmin = await appStore.verifyAdminSession()
   if (!isAdmin) return
 
-  appStore.removeBank(idx)
+  await appStore.removeBank(idx)
 }
 
 // Generate simple colors based on bin to mimic logos
