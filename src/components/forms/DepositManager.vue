@@ -77,7 +77,7 @@ function onDrop(e: DragEvent) {
       <div>
         <div class="font-black text-[10px] uppercase tracking-wider">Mặc định giữ bàn (Chưa đặt món)</div>
         <div class="text-[10px] mt-0.5 leading-relaxed font-semibold">
-          Quy định: cọc <span class="font-black text-red-650">500.000đ</span> (dưới 20 khách) hoặc <span class="font-black text-red-650">1.000.000đ</span> (từ 20 khách trở lên).
+           Quy định: cọc <span class="font-black text-red-600">500.000đ</span> (dưới 20 khách) hoặc <span class="font-black text-red-600">1.000.000đ</span> (từ 20 khách trở lên).
         </div>
       </div>
     </div>

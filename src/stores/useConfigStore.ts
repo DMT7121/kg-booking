@@ -29,6 +29,7 @@ export const useConfigStore = defineStore('config', () => {
   })
 
   const keys = reactive<Record<string, string[]>>(savedKeys)
+  const keysStatus = reactive<Record<string, { configured: boolean, count: number, maskedList: string[] }>>({})
   const defaults = reactive(
     JSON.parse(localStorage.getItem(CACHE_KEYS.DEFAULTS) || '{"text":"openai/gpt-oss-120b", "vision":"gemini-2.5-flash"}')
   )
@@ -47,11 +48,15 @@ export const useConfigStore = defineStore('config', () => {
   // --- Computed ---
   const textModels = computed(() => AI_MODELS.filter(m => m.type === 'text').sort((a, b) => a.tier - b.tier))
   const visionModels = computed(() => AI_MODELS.filter(m => m.type === 'vision').sort((a, b) => a.tier - b.tier))
-  const totalKeyCount = computed(() => Object.values(keys).reduce((a, b) => a + (b?.length || 0), 0))
-  const totalKeysHasData = computed(() => totalKeyCount.value > 1)
+  const totalKeyCount = computed(() => {
+    return Object.values(keysStatus).reduce((a, b) => a + (b?.count || 0), 0)
+  })
+  const totalKeysHasData = computed(() => {
+    return Object.values(keysStatus).some(status => status.configured)
+  })
 
   function getKeyCount(pId: string): number {
-    return keys[pId]?.length || 0
+    return keysStatus[pId]?.count || 0
   }
 
   function toggleKeyVisibility(pId: string, idx: number) {
@@ -78,28 +83,39 @@ export const useConfigStore = defineStore('config', () => {
     }
 
     try {
-      keys[pId].push(keyVal)
       tempKeys[pId] = ''
-      localStorage.setItem(CACHE_KEYS.KEYS, JSON.stringify(keys))
-
       const data = await api.saveApiKeyToCloud(pId, keyVal, '', appStore.adminToken)
       if (data.ok) {
         uiStore.showToast(`Đã lưu & đồng bộ API Key ${PLATFORMS[pId].name} lên Server!`, 'success')
+        await hydrateAiRuntimeConfig()
       } else {
         if (data.message?.toLowerCase().includes('trùng')) {
           uiStore.showToast('Key đã có sẵn trên Cloud, bỏ qua lưu trùng.', 'info')
         } else {
-          uiStore.showToast(`Lưu cục bộ OK nhưng đồng bộ Cloud bị lỗi: ${data.message}`, 'warning')
+          uiStore.showToast(`Lỗi lưu API Key: ${data.message}`, 'error')
         }
       }
     } catch (e: any) {
-      uiStore.showToast('Lưu cục bộ hoàn tất (Lỗi đồng bộ).', 'warning')
+      uiStore.showToast(`Lỗi đồng bộ API Key: ${e.message}`, 'error')
     }
   }
 
-  function deleteApiKey(pId: string, idx: number) {
-    keys[pId].splice(idx, 1)
-    localStorage.setItem(CACHE_KEYS.KEYS, JSON.stringify(keys))
+  async function deleteApiKey(pId: string, idx: number) {
+    const appStore = useAppStore()
+    const isAdmin = await appStore.verifyAdminSession()
+    if (!isAdmin) return
+
+    try {
+      const data = await api.deleteApiKeyFromCloud(pId, idx, appStore.adminToken)
+      if (data.ok) {
+        uiStore.showToast('Đã xóa API Key thành công!', 'success')
+        await hydrateAiRuntimeConfig()
+      } else {
+        uiStore.showToast(data.message || 'Xóa API Key thất bại', 'error')
+      }
+    } catch (e: any) {
+      uiStore.showToast(`Lỗi: ${e.message}`, 'error')
+    }
   }
 
   async function borrowKeys(pass?: string) {
@@ -127,6 +143,24 @@ export const useConfigStore = defineStore('config', () => {
       }
     } catch (e: any) {
       console.error(e)
+    }
+  }
+
+  async function hydrateAiRuntimeConfig() {
+    try {
+      const data = await api.getAiRuntimeConfig()
+      if (data.ok && data.keysStatus) {
+        Object.keys(keysStatus).forEach(k => delete keysStatus[k])
+        Object.keys(data.keysStatus).forEach(provider => {
+          keysStatus[provider] = data.keysStatus[provider]
+        })
+        if (data.defaults) {
+          defaults.text = data.defaults.text || defaults.text
+          defaults.vision = data.defaults.vision || defaults.vision
+        }
+      }
+    } catch (e) {
+      console.error('Failed to load AI runtime config:', e)
     }
   }
 
@@ -178,10 +212,10 @@ export const useConfigStore = defineStore('config', () => {
 
   return {
     branding,
-    keys, defaults, visibleKeys, tempKeys, borrowPass,
+    keys, keysStatus, defaults, visibleKeys, tempKeys, borrowPass,
     textModels, visionModels, totalKeyCount, totalKeysHasData,
     getKeyCount, toggleKeyVisibility,
-    saveApiKey, deleteApiKey, borrowKeys: borrowKeys,
+    saveApiKey, deleteApiKey, borrowKeys: borrowKeys, hydrateAiRuntimeConfig,
     saveBranding, handleLogoUpload
   }
 })

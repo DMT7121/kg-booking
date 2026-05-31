@@ -148,6 +148,10 @@ export async function saveApiKeyToCloud(provider: string, key: string, password:
   return postGAS({ action: 'saveApiKey', provider, key, password, token })
 }
 
+export async function deleteApiKeyFromCloud(provider: string, index: number, token?: string): Promise<any> {
+  return postGAS({ action: 'deleteApiKey', provider, index, token })
+}
+
 /** Borrow API keys from admin */
 export async function borrowApiKeys(password: string): Promise<any> {
   return postGAS({ action: 'borrowApiKeys', password })
@@ -204,6 +208,23 @@ export async function saveAiApiConfig(token: string, config: any): Promise<any> 
 
 export async function testAiApiKey(token: string, provider: string, apiKey: string): Promise<any> {
   return postGAS({ action: 'testAiApiKey', token, provider, apiKey })
+}
+
+export async function getAiRuntimeConfig(): Promise<any> {
+  return postGAS({ action: 'getAiRuntimeConfig' })
+}
+
+export async function callAiProxy(payload: {
+  provider: string
+  model: string
+  sysPrompt: string
+  userPrompt: string
+  image?: string | null
+  jsonMode?: boolean
+  format?: string
+  url: string
+}): Promise<any> {
+  return postGAS({ action: 'callAiService', ...payload })
 }
 
 export async function callAiService(payload: {

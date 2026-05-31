@@ -212,13 +212,13 @@ async function handleDeleteAlias(alias: string) {
             </div>
 
             <!-- Key Pills -->
-            <div class="flex flex-wrap gap-2 pl-12" v-if="configStore.keys[pId]?.length > 0">
-              <div v-for="(key, idx) in configStore.keys[pId].slice(0, 3)" :key="idx" class="flex items-center gap-1.5 bg-slate-50 border border-slate-200 px-2.5 py-1 rounded-md group">
-                <span @click="handleKeyClick(pId as string, idx)" class="font-mono text-[10px] font-bold text-slate-600 cursor-pointer hover:text-rose-500 transition-colors" title="Nhấn để xóa">{{ key.substring(0, 6) }}...{{ key.slice(-4) }}</span>
-                <i class="fa-regular fa-copy cursor-pointer text-slate-400 hover:text-blue-900 transition-colors text-[10px]" @click="copyToClipboard(key)"></i>
+            <div class="flex flex-wrap gap-2 pl-12" v-if="configStore.keysStatus[pId]?.configured">
+              <div v-for="(maskedKey, idx) in configStore.keysStatus[pId]?.maskedList.slice(0, 3)" :key="idx" class="flex items-center gap-1.5 bg-slate-50 border border-slate-200 px-2.5 py-1 rounded-md group">
+                <span @click="handleKeyClick(pId as string, idx)" class="font-mono text-[10px] font-bold text-slate-600 cursor-pointer hover:text-rose-500 transition-colors" title="Nhấn để xóa">{{ maskedKey }}</span>
+                <i class="fa-regular fa-copy cursor-pointer text-slate-400 hover:text-blue-900 transition-colors text-[10px]" @click="copyToClipboard(maskedKey)"></i>
               </div>
-              <div v-if="configStore.keys[pId].length > 3" class="flex items-center px-2 py-1 rounded-md text-[10px] font-bold text-slate-400">
-                +{{ configStore.keys[pId].length - 3 }} keys
+              <div v-if="(configStore.keysStatus[pId]?.count || 0) > 3" class="flex items-center px-2 py-1 rounded-md text-[10px] font-bold text-slate-400">
+                +{{ configStore.keysStatus[pId].count - 3 }} keys
               </div>
             </div>
             <!-- Free pill for pollinations -->

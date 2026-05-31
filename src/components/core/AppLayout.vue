@@ -54,6 +54,11 @@ watch(() => ui.tab, (v) => {
 })
 
 // --- Mounted ---
+function setAppHeight() {
+  const height = window.visualViewport?.height || window.innerHeight
+  document.documentElement.style.setProperty('--app-height', `${height}px`)
+}
+
 onMounted(() => {
   if (!formStore.id) formStore.id = crypto.randomUUID()
   ui.isVoiceSupported = 'webkitSpeechRecognition' in window || 'SpeechRecognition' in window
@@ -62,6 +67,7 @@ onMounted(() => {
   appStore.fetchMenu()
   appStore.loadHistory(true)
   appStore.fetchRemoteConfig()
+  configStore.hydrateAiRuntimeConfig()
 
   // Keyboard detection via visualViewport
   if (window.visualViewport) {
@@ -73,6 +79,12 @@ onMounted(() => {
       ui.isKeyboardOpen = window.visualViewport!.height < maxViewportHeight * 0.85
     })
   }
+
+  // Visual Viewport height setup
+  window.visualViewport?.addEventListener('resize', setAppHeight)
+  window.visualViewport?.addEventListener('scroll', setAppHeight)
+  window.addEventListener('resize', setAppHeight)
+  setAppHeight()
 
   // Preview scaling
   window.addEventListener('resize', () => {
@@ -94,6 +106,9 @@ onMounted(() => {
 
 onUnmounted(() => {
   window.removeEventListener('keydown', handleGlobalKeydown)
+  window.visualViewport?.removeEventListener('resize', setAppHeight)
+  window.visualViewport?.removeEventListener('scroll', setAppHeight)
+  window.removeEventListener('resize', setAppHeight)
 })
 
 const searchQuery = ref('')
@@ -288,20 +303,20 @@ function handleGlobalKeydown(e: KeyboardEvent) {
     </div>
 
     <!-- SETTINGS HUB MODAL -->
-    <div v-if="ui.showSettingsHub" class="absolute inset-0 bg-slate-50 z-[12000] flex flex-col overflow-hidden">
+    <div v-if="ui.showSettingsHub" class="absolute inset-0 bg-slate-50 z-[12000] flex flex-col md:flex-row overflow-hidden">
       <!-- Left Sidebar (Menu) -->
-      <div class="w-full bg-slate-50 flex flex-col h-full shrink-0 shadow-[4px_0_24px_rgba(0,0,0,0.02)] z-20 overflow-y-auto custom-scrollbar" :class="{'hidden': ui.activeSettingModal}">
+      <div class="w-full md:w-80 bg-slate-50 flex flex-col h-full shrink-0 shadow-[4px_0_24px_rgba(0,0,0,0.02)] z-20 overflow-y-auto custom-scrollbar md:border-r md:border-slate-200" :class="{'hidden md:flex': ui.activeSettingModal, 'flex': !ui.activeSettingModal}">
         <!-- Top Header -->
         <div class="bg-white px-4 py-4 flex items-center justify-between sticky top-0 z-10 shadow-sm border-b border-slate-100">
           <button @click="ui.showSettingsHub = false; ui.closeConfig()" class="w-10 h-10 flex items-center justify-center text-slate-800 text-xl active:scale-95 transition-transform">
-          <i class="fa-solid fa-arrow-left"></i>
-        </button>
-        <div class="text-center flex-1">
-          <h2 class="text-xl font-black text-blue-900">Cài đặt</h2>
-          <p class="text-[10px] font-bold text-slate-400 mt-0.5">Quản lý thông tin và thiết lập hệ thống</p>
+            <i class="fa-solid fa-arrow-left"></i>
+          </button>
+          <div class="text-center flex-1">
+            <h2 class="text-xl font-black text-blue-900">Cài đặt</h2>
+            <p class="text-[10px] font-bold text-slate-400 mt-0.5">Quản lý hệ thống</p>
+          </div>
+          <div class="w-10 h-10"></div>
         </div>
-        <div class="w-10 h-10"></div> <!-- Placeholder for balance -->
-      </div>
 
       <div class="p-4 md:p-6 max-w-2xl mx-auto w-full space-y-6 pb-20">
         <!-- Brand Card -->
@@ -427,7 +442,12 @@ function handleGlobalKeydown(e: KeyboardEvent) {
       </div> <!-- Closes Sidebar -->
 
       <!-- Right Content Area (Modals) -->
-      <div class="flex-1 h-full overflow-hidden relative bg-white flex flex-col" :class="{'hidden': !ui.activeSettingModal}">
+      <div class="flex-1 h-full overflow-hidden relative bg-white flex flex-col" :class="{'hidden md:flex': !ui.activeSettingModal, 'flex': ui.activeSettingModal}">
+        <div v-if="!ui.activeSettingModal" class="hidden md:flex flex-col items-center justify-center h-full text-slate-400 p-8 text-center bg-slate-50/50">
+          <i class="fa-solid fa-gear text-4xl mb-4 text-slate-300"></i>
+          <h3 class="font-black text-slate-700 text-xs uppercase tracking-wider">Cấu hình hệ thống</h3>
+          <p class="text-[10px] font-bold text-slate-400 mt-2 max-w-xs leading-relaxed">Chọn một danh mục cài đặt bên trái để bắt đầu cấu hình các tính năng.</p>
+        </div>
         <AiConfigModal />
         <BankConfigModal />
         <BrandingModal />

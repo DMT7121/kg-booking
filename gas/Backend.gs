@@ -101,8 +101,10 @@ function doPost(e) {
       case "uploadDishImage": result = uploadDishImage(data.dishId, data.base64, data.password, data.token); break;
       case "saveConfig": result = saveSystemConfig(data, data.password); break;
       case "getConfig": result = getSystemConfig(); break;
+      case "getAiRuntimeConfig": result = getAiRuntimeConfig(); break;
       case "renderPreview": result = renderPreview(data.data); break;
       case "saveApiKey": result = saveApiKey(data.provider, data.model, data.key, data.password, data.token); break;
+      case "deleteApiKey": result = deleteApiKey(data.provider, data.index, data.token); break;
       case "saveApiKeys": result = saveApiKeys(data.keys, data.password, data.token); break;
       case "borrowApiKeys": result = getSharedApiKeys(data.password, data.token); break;
       
@@ -931,9 +933,56 @@ function saveApiKey(provider, model, key, password, token) {
   const exists = data.some(row => row[1] === provider && row[3] === key);
   if (!exists) {
     sheet.appendRow([new Date(), provider, model || "default", key, "Active"]);
-    return { ok: true, message: "Key saved successfully" };
   }
-  return { ok: false, message: "Key đã có sẵn trên Cloud, bỏ qua lưu trùng." };
+
+  // Update System_Config key
+  const apiKeys = getApiKeysFromConfig_();
+  let prov = String(provider).toLowerCase();
+  if (prov === 'gemini') prov = 'google';
+  if (!apiKeys[prov]) apiKeys[prov] = [];
+  if (apiKeys[prov].indexOf(key) === -1) {
+    apiKeys[prov].push(key);
+    saveApiKeysToConfig_(apiKeys, "admin");
+  }
+
+  try {
+    CacheService.getScriptCache().remove("system_config");
+  } catch(e) {}
+
+  return { ok: true, message: "Key saved successfully" };
+}
+
+function deleteApiKey(provider, index, token) {
+  if (!verifyAdminSettingsToken(token)) {
+    return { ok: false, message: "Từ chối truy cập! Quyền Admin không hợp lệ." };
+  }
+  const apiKeys = getApiKeysFromConfig_();
+  let prov = String(provider).toLowerCase();
+  if (prov === 'gemini') prov = 'google';
+  const keysList = apiKeys[prov] || [];
+  if (index >= 0 && index < keysList.length) {
+    const deletedKey = keysList.splice(index, 1)[0];
+    saveApiKeysToConfig_(apiKeys, "admin");
+    
+    // Also delete/deactivate from legacy API_Keys sheet
+    const ss = SpreadsheetApp.openById(CONFIG.SS_ID);
+    const keysSheet = ss.getSheetByName(CONFIG.SHEET_NAME_KEYS);
+    if (keysSheet) {
+      const rows = keysSheet.getDataRange().getValues();
+      for (let i = 1; i < rows.length; i++) {
+        if (rows[i][1] === provider && rows[i][3] === deletedKey) {
+          keysSheet.getRange(i + 1, 5).setValue("Inactive");
+        }
+      }
+    }
+    
+    try {
+      CacheService.getScriptCache().remove("system_config");
+    } catch(e) {}
+    
+    return { ok: true, message: "Key deleted successfully" };
+  }
+  return { ok: false, message: "Không tìm thấy key ở vị trí chỉ định." };
 }
 
 function saveApiKeys(keysData, password, token) {
@@ -1227,6 +1276,52 @@ function getProtectedSystemConfig(token) {
     config[key] = val;
   }
   return { ok: true, data: config };
+}
+
+function getAiRuntimeConfig() {
+  try {
+    const apiKeys = getApiKeysFromConfig_();
+    const status = {};
+    for (const provider in apiKeys) {
+      const keys = apiKeys[provider] || [];
+      status[provider] = {
+        configured: keys.length > 0,
+        count: keys.length,
+        maskedList: keys.map(k => k === 'free' ? 'Free Provider' : maskString_(k))
+      };
+    }
+    if (!status['pollinations']) {
+      status['pollinations'] = {
+        configured: true,
+        count: 1,
+        maskedList: ['Free Provider']
+      };
+    }
+    
+    // Get default models from System_Config
+    const ss = SpreadsheetApp.openById(CONFIG.SS_ID);
+    const configSheet = ss.getSheetByName(CONFIG.SHEET_NAME_CONFIG);
+    let defaultText = '';
+    let defaultVision = '';
+    if (configSheet) {
+      const rows = configSheet.getDataRange().getValues();
+      for (let i = 1; i < rows.length; i++) {
+        if (rows[i][0] === 'default_text_model') defaultText = rows[i][1];
+        if (rows[i][0] === 'default_vision_model') defaultVision = rows[i][1];
+      }
+    }
+    
+    return { 
+      ok: true, 
+      keysStatus: status,
+      defaults: {
+        text: defaultText || '',
+        vision: defaultVision || ''
+      }
+    };
+  } catch (e) {
+    return { ok: false, message: e.toString() };
+  }
 }
 
 function getApiKeysFromConfig_() {

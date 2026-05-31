@@ -183,7 +183,7 @@ function openZaloChat() {
       </div>
 
       <!-- Center: Zoom Controls -->
-      <div class="flex items-center bg-slate-100 dark:bg-slate-850 p-0.5 rounded-full border border-slate-200/50">
+      <div class="flex items-center bg-slate-100 dark:bg-slate-800 p-0.5 rounded-full border border-slate-200/50">
         <!-- Zoom Out -->
         <button @click="adjustZoom(-0.1)" class="w-7 h-7 rounded-full flex items-center justify-center hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors text-slate-600" title="Thu nhỏ">
           <i class="fa-solid fa-minus text-xs"></i>
@@ -249,7 +249,7 @@ function openZaloChat() {
         </button>
 
         <!-- Fullscreen Button -->
-        <button @click="isFullscreen = !isFullscreen; updatePreviewScale()" class="w-8 h-8 rounded-xl flex items-center justify-center bg-slate-100 hover:bg-slate-200 transition-all text-slate-650" :title="isFullscreen ? 'Thoát toàn màn hình' : 'Xem toàn màn hình'">
+        <button @click="isFullscreen = !isFullscreen; updatePreviewScale()" class="w-8 h-8 rounded-xl flex items-center justify-center bg-slate-100 hover:bg-slate-200 transition-all text-slate-600" :title="isFullscreen ? 'Thoát toàn màn hình' : 'Xem toàn màn hình'">
           <i class="fa-solid" :class="isFullscreen ? 'fa-compress text-blue-600' : 'fa-expand'"></i>
         </button>
       </div>

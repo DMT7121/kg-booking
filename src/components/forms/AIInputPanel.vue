@@ -195,7 +195,7 @@ function onDrop(e: DragEvent) {
         <i class="fa-solid fa-triangle-exclamation text-base text-amber-500 shrink-0 mt-0.5 animate-bounce"></i>
         <div>
           <div class="font-black text-slate-900 uppercase">Cần Kiểm Tra Lại</div>
-          <div class="text-slate-650 mt-0.5 leading-relaxed font-semibold">Một số thông tin AI trích xuất có độ tin cậy thấp hoặc nghi ngờ sai lệch. Vui lòng kiểm tra kỹ các ô màu vàng bên dưới!</div>
+          <div class="text-slate-600 mt-0.5 leading-relaxed font-semibold">Một số thông tin AI trích xuất có độ tin cậy thấp hoặc nghi ngờ sai lệch. Vui lòng kiểm tra kỹ các ô màu vàng bên dưới!</div>
         </div>
       </div>
 

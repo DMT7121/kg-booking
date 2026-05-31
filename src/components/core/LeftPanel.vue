@@ -210,17 +210,17 @@ function goToTomorrowTimeline() {
         </div>
 
         <!-- Search Command Palette -->
-        <button @click="ui.showCommandPalette = true" class="w-9 h-9 rounded-xl bg-slate-800 hover:bg-slate-750 flex items-center justify-center border border-slate-700/30 transition-all active:scale-95 text-slate-300 hover:text-white min-h-[36px]" title="Tìm kiếm nhanh (Ctrl+K)">
+        <button @click="ui.showCommandPalette = true" class="w-9 h-9 rounded-xl bg-slate-800 hover:bg-slate-700 flex items-center justify-center border border-slate-700/30 transition-all active:scale-95 text-slate-300 hover:text-white min-h-[36px]" title="Tìm kiếm nhanh (Ctrl+K)">
           <i class="fa-solid fa-magnifying-glass text-sm"></i>
         </button>
 
         <!-- Sync Button (Desktop) -->
-        <button @click="appStore.loadHistory(false)" class="hidden md:flex w-9 h-9 rounded-xl bg-slate-800 hover:bg-slate-750 items-center justify-center border border-slate-700/30 transition-all active:scale-95 text-slate-300 hover:text-white min-h-[36px]" title="Đồng bộ dữ liệu Cloud">
+        <button @click="appStore.loadHistory(false)" class="hidden md:flex w-9 h-9 rounded-xl bg-slate-800 hover:bg-slate-700 items-center justify-center border border-slate-700/30 transition-all active:scale-95 text-slate-300 hover:text-white min-h-[36px]" title="Đồng bộ dữ liệu Cloud">
           <i class="fa-solid fa-rotate text-sm"></i>
         </button>
 
         <!-- Settings Button -->
-        <button @click="ui.showSettingsHub = true" class="w-9 h-9 rounded-xl bg-slate-800 hover:bg-slate-750 flex items-center justify-center border border-slate-700/30 transition-all active:scale-95 text-slate-300 hover:text-white min-h-[36px]" title="Cài đặt hệ thống">
+        <button @click="ui.showSettingsHub = true" class="w-9 h-9 rounded-xl bg-slate-800 hover:bg-slate-700 flex items-center justify-center border border-slate-700/30 transition-all active:scale-95 text-slate-300 hover:text-white min-h-[36px]" title="Cài đặt hệ thống">
           <i class="fa-solid fa-gear text-sm"></i>
         </button>
 
@@ -231,14 +231,14 @@ function goToTomorrowTimeline() {
 
         <!-- Dropdown Menu for Mobile -->
         <div class="relative md:hidden">
-          <button @click="showDropdown = !showDropdown" class="w-9 h-9 rounded-xl bg-slate-800 hover:bg-slate-750 flex items-center justify-center border border-slate-700/30 transition-all active:scale-95 text-slate-300 hover:text-white min-h-[36px]">
+          <button @click="showDropdown = !showDropdown" class="w-9 h-9 rounded-xl bg-slate-800 hover:bg-slate-700 flex items-center justify-center border border-slate-700/30 transition-all active:scale-95 text-slate-300 hover:text-white min-h-[36px]">
             <i class="fa-solid fa-ellipsis-vertical text-sm"></i>
           </button>
           
           <div v-if="showDropdown" @click="showDropdown = false" class="fixed inset-0 z-[100]"></div>
 
           <transition enter-active-class="transition ease-out duration-100" enter-from-class="transform opacity-0 scale-95" enter-to-class="transform opacity-100 scale-100" leave-active-class="transition ease-in duration-75" leave-from-class="transform opacity-100 scale-100" leave-to-class="transform opacity-0 scale-95">
-            <div v-if="showDropdown" class="absolute top-full right-0 mt-2 w-48 bg-white rounded-2xl shadow-xl border border-slate-150 py-1.5 z-[101] text-slate-800">
+            <div v-if="showDropdown" class="absolute top-full right-0 mt-2 w-48 bg-white rounded-2xl shadow-xl border border-slate-200 py-1.5 z-[101] text-slate-800">
               <button @click="reloadApp" class="w-full text-left px-4 py-2.5 flex items-center gap-3 hover:bg-slate-50 transition-colors">
                 <i class="fa-solid fa-rotate-right text-slate-400"></i>
                 <span class="font-bold text-xs text-slate-700">Tải lại (Refresh)</span>
@@ -290,14 +290,14 @@ function goToTomorrowTimeline() {
                     <i class="fa-solid text-slate-400 text-xs transition-transform" :class="showChecklist ? 'fa-chevron-up' : 'fa-chevron-down'"></i>
                   </div>
                   
-                  <div v-show="showChecklist" class="space-y-2 pt-2 border-t border-slate-100 transition-all duration-350">
+                  <div v-show="showChecklist" class="space-y-2 pt-2 border-t border-slate-100 transition-all duration-300">
                     <!-- Progress Bar -->
                     <div class="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
                       <div class="bg-gradient-to-r from-blue-500 to-indigo-600 h-full transition-all duration-500" :style="{ width: `${checklistPercent}%` }"></div>
                     </div>
                     
                     <div class="grid grid-cols-2 gap-2 text-xs pt-1">
-                      <div v-for="item in checklistItems" :key="item.name" class="flex items-center gap-2 p-2 rounded-xl border transition-all" :class="item.done ? 'bg-green-50/40 border-green-100 text-green-750 font-bold' : 'bg-slate-50/45 border-slate-100 text-slate-400 font-semibold'">
+                      <div v-for="item in checklistItems" :key="item.name" class="flex items-center gap-2 p-2 rounded-xl border transition-all" :class="item.done ? 'bg-green-50/40 border-green-100 text-green-700 font-bold' : 'bg-slate-50/45 border-slate-100 text-slate-400 font-semibold'">
                         <i class="fa-solid" :class="item.done ? 'fa-circle-check text-green-500' : 'fa-circle text-slate-300'"></i>
                         <span>{{ item.name }}</span>
                       </div>
@@ -307,7 +307,7 @@ function goToTomorrowTimeline() {
 
                 <!-- Smart Warning Widget -->
                 <div v-if="hasSoftWarning" class="bg-amber-50/90 border border-amber-300 rounded-2xl p-4 shadow-sm space-y-2">
-                  <div class="flex items-center gap-2 text-amber-850 font-black uppercase text-xs">
+                  <div class="flex items-center gap-2 text-amber-800 font-black uppercase text-xs">
                     <i class="fa-solid fa-triangle-exclamation text-amber-500 text-sm"></i>
                     Cảnh báo phân tích AI
                   </div>
@@ -484,7 +484,7 @@ function goToTomorrowTimeline() {
 
               <!-- Cài đặt -->
               <button @click="ui.showSettingsHub = true; showMoreSheet = false" class="bg-slate-50 text-slate-700 p-3 rounded-2xl font-bold text-[11px] hover:bg-slate-100 transition-all active:scale-95 flex flex-col items-center justify-center gap-2 border border-slate-100">
-                <div class="w-10 h-10 rounded-xl bg-slate-100 text-slate-650 flex items-center justify-center text-lg">
+                <div class="w-10 h-10 rounded-xl bg-slate-100 text-slate-600 flex items-center justify-center text-lg">
                   <i class="fa-solid fa-gear"></i>
                 </div>
                 <span>Cài đặt</span>
@@ -530,31 +530,31 @@ function goToTomorrowTimeline() {
 
     <!-- MOBILE BOTTOM NAV -->
     <div class="flex md:hidden w-full bg-slate-900 border-t border-slate-800 text-[10px] font-bold uppercase tracking-wider relative z-20 items-stretch shrink-0 pb-safe-bottom shadow-[0_-8px_30px_rgba(0,0,0,0.3)]">
-      <button @click="ui.tab = 'dashboard'" :class="['flex-grow flex-1 py-2 flex flex-col justify-center items-center gap-0.5 transition-all duration-200 select-none min-h-[48px]', ui.tab === 'dashboard' ? 'text-blue-400 bg-slate-850/50' : 'text-slate-400 hover:text-slate-300']">
+      <button @click="ui.tab = 'dashboard'" :class="['flex-grow flex-1 py-2 flex flex-col justify-center items-center gap-0.5 transition-all duration-200 select-none min-h-[48px]', ui.tab === 'dashboard' ? 'text-blue-400 bg-slate-800/50' : 'text-slate-400 hover:text-slate-300']">
         <div class="relative flex items-center justify-center w-8 h-8 rounded-full transition-all" :class="ui.tab === 'dashboard' ? 'bg-blue-500/15 text-blue-400 scale-105' : ''">
           <i class="fa-solid fa-gauge-high text-base"></i>
         </div>
         <span class="text-[9px] font-extrabold tracking-tight">Tổng quan</span>
       </button>
-      <button @click="ui.tab = 'create'" :class="['flex-grow flex-1 py-2 flex flex-col justify-center items-center gap-0.5 transition-all duration-200 select-none min-h-[48px]', ui.tab === 'create' ? 'text-blue-400 bg-slate-850/50' : 'text-slate-400 hover:text-slate-300']">
+      <button @click="ui.tab = 'create'" :class="['flex-grow flex-1 py-2 flex flex-col justify-center items-center gap-0.5 transition-all duration-200 select-none min-h-[48px]', ui.tab === 'create' ? 'text-blue-400 bg-slate-800/50' : 'text-slate-400 hover:text-slate-300']">
         <div class="relative flex items-center justify-center w-8 h-8 rounded-full transition-all" :class="ui.tab === 'create' ? 'bg-blue-500/15 text-blue-400 scale-105' : ''">
           <i class="fa-solid fa-plus text-base"></i>
         </div>
         <span class="text-[9px] font-extrabold tracking-tight">Tạo</span>
       </button>
-      <button @click="ui.tab = 'timeline'; appStore.loadHistory(false)" :class="['flex-grow flex-1 py-2 flex flex-col justify-center items-center gap-0.5 transition-all duration-200 select-none min-h-[48px]', ui.tab === 'timeline' ? 'text-blue-400 bg-slate-850/50' : 'text-slate-400 hover:text-slate-300']">
+      <button @click="ui.tab = 'timeline'; appStore.loadHistory(false)" :class="['flex-grow flex-1 py-2 flex flex-col justify-center items-center gap-0.5 transition-all duration-200 select-none min-h-[48px]', ui.tab === 'timeline' ? 'text-blue-400 bg-slate-800/50' : 'text-slate-400 hover:text-slate-300']">
         <div class="relative flex items-center justify-center w-8 h-8 rounded-full transition-all" :class="ui.tab === 'timeline' ? 'bg-blue-500/15 text-blue-400 scale-105' : ''">
           <i class="fa-solid fa-calendar-days text-base"></i>
         </div>
         <span class="text-[9px] font-extrabold tracking-tight">Lịch</span>
       </button>
-      <button @click="ui.tab = 'preview'" :class="['flex-grow flex-1 py-2 flex flex-col justify-center items-center gap-0.5 transition-all duration-200 select-none min-h-[48px]', ui.tab === 'preview' ? 'text-blue-400 bg-slate-850/50' : 'text-slate-400 hover:text-slate-300']">
+      <button @click="ui.tab = 'preview'" :class="['flex-grow flex-1 py-2 flex flex-col justify-center items-center gap-0.5 transition-all duration-200 select-none min-h-[48px]', ui.tab === 'preview' ? 'text-blue-400 bg-slate-800/50' : 'text-slate-400 hover:text-slate-300']">
         <div class="relative flex items-center justify-center w-8 h-8 rounded-full transition-all" :class="ui.tab === 'preview' ? 'bg-blue-500/15 text-blue-400 scale-105' : ''">
           <i class="fa-solid fa-eye text-base"></i>
         </div>
         <span class="text-[9px] font-extrabold tracking-tight">Phiếu</span>
       </button>
-      <button @click="showMoreSheet = true" :class="['flex-grow flex-1 py-2 flex flex-col justify-center items-center gap-0.5 transition-all duration-200 select-none min-h-[48px]', showMoreSheet ? 'text-blue-400 bg-slate-850/50' : 'text-slate-400 hover:text-slate-300']">
+      <button @click="showMoreSheet = true" :class="['flex-grow flex-1 py-2 flex flex-col justify-center items-center gap-0.5 transition-all duration-200 select-none min-h-[48px]', showMoreSheet ? 'text-blue-400 bg-slate-800/50' : 'text-slate-400 hover:text-slate-300']">
         <div class="relative flex items-center justify-center w-8 h-8 rounded-full transition-all" :class="showMoreSheet ? 'bg-blue-500/15 text-blue-400 scale-105' : ''">
           <i class="fa-solid fa-ellipsis text-base"></i>
         </div>

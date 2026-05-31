@@ -51,126 +51,27 @@ export function useAI() {
   }
 
   // ═══════════════════════════════════════════════════════════════
-  //  CORE: Direct API Call (no proxy, with timeout + abort)
-  // ═══════════════════════════════════════════════════════════════
-  async function callAIModel(model: AIModel, sysPrompt: string, userPrompt: string, image: string | null = null, jsonMode: boolean = true): Promise<string | null> {
-    const keys = configStore.keys[model.provider] || []
-    if (keys.length === 0 && model.provider !== 'pollinations') {
-      throw new Error(`Thiếu API Key: ${model.provider}`)
-    }
-
-    // Pollinations doesn't need keys
-    const keyList = model.provider === 'pollinations' ? ['free'] : keys
-
-    for (let i = 0; i < keyList.length; i++) {
-      const key = keyList[i]
-      try {
-        let fetchUrl = model.url
-        const headers: Record<string, string> = { 'Content-Type': 'application/json' }
-        let body: any = {}
-
-        if (model.format === 'gemini') {
-          fetchUrl += `?key=${key}`
-          body = {
-            contents: [{
-              parts: [
-                { text: sysPrompt + '\n\nUser Input:\n' + userPrompt },
-                ...(image ? [{ inline_data: { mime_type: 'image/jpeg', data: image.split(',')[1] } }] : [])
-              ]
-            }],
-            generationConfig: { temperature: 0.1 },
-            // Disable thinking for speed — we need raw results, not reasoning chains
-            ...(model.id.includes('2.5') ? { generationConfig: { temperature: 0.1, thinkingConfig: { thinkingBudget: 0 } } } : {})
-          }
-        } else {
-          // OpenAI-compatible format
-          if (key !== 'free') headers['Authorization'] = `Bearer ${key}`
-          if (model.provider === 'openrouter') {
-            headers['HTTP-Referer'] = window.location.href
-            headers['X-Title'] = "King's Grill Manager"
-          }
-
-          let msgContent: any = userPrompt
-          if (image) {
-            msgContent = [
-              { type: 'text', text: userPrompt },
-              { type: 'image_url', image_url: { url: image } }
-            ]
-          }
-
-          // Enforce JSON output only when jsonMode is true
-          const noResponseFormat = ['pollinations', 'huggingface']
-          const effectiveSys = (jsonMode && noResponseFormat.includes(model.provider))
-            ? sysPrompt + '\n\nCRITICAL: Respond ONLY with raw JSON. No markdown, no ```json blocks. Start with { end with }.'
-            : sysPrompt
-
-          body = {
-            model: model.id,
-            messages: [
-              { role: 'system', content: effectiveSys },
-              { role: 'user', content: msgContent }
-            ],
-            temperature: 0.1,
-            ...(jsonMode && !noResponseFormat.includes(model.provider) ? { response_format: { type: 'json_object' } } : {})
-          }
-        }
-
-        // Fetch with 25s timeout (vision images need more time for upload)
-        const controller = new AbortController()
-        const timeoutId = setTimeout(() => controller.abort(), 25000)
-
-        const res = await fetch(fetchUrl, {
-          method: 'POST',
-          headers,
-          body: JSON.stringify(body),
-          signal: controller.signal
-        })
-        clearTimeout(timeoutId)
-
-        if (res.status === 429) throw new Error('Rate limit exceeded')
-        if (res.status === 401) throw new Error('Invalid API Key')
-        if (res.status === 404) throw new Error('Model not found')
-        if (!res.ok) {
-          const errText = await res.text().catch(() => `HTTP ${res.status}`)
-          throw new Error(errText.substring(0, 200))
-        }
-
-        const json = await res.json()
-        let content: string | null = null
-
-        if (model.format === 'gemini') {
-          // Gemini 2.5 "thinking models" return thinking steps in early parts
-          // We need the LAST non-thinking text part which contains the actual response
-          const parts = json.candidates?.[0]?.content?.parts || []
-          for (let p = parts.length - 1; p >= 0; p--) {
-            if (parts[p].text && !parts[p].thought) {
-              content = parts[p].text
-              break
-            }
-          }
-          // Fallback: get any text part
-          if (!content) content = parts.find((p: any) => p.text)?.text || null
-        } else {
-          content = json.choices?.[0]?.message?.content
-        }
-
-        if (!content) throw new Error('Empty response from model')
-        return content
-      } catch (e: any) {
-        const errMsg = e.name === 'AbortError' ? 'Timeout (25s)' : e.message
-        console.warn(`[AI] ${model.provider} key#${i + 1} failed: ${errMsg}`)
-        
-        // Skip remaining keys for THIS provider only if model doesn't exist
-        // But still allow the NEXT provider/model to be tried by the caller
-        if (errMsg.includes('Model not found') || errMsg.includes('Invalid API Key')) {
-          throw new Error(`[${model.provider}] ${errMsg}`)
-        }
-
-        if (i === keyList.length - 1) throw new Error(errMsg)
+    async function callAIModel(model: AIModel, sysPrompt: string, userPrompt: string, image: string | null = null, jsonMode: boolean = true): Promise<string | null> {
+    try {
+      const res = await api.callAiProxy({
+        provider: model.provider,
+        model: model.id,
+        sysPrompt,
+        userPrompt,
+        image,
+        jsonMode,
+        format: model.format as any,
+        url: model.url
+      })
+      if (!res.ok) {
+        throw new Error(res.message || 'AI Proxy failed')
       }
+      return res.content
+    } catch (e: any) {
+      console.warn(`[AI Proxy] ${model.provider} failed: ${e.message}`)
+      throw e
     }
-    return null
-  }
+
 
   // ═══════════════════════════════════════════════════════════════
   //  SYNERGY: Auto-repair malformed JSON via a text model
@@ -182,7 +83,7 @@ export function useAI() {
     // Use fastest available text model for repair
     const repairCandidates = AI_MODELS
       .filter(m => m.type === 'text')
-      .filter(m => m.provider === 'pollinations' || (configStore.keys[m.provider]?.length > 0))
+      .filter(m => m.provider === 'pollinations' || (configStore.keysStatus[m.provider]?.configured))
       .sort((a, b) => a.tier - b.tier)
     
     if (repairCandidates.length === 0) return null
@@ -229,7 +130,7 @@ export function useAI() {
     // Build candidate list: default first, then by tier
     const candidates = AI_MODELS
       .filter(m => m.type === type)
-      .filter(m => m.provider === 'pollinations' || (configStore.keys[m.provider]?.length > 0))
+      .filter(m => m.provider === 'pollinations' || (configStore.keysStatus[m.provider]?.configured))
       .sort((a, b) => {
         if (a.id === defaultId) return -1
         if (b.id === defaultId) return 1
@@ -1037,7 +938,7 @@ Output JSON: { "amount": Number, "content": "String", "bank": "String", "time": 
       // Build candidates: sorted by tier (fastest first)
       const candidates = AI_MODELS
         .filter(m => m.type === 'vision')
-        .filter(m => m.provider === 'pollinations' || (configStore.keys[m.provider]?.length > 0))
+        .filter(m => m.provider === 'pollinations' || (configStore.keysStatus[m.provider]?.configured))
         .sort((a, b) => a.tier - b.tier)
 
       if (candidates.length === 0) {
@@ -1089,7 +990,7 @@ Salad bò - 120000
       
       const candidates = AI_MODELS
         .filter(m => m.type === 'text')
-        .filter(m => m.provider === 'pollinations' || (configStore.keys[m.provider]?.length > 0))
+        .filter(m => m.provider === 'pollinations' || (configStore.keysStatus[m.provider]?.configured))
         .sort((a, b) => a.tier - b.tier)
       
       if (candidates.length === 0) throw new Error('Chưa cấu hình API Key')
