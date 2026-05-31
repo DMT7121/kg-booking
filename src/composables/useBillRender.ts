@@ -5,6 +5,7 @@ import { useUIStore } from '@/stores/useUIStore'
 import { stripAccents, resizeImage, loadLibrary, isIOS, isAndroid, isMobile, generateBookingId } from '@/utils'
 import { fetchWithRetry } from '@/services/api'
 import { smartUploadImage } from '@/services/r2'
+import { useAI } from '@/composables/useAI'
 import { cacheBillImage, addToOfflineQueue } from '@/services/cache'
 
 
@@ -25,6 +26,7 @@ function _createBillRender() {
   const formStore = useFormStore()
   const appStore = useAppStore()
   const uiStore = useUIStore()
+  const { checkAndLogAiCorrections } = useAI()
 
   const billRef = ref<HTMLElement | null>(null)
   const isRendering = ref(false)
@@ -271,6 +273,9 @@ function _createBillRender() {
       const needsSync = isNewOrder || hasChanges || formStore.saveType === 'save'
 
       if (needsSync) {
+        // Run AI corrections auto-learning
+        checkAndLogAiCorrections()
+
         // Mark syncing indicator (non-blocking)
         uiStore.connectionStatus = 'syncing'
 

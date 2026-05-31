@@ -18,6 +18,8 @@ const CONFIG = {
   SHEET_NAME_ORDERS: "Orders",
   SHEET_NAME_KEYS: "API_Keys",
   SHEET_NAME_CONFIG: "System_Config",
+  SHEET_NAME_ALIASES: "Menu_Aliases",
+  SHEET_NAME_CORRECTIONS: "AI_Corrections",
   ADMIN_PASS: null, // Loaded at runtime from Script Properties (see getAdminPass_())
   ORDER_HEADERS: [
     "Mã Phiếu (ID)", "Thời Gian Tạo", "Khách Hàng", "Số Điện Thoại",
@@ -25,7 +27,9 @@ const CONFIG = {
     "Link Ảnh Cọc (Drive)", "Link Phiếu Đặt (Drive)"
   ],
   KEY_HEADERS: ["Timestamp", "Provider", "Model", "Key", "Status"],
-  CONFIG_HEADERS: ["Config_Key", "Config_Value"]
+  CONFIG_HEADERS: ["Config_Key", "Config_Value"],
+  ALIAS_HEADERS: ["Alias", "DishName"],
+  CORRECTION_HEADERS: ["InputText", "WrongValue", "CorrectValue", "Field", "CreatedAt"]
 };
 
 // --- PHẦN 0: HELPER ---
@@ -117,6 +121,11 @@ function doPost(e) {
       case "restoreSystemConfigBackup": result = restoreSystemConfigBackup(data.backupId, data.token); break;
       case "getSystemConfigBackups": result = getSystemConfigBackups(data.token); break;
       case "getSystemConfigAuditLogs": result = getSystemConfigAuditLogs(data.token); break;
+      case "getMenuAliases": result = getMenuAliases(data.token); break;
+      case "saveMenuAlias": result = saveMenuAlias(data.alias, data.dishName, data.token); break;
+      case "deleteMenuAlias": result = deleteMenuAlias(data.alias, data.token); break;
+      case "logAiCorrection": result = logAiCorrection(data.inputText, data.wrongValue, data.correctValue, data.field, data.token); break;
+      case "getAiCorrections": result = getAiCorrections(data.token); break;
       
       default: result = { ok: false, message: "Unknown Action" };
     }
@@ -1469,5 +1478,88 @@ function getSystemConfigAuditLogs(token) {
     });
   }
   return { ok: true, logs: logs };
+}
+
+// --- PHẦN 8: MENU ALIAS & AI CORRECTION FUNCTIONS ---
+function getMenuAliases(token) {
+  const ss = SpreadsheetApp.openById(CONFIG.SS_ID);
+  const sheet = initSheetIfNeeded_(ss, CONFIG.SHEET_NAME_ALIASES, CONFIG.ALIAS_HEADERS, "#e0f2fe");
+  const rows = sheet.getDataRange().getValues();
+  const aliases = [];
+  for (let i = 1; i < rows.length; i++) {
+    if (rows[i][0]) {
+      aliases.push({ alias: rows[i][0], dishName: rows[i][1] });
+    }
+  }
+  return { ok: true, data: aliases };
+}
+
+function saveMenuAlias(alias, dishName, token) {
+  if (!checkAdminAccess_(token)) {
+    return { ok: false, message: "Từ chối truy cập! Yêu cầu quyền Admin." };
+  }
+  if (!alias || !dishName) return { ok: false, message: "Thiếu thông tin viết tắt hoặc tên món ăn." };
+  const ss = SpreadsheetApp.openById(CONFIG.SS_ID);
+  const sheet = initSheetIfNeeded_(ss, CONFIG.SHEET_NAME_ALIASES, CONFIG.ALIAS_HEADERS, "#e0f2fe");
+  const rows = sheet.getDataRange().getValues();
+  let foundRow = -1;
+  const cleanAlias = alias.trim().toLowerCase();
+  for (let i = 1; i < rows.length; i++) {
+    if (String(rows[i][0]).trim().toLowerCase() === cleanAlias) {
+      foundRow = i + 1;
+      break;
+    }
+  }
+  if (foundRow !== -1) {
+    sheet.getRange(foundRow, 2).setValue(dishName.trim());
+  } else {
+    sheet.appendRow([alias.trim(), dishName.trim()]);
+  }
+  return { ok: true, message: "Lưu từ viết tắt thành công!" };
+}
+
+function deleteMenuAlias(alias, token) {
+  if (!checkAdminAccess_(token)) {
+    return { ok: false, message: "Từ chối truy cập! Yêu cầu quyền Admin." };
+  }
+  if (!alias) return { ok: false, message: "Thiếu từ viết tắt." };
+  const ss = SpreadsheetApp.openById(CONFIG.SS_ID);
+  const sheet = initSheetIfNeeded_(ss, CONFIG.SHEET_NAME_ALIASES, CONFIG.ALIAS_HEADERS, "#e0f2fe");
+  const rows = sheet.getDataRange().getValues();
+  const cleanAlias = alias.trim().toLowerCase();
+  for (let i = 1; i < rows.length; i++) {
+    if (String(rows[i][0]).trim().toLowerCase() === cleanAlias) {
+      sheet.deleteRow(i + 1);
+      return { ok: true, message: "Đã xóa từ viết tắt!" };
+    }
+  }
+  return { ok: false, message: "Không tìm thấy từ viết tắt." };
+}
+
+function logAiCorrection(inputText, wrongValue, correctValue, field, token) {
+  if (!inputText || !field) return { ok: false, message: "Thiếu thông tin phản hồi." };
+  const ss = SpreadsheetApp.openById(CONFIG.SS_ID);
+  const sheet = initSheetIfNeeded_(ss, CONFIG.SHEET_NAME_CORRECTIONS, CONFIG.CORRECTION_HEADERS, "#fee2e2");
+  sheet.appendRow([inputText.trim(), String(wrongValue || ''), String(correctValue || ''), field.trim(), new Date().toISOString()]);
+  return { ok: true };
+}
+
+function getAiCorrections(token) {
+  const ss = SpreadsheetApp.openById(CONFIG.SS_ID);
+  const sheet = initSheetIfNeeded_(ss, CONFIG.SHEET_NAME_CORRECTIONS, CONFIG.CORRECTION_HEADERS, "#fee2e2");
+  const rows = sheet.getDataRange().getValues();
+  const corrections = [];
+  for (let i = 1; i < rows.length; i++) {
+    if (rows[i][0]) {
+      corrections.push({
+        inputText: rows[i][0],
+        wrongValue: rows[i][1],
+        correctValue: rows[i][2],
+        field: rows[i][3],
+        createdAt: rows[i][4]
+      });
+    }
+  }
+  return { ok: true, data: corrections };
 }
 

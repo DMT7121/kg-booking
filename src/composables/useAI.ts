@@ -367,6 +367,90 @@ export function useAI() {
   // ═══════════════════════════════════════════════════════════════
   //  TABLE PARSER: 4-case robust normalization (from legacy)
   // ═══════════════════════════════════════════════════════════════
+  function ruleBasedParse(text: string) {
+    const clean = stripAccents(text).toLowerCase()
+    
+    // 1. Phone number
+    const phoneRegex = /(0[35789]\d{8})/g
+    const phoneMatch = text.match(phoneRegex)
+    const phone = phoneMatch ? phoneMatch[0] : null
+    
+    // 2. Pax
+    const paxRegex = /(\d+)\s*(?:pax|nguoi|khach)/gi
+    const paxMatch = clean.match(paxRegex)
+    let pax = null
+    if (paxMatch) {
+      const matchNum = paxMatch[0].match(/\d+/)
+      if (matchNum) pax = parseInt(matchNum[0])
+    }
+    
+    // 3. Time
+    const timeRegex = /(\d{1,2})[h:g](\d{2})?/gi
+    const timeMatch = clean.match(timeRegex)
+    let time = null
+    if (timeMatch) {
+      for (const t of timeMatch) {
+        const parts = t.split(/[h:g]/i)
+        const hour = parseInt(parts[0])
+        const min = parts[1] ? parseInt(parts[1]) : 0
+        if (hour >= 8 && hour <= 23 && min >= 0 && min < 60) {
+          time = `${String(hour).padStart(2, '0')}:${String(min).padStart(2, '0')}`
+          break
+        }
+      }
+    }
+    
+    // 4. Date
+    const dateRegex = /(\d{1,2})[/-](\d{1,2})(?:[/-](\d{2,4}))?/g
+    const dateMatch = clean.match(dateRegex)
+    let date = null
+    if (dateMatch) {
+      const dParts = dateMatch[0].split(/[/-]/)
+      const day = parseInt(dParts[0])
+      const month = parseInt(dParts[1])
+      if (day >= 1 && day <= 31 && month >= 1 && month <= 12) {
+        const year = dParts[2] ? (dParts[2].length === 2 ? '20' + dParts[2] : dParts[2]) : new Date().getFullYear()
+        date = `${String(day).padStart(2, '0')}/${String(month).padStart(2, '0')}/${year}`
+      }
+    } else {
+      const today = new Date()
+      if (/hom nay|nay/i.test(clean)) {
+        date = `${String(today.getDate()).padStart(2, '0')}/${String(today.getMonth() + 1).padStart(2, '0')}/${today.getFullYear()}`
+      } else if (/mai|ngay mai/i.test(clean)) {
+        const tomorrow = new Date(today)
+        tomorrow.setDate(today.getDate() + 1)
+        date = `${String(tomorrow.getDate()).padStart(2, '0')}/${String(tomorrow.getMonth() + 1).padStart(2, '0')}/${tomorrow.getFullYear()}`
+      }
+    }
+
+    // 5. Table code
+    const tableRegex = /\b([a-g]\d{1,2})\b/gi
+    const tableMatch = clean.match(tableRegex)
+    const table_code = tableMatch ? tableMatch[0].toUpperCase() : null
+
+    // 6. Party Type / Purpose
+    let type = 'Ăn thường'
+    if (/sinh nhat|sn|thoi noi|mung tho/i.test(clean)) type = 'Sinh nhật'
+    else if (/lien hoan|tiec|hop lop|cong ty|tat nien/i.test(clean)) type = 'Liên hoan'
+    else if (/hen ho|lang mang|ky niem/i.test(clean)) type = 'Hẹn hò'
+
+    // 7. Name
+    const nameMatch = text.match(/(?:anh|chi|chu|co|khach|ten|dat)\s+([A-ZÀ-Ỹa-zà-ỹ]+(?:\s+[A-ZÀ-Ỹa-zà-ỹ]+){0,3})/u)
+    let name = null
+    if (nameMatch) {
+      const candidate = nameMatch[1].trim()
+      if (!/^(mai|nay|kia|truoc|sau|sang|chieu|toi|ngay|gio|pax|khach|nguoi|ban)$/i.test(candidate)) {
+        name = candidate
+      }
+    }
+
+    return {
+      customer: { name, phone },
+      reservation: { date, time, pax, table_code, type, notes: null },
+      items: []
+    }
+  }
+
   function parseTableCode(code: string | null | undefined) {
     if (!code) return null
     const s = String(code).trim().toUpperCase()
@@ -390,6 +474,16 @@ export function useAI() {
     if (!menuList || menuList.length === 0) return null
     
     const clean = stripAccents(inputName).toLowerCase().trim()
+
+    // check Menu Aliases first
+    if (appStore.menuAliases && appStore.menuAliases.length > 0) {
+      const aliasMatch = appStore.menuAliases.find((a: any) => stripAccents(a.alias).toLowerCase().trim() === clean)
+      if (aliasMatch) {
+        const resolvedName = aliasMatch.dishName
+        const match = menuList.find((m: any) => m.name === resolvedName || m.cleanName === stripAccents(resolvedName).toLowerCase().trim())
+        if (match) return match
+      }
+    }
     
     // 1. Exact match (cleanName or acronym)
     const exact = menuList.find((m: any) => m.cleanName === clean || m.acronym === clean)
@@ -561,9 +655,58 @@ export function useAI() {
     return { bestSheet, score: maxScore, isBorderline }
   }
 
-  function postValidate(parsed: any) {
+  function postValidate(parsed: any, ruleBased: any) {
     const warnings: string[] = []
     const unresolved_items: string[] = []
+    const confidences: Record<string, { value: any; confidence: number; source_text: string; needs_review: boolean }> = {}
+
+    const calcScore = (field: string, aiVal: any, rbVal: any) => {
+      if (!aiVal) return { confidence: 0.0, source_text: '', needs_review: true }
+      
+      const cleanAI = String(aiVal).trim().toLowerCase()
+      const cleanRB = rbVal ? String(rbVal).trim().toLowerCase() : ''
+      
+      if (field === 'phone') {
+        const cleaned = cleanPhoneNumber(aiVal)
+        if (/^0[35789]\d{8}$/.test(cleaned)) {
+          return { confidence: 1.0, source_text: aiVal, needs_review: false }
+        }
+        return { confidence: 0.5, source_text: aiVal, needs_review: true }
+      }
+      
+      if (field === 'date') {
+        if (/^\d{2}\/\d{2}\/\d{4}$/.test(aiVal)) {
+          return { confidence: 0.95, source_text: aiVal, needs_review: false }
+        }
+        return { confidence: 0.4, source_text: aiVal, needs_review: true }
+      }
+
+      if (field === 'time') {
+        if (/^\d{2}:\d{2}$/.test(aiVal)) {
+          return { confidence: 0.95, source_text: aiVal, needs_review: false }
+        }
+        return { confidence: 0.4, source_text: aiVal, needs_review: true }
+      }
+      
+      if (field === 'pax') {
+        const num = parseInt(aiVal)
+        if (num > 0) return { confidence: 0.95, source_text: aiVal, needs_review: false }
+        return { confidence: 0.4, source_text: aiVal, needs_review: true }
+      }
+      
+      if (field === 'name') {
+        if (aiVal === 'Khách hàng') return { confidence: 0.5, source_text: aiVal, needs_review: true }
+        if (cleanAI === cleanRB) return { confidence: 0.9, source_text: aiVal, needs_review: false }
+        return { confidence: 0.75, source_text: aiVal, needs_review: false }
+      }
+
+      if (field === 'tables') {
+        if (/^[a-g]\d{1,2}/i.test(aiVal)) return { confidence: 0.95, source_text: aiVal, needs_review: false }
+        return { confidence: 0.8, source_text: aiVal, needs_review: false }
+      }
+
+      return { confidence: 0.8, source_text: aiVal, needs_review: false }
+    }
 
     if (!parsed.customer) {
       parsed.customer = { name: 'Khách hàng', phone: '' }
@@ -574,6 +717,13 @@ export function useAI() {
     if (!parsed.reservation) {
       parsed.reservation = { date: '', time: '', pax: '', type: 'Ăn thường', notes: '' }
     }
+
+    confidences.name = calcScore('name', parsed.customer.name, ruleBased?.customer?.name)
+    confidences.phone = calcScore('phone', parsed.customer.phone, ruleBased?.customer?.phone)
+    confidences.date = calcScore('date', parsed.reservation.date, ruleBased?.reservation?.date)
+    confidences.time = calcScore('time', parsed.reservation.time, ruleBased?.reservation?.time)
+    confidences.pax = calcScore('pax', parsed.reservation.pax, ruleBased?.reservation?.pax)
+    confidences.tables = calcScore('tables', parsed.reservation.table_code, ruleBased?.reservation?.table_code)
 
     if (parsed.items && Array.isArray(parsed.items)) {
       parsed.items = parsed.items.map((item: any) => {
@@ -658,12 +808,68 @@ export function useAI() {
 
       // Layer 1: Pre-normalize the input
       promptText = preNormalize(promptText)
-      
-      // ── CALL AI ──
-      const rawResult = await smartRouter(type, systemPrompt, promptText, optimizedImg)
-      const v5 = normalizeAIResponse(rawResult)
 
+      // Apply self-learning corrections from memory
+      const corrections = appStore.aiCorrections || []
+      const appliedCorrections: Record<string, string> = {}
+      for (const corr of corrections) {
+        if (corr.inputText && stripAccents(promptText).toLowerCase().includes(stripAccents(corr.inputText).toLowerCase())) {
+          appliedCorrections[corr.field] = corr.correctValue
+        }
+      }
+
+      const ruleBased = ruleBasedParse(promptText)
+      const inputLower = stripAccents(promptText).toLowerCase()
+      const hasDishes = appStore.menuList.some((m: any) => 
+        inputLower.includes(m.cleanName) || 
+        (m.acronym && inputLower.split(/\s+/).includes(m.acronym.toLowerCase()))
+      ) || appStore.menuAliases.some((a: any) => 
+        inputLower.split(/\s+/).includes(stripAccents(a.alias).toLowerCase())
+      )
+
+      let rawResult: any = null
+      let isRuleBasedOnly = false
+
+      if (type === 'text' && ruleBased.customer.phone && ruleBased.reservation.date && !hasDishes) {
+        rawResult = {
+          customer: ruleBased.customer,
+          reservation: ruleBased.reservation,
+          items: [],
+          payment: null,
+          routing: {
+            pipeline: 'text',
+            tier_used: 0,
+            model_used: 'Rule-Based Engine V6.2',
+            fallback_count: 0,
+            repair_applied: false,
+            latency: '0.0',
+            mode: 'rule-based',
+            confidence_score: 1.0
+          }
+        }
+        isRuleBasedOnly = true
+      }
+
+      if (!isRuleBasedOnly) {
+        // ── CALL AI ──
+        rawResult = await smartRouter(type, systemPrompt, promptText, optimizedImg)
+      }
+
+      const v5 = isRuleBasedOnly ? rawResult : normalizeAIResponse(rawResult)
       if (!v5) throw new Error('AI trả về dữ liệu rỗng')
+
+      // Apply matched corrections to fields if found
+      Object.keys(appliedCorrections).forEach(field => {
+        const val = appliedCorrections[field]
+        if (field === 'name' || field === 'phone') {
+          if (!v5.customer) v5.customer = {}
+          v5.customer[field] = val
+        } else {
+          if (!v5.reservation) v5.reservation = {}
+          if (field === 'tables') v5.reservation.table_code = val
+          else v5.reservation[field] = val
+        }
+      })
 
       // Layer 2: Smart Menu Sheet Routing
       try {
@@ -689,7 +895,17 @@ export function useAI() {
       }
 
       // Layer 3: Post-validator & Mapping
-      const validated = postValidate(v5)
+      const validated = postValidate(v5, ruleBased)
+
+      // Mark applied corrections with confidence = 1.0 and notes
+      Object.keys(appliedCorrections).forEach(field => {
+        if (validated.confidences && validated.confidences[field]) {
+          validated.confidences[field].confidence = 1.0
+          validated.confidences[field].needs_review = false
+          validated.confidences[field].source_text = 'Self-Learned Dict'
+        }
+        validated.warnings.push(`Đã áp dụng chỉnh sửa tự học của Admin cho trường ${field}: "${appliedCorrections[field]}"`)
+      })
 
       // ══════════ MAP DATA TO FORM (like legacy v1.8.6) ══════════
 
@@ -737,7 +953,23 @@ export function useAI() {
         `Latency: ${rt.latency || '?'}s | Fallback: ${rt.fallback_count || 0}`,
         'success', 5000
       )
-      formStore.aiMetadata = rt
+      // Keep track of the original AI parsed values to detect admin corrections on save
+      formStore.originalAiValues = {
+        name: validated.customer?.name || '',
+        phone: cleanPhoneNumber(validated.customer?.phone || ''),
+        date: formatDateStr(validated.reservation?.date || ''),
+        time: validated.reservation?.time || '',
+        pax: String(parseInt(String(validated.reservation?.pax)) || ''),
+        tables: validated.reservation?.table_code || '',
+        type: validated.reservation?.type || 'Ăn thường',
+        note: validated.reservation?.notes || '',
+        items: JSON.parse(JSON.stringify(validated.items || []))
+      }
+
+      formStore.aiMetadata = {
+        ...rt,
+        confidences: validated.confidences
+      }
       formStore.warnings = validated.warnings || []
       formStore.unresolvedItems = validated.unresolved_items || []
 
@@ -873,6 +1105,51 @@ Salad bò - 120000
     }
   }
 
+  async function checkAndLogAiCorrections() {
+    if (!formStore.originalAiValues || !formStore.rawInput) return
+
+    const original = formStore.originalAiValues
+    const current = {
+      name: formStore.customer.name,
+      phone: cleanPhoneNumber(formStore.customer.phone),
+      date: formatDateStr(formStore.customer.date),
+      time: formStore.customer.time,
+      pax: String(parseInt(String(formStore.customer.pax)) || ''),
+      tables: (uiStore.tempTable.zone || '') + (uiStore.tempTable.number || ''),
+      type: formStore.customer.type,
+      note: formStore.customer.note
+    }
+
+    const fieldsToCompare = [
+      { key: 'name', label: 'customer.name' },
+      { key: 'phone', label: 'customer.phone' },
+      { key: 'date', label: 'reservation.date' },
+      { key: 'time', label: 'reservation.time' },
+      { key: 'pax', label: 'reservation.pax' },
+      { key: 'tables', label: 'reservation.table_code' },
+      { key: 'type', label: 'reservation.type' }
+    ]
+
+    for (const f of fieldsToCompare) {
+      const origVal = String(original[f.key] || '').trim().toLowerCase()
+      const currVal = String((current as any)[f.key] || '').trim().toLowerCase()
+      if (origVal && currVal && origVal !== currVal) {
+        try {
+          console.log(`[AI Auto-Learn] Logging correction for field ${f.key}: "${original[f.key]}" -> "${(current as any)[f.key]}"`)
+          await api.logAiCorrection(
+            formStore.rawInput,
+            original[f.key],
+            (current as any)[f.key],
+            f.key,
+            appStore.adminToken
+          )
+        } catch (e) {
+          console.warn('[AI Auto-Learn] Failed to log correction:', e)
+        }
+      }
+    }
+  }
+
   return {
     callAIModel,
     repairJSON,
@@ -880,6 +1157,7 @@ Salad bò - 120000
     processAI,
     verifyTransferImage,
     ocrExtractText,
-    parseMenuAI
+    parseMenuAI,
+    checkAndLogAiCorrections
   }
 }

@@ -66,6 +66,8 @@ export const useAppStore = defineStore('app', () => {
   const adminExpiresAt = ref(parseInt(sessionStorage.getItem('kg_admin_expires_at') || '0'))
   const defaultMenuProfileId = ref(localStorage.getItem('default_menu_profile_id') || '')
   const defaultBankAccountIndex = ref(parseInt(localStorage.getItem('default_bank_account_index') || '-1'))
+  const menuAliases = ref<{ alias: string; dishName: string }[]>(JSON.parse(localStorage.getItem('menu_aliases') || '[]'))
+  const aiCorrections = ref<any[]>(JSON.parse(localStorage.getItem('ai_corrections') || '[]'))
 
   // --- Bank ---
   const bankList = ref<any[]>(JSON.parse(localStorage.getItem(CACHE_KEYS.BANK) || DEFAULTS.BANKS))
@@ -470,6 +472,17 @@ export const useAppStore = defineStore('app', () => {
           }
         })
         
+        try {
+          await loadMenuAliases()
+        } catch (errAliases) {
+          console.warn('Aliases sync error:', errAliases)
+        }
+        try {
+          await loadAiCorrections()
+        } catch (errCorrections) {
+          console.warn('Corrections sync error:', errCorrections)
+        }
+
         if (hasChanges) {
           uiStore.showToast('Đã đồng bộ cấu hình từ Server', 'info')
         }
@@ -627,6 +640,48 @@ export const useAppStore = defineStore('app', () => {
     }
   }
 
+  async function loadMenuAliases() {
+    try {
+      const res = await api.getMenuAliases()
+      if (res.ok && res.data) {
+        menuAliases.value = res.data
+        localStorage.setItem('menu_aliases', JSON.stringify(res.data))
+      }
+    } catch (e) {
+      console.warn('Failed to load menu aliases:', e)
+    }
+  }
+
+  async function saveAlias(alias: string, dishName: string) {
+    const res = await api.saveMenuAlias(alias, dishName, adminToken.value)
+    if (res.ok) {
+      await loadMenuAliases()
+      uiStore.showToast('Lưu từ viết tắt thành công!', 'success')
+    }
+    return res
+  }
+
+  async function deleteAlias(alias: string) {
+    const res = await api.deleteMenuAlias(alias, adminToken.value)
+    if (res.ok) {
+      await loadMenuAliases()
+      uiStore.showToast('Đã xóa từ viết tắt!', 'success')
+    }
+    return res
+  }
+
+  async function loadAiCorrections() {
+    try {
+      const res = await api.getAiCorrections()
+      if (res.ok && res.data) {
+        aiCorrections.value = res.data
+        localStorage.setItem('ai_corrections', JSON.stringify(res.data))
+      }
+    } catch (e) {
+      console.warn('Failed to load AI corrections:', e)
+    }
+  }
+
   function autoSyncIfReady() {
     fetchRemoteConfig()
   }
@@ -668,6 +723,8 @@ export const useAppStore = defineStore('app', () => {
   return {
     adminToken, adminExpiresAt, isAdminSettingsUnlocked, lockAdminSettings, unlockAdminSettings, defaultMenuProfileId, defaultBankAccountIndex, setDefaultBankAccount, setDefaultMenuProfile, autoSyncIfReady,
     historyList, menuList, menuDetails, menuImages, dishImages, menuSheets, activeSheet, newMenuName, newMenuContent,
+    menuAliases, loadMenuAliases, saveAlias, deleteAlias,
+    aiCorrections, loadAiCorrections,
     bankList, selectedBankIndex, newBank,
     staffList, newStaff,
     currentBank, groupedHistory, filteredHistory,

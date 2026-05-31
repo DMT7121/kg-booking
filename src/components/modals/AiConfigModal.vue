@@ -9,6 +9,9 @@ const ui = useUIStore()
 const configStore = useConfigStore()
 const appStore = useAppStore()
 
+const newAliasText = ref('')
+const selectedAliasDish = ref('')
+
 function copyToClipboard(text: string) {
   navigator.clipboard.writeText(text)
   ui.showToast('Đã copy API Key', 'success')
@@ -68,6 +71,46 @@ async function handleBorrowKeys() {
   const pass = await ui.showPrompt('Nhập mật khẩu Admin', 'Nhập mật khẩu để tải API Key từ Cloud:')
   if (pass) {
     await configStore.borrowKeys(pass)
+  }
+}
+
+async function handleAddAlias() {
+  if (!newAliasText.value.trim() || !selectedAliasDish.value) {
+    ui.showToast('Vui lòng nhập từ viết tắt và chọn món ăn!', 'warning')
+    return
+  }
+  const isAdmin = await appStore.verifyAdminSession()
+  if (!isAdmin) return
+
+  const alias = newAliasText.value.trim().toLowerCase()
+  const dishName = selectedAliasDish.value
+
+  ui.loading.is = true
+  ui.loading.msg = 'ĐANG LƯU TỪ VIẾT TẮT...'
+  try {
+    const res = await appStore.saveAlias(alias, dishName)
+    if (res.ok) {
+      newAliasText.value = ''
+      selectedAliasDish.value = ''
+    }
+  } finally {
+    ui.loading.is = false
+  }
+}
+
+async function handleDeleteAlias(alias: string) {
+  const confirmed = await ui.showConfirm('Xóa từ viết tắt', `Bạn có chắc muốn xóa từ viết tắt "${alias}"?`)
+  if (!confirmed) return
+
+  const isAdmin = await appStore.verifyAdminSession()
+  if (!isAdmin) return
+
+  ui.loading.is = true
+  ui.loading.msg = 'ĐANG XÓA TỪ VIẾT TẮT...'
+  try {
+    await appStore.deleteAlias(alias)
+  } finally {
+    ui.loading.is = false
   }
 }
 </script>
@@ -188,6 +231,55 @@ async function handleBorrowKeys() {
 
           </div>
 
+        </div>
+      </div>
+      <!-- Menu Aliases Manager -->
+      <div class="space-y-3">
+        <h4 class="text-[11px] font-black text-slate-400 uppercase tracking-widest pl-2 flex items-center justify-between">
+          <span>Từ viết tắt món ăn (Menu Aliases)</span>
+          <span class="text-[9px] font-bold text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded">{{ appStore.menuAliases?.length || 0 }} từ</span>
+        </h4>
+        
+        <div class="bg-white rounded-3xl shadow-sm border border-slate-100 p-4 space-y-4">
+          <!-- Add Alias Form -->
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div class="space-y-1.5">
+              <label class="text-[10px] font-black text-slate-500 uppercase tracking-wider ml-1">Từ viết tắt (Ví dụ: mxhs)</label>
+              <input v-model="newAliasText" class="w-full border border-slate-200 rounded-xl px-3 py-2 text-xs font-semibold text-slate-800 focus:border-blue-900 focus:ring-2 focus:ring-blue-50 outline-none transition-all" placeholder="Viết tắt">
+            </div>
+            <div class="space-y-1.5">
+              <label class="text-[10px] font-black text-slate-500 uppercase tracking-wider ml-1">Món ăn trong thực đơn</label>
+              <div class="relative">
+                <select v-model="selectedAliasDish" class="w-full pl-3 pr-8 py-2 rounded-xl border border-slate-200 bg-white font-bold text-slate-800 text-[11px] focus:border-blue-900 focus:ring-2 focus:ring-blue-50 outline-none transition-all appearance-none">
+                  <option value="">-- Chọn món ăn --</option>
+                  <option v-for="m in appStore.menuList" :key="m.name" :value="m.name">{{ m.name }}</option>
+                </select>
+                <i class="fa-solid fa-chevron-down absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 text-[10px] pointer-events-none"></i>
+              </div>
+            </div>
+          </div>
+          <div class="flex justify-end">
+            <button @click="handleAddAlias" class="px-5 py-2.5 bg-blue-900 hover:bg-blue-800 text-white rounded-xl font-black text-[11px] hover:bg-amber-600 active:scale-95 transition-all shrink-0">Thêm từ viết tắt</button>
+          </div>
+
+          <div class="h-[1px] bg-slate-100 my-2"></div>
+
+          <!-- Aliases Table/List -->
+          <div v-if="appStore.menuAliases && appStore.menuAliases.length > 0" class="max-h-48 overflow-y-auto custom-scrollbar divide-y divide-slate-100">
+            <div v-for="item in appStore.menuAliases" :key="item.alias" class="flex items-center justify-between py-2 px-2 hover:bg-slate-50 rounded-lg transition-all">
+              <div class="flex items-center gap-2">
+                <span class="font-mono text-xs font-bold text-blue-900 bg-blue-50 px-2 py-1 rounded">{{ item.alias }}</span>
+                <i class="fa-solid fa-arrow-right text-[10px] text-slate-400"></i>
+                <span class="text-xs font-bold text-slate-700">{{ item.dishName }}</span>
+              </div>
+              <button @click="handleDeleteAlias(item.alias)" class="w-8 h-8 text-rose-500 hover:bg-rose-50 rounded-full flex items-center justify-center transition-colors active:scale-95" title="Xóa từ viết tắt">
+                <i class="fa-regular fa-trash-can text-sm"></i>
+              </button>
+            </div>
+          </div>
+          <div v-else class="text-center py-4">
+            <p class="text-[11px] font-bold text-slate-400">Chưa có từ viết tắt nào được cấu hình</p>
+          </div>
         </div>
       </div>
       

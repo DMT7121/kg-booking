@@ -247,3 +247,24 @@ export async function getSystemConfigAuditLogs(token: string): Promise<any> {
   return postGAS({ action: 'getSystemConfigAuditLogs', token })
 }
 
+export async function getMenuAliases(token?: string): Promise<any> {
+  return postGAS({ action: 'getMenuAliases', token })
+}
+
+export async function saveMenuAlias(alias: string, dishName: string, token?: string): Promise<any> {
+  return postGAS({ action: 'saveMenuAlias', alias, dishName, token })
+}
+
+export async function deleteMenuAlias(alias: string, token?: string): Promise<any> {
+  return postGAS({ action: 'deleteMenuAlias', alias, token })
+}
+
+export async function logAiCorrection(inputText: string, wrongValue: any, correctValue: any, field: string, token?: string): Promise<any> {
+  return postGAS({ action: 'logAiCorrection', inputText, wrongValue, correctValue, field, token })
+}
+
+export async function getAiCorrections(token?: string): Promise<any> {
+  return postGAS({ action: 'getAiCorrections', token })
+}
+
+

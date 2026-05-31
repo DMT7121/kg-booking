@@ -36,17 +36,23 @@ const hasSoftWarning = computed(() => {
     <!-- Row 1: Name & Phone -->
     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
       <div class="space-y-1.5">
-        <label class="text-[10px] font-black text-slate-500 uppercase tracking-wider ml-1">Người đặt <span class="text-red-500">*</span></label>
+        <label class="text-[10px] font-black text-slate-500 uppercase tracking-wider ml-1 flex items-center">
+          Người đặt <span class="text-red-500 ml-0.5">*</span>
+          <span v-if="formStore.aiMetadata?.confidences?.name?.needs_review" class="text-amber-600 text-[9px] font-bold bg-amber-100/60 px-1.5 py-0.5 rounded ml-2 animate-pulse"><i class="fa-solid fa-triangle-exclamation"></i> Cần kiểm tra</span>
+        </label>
         <div class="relative">
           <i class="fa-regular fa-user absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"></i>
-          <input v-model="formStore.customer.name" @focus="handleInputFocus" @blur="handleInputBlur" class="w-full border border-slate-200 rounded-xl pl-10 pr-4 py-3 text-sm font-semibold text-slate-800 focus:border-blue-500 focus:ring-4 focus:ring-blue-50 outline-none transition-all" placeholder="Tên khách">
+          <input v-model="formStore.customer.name" @focus="handleInputFocus" @blur="handleInputBlur" class="w-full border rounded-xl pl-10 pr-4 py-3 text-sm font-semibold text-slate-800 focus:border-blue-500 focus:ring-4 focus:ring-blue-50 outline-none transition-all" :class="formStore.aiMetadata?.confidences?.name?.needs_review ? 'border-amber-400 bg-amber-50/10 focus:border-amber-500 focus:ring-amber-100' : 'border-slate-200'" placeholder="Tên khách">
         </div>
       </div>
       <div class="space-y-1.5">
-        <label class="text-[10px] font-black text-slate-500 uppercase tracking-wider ml-1">SĐT / Zalo <span class="text-red-500">*</span></label>
+        <label class="text-[10px] font-black text-slate-500 uppercase tracking-wider ml-1 flex items-center">
+          SĐT / Zalo <span class="text-red-500 ml-0.5">*</span>
+          <span v-if="formStore.aiMetadata?.confidences?.phone?.needs_review" class="text-amber-600 text-[9px] font-bold bg-amber-100/60 px-1.5 py-0.5 rounded ml-2 animate-pulse"><i class="fa-solid fa-triangle-exclamation"></i> Cần kiểm tra</span>
+        </label>
         <div class="relative">
           <i class="fa-solid fa-phone absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"></i>
-          <input v-model="formStore.customer.phone" @focus="handleInputFocus" @blur="(e) => { handleInputBlur(); checkCRM(); }" class="w-full border border-slate-200 rounded-xl pl-10 pr-4 py-3 text-sm font-semibold text-slate-800 focus:border-blue-500 focus:ring-4 focus:ring-blue-50 outline-none transition-all" placeholder="09xxxxxxx">
+          <input v-model="formStore.customer.phone" @focus="handleInputFocus" @blur="(e) => { handleInputBlur(); checkCRM(); }" class="w-full border rounded-xl pl-10 pr-4 py-3 text-sm font-semibold text-slate-800 focus:border-blue-500 focus:ring-4 focus:ring-blue-50 outline-none transition-all" :class="formStore.aiMetadata?.confidences?.phone?.needs_review ? 'border-amber-400 bg-amber-50/10 focus:border-amber-500 focus:ring-amber-100' : 'border-slate-200'" placeholder="09xxxxxxx">
         </div>
       </div>
     </div>
@@ -54,24 +60,33 @@ const hasSoftWarning = computed(() => {
     <!-- Row 2: Date, Time, Pax -->
     <div class="grid grid-cols-3 gap-3 md:gap-4">
       <div class="space-y-1.5">
-        <label class="text-[10px] font-black text-slate-500 uppercase tracking-wider ml-1">Ngày <span class="text-red-500">*</span></label>
+        <label class="text-[10px] font-black text-slate-500 uppercase tracking-wider ml-1 flex items-center">
+          Ngày <span class="text-red-500 ml-0.5">*</span>
+          <span v-if="formStore.aiMetadata?.confidences?.date?.needs_review" class="text-amber-600 text-[9px] font-bold bg-amber-100/60 px-1.5 py-0.5 rounded ml-2 animate-pulse"><i class="fa-solid fa-triangle-exclamation"></i> Cần kiểm tra</span>
+        </label>
         <div class="relative">
           <i class="fa-regular fa-calendar absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"></i>
-          <input v-model="formStore.customer.date" @focus="handleInputFocus" @blur="(e) => { handleInputBlur(); formatDate(); }" class="w-full border border-slate-200 rounded-xl pl-9 pr-2 py-3 text-sm font-semibold text-slate-800 focus:border-blue-500 focus:ring-4 focus:ring-blue-50 outline-none transition-all" placeholder="dd/mm/yyyy">
+          <input v-model="formStore.customer.date" @focus="handleInputFocus" @blur="(e) => { handleInputBlur(); formatDate(); }" class="w-full border rounded-xl pl-9 pr-2 py-3 text-sm font-semibold text-slate-800 focus:border-blue-500 focus:ring-4 focus:ring-blue-50 outline-none transition-all" :class="formStore.aiMetadata?.confidences?.date?.needs_review ? 'border-amber-400 bg-amber-50/10 focus:border-amber-500 focus:ring-amber-100' : 'border-slate-200'" placeholder="dd/mm/yyyy">
         </div>
       </div>
       <div class="space-y-1.5">
-        <label class="text-[10px] font-black text-slate-500 uppercase tracking-wider ml-1">Giờ <span class="text-red-500">*</span></label>
+        <label class="text-[10px] font-black text-slate-500 uppercase tracking-wider ml-1 flex items-center">
+          Giờ <span class="text-red-500 ml-0.5">*</span>
+          <span v-if="formStore.aiMetadata?.confidences?.time?.needs_review" class="text-amber-600 text-[9px] font-bold bg-amber-100/60 px-1.5 py-0.5 rounded ml-2 animate-pulse"><i class="fa-solid fa-triangle-exclamation"></i> Cần kiểm tra</span>
+        </label>
         <div class="relative">
           <i class="fa-regular fa-clock absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"></i>
-          <input v-model="formStore.customer.time" @focus="handleInputFocus" @blur="handleInputBlur" class="w-full border border-slate-200 rounded-xl pl-9 pr-2 py-3 text-sm font-semibold text-slate-800 focus:border-blue-500 focus:ring-4 focus:ring-blue-50 outline-none transition-all" placeholder="18:30">
+          <input v-model="formStore.customer.time" @focus="handleInputFocus" @blur="handleInputBlur" class="w-full border rounded-xl pl-9 pr-2 py-3 text-sm font-semibold text-slate-800 focus:border-blue-500 focus:ring-4 focus:ring-blue-50 outline-none transition-all" :class="formStore.aiMetadata?.confidences?.time?.needs_review ? 'border-amber-400 bg-amber-50/10 focus:border-amber-500 focus:ring-amber-100' : 'border-slate-200'" placeholder="18:30">
         </div>
       </div>
       <div class="space-y-1.5">
-        <label class="text-[10px] font-black text-slate-500 uppercase tracking-wider ml-1">Khách <span class="text-red-500">*</span></label>
+        <label class="text-[10px] font-black text-slate-500 uppercase tracking-wider ml-1 flex items-center">
+          Khách <span class="text-red-500 ml-0.5">*</span>
+          <span v-if="formStore.aiMetadata?.confidences?.pax?.needs_review" class="text-amber-600 text-[9px] font-bold bg-amber-100/60 px-1.5 py-0.5 rounded ml-2 animate-pulse"><i class="fa-solid fa-triangle-exclamation"></i> Cần kiểm tra</span>
+        </label>
         <div class="relative">
           <i class="fa-solid fa-user-group absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"></i>
-          <input v-model="formStore.customer.pax" @focus="handleInputFocus" @blur="handleInputBlur" class="w-full border border-slate-200 rounded-xl pl-9 pr-2 py-3 text-sm font-semibold text-slate-800 focus:border-blue-500 focus:ring-4 focus:ring-blue-50 outline-none transition-all" placeholder="SL">
+          <input v-model="formStore.customer.pax" @focus="handleInputFocus" @blur="handleInputBlur" class="w-full border rounded-xl pl-9 pr-2 py-3 text-sm font-semibold text-slate-800 focus:border-blue-500 focus:ring-4 focus:ring-blue-50 outline-none transition-all" :class="formStore.aiMetadata?.confidences?.pax?.needs_review ? 'border-amber-400 bg-amber-50/10 focus:border-amber-500 focus:ring-amber-100' : 'border-slate-200'" placeholder="SL">
         </div>
       </div>
     </div>
@@ -89,11 +104,14 @@ const hasSoftWarning = computed(() => {
         </div>
       </div>
       <div class="space-y-1.5">
-        <label class="text-[10px] font-black text-slate-500 uppercase tracking-wider ml-1">Khu / Bàn <span class="text-red-500">*</span></label>
+        <label class="text-[10px] font-black text-slate-500 uppercase tracking-wider ml-1 flex items-center">
+          Khu / Bàn <span class="text-red-500 ml-0.5">*</span>
+          <span v-if="formStore.aiMetadata?.confidences?.tables?.needs_review" class="text-amber-600 text-[9px] font-bold bg-amber-100/60 px-1.5 py-0.5 rounded ml-2 animate-pulse"><i class="fa-solid fa-triangle-exclamation"></i> Cần kiểm tra</span>
+        </label>
         <div class="relative flex items-center gap-2">
           <div class="relative flex-1">
             <i class="fa-solid fa-map-location-dot absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"></i>
-            <input v-model="formStore.customer.tables" @focus="handleInputFocus" @blur="handleInputBlur" class="w-full border border-slate-200 rounded-xl pl-10 pr-4 py-3 text-sm font-semibold text-slate-800 focus:border-blue-500 focus:ring-4 focus:ring-blue-50 outline-none transition-all bg-white" placeholder="Nhập hoặc AI tự điền (VD: A1, B2)">
+            <input v-model="formStore.customer.tables" @focus="handleInputFocus" @blur="handleInputBlur" class="w-full border rounded-xl pl-10 pr-4 py-3 text-sm font-semibold text-slate-800 focus:border-blue-500 focus:ring-4 focus:ring-blue-50 outline-none transition-all bg-white" :class="formStore.aiMetadata?.confidences?.tables?.needs_review ? 'border-amber-400 bg-amber-50/10 focus:border-amber-500 focus:ring-amber-100' : 'border-slate-200'" placeholder="Nhập hoặc AI tự điền (VD: A1, B2)">
           </div>
           <button @click="ui.showFloorPlan = true" class="w-12 h-12 bg-blue-50 text-blue-600 hover:bg-blue-100 rounded-xl border border-blue-100 flex items-center justify-center transition-colors active:scale-95 shrink-0" title="Mở sơ đồ bàn">
             <i class="fa-solid fa-border-all text-xl"></i>
