@@ -25,6 +25,8 @@ async function toggleStaffActive(staff: any) {
   const isAdmin = await appStore.verifyAdminSession()
   if (!isAdmin) return
   staff.isActive = staff.isActive === false ? true : false
+  localStorage.setItem(CACHE_KEYS.STAFF, JSON.stringify(appStore.staffList))
+  await appStore.updateRemoteConfig()
 }
 
 async function handleAddNewStaff() {
@@ -37,6 +39,8 @@ async function handleAddNewStaff() {
   if (!phone) return
   appStore.staffList.push({ name, phone, isActive: false, role: 'Nhân viên' })
   ui.showToast('Đã thêm nhân viên mới', 'success')
+  localStorage.setItem(CACHE_KEYS.STAFF, JSON.stringify(appStore.staffList))
+  await appStore.updateRemoteConfig()
 }
 
 async function handleStaffOptions(staff: any, idx: number) {
@@ -45,8 +49,14 @@ async function handleStaffOptions(staff: any, idx: number) {
 
   const confirmed = await ui.showConfirm('Tùy chọn', `Xóa nhân viên ${staff.name}?`)
   if (confirmed) {
-    appStore.staffList.splice(idx, 1)
-    ui.showToast('Đã xóa nhân viên', 'success')
+    if (appStore.staffList.length > 1) {
+      appStore.staffList.splice(idx, 1)
+      ui.showToast('Đã xóa nhân viên', 'success')
+      localStorage.setItem(CACHE_KEYS.STAFF, JSON.stringify(appStore.staffList))
+      await appStore.updateRemoteConfig()
+    } else {
+      ui.showToast('Phải giữ lại ít nhất 1 nhân viên!', 'warning')
+    }
   }
 }
 
