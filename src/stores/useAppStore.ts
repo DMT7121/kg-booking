@@ -373,36 +373,38 @@ export const useAppStore = defineStore('app', () => {
     localStorage.setItem(CACHE_KEYS.SELECTED_BANK, String(idx))
   }
 
-  function addBank() {
+  async function addBank() {
     if (!newBank.number || !newBank.bankId) return uiStore.showToast('Thiếu tin!', 'warning')
     bankList.value.push({ ...newBank })
     localStorage.setItem(CACHE_KEYS.BANK, JSON.stringify(bankList.value))
     selectedBankIndex.value = bankList.value.length - 1
     Object.assign(newBank, { bankId: '', name: '', number: '', owner: '', template: 'compact' })
-    updateRemoteConfig()
+    await updateRemoteConfig('bank')
   }
 
-  function removeBank(idx: number) {
+  async function removeBank(idx: number) {
     if (bankList.value.length > 1) {
       bankList.value.splice(idx, 1)
       selectedBankIndex.value = 0
       localStorage.setItem(CACHE_KEYS.BANK, JSON.stringify(bankList.value))
-      updateRemoteConfig()
+      await updateRemoteConfig('bank')
     }
   }
 
   // --- Staff Actions ---
-  function addStaff() {
+  async function addStaff() {
     if (!newStaff.name || !newStaff.phone) return uiStore.showToast('Vui lòng nhập đủ Họ tên và SĐT!', 'warning')
     staffList.value.push({ ...newStaff })
     localStorage.setItem(CACHE_KEYS.STAFF, JSON.stringify(staffList.value))
     Object.assign(newStaff, { name: '', phone: '' })
+    await updateRemoteConfig('staff')
   }
 
-  function removeStaff(idx: number) {
+  async function removeStaff(idx: number) {
     if (staffList.value.length > 1) {
       staffList.value.splice(idx, 1)
       localStorage.setItem(CACHE_KEYS.STAFF, JSON.stringify(staffList.value))
+      await updateRemoteConfig('staff')
     } else {
       uiStore.showToast('Phải giữ lại ít nhất 1 nhân viên!', 'warning')
     }
@@ -503,19 +505,26 @@ export const useAppStore = defineStore('app', () => {
     return false
   }
 
-  async function updateRemoteConfig() {
-    const isAuth = await verifyAdminSession()
-    if (!isAuth) {
-      uiStore.showToast('Chỉ lưu cấu hình trên máy này (Chưa đồng bộ Cloud)', 'warning')
-      return
+  async function updateRemoteConfig(onlyType?: 'staff' | 'bank') {
+    let pass = ''
+    if (onlyType !== 'staff') {
+      const isAuth = await verifyAdminSession()
+      if (!isAuth) {
+        uiStore.showToast('Chỉ lưu cấu hình trên máy này (Chưa đồng bộ Cloud)', 'warning')
+        return
+      }
+      pass = sessionPassword.value
     }
-    const pass = sessionPassword.value
 
     uiStore.showToast('Đang lưu cấu hình lên Server...', 'info')
     uiStore.connectionStatus = 'syncing'
+    
+    const bList = (!onlyType || onlyType === 'bank') ? JSON.stringify(bankList.value) : undefined
+    const sList = (!onlyType || onlyType === 'staff') ? JSON.stringify(staffList.value) : undefined
+
     api.saveConfig(
-      JSON.stringify(bankList.value),
-      JSON.stringify(staffList.value),
+      bList,
+      sList,
       pass
     ).then((data: any) => {
       if (data.ok) {
@@ -524,7 +533,7 @@ export const useAppStore = defineStore('app', () => {
       } else {
         uiStore.connectionStatus = 'error'
         uiStore.showToast('Lỗi lưu cấu hình: ' + data.message, 'error')
-        if (data.message && data.message.includes('Từ chối')) {
+        if (data.message && data.message.includes('Từ chối') && onlyType !== 'staff') {
           sessionPassword.value = ''
           lastAuthTime.value = 0
           sessionStorage.removeItem('kg_admin_session_pass')

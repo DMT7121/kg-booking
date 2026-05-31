@@ -21,10 +21,11 @@ const otherStaff = computed(() => {
   return list
 })
 
-function toggleStaffActive(staff: any) {
+async function toggleStaffActive(staff: any) {
   staff.isActive = staff.isActive === false ? true : false
   localStorage.setItem(CACHE_KEYS.STAFF, JSON.stringify(appStore.staffList))
-  ui.showToast('Đã cập nhật trạng thái hiển thị', 'success')
+  ui.showToast('Đang đồng bộ trạng thái hiển thị...', 'info')
+  await appStore.updateRemoteConfig('staff')
 }
 
 async function handleAddNewStaff() {
@@ -35,6 +36,7 @@ async function handleAddNewStaff() {
   appStore.staffList.push({ name, phone, isActive: false, role: 'Nhân viên' })
   ui.showToast('Đã thêm nhân viên mới', 'success')
   localStorage.setItem(CACHE_KEYS.STAFF, JSON.stringify(appStore.staffList))
+  await appStore.updateRemoteConfig('staff')
 }
 
 async function handleStaffOptions(staff: any, idx: number) {
@@ -50,6 +52,7 @@ async function handleStaffOptions(staff: any, idx: number) {
     
     ui.showToast('Đã cập nhật thông tin nhân viên', 'success')
     localStorage.setItem(CACHE_KEYS.STAFF, JSON.stringify(appStore.staffList))
+    await appStore.updateRemoteConfig('staff')
   } else {
     const confirmDelete = await ui.showConfirm('Xác nhận xóa', `Bạn có chắc chắn muốn XÓA nhân viên ${staff.name}?`)
     if (!confirmDelete) return
@@ -58,15 +61,17 @@ async function handleStaffOptions(staff: any, idx: number) {
       appStore.staffList.splice(idx, 1)
       ui.showToast('Đã xóa nhân viên', 'success')
       localStorage.setItem(CACHE_KEYS.STAFF, JSON.stringify(appStore.staffList))
+      await appStore.updateRemoteConfig('staff')
     } else {
       ui.showToast('Phải giữ lại ít nhất 1 nhân viên!', 'warning')
     }
   }
 }
 
-function handleSave() {
+async function handleSave() {
   localStorage.setItem(CACHE_KEYS.STAFF, JSON.stringify(appStore.staffList))
-  ui.showToast('Đã lưu thay đổi cấu hình nhân sự!', 'success')
+  ui.showToast('Đang lưu thay đổi cấu hình nhân sự...', 'info')
+  await appStore.updateRemoteConfig('staff')
   ui.closeConfig()
 }
 </script>

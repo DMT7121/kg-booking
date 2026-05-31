@@ -603,8 +603,15 @@ function getSharedApiKeys(password) {
 
 // --- PHẦN 5: SYSTEM CONFIG ---
 function saveSystemConfig(data, password) {
-  if (password !== getAdminPass_()) {
-    return { ok: false, message: "Từ chối truy cập! Yêu cầu mật khẩu Admin để ghi dữ liệu cấu hình." };
+  const isUpdatingSensitive = (data.webhookUrl !== undefined && data.webhookUrl !== null) ||
+                              (data.telegramChatId !== undefined && data.telegramChatId !== null) ||
+                              (data.bankList !== undefined && data.bankList !== null) ||
+                              (data.banks !== undefined && data.banks !== null);
+
+  if (isUpdatingSensitive) {
+    if (password !== getAdminPass_()) {
+      return { ok: false, message: "Từ chối truy cập! Yêu cầu mật khẩu Admin để ghi dữ liệu cấu hình." };
+    }
   }
   const ss = SpreadsheetApp.openById(CONFIG.SS_ID);
   const sheet = initSheetIfNeeded_(ss, CONFIG.SHEET_NAME_CONFIG, CONFIG.CONFIG_HEADERS, "#e9d5ff");
