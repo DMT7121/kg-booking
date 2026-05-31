@@ -616,16 +616,38 @@ function saveSystemConfig(data, password) {
   const ss = SpreadsheetApp.openById(CONFIG.SS_ID);
   const sheet = initSheetIfNeeded_(ss, CONFIG.SHEET_NAME_CONFIG, CONFIG.CONFIG_HEADERS, "#e9d5ff");
   
-  // Read current system_config JSON
+  // Read current sheet data
   let config = {};
   const rows = sheet.getDataRange().getValues();
-  let systemConfigRowIdx = -1;
+  const keysToSave = ['bankList', 'staffList', 'banks', 'staff', 'webhookUrl', 'telegramChatId'];
   
+  // 1. First import all flat legacy config keys from the sheet
+  for (let i = 1; i < rows.length; i++) {
+    const key = rows[i][0];
+    if (keysToSave.indexOf(key) !== -1) {
+      const val = rows[i][1];
+      if (val !== undefined && val !== null && val !== '') {
+        if (typeof val === 'string' && (val.startsWith('[') || val.startsWith('{'))) {
+          try {
+            config[key] = JSON.parse(val);
+          } catch(e) {
+            config[key] = val;
+          }
+        } else {
+          config[key] = val;
+        }
+      }
+    }
+  }
+
+  // 2. Then overlay keys from the existing system_config JSON row (if it exists)
+  let systemConfigRowIdx = -1;
   for (let i = 1; i < rows.length; i++) {
     if (rows[i][0] === 'system_config') {
       systemConfigRowIdx = i + 1;
       try {
-        config = JSON.parse(rows[i][1]);
+        const parsed = JSON.parse(rows[i][1]);
+        Object.assign(config, parsed);
       } catch(e) {}
       break;
     }
@@ -639,7 +661,7 @@ function saveSystemConfig(data, password) {
     data.staff = data.staffList;
   }
   
-  const keysToSave = ['bankList', 'staffList', 'banks', 'staff', 'webhookUrl', 'telegramChatId'];
+  // 3. Merge incoming data updates
   keysToSave.forEach(key => {
     if (data[key] !== undefined && data[key] !== null) {
       if (typeof data[key] === 'string' && (data[key].startsWith('[') || data[key].startsWith('{'))) {
@@ -655,8 +677,27 @@ function saveSystemConfig(data, password) {
   });
 
   const jsonStr = JSON.stringify(config);
-  if (systemConfigRowIdx !== -1) {
-    sheet.getRange(systemConfigRowIdx, 2).setValue(jsonStr);
+  
+  // 4. Delete legacy flat rows (in reverse order to preserve indices)
+  for (let i = rows.length - 1; i >= 1; i--) {
+    const key = rows[i][0];
+    if (keysToSave.indexOf(key) !== -1) {
+      sheet.deleteRow(i + 1);
+    }
+  }
+  
+  // 5. Save back to system_config row (re-find index in clean sheet)
+  const cleanRows = sheet.getDataRange().getValues();
+  let finalRowIdx = -1;
+  for (let i = 1; i < cleanRows.length; i++) {
+    if (cleanRows[i][0] === 'system_config') {
+      finalRowIdx = i + 1;
+      break;
+    }
+  }
+  
+  if (finalRowIdx !== -1) {
+    sheet.getRange(finalRowIdx, 2).setValue(jsonStr);
   } else {
     sheet.appendRow(['system_config', jsonStr]);
   }
