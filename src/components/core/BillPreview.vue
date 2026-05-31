@@ -160,6 +160,9 @@ function openZaloChat() {
               
               <div class="flex items-center gap-3 text-slate-500 font-bold uppercase text-[11px] tracking-wider"><i class="fa-solid fa-utensils w-4 text-center text-[13px]"></i> Loại tiệc</div>
               <div class="font-black text-blue-950 text-[14px]">{{ formStore.customer.type || '---' }}</div>
+
+              <div class="flex items-center gap-3 text-slate-500 font-bold uppercase text-[11px] tracking-wider"><i class="fa-solid fa-headset w-4 text-center text-[13px]"></i> Nhân viên liên hệ</div>
+              <div class="font-black text-blue-950 text-[14px]">{{ formStore.staff.name || '---' }} <span v-if="formStore.staff.phone" class="font-bold text-blue-600">({{ formStore.staff.phone }})</span></div>
             </div>
 
             <!-- Stamp -->

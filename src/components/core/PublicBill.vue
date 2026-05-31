@@ -254,6 +254,15 @@ onUnmounted(() => { if (timer) clearInterval(timer) })
                 <span class="text-xs font-bold text-slate-500">Loại tiệc</span>
                 <span class="font-bold text-slate-800 text-sm">{{ order.customer?.type }}</span>
               </div>
+              <div v-if="order.staff?.name" class="flex justify-between items-baseline border-b border-dashed border-slate-200 pb-2">
+                <span class="text-xs font-bold text-slate-500">Nhân viên liên hệ</span>
+                <span class="font-black text-slate-800 text-sm">
+                  {{ order.staff.name }}
+                  <span v-if="order.staff.phone">
+                    - <a :href="'tel:' + order.staff.phone" class="text-blue-600 font-bold hover:underline"><i class="fa-solid fa-phone text-[10px]"></i> {{ order.staff.phone }}</a>
+                  </span>
+                </span>
+              </div>
               <div v-if="order.customer?.note" class="pt-2">
                 <span class="text-xs font-bold text-slate-500 block mb-1">Ghi chú:</span>
                 <span class="font-bold text-rose-600 text-xs italic">{{ order.customer?.note }}</span>
@@ -350,7 +359,12 @@ onUnmounted(() => { if (timer) clearInterval(timer) })
 
           <!-- FOOTER -->
           <div class="border-t border-dashed border-slate-200 pt-4 text-center">
-            <p class="text-[10px] text-slate-400 font-bold mb-0.5">Tiếp tân: <span class="text-slate-600">{{ order.staff?.name || 'Hệ thống' }}</span></p>
+            <p class="text-[10px] text-slate-400 font-bold mb-0.5">
+              Tiếp tân: <span class="text-slate-600">{{ order.staff?.name || 'Hệ thống' }}</span>
+              <span v-if="order.staff?.phone" class="text-slate-500 font-medium"> - 
+                <a :href="'tel:' + order.staff.phone" class="text-blue-500 underline font-bold hover:text-blue-700">{{ order.staff.phone }}</a>
+              </span>
+            </p>
             <p class="text-[9px] text-slate-300 font-mono">KG-SYS | {{ order.timestamp ? new Date(order.timestamp).toLocaleString('vi-VN') : '' }}</p>
           </div>
         </div>
