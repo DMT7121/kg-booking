@@ -23,7 +23,7 @@ const {
   setZoomMode,
   adjustZoom
 } = useBillRender()
-const { depositTransferContent, qrImageUrl } = useForm()
+const { depositTransferContent, qrImageUrl, copyBookingConfirmation, toggleDepositState } = useForm()
 
 const formatDepositTime = (timeStr?: string): string => {
   if (!timeStr) return '✓'
@@ -164,11 +164,14 @@ function openZaloChat() {
     
     <!-- ZOOM / ACTION TOOLBAR -->
     <div :class="[
-      'px-3 py-2 md:px-4 md:py-2.5 border-b flex items-center justify-between gap-2 shrink-0 z-20 shadow-sm transition-colors duration-250',
-      isFullscreen ? 'bg-slate-900/90 border-slate-800 text-white' : 'bg-white border-slate-200 text-slate-700'
+      'px-3 py-2 md:px-4 md:py-2.5 border-b flex flex-wrap items-center justify-between gap-3 shrink-0 z-20 shadow-sm transition-colors duration-250 w-full',
+      isFullscreen ? 'bg-slate-900 border-slate-800 text-white' : 'bg-white border-slate-200 text-slate-700'
     ]">
-      <!-- Left: Status Badge -->
+      <!-- Left: Navigation / Page Info -->
       <div class="flex items-center gap-2">
+        <button @click="ui.tab = 'create'" class="md:hidden w-8 h-8 rounded-xl bg-slate-100 flex items-center justify-center hover:bg-slate-200 transition-colors text-slate-700">
+          <i class="fa-solid fa-arrow-left"></i>
+        </button>
         <span :class="[
           'px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider shadow-sm',
           formStore.deposit.isPaid 
@@ -177,67 +180,80 @@ function openZaloChat() {
         ]">
           {{ formStore.deposit.isPaid ? 'Đã đặt cọc' : 'Yêu cầu cọc' }}
         </span>
-        <span v-if="isFullscreen" class="hidden sm:inline text-xs font-bold text-slate-400">Xem toàn màn hình</span>
       </div>
 
       <!-- Center: Zoom Controls -->
-      <div class="flex items-center bg-slate-100 dark:bg-slate-800 p-0.5 rounded-full border border-slate-200/50">
+      <div class="flex items-center bg-slate-100 dark:bg-slate-850 p-0.5 rounded-full border border-slate-200/50">
         <!-- Zoom Out -->
-        <button @click="adjustZoom(-0.1)" class="w-7 h-7 rounded-full flex items-center justify-center hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors text-slate-600 dark:text-slate-350" title="Thu nhỏ (Ctrl + -)">
+        <button @click="adjustZoom(-0.1)" class="w-7 h-7 rounded-full flex items-center justify-center hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors text-slate-600" title="Thu nhỏ">
           <i class="fa-solid fa-minus text-xs"></i>
         </button>
 
+        <!-- 100% -->
+        <button @click="setZoomMode('manual', 1.0)" class="px-2 py-0.5 rounded text-[10px] font-black hover:bg-slate-200 text-slate-700">
+          100%
+        </button>
+
         <!-- Current Percentage -->
-        <span class="text-[11px] font-black w-14 text-center select-none text-slate-700 dark:text-slate-300">
+        <span class="text-[10px] font-black w-10 text-center select-none text-slate-500">
           {{ Math.round(zoomScale * 100) }}%
         </span>
 
         <!-- Zoom In -->
-        <button @click="adjustZoom(0.1)" class="w-7 h-7 rounded-full flex items-center justify-center hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors text-slate-600 dark:text-slate-350" title="Phóng to (Ctrl + +)">
+        <button @click="adjustZoom(0.1)" class="w-7 h-7 rounded-full flex items-center justify-center hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors text-slate-600" title="Phóng to">
           <i class="fa-solid fa-plus text-xs"></i>
         </button>
 
-        <!-- Separator -->
         <div class="w-[1px] h-4 bg-slate-300 dark:bg-slate-700 mx-1"></div>
 
         <!-- Fit Width -->
         <button @click="setZoomMode('fit-width')" :class="[
           'px-2.5 py-1 rounded-full text-[10px] font-black transition-all',
-          zoomMode === 'fit-width' ? 'bg-blue-600 text-white shadow-sm' : 'hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-500 dark:text-slate-400'
+          zoomMode === 'fit-width' ? 'bg-blue-600 text-white shadow-sm' : 'hover:bg-slate-200 text-slate-500'
         ]" title="Vừa chiều ngang">
-          Rộng
-        </button>
-
-        <!-- Fit Screen -->
-        <button @click="setZoomMode('fit-screen')" :class="[
-          'px-2.5 py-1 rounded-full text-[10px] font-black transition-all',
-          zoomMode === 'fit-screen' ? 'bg-blue-600 text-white shadow-sm' : 'hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-500 dark:text-slate-400'
-        ]" title="Vừa màn hình">
-          Cao
+          Fit rộng
         </button>
       </div>
 
-      <!-- Right: Fullscreen / Exit -->
-      <div class="flex items-center gap-1.5">
+      <!-- Right Actions -->
+      <div class="flex items-center gap-1.5 flex-wrap">
+        <!-- Confirm Deposit -->
+        <button @click="toggleDepositState" :class="[
+          'px-3 py-1.5 rounded-xl font-black text-[10px] uppercase flex items-center gap-1 shadow-sm transition-all active:scale-95 border',
+          formStore.deposit.isPaid 
+            ? 'bg-red-50 hover:bg-red-100 text-red-700 border-red-200' 
+            : 'bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border-emerald-200'
+        ]">
+          <i class="fa-solid" :class="formStore.deposit.isPaid ? 'fa-xmark' : 'fa-check'"></i>
+          <span>{{ formStore.deposit.isPaid ? 'Hủy cọc' : 'Xác nhận cọc' }}</span>
+        </button>
+
+        <!-- Copy Message -->
+        <button @click="copyBookingConfirmation" class="bg-slate-50 hover:bg-slate-100 text-slate-700 px-3 py-1.5 rounded-xl font-black text-[10px] uppercase flex items-center gap-1 border border-slate-200 transition-all active:scale-95 shadow-sm">
+          <i class="fa-solid fa-copy"></i> <span class="hidden sm:inline">Tin nhắn</span>
+        </button>
+
+        <!-- Copy Link -->
+        <button @click="shareCurrentBill" class="bg-slate-50 hover:bg-slate-100 text-slate-700 px-3 py-1.5 rounded-xl font-black text-[10px] uppercase flex items-center gap-1 border border-slate-200 transition-all active:scale-95 shadow-sm">
+          <i class="fa-solid fa-link"></i> <span class="hidden sm:inline">Copy link</span>
+        </button>
+
+        <!-- Download PNG -->
+        <button @click="triggerSave('image')" class="bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-1.5 rounded-xl font-black text-[10px] uppercase flex items-center gap-1 shadow-md transition-all active:scale-95">
+          <i class="fa-solid fa-image"></i> <span>PNG</span>
+        </button>
+
+        <!-- Download PDF -->
+        <button @click="triggerSave('pdf')" class="bg-rose-600 hover:bg-rose-700 text-white px-3 py-1.5 rounded-xl font-black text-[10px] uppercase flex items-center gap-1 shadow-md transition-all active:scale-95">
+          <i class="fa-solid fa-file-pdf"></i> <span>PDF</span>
+        </button>
+
         <!-- Fullscreen Button -->
-        <button @click="isFullscreen = !isFullscreen; updatePreviewScale()" class="w-8 h-8 rounded-xl flex items-center justify-center bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 transition-all text-slate-650" :title="isFullscreen ? 'Thoát toàn màn hình' : 'Xem toàn màn hình'">
+        <button @click="isFullscreen = !isFullscreen; updatePreviewScale()" class="w-8 h-8 rounded-xl flex items-center justify-center bg-slate-100 hover:bg-slate-200 transition-all text-slate-650" :title="isFullscreen ? 'Thoát toàn màn hình' : 'Xem toàn màn hình'">
           <i class="fa-solid" :class="isFullscreen ? 'fa-compress text-blue-600' : 'fa-expand'"></i>
         </button>
-
-        <!-- Save Actions inside Fullscreen -->
-        <template v-if="isFullscreen">
-          <button @click="triggerSave('image')" class="bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-1.5 rounded-xl font-bold text-xs flex items-center gap-1.5 shadow-md transition-all active:scale-95">
-            <i class="fa-solid fa-image"></i> <span class="hidden sm:inline">Tải ảnh</span>
-          </button>
-          <button @click="triggerSave('pdf')" class="bg-rose-600 hover:bg-rose-700 text-white px-3 py-1.5 rounded-xl font-bold text-xs flex items-center gap-1.5 shadow-md transition-all active:scale-95">
-            <i class="fa-solid fa-file-pdf"></i> <span class="hidden sm:inline">Tải PDF</span>
-          </button>
-          <button @click="isFullscreen = false; updatePreviewScale()" class="w-8 h-8 rounded-xl bg-slate-800 text-slate-400 hover:text-white flex items-center justify-center border border-slate-700 transition-colors">
-            <i class="fa-solid fa-xmark text-sm"></i>
-          </button>
-        </template>
       </div>
-    </div>
+
 
     <!-- Scrollable container for Bill -->
     <div :class="[

@@ -303,7 +303,36 @@ function _createBillRender() {
                 formStore.oldBillFileId = null
                 formStore.aiMetadata = null
 
-                if (result.syncResult && !result.syncResult.ok) {
+                // Display detailed calendar sync status to user
+                let calendarMsg = ''
+                let calendarType: 'success' | 'warning' | 'info' = 'success'
+                if (result.calendarSync) {
+                  const status = result.calendarSync.status
+                  const msg = result.calendarSync.message
+                  if (status === 'SUCCESS') {
+                    calendarMsg = '📅 Đã tự động cập nhật sơ đồ lịch bàn.'
+                    calendarType = 'success'
+                  } else if (status === 'MOVED_DATE') {
+                    calendarMsg = '📅 Khách đổi ngày - Đã thu hồi ô cũ và xếp sang ngày mới.'
+                    calendarType = 'success'
+                  } else if (status === 'MOVED_TABLE') {
+                    calendarMsg = '📅 Khách đổi bàn - Đã thu hồi bàn cũ và xếp sang bàn mới.'
+                    calendarType = 'success'
+                  } else if (status === 'CONFLICT') {
+                    calendarMsg = '⚠️ Xung đột vị trí - Bàn đã bị trùng với tiệc khác cùng khung giờ.'
+                    calendarType = 'warning'
+                  } else if (status === 'NO_SLOT') {
+                    calendarMsg = '⚠️ Hết chỗ trống hoặc không tìm thấy ngày trong sơ đồ lịch.'
+                    calendarType = 'warning'
+                  } else if (status === 'FAILED' || status === 'ERROR') {
+                    calendarMsg = `❌ Lỗi đồng bộ lịch: ${msg || 'Không rõ nguyên nhân'}`
+                    calendarType = 'warning'
+                  }
+                }
+
+                if (calendarMsg) {
+                  uiStore.showToast(calendarMsg, calendarType, 5000)
+                } else if (result.syncResult && !result.syncResult.ok) {
                   uiStore.showToast(result.syncResult.msg, 'warning')
                 } else {
                   // Only show sync toast if user hasn't navigated away

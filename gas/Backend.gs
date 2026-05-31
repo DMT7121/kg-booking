@@ -439,71 +439,119 @@ function saveOrder(p) {
     sheet.getRange(foundRowIndex, 1, 1, row.length).setValues([row]);
   }
 
-  try { syncToCalendar(p, bookingId, billUrl, transferUrl); } catch(e) { console.log("Calendar Sync Failed: " + e.message); }
+  let calendarSync = { status: "SKIPPED" };
+  try {
+    calendarSync = syncToCalendar(p, bookingId, billUrl, transferUrl);
+  } catch(e) {
+    console.log("Calendar Sync Failed: " + e.message);
+    calendarSync = { status: "ERROR", message: e.message };
+  }
   try { sendNotification_(p, bookingId, billUrl); } catch(e) { console.log("Notification Failed: " + e.message); }
-  return { message: "Order Saved (V3.6.0)", id: bookingId, billUrl: billUrl };
+  return { message: "Order Saved (V3.6.0)", id: bookingId, billUrl: billUrl, calendarSync: calendarSync };
 }
 
-function clearCalendarEntryById(ss, bookingId) {
-  if (!bookingId) return;
-  const sheets = ss.getSheets();
-  for (let s = 0; s < sheets.length; s++) {
-    const sheet = sheets[s];
-    if (!sheet.getName().startsWith('📅')) continue;
-    
-    const maxRow = 150;
-    const range = sheet.getRange(1, 1, maxRow, 14);
-    const notes = range.getNotes();
-    
-    for (let r = 0; r < notes.length; r++) {
-      for (let c = 0; c < notes[r].length; c++) {
-        if (notes[r][c] === bookingId) {
-          sheet.getRange(r + 1, c + 1).setValue("").setNote("");
-          sheet.getRange(r + 1, c + 2, 6, 1).setValues([[""], [""], [""], [""], [""], [""]]);
-          return;
-        }
-      }
+function initLocationSheets_(ss) {
+  initSheetIfNeeded_(ss, "Booking_Location_Index", [
+    "booking_id", "calendar_sheet_name", "event_date", "table_number", "cell_range", 
+    "block_start_row", "block_end_row", "block_start_col", "block_end_col", 
+    "customer_name", "phone", "event_time", "guest_count", "location_status", 
+    "last_synced_at", "last_synced_hash", "created_at", "updated_at", "note"
+  ], "#e0f2fe");
+  
+  initSheetIfNeeded_(ss, "Booking_Location_History", [
+    "timestamp", "booking_id", "action", "old_date", "new_date", 
+    "old_table", "new_table", "old_range", "new_range", "status", "actor", "note"
+  ], "#fef3c7");
+}
+
+function calculateBookingHash(data, bookingId) {
+  const str = [
+    bookingId,
+    data.customer.name || "",
+    data.customer.phone || "",
+    data.customer.date || "",
+    data.customer.time || "",
+    data.customer.tables || "",
+    data.customer.pax || "",
+    data.deposit.amount || 0,
+    data.deposit.isPaid ? "PAID" : "UNPAID",
+    (data.items || []).map(i => `${i.name}:${i.qty}`).join(',')
+  ].join('|');
+  
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    const char = str.charCodeAt(i);
+    hash = ((hash << 5) - hash) + char;
+    hash |= 0;
+  }
+  return hash.toString();
+}
+
+function findExistingBookingLocation(ss, bookingId) {
+  const idxSheet = ss.getSheetByName("Booking_Location_Index");
+  if (!idxSheet) return null;
+  const dataRange = idxSheet.getDataRange();
+  if (dataRange.getLastRow() < 2) return null;
+  const values = dataRange.getValues();
+  const headers = values[0];
+  
+  const idIdx = headers.indexOf("booking_id");
+  for (let r = 1; r < values.length; r++) {
+    if (values[r][idIdx] === bookingId) {
+      const locObj = { rowNum: r + 1 };
+      headers.forEach((h, c) => {
+        locObj[h] = values[r][c];
+      });
+      return locObj;
     }
   }
+  return null;
 }
 
-function syncToCalendar(data, bookingId, billUrl, transferUrl) {
-  const ss = SpreadsheetApp.openById(CONFIG.LINKED_CALENDAR_ID);
-  
-  if (bookingId) {
-    try { clearCalendarEntryById(ss, bookingId); } catch(e) { console.log("Clear Calendar failed: " + e.message); }
+function validateLocationBelongsToBooking(sheet, startRow, startCol, endRow, endCol, bookingId) {
+  try {
+    const note = sheet.getRange(startRow, startCol).getNote();
+    if (note === bookingId) return true;
+    
+    // Fuzzy search check within cells
+    const values = sheet.getRange(startRow, startCol, endRow - startRow + 1, endCol - startCol + 1).getValues();
+    for (let r = 0; r < values.length; r++) {
+      for (let c = 0; c < values[r].length; c++) {
+        if (String(values[r][c]).indexOf(bookingId) !== -1) return true;
+      }
+    }
+  } catch (e) {
+    console.log("Validation error: " + e.message);
   }
-  
-  const dateStr = data.customer.date;
-  if (!dateStr) return;
-  const sheetName = '📅' + dateStr;
-  let sheet = ss.getSheetByName(sheetName);
-  if (!sheet) {
-    const tpl = ss.getSheetByName(CONFIG.TEMPLATE_SHEET_NAME);
-    if (!tpl) return;
-    sheet = tpl.copyTo(ss).setName(sheetName);
-    sheet.showSheet();
-  }
-  const tableStr = data.customer.tables || "";
-  const zoneChar = tableStr.charAt(0).toUpperCase();
-  const startCol = CONFIG.ZONE_MAPPING[zoneChar];
-  if (!startCol) return;
+  return false;
+}
+
+function findAvailableCalendarSlot(sheet, startCol, bookingId) {
   const infoCol = startCol + 1;
   const maxRow = 150;
   const values = sheet.getRange(3, infoCol, maxRow, 1).getValues();
-  let targetRow = -1;
-  for (let i = 0; i < values.length - 6; i+=6) {
-    if (!values[i][0]) { targetRow = i + 3; break; }
-  }
-  if (targetRow === -1) return;
+  const notes = sheet.getRange(3, startCol, maxRow, 1).getNotes();
   
+  for (let i = 0; i < values.length - 6; i += 6) {
+    if (!values[i][0] || notes[i][0] === bookingId || notes[i][0] === bookingId + "_MOVED") {
+      return i + 3;
+    }
+  }
+  return -1;
+}
+
+function writeBookingBlock(sheet, row, startCol, data, bookingId, billUrl) {
+  const infoCol = startCol + 1;
   const rawName = data.customer.name || "Khách";
   const safeName = rawName.replace(/"/g, '""');
   const actualBillUrl = billUrl || data.billUrl || "";
   const row1 = actualBillUrl ? `=HYPERLINK("${actualBillUrl}";"${safeName}")` : rawName;
   const paxNum = (data.customer.pax || "0").toString().replace(/\D/g, '');
   let timeStr = data.customer.time || "";
-  if (timeStr.includes(':')) { let parts = timeStr.split(':'); timeStr = `${parts[0]}h${parts[1] === '00' ? '' : parts[1]}`; }
+  if (timeStr.includes(':')) {
+    let parts = timeStr.split(':');
+    timeStr = `${parts[0]}h${parts[1] === '00' ? '' : parts[1]}`;
+  }
   const row2 = `${paxNum}ng - ${timeStr}`;
   const phone = data.customer.phone || "";
   const phoneSimple = phone.replace(/\D/g, '');
@@ -512,8 +560,12 @@ function syncToCalendar(data, bookingId, billUrl, transferUrl) {
   const staffName = data.staff.name || "Admin";
   const staffPhone = data.staff.phone ? data.staff.phone.replace(/\D/g, '') : "";
   let staffShort = staffName;
-  if (staffName.toUpperCase().includes("ĐÀO MINH TRÍ")) { staffShort = "DMT"; }
-  else { const parts = staffName.trim().split(' '); staffShort = parts[parts.length - 1]; }
+  if (staffName.toUpperCase().includes("ĐÀO MINH TRÍ")) {
+    staffShort = "DMT";
+  } else {
+    const parts = staffName.trim().split(' ');
+    staffShort = parts[parts.length - 1];
+  }
   const labelStaff = `Nhận: ${staffShort}`;
   const row5 = staffPhone ? `=HYPERLINK("https://zalo.me/${staffPhone}";"${labelStaff}")` : labelStaff;
   const depositAmount = Number(data.deposit.amount) || 0;
@@ -546,14 +598,233 @@ function syncToCalendar(data, bookingId, billUrl, transferUrl) {
   if (data.customer.note) finalNoteLines.push(data.customer.note);
   if (statusLineItems.length > 0) finalNoteLines.push(statusLineItems.join(" - "));
   if (menuText) finalNoteLines.push(menuText);
-
   const row6 = finalNoteLines.join('\n').trim();
   const blockData = [[row1], [row2], [row3], [row4], [row5], [row6]];
-  sheet.getRange(targetRow, startCol).setValue(data.customer.tables).setFontWeight("bold").setHorizontalAlignment("center").setVerticalAlignment("middle").setNote(bookingId);
-  const infoRange = sheet.getRange(targetRow, infoCol, 6, 1);
+  
+  sheet.getRange(row, startCol)
+       .setValue(data.customer.tables)
+       .setFontWeight("bold")
+       .setHorizontalAlignment("center")
+       .setVerticalAlignment("middle")
+       .setNote(bookingId);
+       
+  const infoRange = sheet.getRange(row, infoCol, 6, 1);
   infoRange.setValues(blockData);
   infoRange.setWrap(true);
-  sheet.getRange(targetRow, infoCol).setFontWeight("bold");
+  sheet.getRange(row, infoCol).setFontWeight("bold");
+}
+
+function writeMovedMarker(sheet, row, startCol, text, bookingId) {
+  const infoCol = startCol + 1;
+  sheet.getRange(row, startCol).setValue(sheet.getRange(row, startCol).getValue()).setNote(bookingId + "_MOVED");
+  const empty6 = [[""], [""], [""], [""], [""], [""]];
+  sheet.getRange(row, infoCol, 6, 1).setValues(empty6);
+  sheet.getRange(row, infoCol).setValue(text).setFontWeight("bold").setFontColor("#94a3b8");
+}
+
+function logLocationHistory(ss, bookingId, action, oldDate, newDate, oldTable, newTable, oldRange, newRange, status, note) {
+  try {
+    const histSheet = ss.getSheetByName("Booking_Location_History");
+    if (!histSheet) return;
+    histSheet.appendRow([
+      new Date(),
+      bookingId,
+      action,
+      oldDate || "",
+      newDate || "",
+      oldTable || "",
+      newTable || "",
+      oldRange || "",
+      newRange || "",
+      status || "",
+      "AI_System",
+      note || ""
+    ]);
+  } catch (e) {
+    console.log("Log history failed: " + e.message);
+  }
+}
+
+function updateBookingLocationIndex(ss, bookingId, sheetName, dateStr, tableNum, row, col, infoCol, hash, status, data, noteText) {
+  const idxSheet = ss.getSheetByName("Booking_Location_Index");
+  if (!idxSheet) return;
+  const existing = findExistingBookingLocation(ss, bookingId);
+  const cellRange = `${sheetName}!R${row}C${col}:R${row+5}C${infoCol}`;
+  const now = new Date();
+  
+  const rowValues = [
+    bookingId,
+    sheetName,
+    dateStr,
+    tableNum,
+    cellRange,
+    row,
+    row + 5,
+    col,
+    infoCol,
+    data.customer.name || "",
+    data.customer.phone || "",
+    data.customer.time || "",
+    data.customer.pax || "",
+    status,
+    now,
+    hash,
+    existing ? existing.created_at : now,
+    now,
+    noteText || ""
+  ];
+  
+  if (existing) {
+    idxSheet.getRange(existing.rowNum, 1, 1, rowValues.length).setValues([rowValues]);
+  } else {
+    idxSheet.appendRow(rowValues);
+  }
+}
+
+function clearCalendarEntryById(ss, bookingId) {
+  if (!bookingId) return;
+  initLocationSheets_(ss);
+  const existing = findExistingBookingLocation(ss, bookingId);
+  if (existing) {
+    const sheetName = existing.calendar_sheet_name;
+    const sheet = ss.getSheetByName(sheetName);
+    if (sheet) {
+      const row = Number(existing.block_start_row);
+      const col = Number(existing.block_start_col);
+      const infoCol = Number(existing.block_end_col);
+      if (validateLocationBelongsToBooking(sheet, row, col, row + 5, infoCol, bookingId)) {
+        sheet.getRange(row, col).setValue("").setNote("");
+        sheet.getRange(row, infoCol, 6, 1).setValues([[""], [""], [""], [""], [""], [""]]);
+      }
+    }
+    updateBookingLocationIndex(ss, bookingId, existing.calendar_sheet_name, existing.event_date, existing.table_number, existing.block_start_row, existing.block_start_col, existing.block_end_col, "", "ARCHIVED", {customer:{}}, "Deleted");
+    logLocationHistory(ss, bookingId, "ARCHIVE", existing.event_date, "", existing.table_number, "", "", "", "SUCCESS", "Booking Deleted");
+    return;
+  }
+  
+  // Fallback scan
+  const sheets = ss.getSheets();
+  for (let s = 0; s < sheets.length; s++) {
+    const sheet = sheets[s];
+    if (!sheet.getName().startsWith('📅')) continue;
+    const maxRow = 150;
+    const range = sheet.getRange(1, 1, maxRow, 14);
+    const notes = range.getNotes();
+    for (let r = 0; r < notes.length; r++) {
+      for (let c = 0; c < notes[r].length; c++) {
+        if (notes[r][c] === bookingId || notes[r][c] === bookingId + "_MOVED") {
+          sheet.getRange(r + 1, c + 1).setValue("").setNote("");
+          sheet.getRange(r + 1, c + 2, 6, 1).setValues([[""], [""], [""], [""], [""], [""]]);
+        }
+      }
+    }
+  }
+}
+
+function syncToCalendar(data, bookingId, billUrl, transferUrl) {
+  const ss = SpreadsheetApp.openById(CONFIG.LINKED_CALENDAR_ID);
+  initLocationSheets_(ss);
+  
+  const dateStr = data.customer.date;
+  if (!dateStr) return { status: "FAILED", message: "Thiếu ngày đặt bàn." };
+  
+  const sheetName = '📅' + dateStr;
+  let sheet = ss.getSheetByName(sheetName);
+  if (!sheet) {
+    const tpl = ss.getSheetByName(CONFIG.TEMPLATE_SHEET_NAME);
+    if (!tpl) return { status: "FAILED", message: "Không tìm thấy sheet template " + CONFIG.TEMPLATE_SHEET_NAME };
+    sheet = tpl.copyTo(ss).setName(sheetName);
+    sheet.showSheet();
+  }
+  
+  const tableStr = data.customer.tables || "";
+  const zoneChar = tableStr.charAt(0).toUpperCase();
+  let startCol = CONFIG.ZONE_MAPPING[zoneChar];
+  if (!startCol) startCol = 1; // Zone A fallback
+  const infoCol = startCol + 1;
+  
+  const currentHash = calculateBookingHash(data, bookingId);
+  const existing = findExistingBookingLocation(ss, bookingId);
+  
+  // CASE 1: New booking
+  if (!existing) {
+    const targetRow = findAvailableCalendarSlot(sheet, startCol, bookingId);
+    if (targetRow === -1) {
+      logLocationHistory(ss, bookingId, "CREATE", "", dateStr, "", tableStr, "", "", "FAILED", "Không tìm thấy vị trí trống.");
+      return { status: "NO_SLOT", message: "Cột của bàn " + tableStr + " đã hết vị trí trống." };
+    }
+    
+    writeBookingBlock(sheet, targetRow, startCol, data, bookingId, billUrl);
+    updateBookingLocationIndex(ss, bookingId, sheetName, dateStr, tableStr, targetRow, startCol, infoCol, currentHash, "ACTIVE", data, "Created");
+    logLocationHistory(ss, bookingId, "CREATE", "", dateStr, "", tableStr, "", `${sheetName}!R${targetRow}C${startCol}`, "SUCCESS", "Đồng bộ thành công");
+    return { status: "SUCCESS", message: "Đồng bộ lịch thành công.", cellRange: `${sheetName}!R${targetRow}C${startCol}` };
+  }
+  
+  // CASE 2: Date changed
+  if (existing.event_date !== dateStr) {
+    const oldSheet = ss.getSheetByName(existing.calendar_sheet_name);
+    if (oldSheet && validateLocationBelongsToBooking(oldSheet, Number(existing.block_start_row), Number(existing.block_start_col), Number(existing.block_end_row), Number(existing.block_end_col), bookingId)) {
+      writeMovedMarker(oldSheet, Number(existing.block_start_row), Number(existing.block_start_col), "Thay đổi -> " + dateStr, bookingId);
+    }
+    
+    const targetRow = findAvailableCalendarSlot(sheet, startCol, bookingId);
+    if (targetRow === -1) {
+      logLocationHistory(ss, bookingId, "MOVE_DATE", existing.event_date, dateStr, existing.table_number, tableStr, existing.cell_range, "", "FAILED", "Không có vị trí trống ở ngày mới.");
+      return { status: "NO_SLOT", message: "Ngày mới không còn vị trí trống cho bàn " + tableStr };
+    }
+    
+    writeBookingBlock(sheet, targetRow, startCol, data, bookingId, billUrl);
+    updateBookingLocationIndex(ss, bookingId, sheetName, dateStr, tableStr, targetRow, startCol, infoCol, currentHash, "ACTIVE", data, "Moved Date");
+    logLocationHistory(ss, bookingId, "MOVE_DATE", existing.event_date, dateStr, existing.table_number, tableStr, existing.cell_range, `${sheetName}!R${targetRow}C${startCol}`, "SUCCESS", "Đổi ngày thành công");
+    return { status: "MOVED_DATE", message: "Đã chuyển đổi ngày tiệc.", cellRange: `${sheetName}!R${targetRow}C${startCol}` };
+  }
+  
+  // CASE 3: Table changed (same date)
+  if (existing.table_number !== tableStr) {
+    if (validateLocationBelongsToBooking(sheet, Number(existing.block_start_row), Number(existing.block_start_col), Number(existing.block_end_row), Number(existing.block_end_col), bookingId)) {
+      writeMovedMarker(sheet, Number(existing.block_start_row), Number(existing.block_start_col), "Thay đổi -> Bàn " + tableStr, bookingId);
+    }
+    
+    const targetRow = findAvailableCalendarSlot(sheet, startCol, bookingId);
+    if (targetRow === -1) {
+      logLocationHistory(ss, bookingId, "MOVE_TABLE", dateStr, dateStr, existing.table_number, tableStr, existing.cell_range, "", "FAILED", "Không có vị trí trống ở bàn mới.");
+      return { status: "NO_SLOT", message: "Bàn mới không còn vị trí trống." };
+    }
+    
+    writeBookingBlock(sheet, targetRow, startCol, data, bookingId, billUrl);
+    updateBookingLocationIndex(ss, bookingId, sheetName, dateStr, tableStr, targetRow, startCol, infoCol, currentHash, "ACTIVE", data, "Moved Table");
+    logLocationHistory(ss, bookingId, "MOVE_TABLE", dateStr, dateStr, existing.table_number, tableStr, existing.cell_range, `${sheetName}!R${targetRow}C${startCol}`, "SUCCESS", "Đổi bàn thành công");
+    return { status: "MOVED_TABLE", message: "Đã chuyển đổi bàn tiệc.", cellRange: `${sheetName}!R${targetRow}C${startCol}` };
+  }
+  
+  // CASE 4: Same date and same table
+  const row = Number(existing.block_start_row);
+  const col = Number(existing.block_start_col);
+  
+  if (!validateLocationBelongsToBooking(sheet, row, col, row + 5, infoCol, bookingId)) {
+    // Occupied or modified by user
+    logLocationHistory(ss, bookingId, "UPDATE", dateStr, dateStr, tableStr, tableStr, existing.cell_range, "", "CONFLICT", "Vị trí cũ bị đè.");
+    
+    const targetRow = findAvailableCalendarSlot(sheet, startCol, bookingId);
+    if (targetRow === -1) {
+      return { status: "CONFLICT", message: "Vị trí cũ bị ghi đè và không còn vị trí trống mới." };
+    }
+    
+    writeBookingBlock(sheet, targetRow, startCol, data, bookingId, billUrl);
+    updateBookingLocationIndex(ss, bookingId, sheetName, dateStr, tableStr, targetRow, startCol, infoCol, currentHash, "ACTIVE", data, "Recovered Conflict");
+    logLocationHistory(ss, bookingId, "RECOVER_LOCATION", dateStr, dateStr, tableStr, tableStr, existing.cell_range, `${sheetName}!R${targetRow}C${startCol}`, "SUCCESS", "Khôi phục vị trí xung đột");
+    return { status: "SUCCESS", message: "Đã đồng bộ lịch vào vị trí mới do vị trí cũ bị đè.", cellRange: `${sheetName}!R${targetRow}C${startCol}` };
+  }
+  
+  // Avoid writing if hash hasn't changed (performance optimization)
+  if (existing.last_synced_hash === currentHash) {
+    return { status: "SUCCESS", message: "Lịch đã được đồng bộ (không đổi).", cellRange: existing.cell_range };
+  }
+  
+  writeBookingBlock(sheet, row, col, data, bookingId, billUrl);
+  updateBookingLocationIndex(ss, bookingId, sheetName, dateStr, tableStr, row, col, infoCol, currentHash, "ACTIVE", data, "Updated");
+  logLocationHistory(ss, bookingId, "UPDATE", dateStr, dateStr, tableStr, tableStr, existing.cell_range, existing.cell_range, "SUCCESS", "Cập nhật thành công");
+  return { status: "SUCCESS", message: "Cập nhật lịch thành công.", cellRange: existing.cell_range };
 }
 
 function getHistoryData() {
