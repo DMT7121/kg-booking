@@ -388,7 +388,7 @@ export function useAI() {
     }
     
     // 1. Exact match (cleanName or acronym)
-    const exact = menuList.find((m: any) => m.cleanName === clean || m.acronym === clean)
+    const exact = menuList.find((m: any) => m.cleanName === clean || String(m.acronym || '').toLowerCase().trim() === clean)
     if (exact) return exact
     
     // 2. Contains match: input contains menu name or vice versa
@@ -724,7 +724,7 @@ export function useAI() {
       const inputLower = stripAccents(promptText).toLowerCase()
       const hasDishes = appStore.menuList.some((m: any) => 
         inputLower.includes(m.cleanName) || 
-        (m.acronym && inputLower.split(/\s+/).includes(m.acronym.toLowerCase()))
+        (m.acronym && inputLower.split(/\s+/).includes(String(m.acronym).toLowerCase()))
       ) || appStore.menuAliases.some((a: any) => 
         inputLower.split(/\s+/).includes(stripAccents(a.alias).toLowerCase())
       )
