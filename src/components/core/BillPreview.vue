@@ -259,7 +259,7 @@ function openZaloChat() {
 
     <!-- Scrollable container for Bill -->
     <div :class="[
-      'flex-1 overflow-y-auto overflow-x-auto custom-scrollbar relative',
+      'flex-1 overflow-y-auto overflow-x-hidden custom-scrollbar relative',
       isFullscreen ? 'bg-slate-950/20' : 'bg-slate-50'
     ]">
       <div :class="[
