@@ -71,6 +71,15 @@ export const useFormStore = defineStore('form', () => {
   const unresolvedItems = ref<string[]>([])
   const originalAiValues = ref<any>(null)
 
+  // --- Tax ---
+  const taxEnabled = ref(false)
+
+  // --- Bill Mode ---
+  const billMode = ref<'full' | 'kitchen' | 'bar'>('full')
+
+  // --- Save Type ---
+  const saveType = ref<string>('')
+
   // --- Persist Draft ---
   function loadDraft() {
     try {
@@ -136,17 +145,8 @@ export const useFormStore = defineStore('form', () => {
     saveDraft()
   }, { deep: true })
 
-  // --- Tax ---
-  const taxEnabled = ref(false)
-
   // Initialize draft
   loadDraft()
-
-  // --- Bill Mode ---
-  const billMode = ref<'full' | 'kitchen' | 'bar'>('full')
-
-  // --- Save Type ---
-  const saveType = ref<string>('')
 
   // --- Computed: Totals ---
   const calculatedTotals = computed(() => {
