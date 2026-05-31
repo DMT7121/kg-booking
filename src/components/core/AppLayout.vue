@@ -194,7 +194,7 @@ function handleGlobalKeydown(e: KeyboardEvent) {
 
 <template>
   <div class="min-h-screen h-[100dvh] md:h-auto overflow-hidden bg-slate-100 flex items-center justify-center font-sans text-slate-800">
-    <div id="app-root" class="w-full max-w-[480px] lg:max-w-[1000px] xl:max-w-[1280px] h-[100dvh] md:h-[95vh] md:max-h-none md:rounded-[2rem] md:shadow-2xl flex flex-col relative overflow-hidden bg-white border border-slate-200 transition-all duration-300" v-cloak>
+    <div id="app-root" class="w-full max-w-[480px] lg:max-w-[1200px] xl:max-w-[1440px] 2xl:max-w-[1680px] h-[100dvh] md:h-[96vh] md:max-h-none md:rounded-[2rem] md:shadow-2xl flex flex-col relative overflow-hidden bg-white border border-slate-200 transition-all duration-300" v-cloak>
 
     <!-- GLOBAL PROGRESS BAR -->
     <div class="fixed top-0 left-0 h-[3px] bg-blue-500 z-[999999] transition-all duration-300 ease-out shadow-[0_0_10px_rgba(59,130,246,0.5)]" 

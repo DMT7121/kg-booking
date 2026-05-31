@@ -356,7 +356,7 @@ function triggerKitchenPrint() {
 </script>
 
 <template>
-  <div class="flex-grow flex flex-col min-h-0 h-full bg-slate-50 text-[13px] relative z-0">
+  <div class="flex-grow flex flex-col min-h-0 bg-slate-50 text-[13px] relative z-0">
     
     <!-- Tab Controls Header -->
     <div class="flex border-b border-slate-200 bg-white px-4 md:px-6 shrink-0 relative z-10 shadow-sm overflow-x-auto scrollbar-none gap-2">

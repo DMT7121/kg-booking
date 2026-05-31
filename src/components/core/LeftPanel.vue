@@ -259,16 +259,21 @@ function goToTomorrowTimeline() {
     </div>
 
     <!-- TAB CONTENT WRAPPER -->
-    <div class="flex-grow relative overflow-hidden flex flex-col lg:flex-row bg-slate-50 z-0 min-h-0 h-full w-full">
+    <div class="flex-grow relative overflow-hidden flex flex-col lg:flex-row bg-slate-50 z-0 min-h-0 w-full">
       <!-- Left side: active tab content -->
-      <div class="flex-grow flex flex-col overflow-hidden relative min-h-0 h-full w-full lg:w-[58%] xl:w-[62%] lg:border-r lg:border-slate-200">
+      <div 
+        :class="[
+          'flex-grow flex flex-col overflow-hidden relative min-h-0',
+          ui.tab === 'create' ? 'w-full lg:w-[58%] xl:w-[62%] lg:border-r lg:border-slate-200' : 'w-full lg:w-full xl:w-full lg:border-r-0'
+        ]"
+      >
         <transition name="tab-fade" mode="out-in">
           <KeepAlive>
             <QuickDashboard v-if="ui.tab === 'dashboard'" key="dashboard" />
             <HistoryTimeline v-else-if="ui.tab === 'timeline'" key="timeline" />
             <HistoryList v-else-if="ui.tab === 'history'" key="history" />
             <AnalyticsDashboard v-else-if="ui.tab === 'analytics'" key="analytics" />
-            <div v-else-if="ui.tab === 'create'" key="create" class="flex-grow flex flex-col overflow-hidden relative min-h-0 h-full">
+            <div v-else-if="ui.tab === 'create'" key="create" class="flex-grow flex flex-col overflow-hidden relative min-h-0">
               <div class="flex-grow overflow-y-auto p-3 md:p-4 space-y-3 pb-6 bg-gray-50/30 scroll-smooth custom-scrollbar">
                 <AIInputPanel />
 
@@ -348,8 +353,12 @@ function goToTomorrowTimeline() {
       <!-- Bill Preview (Right side on desktop, overlay on mobile under preview tab) -->
       <div 
         :class="[
-          'bg-slate-100 flex-col shrink-0 border-l border-slate-200 overflow-y-auto custom-scrollbar',
-          ui.tab === 'preview' ? 'absolute inset-0 z-10 flex w-full' : 'hidden lg:flex lg:w-[42%] xl:w-[38%]'
+          'bg-slate-100 flex-col shrink-0 overflow-y-auto custom-scrollbar',
+          ui.tab === 'preview' 
+            ? 'absolute inset-0 z-10 flex w-full h-full' 
+            : ui.tab === 'create' 
+              ? 'hidden lg:flex lg:w-[42%] xl:w-[38%] border-l border-slate-200' 
+              : 'hidden'
         ]"
       >
         <BillPreview />
@@ -520,7 +529,7 @@ function goToTomorrowTimeline() {
     </transition>
 
     <!-- MOBILE BOTTOM NAV -->
-    <div v-show="!ui.isKeyboardOpen" class="flex md:hidden w-full bg-slate-900 border-t border-slate-800 text-[10px] font-bold uppercase tracking-wider relative z-20 items-stretch shrink-0 pb-safe-bottom shadow-[0_-8px_30px_rgba(0,0,0,0.3)]">
+    <div class="flex md:hidden w-full bg-slate-900 border-t border-slate-800 text-[10px] font-bold uppercase tracking-wider relative z-20 items-stretch shrink-0 pb-safe-bottom shadow-[0_-8px_30px_rgba(0,0,0,0.3)]">
       <button @click="ui.tab = 'dashboard'" :class="['flex-grow flex-1 py-2 flex flex-col justify-center items-center gap-0.5 transition-all duration-200 select-none min-h-[48px]', ui.tab === 'dashboard' ? 'text-blue-400 bg-slate-850/50' : 'text-slate-400 hover:text-slate-300']">
         <div class="relative flex items-center justify-center w-8 h-8 rounded-full transition-all" :class="ui.tab === 'dashboard' ? 'bg-blue-500/15 text-blue-400 scale-105' : ''">
           <i class="fa-solid fa-gauge-high text-base"></i>
