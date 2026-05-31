@@ -55,8 +55,13 @@ function _createBillRender() {
   async function triggerSave(type: string, validateFn?: () => boolean) {
     if (uiStore.loading.is) return
     if (validateFn && !validateFn()) return
-    const isAdmin = await appStore.verifyAdminSession()
-    if (!isAdmin) return
+    
+    // Only require admin verification when saving to the database/cloud
+    if (type === 'save') {
+      const isAdmin = await appStore.verifyAdminSession()
+      if (!isAdmin) return
+    }
+    
     uiStore.pendingAction = type
     uiStore.showStaffSelector = true
   }

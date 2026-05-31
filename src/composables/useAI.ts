@@ -162,7 +162,16 @@ export function useAI() {
     }
 
     // ── RACE MODE: Fire top 2 models simultaneously, use first success ──
+    // Only run race if both models are high-performance (tier <= 2) to avoid waiting on slow free tiers (like Pollinations)
+    let runRace = false
     if (candidates.length >= 2) {
+      const [m1, m2] = candidates.slice(0, 2)
+      if (m1.tier <= 2 && m2.tier <= 2) {
+        runRace = true
+      }
+    }
+
+    if (runRace) {
       const [m1, m2] = candidates.slice(0, 2)
       uiStore.loading.subMsg = `⚡ Race: ${m1.name} vs ${m2.name}...`
       
@@ -191,7 +200,7 @@ export function useAI() {
     }
 
     // ── WATERFALL MODE: Try each model sequentially ──
-    const waterfallStart = candidates.length >= 2 ? 2 : 0
+    const waterfallStart = runRace ? 2 : 0
     for (let i = waterfallStart; i < candidates.length; i++) {
       const model = candidates[i]
       try {
@@ -470,7 +479,7 @@ export function useAI() {
     }
     if (!sheets || sheets.length === 0) return allData
 
-    for (const sheet of sheets) {
+    await Promise.all(sheets.map(async (sheet) => {
       let menuItems = await getCachedMenu(sheet)
       if (!menuItems || menuItems.length === 0) {
         try {
@@ -486,7 +495,7 @@ export function useAI() {
       if (menuItems) {
         allData[sheet] = menuItems
       }
-    }
+    }))
     return allData
   }
 
