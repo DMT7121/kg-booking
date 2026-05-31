@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, watch } from 'vue'
+import { ref, watch, computed } from 'vue'
 import { useUIStore } from '@/stores/useUIStore'
 import { useFormStore } from '@/stores/useFormStore'
 import { useConfigStore } from '@/stores/useConfigStore'
@@ -14,6 +14,26 @@ const { handleInputFocus, handleInputBlur, toggleVoiceMode } = useForm()
 const aiFileIn = ref<HTMLInputElement>()
 const isDragging = ref(false)
 const showAiReview = ref(false)
+const isProcessing = ref(false)
+
+const hasWarnings = computed(() => {
+  const confs = formStore.aiMetadata?.confidences
+  if (!confs) return false
+  return Object.values(confs).some((c: any) => c && c.needs_review)
+})
+
+async function handleAnalyze() {
+  if (isProcessing.value) return
+  isProcessing.value = true
+  try {
+    ui.showToast('Đang phân tích dữ liệu...', 'info')
+    await processAI()
+  } catch (err: any) {
+    ui.showToast('Lỗi phân tích: ' + err.message, 'error')
+  } finally {
+    isProcessing.value = false
+  }
+}
 
 watch(() => formStore.aiMetadata, (newVal) => {
   if (newVal) {
@@ -150,8 +170,10 @@ function onDrop(e: DragEvent) {
       </div>
     </div>
 
-    <button @click="processAI" class="w-full mt-3 bg-white text-blue-700 py-3 rounded-xl font-black text-sm hover:bg-slate-50 shadow-lg border border-white/50 flex justify-center items-center gap-2 active:scale-95 transition-all min-h-[48px] active-effect">
-      <i class="fa-solid fa-rocket"></i> PHÂN TÍCH (QUICK EXTRACT)
+    <button @click="handleAnalyze" :disabled="isProcessing" class="w-full mt-3 bg-white text-blue-700 py-3 rounded-xl font-black text-sm hover:bg-slate-50 shadow-lg border border-white/50 flex justify-center items-center gap-2 active:scale-95 transition-all min-h-[48px] active-effect disabled:opacity-85 disabled:cursor-not-allowed">
+      <i v-if="isProcessing" class="fa-solid fa-spinner animate-spin text-blue-600"></i>
+      <i v-else class="fa-solid fa-rocket"></i>
+      {{ isProcessing ? 'ĐANG PHÂN TÍCH...' : 'PHÂN TÍCH (QUICK EXTRACT)' }}
     </button>
   </div>
 
@@ -168,10 +190,19 @@ function onDrop(e: DragEvent) {
         </span>
       </div>
 
+      <!-- Warning Alert Box -->
+      <div v-if="hasWarnings" class="p-3 bg-amber-50/80 border border-amber-300 rounded-2xl flex items-start gap-2.5 text-amber-800 text-[11px] font-bold">
+        <i class="fa-solid fa-triangle-exclamation text-base text-amber-500 shrink-0 mt-0.5 animate-bounce"></i>
+        <div>
+          <div class="font-black text-slate-900 uppercase">Cần Kiểm Tra Lại</div>
+          <div class="text-slate-650 mt-0.5 leading-relaxed font-semibold">Một số thông tin AI trích xuất có độ tin cậy thấp hoặc nghi ngờ sai lệch. Vui lòng kiểm tra kỹ các ô màu vàng bên dưới!</div>
+        </div>
+      </div>
+
       <!-- Grid of fields -->
       <div class="grid grid-cols-2 gap-2.5">
         <!-- Name -->
-        <div class="p-3 rounded-2xl border transition-all" :class="formStore.aiMetadata?.confidences?.name?.needs_review ? 'bg-amber-50/50 border-amber-300 ring-2 ring-amber-100 animate-pulse' : 'bg-slate-50/50 border-slate-100'">
+        <div class="p-3 rounded-2xl border transition-all" :class="formStore.aiMetadata?.confidences?.name?.needs_review ? 'bg-amber-50 border-amber-400 ring-4 ring-amber-500/10' : 'bg-slate-50/50 border-slate-100'">
           <div class="text-[9px] font-black text-slate-400 uppercase tracking-widest">Tên khách</div>
           <div class="text-xs font-black text-slate-800 mt-1.5 flex items-center justify-between">
             <span class="truncate">{{ formStore.originalAiValues.name || '---' }}</span>
@@ -180,7 +211,7 @@ function onDrop(e: DragEvent) {
         </div>
 
         <!-- Phone -->
-        <div class="p-3 rounded-2xl border transition-all" :class="formStore.aiMetadata?.confidences?.phone?.needs_review ? 'bg-amber-50/50 border-amber-300 ring-2 ring-amber-100 animate-pulse' : 'bg-slate-50/50 border-slate-100'">
+        <div class="p-3 rounded-2xl border transition-all" :class="formStore.aiMetadata?.confidences?.phone?.needs_review ? 'bg-amber-50 border-amber-400 ring-4 ring-amber-500/10' : 'bg-slate-50/50 border-slate-100'">
           <div class="text-[9px] font-black text-slate-400 uppercase tracking-widest">Số điện thoại</div>
           <div class="text-xs font-black text-slate-800 mt-1.5 flex items-center justify-between">
             <span class="truncate">{{ formStore.originalAiValues.phone || '---' }}</span>
@@ -189,7 +220,7 @@ function onDrop(e: DragEvent) {
         </div>
 
         <!-- Date -->
-        <div class="p-3 rounded-2xl border transition-all" :class="formStore.aiMetadata?.confidences?.date?.needs_review ? 'bg-amber-50/50 border-amber-300 ring-2 ring-amber-100 animate-pulse' : 'bg-slate-50/50 border-slate-100'">
+        <div class="p-3 rounded-2xl border transition-all" :class="formStore.aiMetadata?.confidences?.date?.needs_review ? 'bg-amber-50 border-amber-400 ring-4 ring-amber-500/10' : 'bg-slate-50/50 border-slate-100'">
           <div class="text-[9px] font-black text-slate-400 uppercase tracking-widest">Ngày tiệc</div>
           <div class="text-xs font-black text-slate-800 mt-1.5 flex items-center justify-between">
             <span>{{ formStore.originalAiValues.date || '---' }}</span>
@@ -198,7 +229,7 @@ function onDrop(e: DragEvent) {
         </div>
 
         <!-- Time -->
-        <div class="p-3 rounded-2xl border transition-all" :class="formStore.aiMetadata?.confidences?.time?.needs_review ? 'bg-amber-50/50 border-amber-300 ring-2 ring-amber-100 animate-pulse' : 'bg-slate-50/50 border-slate-100'">
+        <div class="p-3 rounded-2xl border transition-all" :class="formStore.aiMetadata?.confidences?.time?.needs_review ? 'bg-amber-50 border-amber-400 ring-4 ring-amber-500/10' : 'bg-slate-50/50 border-slate-100'">
           <div class="text-[9px] font-black text-slate-400 uppercase tracking-widest">Giờ tiệc</div>
           <div class="text-xs font-black text-slate-800 mt-1.5 flex items-center justify-between">
             <span>{{ formStore.originalAiValues.time || '---' }}</span>
@@ -207,7 +238,7 @@ function onDrop(e: DragEvent) {
         </div>
 
         <!-- Pax -->
-        <div class="p-3 rounded-2xl border transition-all" :class="formStore.aiMetadata?.confidences?.pax?.needs_review ? 'bg-amber-50/50 border-amber-300 ring-2 ring-amber-100 animate-pulse' : 'bg-slate-50/50 border-slate-100'">
+        <div class="p-3 rounded-2xl border transition-all" :class="formStore.aiMetadata?.confidences?.pax?.needs_review ? 'bg-amber-50 border-amber-400 ring-4 ring-amber-500/10' : 'bg-slate-50/50 border-slate-100'">
           <div class="text-[9px] font-black text-slate-400 uppercase tracking-widest">Số khách</div>
           <div class="text-xs font-black text-slate-800 mt-1.5 flex items-center justify-between">
             <span>{{ formStore.originalAiValues.pax || '---' }}</span>
@@ -216,7 +247,7 @@ function onDrop(e: DragEvent) {
         </div>
 
         <!-- Table -->
-        <div class="p-3 rounded-2xl border transition-all" :class="formStore.aiMetadata?.confidences?.tables?.needs_review ? 'bg-amber-50/50 border-amber-300 ring-2 ring-amber-100 animate-pulse' : 'bg-slate-50/50 border-slate-100'">
+        <div class="p-3 rounded-2xl border transition-all" :class="formStore.aiMetadata?.confidences?.tables?.needs_review ? 'bg-amber-50 border-amber-400 ring-4 ring-amber-500/10' : 'bg-slate-50/50 border-slate-100'">
           <div class="text-[9px] font-black text-slate-400 uppercase tracking-widest">Số bàn</div>
           <div class="text-xs font-black text-slate-800 mt-1.5 flex items-center justify-between">
             <span class="truncate">{{ formStore.originalAiValues.tables || '---' }}</span>
@@ -225,8 +256,8 @@ function onDrop(e: DragEvent) {
         </div>
       </div>
 
-      <button @click.prevent="showAiReview = false" class="w-full bg-blue-600 hover:bg-blue-750 text-white rounded-2xl py-3.5 font-black text-xs uppercase tracking-widest transition-all active:scale-95 flex items-center justify-center gap-2 shadow-md border border-blue-500">
-        <i class="fa-solid fa-circle-check text-sm text-blue-200"></i> Áp Dụng Kết Quả
+      <button @click.prevent="showAiReview = false" class="w-full bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white rounded-2xl py-3.5 font-black text-xs uppercase tracking-widest transition-all active:scale-95 flex items-center justify-center gap-2 shadow-lg shadow-emerald-600/20 border border-emerald-500">
+        <i class="fa-solid fa-check-double text-sm text-emerald-100"></i> ÁP DỤNG VÀO PHIẾU
       </button>
     </div>
   </transition>

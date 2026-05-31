@@ -470,9 +470,14 @@ function _createBillRender() {
     const el = document.getElementById('bill-render')
     if (!el) return
     
-    const parent = el.parentElement
-    const parentWidth = parent ? parent.getBoundingClientRect().width : window.innerWidth
-    const availableWidth = Math.max(280, parentWidth - 32)
+    // Find the unscaled ancestor container instead of the wrapper parent to avoid circular shrinking
+    const container = el.closest('.overflow-y-auto') || el.parentElement?.parentElement
+    const containerWidth = container ? container.getBoundingClientRect().width : window.innerWidth
+    
+    // Do not update or shrink to 0 if the container is currently hidden (display: none)
+    if (containerWidth === 0) return
+    
+    const availableWidth = Math.max(280, containerWidth - 32)
     
     const viewportHeight = window.innerHeight
     const toolbarHeight = 56
@@ -494,7 +499,10 @@ function _createBillRender() {
       s = zoomScale.value
     }
     
-    if (s < 0.3) s = 0.3
+    // Enforce readable minimum scale on desktop screens
+    const isDesktop = window.innerWidth >= 1024
+    const minScale = isDesktop ? 0.75 : 0.35
+    if (s < minScale) s = minScale
     if (s > 2.0) s = 2.0
     
     requestAnimationFrame(() => {

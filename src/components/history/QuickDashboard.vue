@@ -17,6 +17,8 @@ const { processAI } = useAI()
 const quickInputText = ref('')
 const isAnalyzing = ref(false)
 
+const showAllTodo = ref(false)
+
 // Formatting dates
 function getOffsetDateStr(offset: number): string {
   const d = new Date()
@@ -84,6 +86,11 @@ const todoItems = computed(() => {
   })
 
   return list
+})
+
+const displayedTodoItems = computed(() => {
+  if (showAllTodo.value) return todoItems.value
+  return todoItems.value.slice(0, 3)
 })
 
 // Quick Calendar Summary for 7 days
@@ -185,48 +192,67 @@ function handleRecentClick(order: any) {
 <template>
   <div class="flex-grow overflow-y-auto p-4 space-y-5 bg-slate-50/50 scroll-smooth custom-scrollbar">
     <!-- Top Welcoming & Quick Stats -->
-    <div class="bg-gradient-to-br from-blue-900 via-indigo-900 to-slate-900 rounded-3xl p-5 text-white shadow-xl relative overflow-hidden">
+    <div class="bg-gradient-to-br from-blue-900 via-indigo-900 to-slate-900 rounded-3xl p-4 text-white shadow-xl relative overflow-hidden">
       <div class="absolute inset-0 bg-gradient-to-r from-blue-500/10 to-transparent pointer-events-none"></div>
-      <div class="relative z-10 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+      <div class="relative z-10 flex flex-col md:flex-row justify-between items-start md:items-center gap-3">
         <div>
-          <h2 class="text-xl font-black tracking-tight" style="font-family: 'Be Vietnam Pro', sans-serif;">
+          <h2 class="text-base font-black tracking-tight" style="font-family: 'Be Vietnam Pro', sans-serif;">
             BẢNG ĐIỀU KHIỂN NHÀ HÀNG
           </h2>
-          <p class="text-xs text-blue-200 mt-1 font-medium">Xin chào! Dưới đây là tóm tắt vận hành và việc cần xử lý hôm nay.</p>
+          <p class="text-[10px] text-blue-200 mt-0.5 font-medium">Tóm tắt vận hành và việc cần xử lý hôm nay.</p>
         </div>
         <div class="flex gap-2">
-          <button @click="appStore.loadHistory(false)" class="px-4 py-2 bg-white/10 hover:bg-white/20 active:scale-95 border border-white/10 rounded-xl text-xs font-black uppercase tracking-wider transition-all flex items-center gap-2">
+          <button @click="appStore.loadHistory(false)" class="px-3 py-1.5 bg-white/10 hover:bg-white/20 active:scale-95 border border-white/10 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all flex items-center gap-1.5">
             <i class="fa-solid fa-rotate"></i> Cập nhật
           </button>
         </div>
       </div>
       
-      <!-- Summary mini widgets -->
-      <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-5 relative z-10">
-        <div class="bg-white/5 rounded-2xl p-3 border border-white/5">
-          <div class="text-[10px] text-blue-200 font-bold uppercase tracking-widest">Tiệc hôm nay</div>
-          <div class="text-xl font-black mt-1">
-            {{ calendarSummary[0]?.bookings || 0 }} <span class="text-xs text-slate-300 font-normal">bàn</span>
+      <!-- Summary mini widgets (Compact 2x2 grid on mobile/tablet) -->
+      <div class="grid grid-cols-2 lg:grid-cols-4 gap-2 mt-4 relative z-10">
+        <div class="bg-white/5 rounded-2xl py-2 px-3 border border-white/5">
+          <div class="text-[9px] text-blue-200 font-bold uppercase tracking-widest leading-tight">Tiệc hôm nay</div>
+          <div class="text-base font-black mt-0.5">
+            {{ calendarSummary[0]?.bookings || 0 }} <span class="text-[10px] text-slate-300 font-normal">bàn</span>
           </div>
         </div>
-        <div class="bg-white/5 rounded-2xl p-3 border border-white/5">
-          <div class="text-[10px] text-blue-200 font-bold uppercase tracking-widest">Khách hôm nay</div>
-          <div class="text-xl font-black mt-1">
-            {{ calendarSummary[0]?.guests || 0 }} <span class="text-xs text-slate-300 font-normal">người</span>
+        <div class="bg-white/5 rounded-2xl py-2 px-3 border border-white/5">
+          <div class="text-[9px] text-blue-200 font-bold uppercase tracking-widest leading-tight">Khách hôm nay</div>
+          <div class="text-base font-black mt-0.5">
+            {{ calendarSummary[0]?.guests || 0 }} <span class="text-[10px] text-slate-300 font-normal">người</span>
           </div>
         </div>
-        <div class="bg-white/5 rounded-2xl p-3 border border-white/5">
-          <div class="text-[10px] text-blue-200 font-bold uppercase tracking-widest">Việc cần làm</div>
-          <div class="text-xl font-black mt-1 text-yellow-300">
-            {{ todoItems.length }} <span class="text-xs text-slate-300 font-normal">việc</span>
+        <div class="bg-white/5 rounded-2xl py-2 px-3 border border-white/5">
+          <div class="text-[9px] text-blue-200 font-bold uppercase tracking-widest leading-tight">Việc cần làm</div>
+          <div class="text-base font-black mt-0.5 text-yellow-300">
+            {{ todoItems.length }} <span class="text-[10px] text-slate-300 font-normal">việc</span>
           </div>
         </div>
-        <div class="bg-white/5 rounded-2xl p-3 border border-white/5">
-          <div class="text-[10px] text-blue-200 font-bold uppercase tracking-widest">Tổng đơn</div>
-          <div class="text-xl font-black mt-1">
-            {{ Object.keys(appStore.groupedHistory).length }} <span class="text-xs text-slate-300 font-normal">đơn</span>
+        <div class="bg-white/5 rounded-2xl py-2 px-3 border border-white/5">
+          <div class="text-[9px] text-blue-200 font-bold uppercase tracking-widest leading-tight">Tổng đơn</div>
+          <div class="text-base font-black mt-0.5">
+            {{ Object.keys(appStore.groupedHistory).length }} <span class="text-[10px] text-slate-300 font-normal">đơn</span>
           </div>
         </div>
+      </div>
+
+      <!-- Quick Action Chips -->
+      <div class="flex items-center gap-1.5 overflow-x-auto scrollbar-none pt-3 pb-1 flex-nowrap -mx-1 border-t border-white/10 mt-3.5">
+        <button @click="ui.tab = 'create'" class="px-3 py-1.5 bg-white/10 hover:bg-white/20 text-white rounded-full text-[10px] font-black uppercase tracking-wider transition-all flex items-center gap-1 shrink-0 border border-white/10">
+          <i class="fa-solid fa-plus text-[8px] text-blue-300"></i> Tạo nhanh
+        </button>
+        <button @click="ui.selectedTimelineDate = todayStr; ui.tab = 'timeline'" class="px-3 py-1.5 bg-white/10 hover:bg-white/20 text-white rounded-full text-[10px] font-black uppercase tracking-wider transition-all flex items-center gap-1 shrink-0 border border-white/10">
+          <i class="fa-solid fa-calendar-day text-[8px] text-indigo-300"></i> Hôm nay
+        </button>
+        <button @click="ui.tab = 'history'; ui.historyFilters.deposit = 'unpaid'; appStore.loadHistory(false)" class="px-3 py-1.5 bg-white/10 hover:bg-white/20 text-white rounded-full text-[10px] font-black uppercase tracking-wider transition-all flex items-center gap-1 shrink-0 border border-white/10">
+          <i class="fa-solid fa-hourglass-half text-[8px] text-amber-300"></i> Chưa cọc
+        </button>
+        <button @click="ui.tab = 'history'; ui.historyFilters.deposit = 'all'; ui.historyFilters.time = 'today'; appStore.loadHistory(false)" class="px-3 py-1.5 bg-white/10 hover:bg-white/20 text-white rounded-full text-[10px] font-black uppercase tracking-wider transition-all flex items-center gap-1 shrink-0 border border-white/10">
+          <i class="fa-solid fa-bell-concierge text-[8px] text-purple-300"></i> Chưa món
+        </button>
+        <button @click="ui.tab = 'preview'" class="px-3 py-1.5 bg-white/10 hover:bg-white/20 text-white rounded-full text-[10px] font-black uppercase tracking-wider transition-all flex items-center gap-1 shrink-0 border border-white/10">
+          <i class="fa-solid fa-eye text-[8px] text-emerald-300"></i> Xem phiếu
+        </button>
       </div>
     </div>
 
@@ -280,7 +306,7 @@ function handleRecentClick(order: any) {
           </span>
         </div>
 
-        <div class="flex-grow overflow-y-auto space-y-2 max-h-[320px] custom-scrollbar pr-1">
+        <div class="space-y-2 pr-1">
           <div v-if="todoItems.length === 0" class="flex flex-col items-center justify-center py-12 text-slate-400">
             <i class="fa-solid fa-circle-check text-4xl text-green-300 mb-3"></i>
             <div class="font-black text-xs uppercase tracking-wider text-slate-700">Tất cả đã hoàn tất!</div>
@@ -288,7 +314,7 @@ function handleRecentClick(order: any) {
           </div>
           
           <div
-            v-for="todo in todoItems"
+            v-for="todo in displayedTodoItems"
             :key="todo.id"
             class="p-3 border rounded-2xl flex items-center justify-between gap-3 transition-all hover:bg-slate-50"
             :class="{
@@ -316,6 +342,14 @@ function handleRecentClick(order: any) {
               class="px-3 py-2 bg-white border rounded-xl font-black text-[9px] uppercase tracking-wider text-slate-700 hover:border-blue-500 hover:text-blue-600 active:scale-95 transition-all shrink-0 shadow-sm"
             >
               {{ todo.actionLabel }}
+            </button>
+          </div>
+
+          <!-- Xem tất cả / Thu gọn toggle button -->
+          <div v-if="todoItems.length > 3" class="pt-2 flex justify-center border-t border-slate-100 mt-2">
+            <button @click="showAllTodo = !showAllTodo" class="text-[11px] font-black text-blue-600 hover:text-blue-700 flex items-center gap-1.5 uppercase tracking-wider">
+              <span>{{ showAllTodo ? 'Thu gọn' : `Xem tất cả (${todoItems.length})` }}</span>
+              <i class="fa-solid" :class="showAllTodo ? 'fa-chevron-up' : 'fa-chevron-down'"></i>
             </button>
           </div>
         </div>
