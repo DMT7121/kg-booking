@@ -32,6 +32,9 @@ function _createBillRender() {
   const isRendering = ref(false)
   const mobileScaleStyles = ref<Record<string, string>>({})
   const wrapperScaleStyles = ref<Record<string, string>>({})
+  const zoomMode = ref<'fit-width' | 'fit-screen' | 'manual'>('fit-width')
+  const zoomScale = ref<number>(1)
+  const isFullscreen = ref(false)
 
   // --- File Name Construction ---
   function constructFileName(): string {
@@ -439,23 +442,63 @@ function _createBillRender() {
     if (!el) return
     
     const parent = el.parentElement
-    const availableWidth = parent ? (parent.getBoundingClientRect().width - 32) : Math.min(window.innerWidth - 32, 480 - 32)
+    const parentWidth = parent ? parent.getBoundingClientRect().width : window.innerWidth
+    const availableWidth = Math.max(280, parentWidth - 32)
     
-    if (availableWidth < 800) {
-      const s = availableWidth / 800
-      requestAnimationFrame(() => {
-        const h = el.scrollHeight || 800
-        mobileScaleStyles.value = { transform: `scale(${s})`, transformOrigin: 'top left', margin: '0' }
-        wrapperScaleStyles.value = { width: `${800 * s}px`, height: `${h * s + 16}px`, position: 'relative', margin: '0 auto' }
-      })
+    const viewportHeight = window.innerHeight
+    const toolbarHeight = 56
+    const verticalPadding = 48
+    const availableHeight = Math.max(300, viewportHeight - toolbarHeight - verticalPadding - (isFullscreen.value ? 120 : 0))
+    
+    const billHeight = el.scrollHeight || 1000
+    
+    let s = 1
+    if (zoomMode.value === 'fit-width') {
+      s = availableWidth / 800
+      zoomScale.value = Math.round(s * 100) / 100
+    } else if (zoomMode.value === 'fit-screen') {
+      const sw = availableWidth / 800
+      const sh = availableHeight / billHeight
+      s = Math.min(sw, sh)
+      zoomScale.value = Math.round(s * 100) / 100
     } else {
-      mobileScaleStyles.value = { transform: 'none', transformOrigin: 'top center', margin: '0 auto' }
-      wrapperScaleStyles.value = { width: '100%', display: 'flex', justifyContent: 'center' }
+      s = zoomScale.value
     }
+    
+    if (s < 0.3) s = 0.3
+    if (s > 2.0) s = 2.0
+    
+    requestAnimationFrame(() => {
+      mobileScaleStyles.value = { transform: `scale(${s})`, transformOrigin: 'top center', margin: '0 auto' }
+      wrapperScaleStyles.value = { 
+        width: `${800 * s}px`, 
+        height: `${billHeight * s + 16}px`, 
+        position: 'relative', 
+        margin: '0 auto' 
+      }
+    })
+  }
+
+  function setZoomMode(mode: 'fit-width' | 'fit-screen' | 'manual', scale?: number) {
+    zoomMode.value = mode
+    if (scale !== undefined) {
+      zoomScale.value = scale
+    }
+    updatePreviewScale()
+  }
+
+  function adjustZoom(delta: number) {
+    zoomMode.value = 'manual'
+    let newScale = Math.round((zoomScale.value + delta) * 20) / 20
+    if (newScale < 0.3) newScale = 0.3
+    if (newScale > 2.0) newScale = 2.0
+    zoomScale.value = newScale
+    updatePreviewScale()
   }
 
   return {
     billRef, isRendering, mobileScaleStyles, wrapperScaleStyles,
+    zoomMode, zoomScale, isFullscreen, setZoomMode, adjustZoom,
     constructFileName, triggerSave, confirmStaffAndSave, performOptimisticSave,
     updatePreviewScale, universalSaveImage
   }
