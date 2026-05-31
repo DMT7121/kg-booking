@@ -161,7 +161,7 @@ function shareCurrentBill() {
                   Cảnh báo phân tích AI
                 </div>
                 <ul class="list-disc pl-4 text-xs text-amber-700 space-y-1">
-                  <li v-if="formStore.aiMetadata && formStore.aiMetadata.confidence_score < 0.8">
+                  <li v-if="formStore.aiMetadata && typeof formStore.aiMetadata.confidence_score === 'number' && formStore.aiMetadata.confidence_score < 0.8">
                     Đo độ tin cậy AI thấp ({{ Math.round(formStore.aiMetadata.confidence_score * 100) }}%). Vui lòng kiểm tra lại.
                   </li>
                   <li v-for="(warn, idx) in formStore.warnings" :key="idx">
