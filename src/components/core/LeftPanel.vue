@@ -14,6 +14,7 @@ import MenuItemsEditor from '@/components/forms/MenuItemsEditor.vue'
 import HistoryList from '@/components/history/HistoryList.vue'
 import HistoryTimeline from '@/components/history/HistoryTimeline.vue'
 import AnalyticsDashboard from '@/components/history/AnalyticsDashboard.vue'
+import QuickDashboard from '@/components/history/QuickDashboard.vue'
 import BillPreview from './BillPreview.vue'
 import { formatVND } from '@/utils'
 
@@ -58,7 +59,7 @@ function reloadApp() {
 }
 
 // --- Tab Swipe (mobile only) ---
-const mobileTabs = ['timeline', 'history', 'analytics', 'create', 'preview']
+const mobileTabs = ['dashboard', 'timeline', 'history', 'analytics', 'create', 'preview']
 const tabRef = computed(() => ui.tab)
 const { onSwipeStart, onSwipeEnd } = useTabSwipe(
   tabRef as any,
@@ -211,21 +212,24 @@ function goToTomorrowTimeline() {
       </div>
     </div>
 
-    <!-- TABS -->
-    <div class="flex w-full bg-white text-[8px] sm:text-[10px] md:text-xs font-black border-b border-slate-200 uppercase tracking-widest shadow-sm relative z-10 items-stretch shrink-0">
-      <button @click="ui.tab = 'timeline'; appStore.loadHistory(false)" :class="['flex-1 py-2 md:py-4 flex flex-col md:flex-row justify-center items-center gap-1 md:gap-2 transition-all min-h-[54px] md:min-h-[56px] border-b-[3px] px-1 md:px-4 text-center leading-tight whitespace-normal', ui.tab === 'timeline' ? 'text-blue-700 border-blue-600 bg-blue-50/80' : 'text-slate-400 border-transparent hover:text-slate-600 hover:bg-slate-50']">
+    <!-- TABS (Desktop only, hidden on mobile for bottom nav style) -->
+    <div class="hidden md:flex w-full bg-white text-[8px] sm:text-[10px] md:text-xs font-black border-b border-slate-200 uppercase tracking-widest shadow-sm relative z-10 items-stretch shrink-0">
+      <button @click="ui.tab = 'dashboard'" :class="['flex-grow flex-1 py-2 md:py-4 flex flex-col md:flex-row justify-center items-center gap-1 md:gap-2 transition-all min-h-[54px] md:min-h-[56px] border-b-[3px] px-1 md:px-4 text-center leading-tight whitespace-normal', ui.tab === 'dashboard' ? 'text-blue-700 border-blue-600 bg-blue-50/80' : 'text-slate-400 border-transparent hover:text-slate-600 hover:bg-slate-50']">
+        <i class="fa-solid fa-gauge-high text-sm md:text-base"></i> <span>Điều Khiển</span>
+      </button>
+      <button @click="ui.tab = 'timeline'; appStore.loadHistory(false)" :class="['flex-grow flex-1 py-2 md:py-4 flex flex-col md:flex-row justify-center items-center gap-1 md:gap-2 transition-all min-h-[54px] md:min-h-[56px] border-b-[3px] px-1 md:px-4 text-center leading-tight whitespace-normal', ui.tab === 'timeline' ? 'text-blue-700 border-blue-600 bg-blue-50/80' : 'text-slate-400 border-transparent hover:text-slate-600 hover:bg-slate-50']">
         <i class="fa-solid fa-calendar-days text-sm md:text-base"></i> <span>Lịch Đặt Bàn</span>
       </button>
-      <button @click="ui.tab = 'history'; appStore.loadHistory(false)" :class="['flex-1 py-2 md:py-4 flex flex-col md:flex-row justify-center items-center gap-1 md:gap-2 transition-all min-h-[54px] md:min-h-[56px] border-b-[3px] px-1 md:px-4 text-center leading-tight whitespace-normal', ui.tab === 'history' ? 'text-blue-700 border-blue-600 bg-blue-50/80' : 'text-slate-400 border-transparent hover:text-slate-600 hover:bg-slate-50']">
+      <button @click="ui.tab = 'history'; appStore.loadHistory(false)" :class="['flex-grow flex-1 py-2 md:py-4 flex flex-col md:flex-row justify-center items-center gap-1 md:gap-2 transition-all min-h-[54px] md:min-h-[56px] border-b-[3px] px-1 md:px-4 text-center leading-tight whitespace-normal', ui.tab === 'history' ? 'text-blue-700 border-blue-600 bg-blue-50/80' : 'text-slate-400 border-transparent hover:text-slate-600 hover:bg-slate-50']">
         <i class="fa-solid fa-list-ul text-sm md:text-base"></i> <span>Lịch Sử</span>
       </button>
-      <button @click="ui.tab = 'analytics'; appStore.loadHistory(false)" :class="['flex-1 py-2 md:py-4 flex flex-col md:flex-row justify-center items-center gap-1 md:gap-2 transition-all min-h-[54px] md:min-h-[56px] border-b-[3px] px-1 md:px-4 text-center leading-tight whitespace-normal', ui.tab === 'analytics' ? 'text-blue-700 border-blue-600 bg-blue-50/80' : 'text-slate-400 border-transparent hover:text-slate-600 hover:bg-slate-50']">
+      <button @click="ui.tab = 'analytics'; appStore.loadHistory(false)" :class="['flex-grow flex-1 py-2 md:py-4 flex flex-col md:flex-row justify-center items-center gap-1 md:gap-2 transition-all min-h-[54px] md:min-h-[56px] border-b-[3px] px-1 md:px-4 text-center leading-tight whitespace-normal', ui.tab === 'analytics' ? 'text-blue-700 border-blue-600 bg-blue-50/80' : 'text-slate-400 border-transparent hover:text-slate-600 hover:bg-slate-50']">
         <i class="fa-solid fa-chart-pie text-sm md:text-base"></i> <span>Báo Cáo</span>
       </button>
-      <button @click="ui.tab = 'create'" :class="['flex-1 py-2 md:py-4 flex flex-col md:flex-row justify-center items-center gap-1 md:gap-2 transition-all min-h-[54px] md:min-h-[56px] border-b-[3px] px-1 md:px-4 text-center leading-tight whitespace-normal', ui.tab === 'create' ? 'text-blue-700 border-blue-600 bg-blue-50/80' : 'text-slate-400 border-transparent hover:text-slate-600 hover:bg-slate-50']">
+      <button @click="ui.tab = 'create'" :class="['flex-grow flex-1 py-2 md:py-4 flex flex-col md:flex-row justify-center items-center gap-1 md:gap-2 transition-all min-h-[54px] md:min-h-[56px] border-b-[3px] px-1 md:px-4 text-center leading-tight whitespace-normal', ui.tab === 'create' ? 'text-blue-700 border-blue-600 bg-blue-50/80' : 'text-slate-400 border-transparent hover:text-slate-600 hover:bg-slate-50']">
         <i class="fa-solid fa-plus text-sm md:text-base"></i> <span>Tạo Phiếu</span>
       </button>
-      <button v-if="formStore.customer.name || formStore.id" @click="ui.tab = 'preview'" :class="['flex-1 py-2 md:py-4 flex flex-col md:flex-row justify-center items-center gap-1 md:gap-2 transition-all min-h-[54px] md:min-h-[56px] border-b-[3px] px-1 md:px-4 text-center leading-tight whitespace-normal', ui.tab === 'preview' ? 'text-blue-700 border-blue-600 bg-blue-50/80' : 'text-slate-400 border-transparent hover:text-slate-600 hover:bg-slate-50']">
+      <button v-if="formStore.customer.name || formStore.id" @click="ui.tab = 'preview'" :class="['flex-grow flex-1 py-2 md:py-4 flex flex-col md:flex-row justify-center items-center gap-1 md:gap-2 transition-all min-h-[54px] md:min-h-[56px] border-b-[3px] px-1 md:px-4 text-center leading-tight whitespace-normal', ui.tab === 'preview' ? 'text-blue-700 border-blue-600 bg-blue-50/80' : 'text-slate-400 border-transparent hover:text-slate-600 hover:bg-slate-50']">
         <i class="fa-solid fa-eye text-sm md:text-base"></i> <span>Xem Phiếu</span>
       </button>
     </div>
@@ -236,7 +240,8 @@ function goToTomorrowTimeline() {
       <div class="flex-grow flex flex-col overflow-hidden relative min-h-0 h-full w-full lg:w-[55%] lg:border-r lg:border-slate-200">
         <transition name="tab-fade" mode="out-in">
           <KeepAlive>
-            <HistoryTimeline v-if="ui.tab === 'timeline'" key="timeline" />
+            <QuickDashboard v-if="ui.tab === 'dashboard'" key="dashboard" />
+            <HistoryTimeline v-else-if="ui.tab === 'timeline'" key="timeline" />
             <HistoryList v-else-if="ui.tab === 'history'" key="history" />
             <AnalyticsDashboard v-else-if="ui.tab === 'analytics'" key="analytics" />
             <div v-else-if="ui.tab === 'create'" key="create" class="flex-grow flex flex-col overflow-hidden relative min-h-0 h-full">
@@ -416,10 +421,33 @@ function goToTomorrowTimeline() {
         </transition>
       </div>
     </transition>
+
+    <!-- MOBILE BOTTOM NAV -->
+    <div v-show="!ui.isKeyboardOpen" class="flex md:hidden w-full bg-white border-t border-slate-200/85 text-[9px] font-black uppercase tracking-wider relative z-20 items-stretch shrink-0 pb-safe-bottom shadow-[0_-4px_16px_rgba(0,0,0,0.03)] bg-white/95 backdrop-blur-md">
+      <button @click="ui.tab = 'dashboard'" :class="['flex-grow flex-1 py-2 flex flex-col justify-center items-center gap-1 transition-all', ui.tab === 'dashboard' ? 'text-blue-700 bg-blue-50/40' : 'text-slate-400']">
+        <i class="fa-solid fa-gauge-high text-sm"></i> <span>Điều khiển</span>
+      </button>
+      <button @click="ui.tab = 'timeline'; appStore.loadHistory(false)" :class="['flex-grow flex-1 py-2 flex flex-col justify-center items-center gap-1 transition-all', ui.tab === 'timeline' ? 'text-blue-700 bg-blue-50/40' : 'text-slate-400']">
+        <i class="fa-solid fa-calendar-days text-sm"></i> <span>Lịch</span>
+      </button>
+      <button @click="ui.tab = 'create'" :class="['flex-grow flex-1 py-2 flex flex-col justify-center items-center gap-1 transition-all', ui.tab === 'create' ? 'text-blue-700 bg-blue-50/40' : 'text-slate-400']">
+        <i class="fa-solid fa-plus text-sm"></i> <span>Tạo Phiếu</span>
+      </button>
+      <button @click="ui.tab = 'history'; appStore.loadHistory(false)" :class="['flex-grow flex-1 py-2 flex flex-col justify-center items-center gap-1 transition-all', ui.tab === 'history' ? 'text-blue-700 bg-blue-50/40' : 'text-slate-400']">
+        <i class="fa-solid fa-list-ul text-sm"></i> <span>Lịch sử</span>
+      </button>
+      <button @click="ui.tab = 'analytics'; appStore.loadHistory(false)" :class="['flex-grow flex-1 py-2 flex flex-col justify-center items-center gap-1 transition-all', ui.tab === 'analytics' ? 'text-blue-700 bg-blue-50/40' : 'text-slate-400']">
+        <i class="fa-solid fa-chart-pie text-sm"></i> <span>Báo cáo</span>
+      </button>
+    </div>
   </div>
 </template>
 
 <style scoped>
+.pb-safe-bottom {
+  padding-bottom: env(safe-area-inset-bottom, 12px);
+}
+
 .slide-up-enter-active,
 .slide-up-leave-active {
   transition: transform 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);

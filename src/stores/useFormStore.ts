@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia'
-import { reactive, ref, computed } from 'vue'
+import { reactive, ref, computed, watch } from 'vue'
 import { stripAccents, cleanPhoneNumber, generateBookingId } from '@/utils'
 import { ALCOHOL_KEYS, DRINK_KEYS } from '@/utils/constants'
 
@@ -71,8 +71,76 @@ export const useFormStore = defineStore('form', () => {
   const unresolvedItems = ref<string[]>([])
   const originalAiValues = ref<any>(null)
 
+  // --- Persist Draft ---
+  function loadDraft() {
+    try {
+      const draft = localStorage.getItem('kg_booking_draft')
+      if (draft) {
+        const parsed = JSON.parse(draft)
+        if (parsed.id) id.value = parsed.id
+        if (parsed.version) version.value = parsed.version
+        if (parsed.originalState) originalState.value = parsed.originalState
+        if (parsed.customer) Object.assign(customer, parsed.customer)
+        if (parsed.items) items.value = parsed.items
+        if (parsed.deposit) Object.assign(deposit, parsed.deposit)
+        if (parsed.staff) Object.assign(staff, parsed.staff)
+        if (parsed.rawInput) rawInput.value = parsed.rawInput
+        if (parsed.aiImage) aiImage.value = parsed.aiImage
+        if (parsed.oldBillFileId) oldBillFileId.value = parsed.oldBillFileId
+        if (parsed.aiMetadata) aiMetadata.value = parsed.aiMetadata
+        if (parsed.warnings) warnings.value = parsed.warnings
+        if (parsed.unresolvedItems) unresolvedItems.value = parsed.unresolvedItems
+        if (parsed.originalAiValues) originalAiValues.value = parsed.originalAiValues
+        if (parsed.taxEnabled !== undefined) taxEnabled.value = parsed.taxEnabled
+        if (parsed.billMode) billMode.value = parsed.billMode
+        if (parsed.saveType) saveType.value = parsed.saveType
+      }
+    } catch (e) {
+      console.warn('Failed to load draft:', e)
+    }
+  }
+
+  function saveDraft() {
+    try {
+      const draft = {
+        id: id.value,
+        version: version.value,
+        originalState: originalState.value,
+        customer,
+        items: items.value,
+        deposit,
+        staff,
+        rawInput: rawInput.value,
+        aiImage: aiImage.value,
+        oldBillFileId: oldBillFileId.value,
+        aiMetadata: aiMetadata.value,
+        warnings: warnings.value,
+        unresolvedItems: unresolvedItems.value,
+        originalAiValues: originalAiValues.value,
+        taxEnabled: taxEnabled.value,
+        billMode: billMode.value,
+        saveType: saveType.value
+      }
+      localStorage.setItem('kg_booking_draft', JSON.stringify(draft))
+    } catch (e) {
+      console.warn('Failed to save draft:', e)
+    }
+  }
+
+  function clearDraft() {
+    localStorage.removeItem('kg_booking_draft')
+  }
+
+  // Watch state changes to auto-save draft
+  watch([id, version, originalState, customer, items, deposit, staff, rawInput, aiImage, oldBillFileId, aiMetadata, warnings, unresolvedItems, originalAiValues, taxEnabled, billMode, saveType], () => {
+    saveDraft()
+  }, { deep: true })
+
   // --- Tax ---
   const taxEnabled = ref(false)
+
+  // Initialize draft
+  loadDraft()
 
   // --- Bill Mode ---
   const billMode = ref<'full' | 'kitchen' | 'bar'>('full')
@@ -140,6 +208,7 @@ export const useFormStore = defineStore('form', () => {
     warnings.value = []
     unresolvedItems.value = []
     originalAiValues.value = null
+    clearDraft()
   }
 
   return {

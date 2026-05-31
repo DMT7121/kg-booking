@@ -139,12 +139,28 @@ function doPost(e) {
 
 // --- PHẦN 2: MENU ---
 function getMenuSheets() {
+  try {
+    const cached = CacheService.getScriptCache().get("menu_sheets");
+    if (cached) return JSON.parse(cached);
+  } catch(e) {}
+
   const ss = SpreadsheetApp.openById(CONFIG.SS_ID);
   const menuSheets = ss.getSheets().map(s => s.getName()).filter(n => n.toLowerCase().includes("menu"));
-  return { ok: true, sheets: menuSheets };
+  const result = { ok: true, sheets: menuSheets };
+  try {
+    CacheService.getScriptCache().put("menu_sheets", JSON.stringify(result), 21600); // cache 6 hours
+  } catch(e) {}
+  return result;
 }
 
 function getMenuData(sheetName) {
+  const targetSheet = sheetName || "Menu";
+  const cacheKey = "menu_data_" + targetSheet.replace(/\s+/g, "_");
+  try {
+    const cached = CacheService.getScriptCache().get(cacheKey);
+    if (cached) return JSON.parse(cached);
+  } catch(e) {}
+
   const ss = SpreadsheetApp.openById(CONFIG.SS_ID);
   let target = sheetName;
   if (!target) {
@@ -164,7 +180,11 @@ function getMenuData(sheetName) {
     const menu = rows.map(r => ({
       name: r[0], price: Number(r[1]) || 0, acronym: r[2], cleanName: r[3], desc: r[4] || ""
     }));
-    return { ok: true, data: menu };
+    const result = { ok: true, data: menu };
+    try {
+      CacheService.getScriptCache().put(cacheKey, JSON.stringify(result), 21600); // cache 6 hours
+    } catch(e) {}
+    return result;
   } catch (e) {
     return { ok: false, message: "Lỗi tải Menu: " + e.message, data: [] };
   }
@@ -184,6 +204,11 @@ function createNewMenuSheet(name, rawText, password, token) {
   sheet.setFrozenRows(1);
   const rows = parseMenuRawData(rawText);
   if (rows.length > 0) { sheet.getRange(2, 1, rows.length, 5).setValues(rows); }
+  try {
+    const cache = CacheService.getScriptCache();
+    cache.remove("menu_sheets");
+    cache.remove("menu_data_" + sheetName.replace(/\s+/g, "_"));
+  } catch(e) {}
   return { ok: true, message: "Menu Updated Successfully", sheetName: sheetName };
 }
 
@@ -201,6 +226,11 @@ function deleteMenuSheet(name, password, token) {
   }
   
   ss.deleteSheet(sheet);
+  try {
+    const cache = CacheService.getScriptCache();
+    cache.remove("menu_sheets");
+    cache.remove("menu_data_" + name.replace(/\s+/g, "_"));
+  } catch(e) {}
   return { ok: true, message: "Xóa Menu thành công." };
 }
 
@@ -709,6 +739,11 @@ function saveSystemConfig(data, password) {
 }
 
 function getSystemConfig() {
+  try {
+    const cached = CacheService.getScriptCache().get("system_config");
+    if (cached) return JSON.parse(cached);
+  } catch(e) {}
+
   const ss = SpreadsheetApp.openById(CONFIG.SS_ID);
   const sheet = migrateSystemConfigSheetIfNeeded_(ss);
   const config = {};
@@ -742,7 +777,11 @@ function getSystemConfig() {
     }
   }
   
-  return { ok: true, data: config };
+  const result = { ok: true, data: config };
+  try {
+    CacheService.getScriptCache().put("system_config", JSON.stringify(result), 21600); // cache 6 hours
+  } catch(e) {}
+  return result;
 }
 
 function jsonResponse(obj) {
@@ -1308,6 +1347,9 @@ function upsertSystemConfigRow_(key, val, type, scope, isProtected, desc, user) 
   } else {
     sheet.appendRow(newRow);
   }
+  try {
+    CacheService.getScriptCache().remove("system_config");
+  } catch(e) {}
   writeAuditLog_(updatedBy, "upsert", key, checksum);
 }
 
