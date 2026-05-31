@@ -120,7 +120,7 @@ function _createBillRender() {
       container.style.cssText = 'position:fixed;top:0;left:0;width:800px;z-index:-9999;visibility:visible;opacity:0.01;pointer-events:none;'
       const clone = originalElement.cloneNode(true) as HTMLElement
       clone.id = 'bill-render' // Keep ID so all #bill-render CSS rules apply to the clone
-      clone.style.cssText = 'transform:none !important;margin:0;width:800px;min-height:100px;'
+      clone.style.cssText = 'position:static !important;transform:none !important;margin:0;width:800px;min-height:100px;left:auto !important;top:auto !important;'
       
       const originalId = originalElement.id
       originalElement.id = 'bill-render-original' // Temporarily rename original to avoid ID collision
@@ -509,12 +509,19 @@ function _createBillRender() {
     if (s > 2.0) s = 2.0
     
     requestAnimationFrame(() => {
-      mobileScaleStyles.value = { transform: `scale(${s})`, transformOrigin: 'top center', margin: '0 auto' }
+      mobileScaleStyles.value = { 
+        transform: `translate(-50%, 0) scale(${s})`, 
+        transformOrigin: 'top center', 
+        position: 'absolute',
+        left: '50%',
+        top: '0'
+      }
       wrapperScaleStyles.value = { 
         width: `${800 * s}px`, 
         height: `${billHeight * s + 16}px`, 
         position: 'relative', 
-        margin: '0 auto' 
+        margin: '0 auto',
+        overflow: 'hidden'
       }
     })
   }
