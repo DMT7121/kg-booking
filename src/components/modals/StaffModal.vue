@@ -47,8 +47,23 @@ async function handleStaffOptions(staff: any, idx: number) {
   const isAdmin = await appStore.verifyAdminSession()
   if (!isAdmin) return
 
-  const confirmed = await ui.showConfirm('Tùy chọn', `Xóa nhân viên ${staff.name}?`)
-  if (confirmed) {
+  const choice = await ui.showConfirm('Quản lý nhân sự', `Nhấn "OK" để SỬA thông tin của ${staff.name}.\nNhấn "Cancel/Hủy" để XÓA nhân viên này.`)
+  if (choice) {
+    const newName = await ui.showPrompt('Sửa Tên', 'Nhập Tên nhân viên mới:', staff.name)
+    if (newName === null) return
+    const newPhone = await ui.showPrompt('Sửa Số Điện Thoại', 'Nhập Số điện thoại mới:', staff.phone)
+    if (newPhone === null) return
+    
+    if (newName.trim()) staff.name = newName.trim()
+    if (newPhone.trim()) staff.phone = newPhone.trim()
+    
+    ui.showToast('Đã cập nhật thông tin nhân viên', 'success')
+    localStorage.setItem(CACHE_KEYS.STAFF, JSON.stringify(appStore.staffList))
+    await appStore.updateRemoteConfig()
+  } else {
+    const confirmDelete = await ui.showConfirm('Xác nhận xóa', `Bạn có chắc chắn muốn XÓA nhân viên ${staff.name}?`)
+    if (!confirmDelete) return
+    
     if (appStore.staffList.length > 1) {
       appStore.staffList.splice(idx, 1)
       ui.showToast('Đã xóa nhân viên', 'success')
