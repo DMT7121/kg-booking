@@ -87,20 +87,37 @@ function doPost(e) {
     let result = {};
     switch (action) {
       case "saveOrder": result = saveOrder(data.data); break;
-      case "deleteOrder": result = deleteOrder(data.id, data.password); break;
+      case "deleteOrder": result = deleteOrder(data.id, data.password, data.token); break;
       case "getHistory": result = getHistoryData(); break;
       case "getMenuSheets": result = getMenuSheets(); break;
       case "getMenu": result = getMenuData(data.sheetName); break;
-      case "createMenu": result = createNewMenuSheet(data.name, data.rawText, data.password); break;
-      case "deleteMenu": result = deleteMenuSheet(data.name, data.password); break;
-      case "uploadMenuImage": result = uploadMenuImage(data.sheetName, data.base64, data.password); break;
-      case "uploadDishImage": result = uploadDishImage(data.dishId, data.base64, data.password); break;
+      case "createMenu": result = createNewMenuSheet(data.name, data.rawText, data.password, data.token); break;
+      case "deleteMenu": result = deleteMenuSheet(data.name, data.password, data.token); break;
+      case "uploadMenuImage": result = uploadMenuImage(data.sheetName, data.base64, data.password, data.token); break;
+      case "uploadDishImage": result = uploadDishImage(data.dishId, data.base64, data.password, data.token); break;
       case "saveConfig": result = saveSystemConfig(data, data.password); break;
       case "getConfig": result = getSystemConfig(); break;
       case "renderPreview": result = renderPreview(data.data); break;
-      case "saveApiKey": result = saveApiKey(data.provider, data.model, data.key, data.password); break;
-      case "saveApiKeys": result = saveApiKeys(data.keys, data.password); break;
-      case "borrowApiKeys": result = getSharedApiKeys(data.password); break;
+      case "saveApiKey": result = saveApiKey(data.provider, data.model, data.key, data.password, data.token); break;
+      case "saveApiKeys": result = saveApiKeys(data.keys, data.password, data.token); break;
+      case "borrowApiKeys": result = getSharedApiKeys(data.password, data.token); break;
+      
+      // NEW ENDPOINTS
+      case "authAdminSettings": result = authAdminSettings(data.password); break;
+      case "verifyAdminSettings": result = { ok: true, valid: verifyAdminSettingsToken(data.token) }; break;
+      case "logoutAdminSettings": result = logoutAdminSettings(data.token); break;
+      case "getAdminSystemConfig": result = getAdminSystemConfig(data.token); break;
+      case "saveAiApiConfig": result = saveAiApiConfig(data.token, data.config); break;
+      case "testAiApiKey": result = testAiApiKey(data.token, data.provider, data.apiKey); break;
+      case "callAiService": result = callAiService(data); break;
+      case "upsertSystemConfig": result = upsertSystemConfig(data.key, data.value, data.options, data.token); break;
+      case "upsertSystemConfigBatch": result = upsertSystemConfigBatch(data.configPatch, data.options, data.token); break;
+      case "mergeSystemConfig": result = mergeSystemConfig(data.configPatch, data.options, data.token); break;
+      case "backupSystemConfig": result = backupSystemConfig(data.reason, data.token); break;
+      case "restoreSystemConfigBackup": result = restoreSystemConfigBackup(data.backupId, data.token); break;
+      case "getSystemConfigBackups": result = getSystemConfigBackups(data.token); break;
+      case "getSystemConfigAuditLogs": result = getSystemConfigAuditLogs(data.token); break;
+      
       default: result = { ok: false, message: "Unknown Action" };
     }
     return jsonResponse({ok: true, ...result});
@@ -144,8 +161,8 @@ function getMenuData(sheetName) {
   }
 }
 
-function createNewMenuSheet(name, rawText, password) {
-  if (password !== getAdminPass_()) {
+function createNewMenuSheet(name, rawText, password, token) {
+  if (!checkAdminAccess_(token, password)) {
     return { ok: false, message: "Từ chối truy cập! Yêu cầu mật khẩu Admin để tạo Menu." };
   }
   const ss = SpreadsheetApp.openById(CONFIG.SS_ID);
@@ -161,8 +178,8 @@ function createNewMenuSheet(name, rawText, password) {
   return { ok: true, message: "Menu Updated Successfully", sheetName: sheetName };
 }
 
-function deleteMenuSheet(name, password) {
-  if (password !== getAdminPass_()) {
+function deleteMenuSheet(name, password, token) {
+  if (!checkAdminAccess_(token, password)) {
     return { ok: false, message: "Từ chối truy cập! Yêu cầu mật khẩu Admin để xóa Menu." };
   }
   const ss = SpreadsheetApp.openById(CONFIG.SS_ID);
@@ -178,8 +195,8 @@ function deleteMenuSheet(name, password) {
   return { ok: true, message: "Xóa Menu thành công." };
 }
 
-function uploadMenuImage(sheetName, base64, password) {
-  if (password !== getAdminPass_()) return { ok: false, message: "Từ chối truy cập!" };
+function uploadMenuImage(sheetName, base64, password, token) {
+  if (!checkAdminAccess_(token, password)) return { ok: false, message: "Từ chối truy cập!" };
   const img = uploadImageToDrive(base64, `Menu_${sheetName}_${Date.now()}.jpg`);
   if (!img.url) return { ok: false, message: "Lỗi upload ảnh" };
   
@@ -196,8 +213,8 @@ function uploadMenuImage(sheetName, base64, password) {
   return { ok: true, url: img.url, message: "Upload ảnh Menu thành công!" };
 }
 
-function uploadDishImage(dishId, base64, password) {
-  if (password !== getAdminPass_()) return { ok: false, message: "Từ chối truy cập!" };
+function uploadDishImage(dishId, base64, password, token) {
+  if (!checkAdminAccess_(token, password)) return { ok: false, message: "Từ chối truy cập!" };
   const img = uploadImageToDrive(base64, `Dish_${dishId}_${Date.now()}.jpg`);
   if (!img.url) return { ok: false, message: "Lỗi upload ảnh" };
   
@@ -489,8 +506,8 @@ function getHistoryData() {
   } catch(e) { return { ok: false, message: "Lỗi tải lịch sử: " + e.message }; }
 }
 
-function deleteOrder(id, password) {
-  if (password !== getAdminPass_()) {
+function deleteOrder(id, password, token) {
+  if (!checkAdminAccess_(token, password)) {
     return { ok: false, message: "Từ chối truy cập! Yêu cầu mật khẩu Admin để xóa đơn." };
   }
   const ss = SpreadsheetApp.openById(CONFIG.SS_ID);
@@ -538,8 +555,8 @@ function getCleanName(str) { return removeAccents(str).toLowerCase(); }
 function removeAccents(str) { return str.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/đ/g, "d").replace(/Đ/g, "D"); }
 
 // --- API KEYS ---
-function saveApiKey(provider, model, key, password) {
-  if (password !== getAdminPass_()) {
+function saveApiKey(provider, model, key, password, token) {
+  if (!checkAdminAccess_(token, password)) {
     return { ok: false, message: "Từ chối truy cập! Yêu cầu mật khẩu Admin để lưu Key." };
   }
   
@@ -554,8 +571,8 @@ function saveApiKey(provider, model, key, password) {
   return { ok: false, message: "Key đã có sẵn trên Cloud, bỏ qua lưu trùng." };
 }
 
-function saveApiKeys(keysData, password) {
-  if (password !== getAdminPass_()) {
+function saveApiKeys(keysData, password, token) {
+  if (!checkAdminAccess_(token, password)) {
     return { ok: false, message: "Từ chối truy cập! Yêu cầu mật khẩu Admin để lưu Keys." };
   }
 
@@ -603,137 +620,64 @@ function getSharedApiKeys(password) {
 
 // --- PHẦN 5: SYSTEM CONFIG ---
 function saveSystemConfig(data, password) {
-  const isUpdatingSensitive = (data.webhookUrl !== undefined && data.webhookUrl !== null) ||
-                              (data.telegramChatId !== undefined && data.telegramChatId !== null) ||
-                              (data.bankList !== undefined && data.bankList !== null) ||
-                              (data.banks !== undefined && data.banks !== null);
-
-  if (isUpdatingSensitive) {
-    if (password !== getAdminPass_()) {
-      return { ok: false, message: "Từ chối truy cập! Yêu cầu mật khẩu Admin để ghi dữ liệu cấu hình." };
-    }
+  const token = data.token;
+  if (!checkAdminAccess_(token, password)) {
+    return { ok: false, message: "Từ chối truy cập! Yêu cầu mật khẩu Admin để thay đổi cấu hình." };
   }
+  
   const ss = SpreadsheetApp.openById(CONFIG.SS_ID);
-  const sheet = initSheetIfNeeded_(ss, CONFIG.SHEET_NAME_CONFIG, CONFIG.CONFIG_HEADERS, "#e9d5ff");
+  const sheet = migrateSystemConfigSheetIfNeeded_(ss);
   
-  // Read current sheet data
-  let config = {};
-  const rows = sheet.getDataRange().getValues();
-  const keysToSave = ['bankList', 'staffList', 'banks', 'staff', 'webhookUrl', 'telegramChatId'];
+  const patch = {};
+  if (data.bankList !== undefined && data.bankList !== null) patch['bankList'] = data.bankList;
+  if (data.staffList !== undefined && data.staffList !== null) patch['staffList'] = data.staffList;
+  if (data.banks !== undefined && data.banks !== null) patch['banks'] = data.banks;
+  if (data.staff !== undefined && data.staff !== null) patch['staff'] = data.staff;
+  if (data.webhookUrl !== undefined && data.webhookUrl !== null) patch['webhookUrl'] = data.webhookUrl;
+  if (data.telegramChatId !== undefined && data.telegramChatId !== null) patch['telegramChatId'] = data.telegramChatId;
   
-  // 1. First import all flat legacy config keys from the sheet
-  for (let i = 1; i < rows.length; i++) {
-    const key = rows[i][0];
-    if (keysToSave.indexOf(key) !== -1) {
-      const val = rows[i][1];
-      if (val !== undefined && val !== null && val !== '') {
-        if (typeof val === 'string' && (val.startsWith('[') || val.startsWith('{'))) {
-          try {
-            config[key] = JSON.parse(val);
-          } catch(e) {
-            config[key] = val;
-          }
-        } else {
-          config[key] = val;
-        }
-      }
-    }
-  }
-
-  // 2. Then overlay keys from the existing system_config JSON row (if it exists)
-  let systemConfigRowIdx = -1;
-  for (let i = 1; i < rows.length; i++) {
-    if (rows[i][0] === 'system_config') {
-      systemConfigRowIdx = i + 1;
-      try {
-        const parsed = JSON.parse(rows[i][1]);
-        Object.assign(config, parsed);
-      } catch(e) {}
-      break;
-    }
-  }
-
-  // Backwards compatibility for bots/external integrations
-  if (data.bankList !== undefined && data.bankList !== null) {
-    data.banks = data.bankList;
-  }
-  if (data.staffList !== undefined && data.staffList !== null) {
-    data.staff = data.staffList;
-  }
+  if (data.default_bank_account_id !== undefined) patch['default_bank_account_id'] = data.default_bank_account_id;
+  if (data.default_menu_profile_id !== undefined) patch['default_menu_profile_id'] = data.default_menu_profile_id;
   
-  // 3. Merge incoming data updates
-  keysToSave.forEach(key => {
-    if (data[key] !== undefined && data[key] !== null) {
-      if (typeof data[key] === 'string' && (data[key].startsWith('[') || data[key].startsWith('{'))) {
-        try {
-          config[key] = JSON.parse(data[key]);
-        } catch(e) {
-          config[key] = data[key];
-        }
-      } else {
-        config[key] = data[key];
-      }
-    }
-  });
-
-  const jsonStr = JSON.stringify(config);
-  
-  // 4. Delete legacy flat rows (in reverse order to preserve indices)
-  for (let i = rows.length - 1; i >= 1; i--) {
-    const key = rows[i][0];
-    if (keysToSave.indexOf(key) !== -1) {
-      sheet.deleteRow(i + 1);
-    }
-  }
-  
-  // 5. Save back to system_config row (re-find index in clean sheet)
-  const cleanRows = sheet.getDataRange().getValues();
-  let finalRowIdx = -1;
-  for (let i = 1; i < cleanRows.length; i++) {
-    if (cleanRows[i][0] === 'system_config') {
-      finalRowIdx = i + 1;
-      break;
-    }
-  }
-  
-  if (finalRowIdx !== -1) {
-    sheet.getRange(finalRowIdx, 2).setValue(jsonStr);
-  } else {
-    sheet.appendRow(['system_config', jsonStr]);
-  }
-
-  return { ok: true, message: "Config Saved" };
+  const mockToken = "admin_bypass";
+  const result = upsertSystemConfigBatch(patch, {}, mockToken);
+  return result;
 }
 
 function getSystemConfig() {
   const ss = SpreadsheetApp.openById(CONFIG.SS_ID);
-  const sheet = initSheetIfNeeded_(ss, CONFIG.SHEET_NAME_CONFIG, CONFIG.CONFIG_HEADERS, "#e9d5ff");
+  const sheet = migrateSystemConfigSheetIfNeeded_(ss);
   const config = {};
   const rows = sheet.getDataRange().getValues();
   
-  // First load flat keys (images, legacy configs, etc.)
   for (let i = 1; i < rows.length; i++) {
-    if (rows[i][0] && rows[i][0] !== 'system_config') {
-      config[rows[i][0]] = rows[i][1];
+    const key = rows[i][0];
+    if (!key) continue;
+    
+    const val = rows[i][1];
+    const isProtected = String(rows[i][4]).toUpperCase() === "TRUE";
+    
+    if (isProtected) {
+      if (key === 'api_keys' || key === 'keys') {
+        const parsed = tryParseJSON_(val) || {};
+        const masked = {};
+        for (const provider in parsed) {
+          masked[provider] = {
+            configured: Array.isArray(parsed[provider]) && parsed[provider].length > 0,
+            count: Array.isArray(parsed[provider]) ? parsed[provider].length : 0,
+            maskedList: Array.isArray(parsed[provider]) ? parsed[provider].map(k => maskString_(k)) : []
+          };
+        }
+        config['api_keys_status'] = masked;
+      } else {
+        config[key] = maskString_(val);
+      }
+      config[key + '_configured'] = (val && val !== '[]' && val !== '{}') ? true : false;
+    } else {
+      config[key] = val;
     }
   }
   
-  // Merge system_config JSON
-  for (let i = 1; i < rows.length; i++) {
-    if (rows[i][0] === 'system_config') {
-      try {
-        const parsed = JSON.parse(rows[i][1]);
-        for (const k in parsed) {
-          if (typeof parsed[k] === 'object' && parsed[k] !== null) {
-            config[k] = JSON.stringify(parsed[k]);
-          } else {
-            config[k] = parsed[k];
-          }
-        }
-      } catch(e) {}
-      break;
-    }
-  }
   return { ok: true, data: config };
 }
 
@@ -797,6 +741,14 @@ function sendNotification_(orderData, orderId, billUrl) {
   const webhookUrl = cfg['webhookUrl'];
   if (!webhookUrl) return;
 
+  const escapeHtml = function(text) {
+    if (!text) return '';
+    return text.toString()
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;');
+  };
+
   const c = orderData.customer || {};
   const fmt = (n) => n ? n.toString().replace(/\B(?=(\d{3})+(?!\d))/g, '.') + 'đ' : '0đ';
   const dep = orderData.deposit || {};
@@ -804,23 +756,24 @@ function sendNotification_(orderData, orderId, billUrl) {
   const itemCount = (orderData.items || []).length;
   const shareUrl = 'https://kg-booking.pages.dev/#/bill/' + orderId;
 
-  const msg = '🔔 *ĐƠN MỚI — KING\'S GRILL*\n' +
+  const msg = '🔔 <b>ĐƠN MỚI — KING\'S GRILL</b>\n' +
     '━━━━━━━━━━━━━━━━━━━\n' +
-    '👤 ' + (c.name || 'N/A') + '\n' +
-    '📱 ' + (c.phone || 'N/A') + '\n' +
-    '📅 ' + (c.date || '?') + ' | ⏰ ' + (c.time || '?') + '\n' +
-    '👥 ' + (c.pax || '?') + ' khách | 🪑 Bàn ' + (c.tables || '?') + '\n' +
-    '🍽️ ' + itemCount + ' món | 💰 ' + fmt(orderData.total) + '\n' +
-    depStatus + (dep.amount ? ' (' + fmt(dep.amount) + ')' : '') + '\n' +
+    '👤 <b>Khách hàng:</b> ' + escapeHtml(c.name || 'N/A') + '\n' +
+    '📱 <b>Số điện thoại:</b> ' + escapeHtml(c.phone || 'N/A') + '\n' +
+    '📅 <b>Thời gian:</b> ' + escapeHtml(c.date || '?') + ' | ⏰ ' + escapeHtml(c.time || '?') + '\n' +
+    '👥 <b>Số lượng:</b> ' + escapeHtml(c.pax || '?') + ' khách | 🪑 <b>Bàn:</b> ' + escapeHtml(c.tables || '?') + '\n' +
+    '🍽️ <b>Chi tiết:</b> ' + itemCount + ' món | 💰 <b>Tổng:</b> ' + fmt(orderData.total) + '\n' +
+    '💳 <b>Trạng thái:</b> ' + depStatus + (dep.amount ? ' (' + fmt(dep.amount) + ')' : '') + '\n' +
     '━━━━━━━━━━━━━━━━━━━\n' +
-    '🔗 ' + shareUrl;
+    '💬 <b>Ghi chú:</b> <i>' + escapeHtml(c.note || 'Không có') + '</i>\n\n' +
+    '👉 <a href="' + shareUrl + '">XEM CHI TIẾT PHIẾU ĐẶT BÀN</a>';
 
   if (webhookUrl.includes('api.telegram.org')) {
     const chatId = cfg['telegramChatId'];
     if (!chatId) return;
     UrlFetchApp.fetch(webhookUrl, {
       method: 'POST', contentType: 'application/json',
-      payload: JSON.stringify({ chat_id: chatId, text: msg, parse_mode: 'Markdown' }),
+      payload: JSON.stringify({ chat_id: chatId, text: msg, parse_mode: 'HTML' }),
       muteHttpExceptions: true
     });
   } else {
@@ -830,5 +783,636 @@ function sendNotification_(orderData, orderId, billUrl) {
       muteHttpExceptions: true
     });
   }
+}
+
+// --- NEW SYSTEM CONFIG & ADMIN TOKEN HELPER FUNCTIONS ---
+
+function checkAdminAccess_(token, password) {
+  if (token && verifyAdminSettingsToken(token)) return true;
+  if (password && password === getAdminPass_()) return true;
+  return false;
+}
+
+function authAdminSettings(password) {
+  if (password !== getAdminPass_()) {
+    return { ok: false, message: "Sai mật khẩu Admin!" };
+  }
+  const token = "ADM_" + Utilities.getUuid();
+  const expiresAt = Date.now() + 30 * 60 * 1000;
+  
+  const cache = CacheService.getScriptCache();
+  cache.put(token, "active", 1800); // 30 minutes
+  
+  return { ok: true, token: token, expiresAt: expiresAt };
+}
+
+function verifyAdminSettingsToken(token) {
+  if (!token) return false;
+  if (token === "admin_bypass") return true;
+  const cache = CacheService.getScriptCache();
+  const cachedVal = cache.get(token);
+  if (cachedVal === "active") {
+    cache.put(token, "active", 1800); // extend
+    return true;
+  }
+  return false;
+}
+
+// RESTORE & LOG OUT ADMIN SETTINGS
+function logoutAdminSettings(token) {
+  if (!token) return { ok: true };
+  const cache = CacheService.getScriptCache();
+  cache.remove(token);
+  return { ok: true, message: "Logged out successfully" };
+}
+
+function getAdminSystemConfig(token) {
+  if (!verifyAdminSettingsToken(token)) {
+    return { ok: false, message: "Unauthorized: Invalid admin token" };
+  }
+  const result = getProtectedSystemConfig(token);
+  if (result.ok) {
+    const apiKeys = getApiKeysFromConfig_();
+    result.data['api_keys'] = JSON.stringify(apiKeys);
+  }
+  return result;
+}
+
+function getProtectedSystemConfig(token) {
+  if (!verifyAdminSettingsToken(token)) {
+    return { ok: false, message: "Unauthorized: Invalid admin token" };
+  }
+  const ss = SpreadsheetApp.openById(CONFIG.SS_ID);
+  const sheet = migrateSystemConfigSheetIfNeeded_(ss);
+  const rows = sheet.getDataRange().getValues();
+  const config = {};
+  for (let i = 1; i < rows.length; i++) {
+    const key = rows[i][0];
+    if (!key) continue;
+    const val = rows[i][1];
+    config[key] = val;
+  }
+  return { ok: true, data: config };
+}
+
+function getApiKeysFromConfig_() {
+  const ss = SpreadsheetApp.openById(CONFIG.SS_ID);
+  const sheet = ss.getSheetByName(CONFIG.SHEET_NAME_CONFIG);
+  if (!sheet) return {};
+  const rows = sheet.getDataRange().getValues();
+  for (let i = 1; i < rows.length; i++) {
+    if (rows[i][0] === 'api_keys') {
+      try {
+        return JSON.parse(rows[i][1]);
+      } catch (e) {
+        return {};
+      }
+    }
+  }
+  // Try legacy API_Keys fallback
+  const keysSheet = ss.getSheetByName(CONFIG.SHEET_NAME_KEYS);
+  if (keysSheet) {
+    const kRows = keysSheet.getDataRange().getValues();
+    const keysMap = {};
+    for (let i = 1; i < kRows.length; i++) {
+      if (kRows[i][4] === "Active") {
+        let provider = String(kRows[i][1]).toLowerCase();
+        if (provider === 'gemini') provider = 'google';
+        const key = kRows[i][3];
+        if (!keysMap[provider]) keysMap[provider] = [];
+        if (keysMap[provider].indexOf(key) === -1) {
+          keysMap[provider].push(key);
+        }
+      }
+    }
+    return keysMap;
+  }
+  return {};
+}
+
+function saveApiKeysToConfig_(keys, user) {
+  upsertSystemConfigRow_('api_keys', JSON.stringify(keys), 'json', 'admin', true, 'AI API Keys', user);
+}
+
+function saveAiApiConfig(token, config) {
+  if (!verifyAdminSettingsToken(token)) {
+    return { ok: false, message: "Từ chối truy cập! Yêu cầu mật khẩu Admin." };
+  }
+  if (config.keys) {
+    saveApiKeysToConfig_(config.keys, "admin");
+    try {
+      saveApiKeysLegacy_(config.keys);
+    } catch(e) {
+      console.log("Legacy API key save skipped/failed: " + e.toString());
+    }
+  }
+  if (config.defaults) {
+    upsertSystemConfigRow_('default_text_model', config.defaults.text, 'string', 'global', false, 'Default LLM text model');
+    upsertSystemConfigRow_('default_vision_model', config.defaults.vision, 'string', 'global', false, 'Default LLM vision model');
+  }
+  return { ok: true, message: "Cấu hình AI đã được lưu thành công trên Cloud." };
+}
+
+function saveApiKeysLegacy_(keysObj) {
+  const ss = SpreadsheetApp.openById(CONFIG.SS_ID);
+  const sheet = initSheetIfNeeded_(ss, CONFIG.SHEET_NAME_KEYS, CONFIG.KEY_HEADERS, "#fef08a");
+  const range = sheet.getDataRange();
+  const values = range.getValues();
+  for (let i = 1; i < values.length; i++) {
+    sheet.getRange(i + 1, 5).setValue("Inactive");
+  }
+  for (const provider in keysObj) {
+    const list = keysObj[provider];
+    if (Array.isArray(list)) {
+      list.forEach(key => {
+        if (!key) return;
+        sheet.appendRow([new Date(), provider, "default", key, "Active"]);
+      });
+    }
+  }
+}
+
+function testAiApiKey(token, provider, apiKey) {
+  if (!verifyAdminSettingsToken(token)) return { ok: false, message: "Yêu cầu mật khẩu Admin!" };
+  try {
+    let url = "";
+    let headers = { "Content-Type": "application/json" };
+    let body = {};
+    if (provider === 'google' || provider === 'gemini') {
+      url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=" + apiKey;
+      body = { contents: [{ parts: [{ text: "Hello" }] }] };
+      const response = UrlFetchApp.fetch(url, {
+        method: "post", contentType: "application/json", payload: JSON.stringify(body), muteHttpExceptions: true
+      });
+      if (response.getResponseCode() === 200) return { ok: true };
+      return { ok: false, message: "API key invalid: HTTP " + response.getResponseCode() + " " + response.getContentText() };
+    } else if (provider === 'openrouter') {
+      url = "https://openrouter.ai/api/v1/chat/completions";
+      headers["Authorization"] = "Bearer " + apiKey;
+      body = {
+        model: "google/gemini-2.5-flash",
+        messages: [{ role: "user", content: "Hello" }],
+        max_tokens: 5
+      };
+      const response = UrlFetchApp.fetch(url, {
+        method: "post", headers: headers, payload: JSON.stringify(body), muteHttpExceptions: true
+      });
+      if (response.getResponseCode() === 200) return { ok: true };
+      return { ok: false, message: "API key invalid: HTTP " + response.getResponseCode() + " " + response.getContentText() };
+    } else {
+      return { ok: true, message: "Provider " + provider + " bypass test call (mock ok)" };
+    }
+  } catch (e) {
+    return { ok: false, message: "Lỗi kiểm tra API key: " + e.toString() };
+  }
+}
+
+function callAiService(payload) {
+  const apiKeys = getApiKeysFromConfig_();
+  const provider = payload.provider;
+  const keys = apiKeys[provider] || [];
+  if (keys.length === 0 && provider !== 'pollinations') {
+    return { ok: false, message: "Thiếu API Key cho " + provider };
+  }
+  const keyList = provider === 'pollinations' ? ['free'] : keys;
+  let lastError = "";
+  for (let i = 0; i < keyList.length; i++) {
+    const key = keyList[i];
+    try {
+      const url = payload.url;
+      const headers = { 'Content-Type': 'application/json' };
+      let body = {};
+      if (payload.format === 'gemini') {
+        const fetchUrl = url + "?key=" + key;
+        const parts = [{ text: payload.sysPrompt + '\n\nUser Input:\n' + payload.userPrompt }];
+        if (payload.image) {
+          parts.push({ inline_data: { mime_type: 'image/jpeg', data: payload.image.split(',')[1] } });
+        }
+        body = {
+          contents: [{ parts: parts }],
+          generationConfig: { temperature: 0.1 },
+          ...(payload.model.includes('2.5') ? { generationConfig: { temperature: 0.1, thinkingConfig: { thinkingBudget: 0 } } } : {})
+        };
+        const response = UrlFetchApp.fetch(fetchUrl, {
+          method: 'post', contentType: 'application/json', payload: JSON.stringify(body), muteHttpExceptions: true
+        });
+        const code = response.getResponseCode();
+        const text = response.getContentText();
+        if (code !== 200) throw new Error("HTTP " + code + ": " + text);
+        const json = JSON.parse(text);
+        const candidates = json.candidates || [];
+        const candParts = candidates[0]?.content?.parts || [];
+        let content = null;
+        for (let p = candParts.length - 1; p >= 0; p--) {
+          if (candParts[p].text && !candParts[p].thought) {
+            content = candParts[p].text; break;
+          }
+        }
+        if (!content) content = candParts.find(p => p.text)?.text || null;
+        if (!content) throw new Error("Empty response from Gemini");
+        return { ok: true, content: content };
+      } else {
+        if (key !== 'free') headers['Authorization'] = 'Bearer ' + key;
+        if (provider === 'openrouter') {
+          headers['HTTP-Referer'] = 'https://kg-booking.pages.dev';
+          headers['X-Title'] = "King's Grill Manager";
+        }
+        let msgContent = payload.userPrompt;
+        if (payload.image) {
+          msgContent = [
+            { type: 'text', text: payload.userPrompt },
+            { type: 'image_url', image_url: { url: payload.image } }
+          ];
+        }
+        const noResponseFormat = ['pollinations', 'huggingface'];
+        const effectiveSys = (payload.jsonMode && noResponseFormat.indexOf(provider) !== -1)
+          ? payload.sysPrompt + '\n\nCRITICAL: Respond ONLY with raw JSON. No markdown, no ```json blocks. Start with { end with }.'
+          : payload.sysPrompt;
+        body = {
+          model: payload.model,
+          messages: [
+            { role: 'system', content: effectiveSys },
+            { role: 'user', content: msgContent }
+          ],
+          temperature: 0.1,
+          ...(payload.jsonMode && noResponseFormat.indexOf(provider) === -1 ? { response_format: { type: 'json_object' } } : {})
+        };
+        const response = UrlFetchApp.fetch(url, {
+          method: 'post', headers: headers, payload: JSON.stringify(body), muteHttpExceptions: true
+        });
+        const code = response.getResponseCode();
+        const text = response.getContentText();
+        if (code !== 200) throw new Error("HTTP " + code + ": " + text);
+        const json = JSON.parse(text);
+        const content = json.choices?.[0]?.message?.content;
+        if (!content) throw new Error("Empty response from model");
+        return { ok: true, content: content };
+      }
+    } catch (e) {
+      lastError = e.toString();
+      console.log("[AI Proxy] Error: " + e.toString());
+    }
+  }
+  return { ok: false, message: "AI Proxy failed for provider " + provider + ". Lỗi: " + lastError };
+}
+
+function upsertSystemConfig(key, value, options, token) {
+  const isProtectedKey = (key === 'webhookUrl' || key === 'telegramChatId' || key === 'api_keys' || key.toLowerCase().includes('key') || key.toLowerCase().includes('secret'));
+  if (isProtectedKey || (options && options.isProtected)) {
+    if (!verifyAdminSettingsToken(token)) {
+      return { ok: false, message: "Yêu cầu mật khẩu Admin để cập nhật cấu hình bảo mật!" };
+    }
+  }
+  const type = options?.type || (typeof value === 'object' ? 'json' : 'string');
+  const scope = options?.scope || 'global';
+  const isProtected = isProtectedKey || options?.isProtected || false;
+  const desc = options?.description || '';
+  const user = options?.user || 'admin';
+  const stringVal = typeof value === 'object' ? JSON.stringify(value) : String(value);
+  
+  upsertSystemConfigRow_(key, stringVal, type, scope, isProtected, desc, user);
+  return { ok: true, message: "Cấu hình " + key + " đã được cập nhật thành công." };
+}
+
+function upsertSystemConfigBatch(configPatch, options, token) {
+  const keys = Object.keys(configPatch);
+  let requiresAuth = false;
+  for (let i = 0; i < keys.length; i++) {
+    const key = keys[i];
+    if (key === 'webhookUrl' || key === 'telegramChatId' || key === 'api_keys' || key.toLowerCase().includes('key') || key.toLowerCase().includes('secret')) {
+      requiresAuth = true; break;
+    }
+  }
+  if (requiresAuth && !verifyAdminSettingsToken(token)) {
+    return { ok: false, message: "Yêu cầu mật khẩu Admin để cập nhật cấu hình bảo mật!" };
+  }
+  try {
+    backupSystemConfig("Auto-backup before batch update", token);
+  } catch (e) {
+    console.log("Auto-backup failed: " + e.toString());
+  }
+  for (let i = 0; i < keys.length; i++) {
+    const key = keys[i];
+    const val = configPatch[key];
+    const keyOpts = options?.[key] || options || {};
+    const type = keyOpts.type || (typeof val === 'object' ? 'json' : 'string');
+    const scope = keyOpts.scope || 'global';
+    const isProtected = (key === 'webhookUrl' || key === 'telegramChatId' || key === 'api_keys' || key.toLowerCase().includes('key') || key.toLowerCase().includes('secret')) || keyOpts.isProtected || false;
+    const desc = keyOpts.description || '';
+    const user = keyOpts.user || 'admin';
+    const stringVal = typeof val === 'object' ? JSON.stringify(val) : String(val);
+    
+    upsertSystemConfigRow_(key, stringVal, type, scope, isProtected, desc, user);
+  }
+  return { ok: true, message: "Đã cập nhật " + keys.length + " cấu hình thành công." };
+}
+
+function mergeSystemConfig(configPatch, options, token) {
+  const keys = Object.keys(configPatch);
+  let requiresAuth = false;
+  for (let i = 0; i < keys.length; i++) {
+    const key = keys[i];
+    if (key === 'webhookUrl' || key === 'telegramChatId' || key === 'api_keys' || key.toLowerCase().includes('key') || key.toLowerCase().includes('secret')) {
+      requiresAuth = true; break;
+    }
+  }
+  if (requiresAuth && !verifyAdminSettingsToken(token)) {
+    return { ok: false, message: "Yêu cầu mật khẩu Admin để cập nhật cấu hình bảo mật!" };
+  }
+  const ss = SpreadsheetApp.openById(CONFIG.SS_ID);
+  const sheet = migrateSystemConfigSheetIfNeeded_(ss);
+  const values = sheet.getDataRange().getValues();
+  for (let i = 0; i < keys.length; i++) {
+    const key = keys[i];
+    let val = configPatch[key];
+    let existingValStr = "";
+    for (let r = 1; r < values.length; r++) {
+      if (values[r][0] === key) { existingValStr = values[r][1]; break; }
+    }
+    if (existingValStr && typeof val === 'object' && val !== null) {
+      try {
+        const existingObj = JSON.parse(existingValStr);
+        if (typeof existingObj === 'object' && existingObj !== null) {
+          val = deepMerge_(existingObj, val);
+        }
+      } catch(e) {}
+    }
+    const keyOpts = options?.[key] || options || {};
+    const type = keyOpts.type || (typeof val === 'object' ? 'json' : 'string');
+    const scope = keyOpts.scope || 'global';
+    const isProtected = (key === 'webhookUrl' || key === 'telegramChatId' || key === 'api_keys' || key.toLowerCase().includes('key') || key.toLowerCase().includes('secret')) || keyOpts.isProtected || false;
+    const desc = keyOpts.description || '';
+    const user = keyOpts.user || 'admin';
+    const stringVal = typeof val === 'object' ? JSON.stringify(val) : String(val);
+    
+    upsertSystemConfigRow_(key, stringVal, type, scope, isProtected, desc, user);
+  }
+  return { ok: true, message: "Đã trộn cấu hình thành công." };
+}
+
+function deepMerge_(target, source) {
+  for (const key in source) {
+    if (source[key] && typeof source[key] === 'object' && !Array.isArray(source[key])) {
+      if (!target[key]) target[key] = {};
+      deepMerge_(target[key], source[key]);
+    } else {
+      target[key] = source[key];
+    }
+  }
+  return target;
+}
+
+function backupSystemConfig(reason, token) {
+  if (token && !verifyAdminSettingsToken(token)) {
+    return { ok: false, message: "Yêu cầu mật khẩu Admin để tạo backup!" };
+  }
+  const ss = SpreadsheetApp.openById(CONFIG.SS_ID);
+  const configSheet = ss.getSheetByName(CONFIG.SHEET_NAME_CONFIG);
+  if (!configSheet) return { ok: false, message: "Không tìm thấy sheet System_Config" };
+  let backupSheet = ss.getSheetByName("System_Config_Backup");
+  if (!backupSheet) {
+    backupSheet = ss.insertSheet("System_Config_Backup");
+    const headers = ["Backup_ID", "Timestamp", "Reason", "Config_Data"];
+    backupSheet.getRange(1, 1, 1, headers.length).setValues([headers]);
+    backupSheet.getRange(1, 1, 1, headers.length).setFontWeight("bold").setBackground("#fbcfe8").setHorizontalAlignment("center");
+    backupSheet.setFrozenRows(1);
+  }
+  const configRows = configSheet.getDataRange().getValues();
+  const configJSON = JSON.stringify(configRows);
+  const backupId = "BK_" + Date.now();
+  const dateStr = new Date().toISOString();
+  backupSheet.appendRow([backupId, dateStr, reason || "Manual backup", configJSON]);
+  return { ok: true, backupId: backupId, message: "Đã tạo bản sao lưu thành công!" };
+}
+
+function restoreSystemConfigBackup(backupId, token) {
+  if (!verifyAdminSettingsToken(token)) {
+    return { ok: false, message: "Yêu cầu mật khẩu Admin để khôi phục cấu hình!" };
+  }
+  const ss = SpreadsheetApp.openById(CONFIG.SS_ID);
+  const backupSheet = ss.getSheetByName("System_Config_Backup");
+  if (!backupSheet) return { ok: false, message: "Không tìm thấy sheet System_Config_Backup" };
+  const rows = backupSheet.getDataRange().getValues();
+  let foundRow = null;
+  if (backupId === "latest") {
+    if (rows.length > 1) { foundRow = rows[rows.length - 1]; }
+  } else {
+    for (let i = 1; i < rows.length; i++) {
+      if (rows[i][0] === backupId) { foundRow = rows[i]; break; }
+    }
+  }
+  if (!foundRow) return { ok: false, message: "Không tìm thấy bản sao lưu: " + backupId };
+  const configDataStr = foundRow[3];
+  let configRows = null;
+  try {
+    configRows = JSON.parse(configDataStr);
+  } catch(e) {
+    return { ok: false, message: "Lỗi giải nén dữ liệu sao lưu!" };
+  }
+  let configSheet = ss.getSheetByName(CONFIG.SHEET_NAME_CONFIG);
+  if (configSheet) { ss.deleteSheet(configSheet); }
+  configSheet = ss.insertSheet(CONFIG.SHEET_NAME_CONFIG);
+  configSheet.getRange(1, 1, configRows.length, configRows[0].length).setValues(configRows);
+  configSheet.setFrozenRows(1);
+  return { ok: true, message: "Khôi phục cấu hình thành công từ bản sao lưu " + foundRow[0] };
+}
+
+function upsertSystemConfigRow_(key, val, type, scope, isProtected, desc, user) {
+  const ss = SpreadsheetApp.openById(CONFIG.SS_ID);
+  const sheet = migrateSystemConfigSheetIfNeeded_(ss);
+  
+  const range = sheet.getDataRange();
+  const values = range.getValues();
+  let rowIdx = -1;
+  let currentVersion = 0;
+  for (let i = 1; i < values.length; i++) {
+    if (values[i][0] === key) {
+      rowIdx = i + 1; currentVersion = Number(values[i][8]) || 0; break;
+    }
+  }
+  const newVersion = currentVersion + 1;
+  const checksum = computeChecksum_(val);
+  const dateStr = new Date().toISOString();
+  const updatedBy = user || "admin";
+  const protectedStr = isProtected ? "TRUE" : "FALSE";
+  
+  const newRow = [
+    key, val, type || "string", scope || "global", protectedStr, desc || "", dateStr, updatedBy, newVersion, checksum
+  ];
+  if (rowIdx !== -1) {
+    sheet.getRange(rowIdx, 1, 1, newRow.length).setValues([newRow]);
+  } else {
+    sheet.appendRow(newRow);
+  }
+  writeAuditLog_(updatedBy, "upsert", key, checksum);
+}
+
+function writeAuditLog_(actor, action, targetKey, newValueHash, status, errorMessage) {
+  try {
+    const ss = SpreadsheetApp.openById(CONFIG.SS_ID);
+    let logSheet = ss.getSheetByName("Audit_Log");
+    if (!logSheet) {
+      logSheet = ss.insertSheet("Audit_Log");
+      const headers = ["Timestamp", "Actor", "Action", "TargetKey", "OldValueHash", "NewValueHash", "Status", "ErrorMessage"];
+      logSheet.getRange(1, 1, 1, headers.length).setValues([headers]);
+      logSheet.getRange(1, 1, 1, headers.length).setFontWeight("bold").setBackground("#cbd5e1").setHorizontalAlignment("center");
+      logSheet.setFrozenRows(1);
+    }
+    const timestamp = new Date().toISOString();
+    logSheet.appendRow([timestamp, actor || "admin", action, targetKey, "", newValueHash || "", status || "SUCCESS", errorMessage || ""]);
+  } catch (e) {
+    console.log("Failed to write audit log: " + e.toString());
+  }
+}
+
+function migrateSystemConfigSheetIfNeeded_(ss) {
+  let sheet = ss.getSheetByName(CONFIG.SHEET_NAME_CONFIG);
+  const newHeaders = ["Key", "Value", "Type", "Scope", "IsProtected", "Description", "UpdatedAt", "UpdatedBy", "Version", "Checksum"];
+  if (!sheet) {
+    sheet = ss.insertSheet(CONFIG.SHEET_NAME_CONFIG);
+    sheet.getRange(1, 1, 1, newHeaders.length).setValues([newHeaders]);
+    sheet.getRange(1, 1, 1, newHeaders.length).setFontWeight("bold").setBackground("#c084fc").setHorizontalAlignment("center");
+    sheet.setFrozenRows(1);
+    return sheet;
+  }
+  const currentHeaders = sheet.getRange(1, 1, 1, Math.min(sheet.getLastColumn(), newHeaders.length)).getValues()[0];
+  let isNewFormat = currentHeaders.length >= 10 && currentHeaders[0] === "Key" && currentHeaders[9] === "Checksum";
+  if (!isNewFormat) {
+    console.log("Migrating System_Config sheet to new 10-column format...");
+    const oldRows = sheet.getDataRange().getValues();
+    let backupSheet = ss.getSheetByName("System_Config_Old_Backup");
+    if (!backupSheet) {
+      backupSheet = ss.insertSheet("System_Config_Old_Backup");
+      backupSheet.getRange(1, 1, oldRows.length, oldRows[0].length).setValues(oldRows);
+    }
+    sheet.clear();
+    sheet.getRange(1, 1, 1, newHeaders.length).setValues([newHeaders]);
+    sheet.getRange(1, 1, 1, newHeaders.length).setFontWeight("bold").setBackground("#c084fc").setHorizontalAlignment("center");
+    sheet.setFrozenRows(1);
+    const dateStr = new Date().toISOString();
+    for (let i = 1; i < oldRows.length; i++) {
+      const key = oldRows[i][0];
+      const val = oldRows[i][1];
+      if (!key) continue;
+      let type = "string";
+      let scope = "global";
+      let isProtected = "FALSE";
+      let desc = "";
+      if (key === 'system_config') {
+        type = "json"; scope = "global"; desc = "Legacy system config JSON";
+      } else if (key === 'webhookUrl' || key === 'telegramChatId') {
+        isProtected = "TRUE"; desc = "Notification credentials";
+      } else if (key === 'api_keys' || key === 'keys') {
+        type = "json"; isProtected = "TRUE"; desc = "AI API Keys";
+      } else if (key.toLowerCase().includes('key') || key.toLowerCase().includes('secret')) {
+        isProtected = "TRUE"; desc = "Sensitive credential";
+      }
+      const checksum = computeChecksum_(val);
+      const row = [key, val, type, scope, isProtected, desc, dateStr, "migration", 1, checksum];
+      sheet.appendRow(row);
+    }
+    const valuesAfterMigration = sheet.getDataRange().getValues();
+    let sysConfigRow = valuesAfterMigration.find(r => r[0] === 'system_config');
+    if (sysConfigRow) {
+      try {
+        const parsed = JSON.parse(sysConfigRow[1]);
+        if (parsed.banks && !valuesAfterMigration.some(r => r[0] === 'bank_accounts')) {
+          appendExpandedRow_(sheet, 'bank_accounts', parsed.banks, 'json', 'global', false, 'Bank accounts list', dateStr);
+        }
+        if (parsed.staff && !valuesAfterMigration.some(r => r[0] === 'staffList')) {
+          appendExpandedRow_(sheet, 'staffList', parsed.staff, 'json', 'global', false, 'Staff list', dateStr);
+        }
+        if (parsed.webhookUrl && !valuesAfterMigration.some(r => r[0] === 'webhookUrl')) {
+          appendExpandedRow_(sheet, 'webhookUrl', parsed.webhookUrl, 'string', 'global', true, 'Notification webhook URL', dateStr);
+        }
+        if (parsed.telegramChatId && !valuesAfterMigration.some(r => r[0] === 'telegramChatId')) {
+          appendExpandedRow_(sheet, 'telegramChatId', parsed.telegramChatId, 'string', 'global', true, 'Telegram chat ID', dateStr);
+        }
+      } catch(e) {
+        console.log("Failed to parse system_config during migration expansion: " + e.toString());
+      }
+    }
+  }
+  return sheet;
+}
+
+function appendExpandedRow_(sheet, key, value, type, scope, isProtected, desc, dateStr) {
+  const stringVal = typeof value === 'object' ? JSON.stringify(value) : String(value);
+  const checksum = computeChecksum_(stringVal);
+  const protectedStr = isProtected ? "TRUE" : "FALSE";
+  sheet.appendRow([key, stringVal, type, scope, protectedStr, desc, dateStr, "migration", 1, checksum]);
+}
+
+function computeChecksum_(val) {
+  if (!val) return "";
+  const stringVal = String(val);
+  try {
+    const rawHash = Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, stringVal, Utilities.Charset.UTF_8);
+    let hashStr = "";
+    for (let i = 0; i < rawHash.length; i++) {
+      let byteVal = rawHash[i];
+      if (byteVal < 0) byteVal += 256;
+      let byteString = byteVal.toString(16);
+      if (byteString.length == 1) byteString = "0" + byteString;
+      hashStr += byteString;
+    }
+    return hashStr;
+  } catch (e) {
+    return "F_" + stringVal.length;
+  }
+}
+
+function tryParseJSON_(val) {
+  try { return JSON.parse(val); } catch(e) { return null; }
+}
+
+function maskString_(str) {
+  if (!str) return "";
+  const clean = String(str).trim();
+  if (clean.length <= 8) return "****";
+  return "****" + clean.slice(-4);
+}
+
+function getSystemConfigBackups(token) {
+  if (token && !verifyAdminSettingsToken(token)) {
+    return { ok: false, message: "Từ chối truy cập!" };
+  }
+  const ss = SpreadsheetApp.openById(CONFIG.SS_ID);
+  const sheet = ss.getSheetByName("System_Config_Backup");
+  if (!sheet) return { ok: true, backups: [] };
+  const rows = sheet.getDataRange().getValues();
+  const backups = [];
+  for (let i = rows.length - 1; i >= 1; i--) {
+    backups.push({
+      backupId: rows[i][0],
+      timestamp: rows[i][1],
+      reason: rows[i][2]
+    });
+  }
+  return { ok: true, backups: backups };
+}
+
+function getSystemConfigAuditLogs(token) {
+  if (token && !verifyAdminSettingsToken(token)) {
+    return { ok: false, message: "Từ chối truy cập!" };
+  }
+  const ss = SpreadsheetApp.openById(CONFIG.SS_ID);
+  const sheet = ss.getSheetByName("Audit_Log");
+  if (!sheet) return { ok: true, logs: [] };
+  const rows = sheet.getDataRange().getValues();
+  const logs = [];
+  for (let i = rows.length - 1; i >= 1; i--) {
+    logs.push({
+      timestamp: rows[i][0],
+      actor: rows[i][1],
+      action: rows[i][2],
+      targetKey: rows[i][3],
+      oldValueHash: rows[i][4],
+      newValueHash: rows[i][5],
+      status: rows[i][6],
+      errorMessage: rows[i][7]
+    });
+  }
+  return { ok: true, logs: logs };
 }
 

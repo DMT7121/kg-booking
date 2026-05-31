@@ -109,8 +109,8 @@ export async function saveOrder(data: any): Promise<any> {
 }
 
 /** Delete order from GAS */
-export async function deleteOrder(id: string, password?: string): Promise<any> {
-  return postGAS({ action: 'deleteOrder', id, password })
+export async function deleteOrder(id: string, password?: string, token?: string): Promise<any> {
+  return postGAS({ action: 'deleteOrder', id, password, token })
 }
 
 /** Fetch menu items for a specific sheet */
@@ -124,28 +124,28 @@ export async function getMenuSheets(): Promise<any> {
 }
 
 /** Create or update menu */
-export async function createMenu(name: string, rawText: string, password?: string): Promise<any> {
-  return postGAS({ action: 'createMenu', name, rawText, password })
+export async function createMenu(name: string, rawText: string, password?: string, token?: string): Promise<any> {
+  return postGAS({ action: 'createMenu', name, rawText, password, token })
 }
 
 /** Delete menu */
-export async function deleteMenu(name: string, password?: string): Promise<any> {
-  return postGAS({ action: 'deleteMenu', name, password })
+export async function deleteMenu(name: string, password?: string, token?: string): Promise<any> {
+  return postGAS({ action: 'deleteMenu', name, password, token })
 }
 
 /** Upload menu image */
-export async function uploadMenuImage(sheetName: string, base64: string, password?: string): Promise<any> {
-  return postGAS({ action: 'uploadMenuImage', sheetName, base64, password })
+export async function uploadMenuImage(sheetName: string, base64: string, password?: string, token?: string): Promise<any> {
+  return postGAS({ action: 'uploadMenuImage', sheetName, base64, password, token })
 }
 
 /** Upload dish image */
-export async function uploadDishImage(dishId: string, base64: string, password?: string): Promise<any> {
-  return postGAS({ action: 'uploadDishImage', dishId, base64, password })
+export async function uploadDishImage(dishId: string, base64: string, password?: string, token?: string): Promise<any> {
+  return postGAS({ action: 'uploadDishImage', dishId, base64, password, token })
 }
 
 /** Save API key to cloud */
-export async function saveApiKeyToCloud(provider: string, key: string, password: string): Promise<any> {
-  return postGAS({ action: 'saveApiKey', provider, key, password })
+export async function saveApiKeyToCloud(provider: string, key: string, password: string, token?: string): Promise<any> {
+  return postGAS({ action: 'saveApiKey', provider, key, password, token })
 }
 
 /** Borrow API keys from admin */
@@ -159,7 +159,7 @@ export async function getConfig(): Promise<any> {
 }
 
 /** Save config to remote */
-export async function saveConfig(bankList?: string, staffList?: string, password?: string, webhookUrl?: string, telegramChatId?: string): Promise<any> {
+export async function saveConfig(bankList?: string, staffList?: string, password?: string, webhookUrl?: string, telegramChatId?: string, token?: string): Promise<any> {
   return postGAS({
     action: 'saveConfig',
     bankList,
@@ -168,7 +168,8 @@ export async function saveConfig(bankList?: string, staffList?: string, password
     staff: staffList,
     webhookUrl,
     telegramChatId,
-    password
+    password,
+    token
   })
 }
 
@@ -178,3 +179,71 @@ export async function getOrderById(id: string): Promise<any> {
   const res = await fetch(url)
   return res.json()
 }
+
+// --- NEW SYSTEM CONFIG & ADMIN ENDPOINTS ---
+
+export async function authAdminSettings(password: string): Promise<any> {
+  return postGAS({ action: 'authAdminSettings', password })
+}
+
+export async function verifyAdminSettings(token: string): Promise<any> {
+  return postGAS({ action: 'verifyAdminSettings', token })
+}
+
+export async function logoutAdminSettings(token: string): Promise<any> {
+  return postGAS({ action: 'logoutAdminSettings', token })
+}
+
+export async function getAdminSystemConfig(token: string): Promise<any> {
+  return postGAS({ action: 'getAdminSystemConfig', token })
+}
+
+export async function saveAiApiConfig(token: string, config: any): Promise<any> {
+  return postGAS({ action: 'saveAiApiConfig', token, config })
+}
+
+export async function testAiApiKey(token: string, provider: string, apiKey: string): Promise<any> {
+  return postGAS({ action: 'testAiApiKey', token, provider, apiKey })
+}
+
+export async function callAiService(payload: {
+  provider: string
+  model: string
+  sysPrompt: string
+  userPrompt: string
+  image?: string
+  jsonMode?: boolean
+  format?: string
+  url: string
+}): Promise<any> {
+  return postGAS({ action: 'callAiService', ...payload })
+}
+
+export async function upsertSystemConfig(key: string, value: any, options?: any, token?: string): Promise<any> {
+  return postGAS({ action: 'upsertSystemConfig', key, value, options, token })
+}
+
+export async function upsertSystemConfigBatch(configPatch: Record<string, any>, options?: any, token?: string): Promise<any> {
+  return postGAS({ action: 'upsertSystemConfigBatch', configPatch, options, token })
+}
+
+export async function mergeSystemConfig(configPatch: Record<string, any>, options?: any, token?: string): Promise<any> {
+  return postGAS({ action: 'mergeSystemConfig', configPatch, options, token })
+}
+
+export async function backupSystemConfig(reason?: string, token?: string): Promise<any> {
+  return postGAS({ action: 'backupSystemConfig', reason, token })
+}
+
+export async function restoreSystemConfigBackup(backupId: string, token?: string): Promise<any> {
+  return postGAS({ action: 'restoreSystemConfigBackup', backupId, token })
+}
+
+export async function getSystemConfigBackups(token: string): Promise<any> {
+  return postGAS({ action: 'getSystemConfigBackups', token })
+}
+
+export async function getSystemConfigAuditLogs(token: string): Promise<any> {
+  return postGAS({ action: 'getSystemConfigAuditLogs', token })
+}
+

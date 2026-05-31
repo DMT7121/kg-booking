@@ -139,7 +139,17 @@ function getBankLogoColor(bin: string) {
               <div class="flex-1 min-w-0">
                 <div class="flex items-center gap-2 mb-0.5">
                   <h5 class="font-black text-blue-900 text-[15px] truncate">{{ b.name }}</h5>
-                  <span v-if="idx === appStore.selectedBankIndex" class="bg-blue-100 text-blue-600 text-[10px] font-black uppercase px-2 py-0.5 rounded tracking-wider shrink-0 border border-blue-200">Mặc định</span>
+                  <span 
+                    @click="idx !== appStore.selectedBankIndex && appStore.setDefaultBankAccount(b.bankId || b.number)"
+                    :class="[
+                      idx === appStore.selectedBankIndex 
+                        ? 'bg-blue-100 text-blue-600 border border-blue-200' 
+                        : 'bg-slate-100 text-slate-500 border border-slate-200 hover:bg-blue-50 hover:text-blue-600 hover:border-blue-200 cursor-pointer',
+                      'text-[10px] font-black uppercase px-2 py-0.5 rounded tracking-wider shrink-0 select-none transition-all'
+                    ]"
+                  >
+                    {{ idx === appStore.selectedBankIndex ? 'Mặc định' : 'Đặt mặc định' }}
+                  </span>
                 </div>
                 <div class="font-bold text-slate-800 text-[15px] tracking-wide mb-1">{{ b.number }}</div>
                 <div class="text-[11px] font-bold text-slate-400 uppercase">Chủ tài khoản: <span class="font-black text-slate-600">{{ b.owner }}</span></div>

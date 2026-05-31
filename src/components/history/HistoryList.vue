@@ -80,13 +80,13 @@ async function deleteHistoricOrder(id: string) {
   
   const isAdmin = await appStore.verifyAdminSession()
   if (!isAdmin) return
-  const pass = appStore.sessionPassword
+  const token = appStore.adminToken
 
   ui.loading.is = true
   ui.loading.msg = 'ĐANG XÓA...'
   haptic('medium')
   try {
-    const res = await api.deleteOrder(id, pass)
+    const res = await api.deleteOrder(id, undefined, token)
     if (res.ok) {
       appStore.historyList = appStore.historyList.filter((i: any) => i.id !== id)
       expandedKey.value = null
@@ -105,7 +105,7 @@ async function deleteBatchOrders() {
 
   const isAdmin = await appStore.verifyAdminSession()
   if (!isAdmin) return
-  const pass = appStore.sessionPassword
+  const token = appStore.adminToken
 
   ui.loading.is = true
   ui.loading.msg = 'ĐANG XÓA...'
@@ -123,7 +123,7 @@ async function deleteBatchOrders() {
   let processed = 0
   for (let i = 0; i < idsToDelete.length; i += CHUNK_SIZE) {
     const chunk = idsToDelete.slice(i, i + CHUNK_SIZE)
-    await Promise.all(chunk.map(id => api.deleteOrder(id, pass).catch(() => false)))
+    await Promise.all(chunk.map(id => api.deleteOrder(id, undefined, token).catch(() => false)))
     processed += chunk.length
     ui.loading.subMsg = `Processing ${processed}/${idsToDelete.length}`
   }

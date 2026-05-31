@@ -30,13 +30,13 @@ async function handleDelete() {
   
   const isAdmin = await appStore.verifyAdminSession()
   if (!isAdmin) return
-  const pass = appStore.sessionPassword
+  const token = appStore.adminToken
 
   ui.loading.is = true
   ui.loading.msg = 'ĐANG XÓA...'
   haptic('medium')
   try {
-    const res = await api.deleteOrder(ui.selectedBooking.id, pass)
+    const res = await api.deleteOrder(ui.selectedBooking.id, undefined, token)
     if (res.ok) {
       appStore.historyList = appStore.historyList.filter((i: any) => i.id !== ui.selectedBooking.id)
       ui.showToast('Đã xóa!', 'success')

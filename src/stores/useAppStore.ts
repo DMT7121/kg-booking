@@ -62,8 +62,10 @@ export const useAppStore = defineStore('app', () => {
   const activeSheet = ref(localStorage.getItem(CACHE_KEYS.MENU_SHEET) || 'Menu')
   const newMenuName = ref('')
   const newMenuContent = ref('')
-  const sessionPassword = ref(sessionStorage.getItem('kg_admin_session_pass') || '')
-  const lastAuthTime = ref(parseInt(sessionStorage.getItem('kg_admin_session_time') || '0'))
+  const adminToken = ref(sessionStorage.getItem('kg_admin_token') || '')
+  const adminExpiresAt = ref(parseInt(sessionStorage.getItem('kg_admin_expires_at') || '0'))
+  const defaultMenuProfileId = ref(localStorage.getItem('default_menu_profile_id') || '')
+  const defaultBankAccountIndex = ref(parseInt(localStorage.getItem('default_bank_account_index') || '-1'))
 
   // --- Bank ---
   const bankList = ref<any[]>(JSON.parse(localStorage.getItem(CACHE_KEYS.BANK) || DEFAULTS.BANKS))
@@ -448,6 +450,27 @@ export const useAppStore = defineStore('app', () => {
           hasChanges = true
         }
         
+        // --- Defaults handling ---
+        if (result.data.default_bank_account_id) {
+          const accountId = result.data.default_bank_account_id
+          localStorage.setItem('default_bank_account_id', accountId)
+          const index = bankList.value.findIndex((b: any) => b.bankId === accountId || b.number === accountId)
+          if (index !== -1) {
+            defaultBankAccountIndex.value = index
+            if (!localStorage.getItem(CACHE_KEYS.SELECTED_BANK)) {
+              selectedBankIndex.value = index
+            }
+          }
+        }
+        if (result.data.default_menu_profile_id) {
+          defaultMenuProfileId.value = result.data.default_menu_profile_id
+          localStorage.setItem('default_menu_profile_id', result.data.default_menu_profile_id)
+          if (!localStorage.getItem(CACHE_KEYS.MENU_SHEET)) {
+            activeSheet.value = result.data.default_menu_profile_id
+            localStorage.setItem(CACHE_KEYS.MENU_SHEET, result.data.default_menu_profile_id)
+          }
+        }
+        
         // Extract images
         Object.keys(result.data).forEach(k => {
           let url = result.data[k]
@@ -473,32 +496,59 @@ export const useAppStore = defineStore('app', () => {
     }
   }
 
+  const isAdminSettingsUnlocked = computed(() => {
+    return !!adminToken.value && adminExpiresAt.value > Date.now()
+  })
+
+  async function lockAdminSettings() {
+    if (adminToken.value) {
+      try {
+        await api.logoutAdminSettings(adminToken.value)
+      } catch (e) {}
+    }
+    adminToken.value = ''
+    adminExpiresAt.value = 0
+    sessionStorage.removeItem('kg_admin_token')
+    sessionStorage.removeItem('kg_admin_expires_at')
+    uiStore.showToast('Đã khóa cấu hình Admin', 'info')
+  }
+
+  async function unlockAdminSettings(password: string): Promise<boolean> {
+    try {
+      const res = await api.authAdminSettings(password)
+      if (res.ok && res.token) {
+        adminToken.value = res.token
+        adminExpiresAt.value = res.expiresAt
+        sessionStorage.setItem('kg_admin_token', res.token)
+        sessionStorage.setItem('kg_admin_expires_at', String(res.expiresAt))
+        uiStore.showToast('Xác thực Admin thành công!', 'success')
+        return true
+      } else {
+        uiStore.showToast(res.message || 'Mật khẩu Admin không chính xác!', 'error')
+        return false
+      }
+    } catch (e: any) {
+      uiStore.showToast('Không thể kết nối với server để xác thực!', 'error')
+      return false
+    }
+  }
+
   async function verifyAdminSession(): Promise<boolean> {
-    const now = Date.now()
-    const lastTime = lastAuthTime.value
-    const isSessionValid = sessionPassword.value && 
-                           lastTime > 0 && 
-                           (now - lastTime) < 30 * 60 * 1000 // 30 minutes
-    
-    if (isSessionValid) {
-      lastAuthTime.value = now
-      sessionStorage.setItem('kg_admin_session_time', String(now))
+    if (isAdminSettingsUnlocked.value) {
+      const newExpiresAt = Date.now() + 30 * 60 * 1000
+      adminExpiresAt.value = newExpiresAt
+      sessionStorage.setItem('kg_admin_expires_at', String(newExpiresAt))
       return true
     }
     
-    // Clear expired or invalid session
-    sessionPassword.value = ''
-    lastAuthTime.value = 0
-    sessionStorage.removeItem('kg_admin_session_pass')
-    sessionStorage.removeItem('kg_admin_session_time')
+    adminToken.value = ''
+    adminExpiresAt.value = 0
+    sessionStorage.removeItem('kg_admin_token')
+    sessionStorage.removeItem('kg_admin_expires_at')
 
     const pass = await uiStore.showPrompt('Xác thực Admin', 'Vui lòng nhập mật khẩu cấu hình:')
     if (pass) {
-      sessionPassword.value = pass
-      lastAuthTime.value = now
-      sessionStorage.setItem('kg_admin_session_pass', pass)
-      sessionStorage.setItem('kg_admin_session_time', String(now))
-      return true
+      return await unlockAdminSettings(pass)
     } else if (pass !== null) {
       uiStore.showToast('Vui lòng nhập mật khẩu!', 'warning')
     }
@@ -506,14 +556,14 @@ export const useAppStore = defineStore('app', () => {
   }
 
   async function updateRemoteConfig(onlyType?: 'staff' | 'bank') {
-    let pass = ''
+    let tokenVal = ''
     if (onlyType !== 'staff') {
       const isAuth = await verifyAdminSession()
       if (!isAuth) {
         uiStore.showToast('Chỉ lưu cấu hình trên máy này (Chưa đồng bộ Cloud)', 'warning')
         return
       }
-      pass = sessionPassword.value
+      tokenVal = adminToken.value
     }
 
     uiStore.showToast('Đang lưu cấu hình lên Server...', 'info')
@@ -525,7 +575,10 @@ export const useAppStore = defineStore('app', () => {
     api.saveConfig(
       bList,
       sList,
-      pass
+      undefined,
+      undefined,
+      undefined,
+      tokenVal
     ).then((data: any) => {
       if (data.ok) {
         uiStore.connectionStatus = 'online'
@@ -534,10 +587,10 @@ export const useAppStore = defineStore('app', () => {
         uiStore.connectionStatus = 'error'
         uiStore.showToast('Lỗi lưu cấu hình: ' + data.message, 'error')
         if (data.message && data.message.includes('Từ chối') && onlyType !== 'staff') {
-          sessionPassword.value = ''
-          lastAuthTime.value = 0
-          sessionStorage.removeItem('kg_admin_session_pass')
-          sessionStorage.removeItem('kg_admin_session_time')
+          adminToken.value = ''
+          adminExpiresAt.value = 0
+          sessionStorage.removeItem('kg_admin_token')
+          sessionStorage.removeItem('kg_admin_expires_at')
         }
       }
     }).catch((e: any) => {
@@ -546,6 +599,56 @@ export const useAppStore = defineStore('app', () => {
       uiStore.showToast('Lỗi kết nối khi lưu cấu hình', 'error')
     })
   }
+
+  async function setDefaultBankAccount(accountId: string) {
+    const isAuth = await verifyAdminSession()
+    if (!isAuth) return
+    
+    uiStore.showToast('Đang đặt tài khoản ngân hàng mặc định...', 'info')
+    try {
+      const res = await api.upsertSystemConfig('default_bank_account_id', accountId, {
+        type: 'string', scope: 'global', isProtected: false, description: 'Default bank account index/ID'
+      }, adminToken.value)
+      if (res.ok) {
+        const index = bankList.value.findIndex((b: any) => b.bankId === accountId || b.number === accountId)
+        if (index !== -1) {
+          defaultBankAccountIndex.value = index
+        }
+        uiStore.showToast('Đã đặt tài khoản mặc định thành công!', 'success')
+      } else {
+        uiStore.showToast(res.message || 'Lỗi đặt tài khoản mặc định', 'error')
+      }
+    } catch(e) {
+      uiStore.showToast('Lỗi kết nối đặt tài khoản mặc định', 'error')
+    }
+  }
+
+  async function setDefaultMenuProfile(menuId: string) {
+    const isAuth = await verifyAdminSession()
+    if (!isAuth) return
+    
+    uiStore.showToast('Đang đặt thực đơn mặc định...', 'info')
+    try {
+      const res = await api.upsertSystemConfig('default_menu_profile_id', menuId, {
+        type: 'string', scope: 'global', isProtected: false, description: 'Default menu profile ID/sheet name'
+      }, adminToken.value)
+      if (res.ok) {
+        defaultMenuProfileId.value = menuId
+        uiStore.showToast('Đã đặt thực đơn mặc định thành công!', 'success')
+      } else {
+        uiStore.showToast(res.message || 'Lỗi đặt thực đơn mặc định', 'error')
+      }
+    } catch(e) {
+      uiStore.showToast('Lỗi kết nối đặt thực đơn mặc định', 'error')
+    }
+  }
+
+  function autoSyncIfReady() {
+    fetchRemoteConfig()
+  }
+
+  // Auto trigger remote config fetch when app starts
+  autoSyncIfReady()
 
   // --- Offline Queue Processor ---
   async function processOfflineQueue() {
@@ -579,7 +682,8 @@ export const useAppStore = defineStore('app', () => {
   })
 
   return {
-    historyList, menuList, menuDetails, menuImages, dishImages, menuSheets, activeSheet, newMenuName, newMenuContent, sessionPassword, lastAuthTime,
+    adminToken, adminExpiresAt, isAdminSettingsUnlocked, lockAdminSettings, unlockAdminSettings, defaultMenuProfileId, defaultBankAccountIndex, setDefaultBankAccount, setDefaultMenuProfile, autoSyncIfReady,
+    historyList, menuList, menuDetails, menuImages, dishImages, menuSheets, activeSheet, newMenuName, newMenuContent,
     bankList, selectedBankIndex, newBank,
     staffList, newStaff,
     currentBank, groupedHistory, filteredHistory,

@@ -82,7 +82,7 @@ export const useConfigStore = defineStore('config', () => {
       tempKeys[pId] = ''
       localStorage.setItem(CACHE_KEYS.KEYS, JSON.stringify(keys))
 
-      const data = await api.saveApiKeyToCloud(pId, keyVal, appStore.sessionPassword)
+      const data = await api.saveApiKeyToCloud(pId, keyVal, '', appStore.adminToken)
       if (data.ok) {
         uiStore.showToast(`Đã lưu & đồng bộ API Key ${PLATFORMS[pId].name} lên Server!`, 'success')
       } else {

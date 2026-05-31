@@ -30,7 +30,7 @@ const { updatePreviewScale, confirmStaffAndSave, triggerSave } = useBillRender()
 const { handleInputFocus, handleInputBlur, copyToClipboard, copyBookingConfirmation } = useForm()
 
 async function handleOpenConfig(type: string) {
-  if (type === 'ai') {
+  if (type === 'ai' || type === 'webhook') {
     const isAdmin = await appStore.verifyAdminSession()
     if (!isAdmin) return
   }
@@ -303,7 +303,7 @@ onMounted(() => {
         <div class="space-y-3">
           <h4 class="text-[11px] font-black text-slate-400 uppercase tracking-widest pl-2">Khác</h4>
           <div class="bg-white rounded-3xl shadow-sm border border-slate-100 overflow-hidden">
-            <button @click="ui.openConfig('webhook')" :class="['w-full px-4 py-4 flex items-center gap-4 transition-colors group', ui.activeSettingModal === 'webhook' ? 'bg-blue-50/50' : 'hover:bg-slate-50 active:bg-slate-100']">
+            <button @click="handleOpenConfig('webhook')" :class="['w-full px-4 py-4 flex items-center gap-4 transition-colors group', ui.activeSettingModal === 'webhook' ? 'bg-blue-50/50' : 'hover:bg-slate-50 active:bg-slate-100']">
               <div class="w-12 h-12 rounded-2xl bg-slate-100 text-slate-600 flex items-center justify-center text-xl shrink-0 group-hover:scale-110 transition-transform">
                 <i class="fa-solid fa-gear"></i>
               </div>

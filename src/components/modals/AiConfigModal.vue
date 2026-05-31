@@ -65,9 +65,10 @@ async function handleVisionModelChange(e: Event) {
 }
 
 async function handleBorrowKeys() {
-  const isAdmin = await appStore.verifyAdminSession()
-  if (!isAdmin) return
-  await configStore.borrowKeys(appStore.sessionPassword)
+  const pass = await ui.showPrompt('Nhập mật khẩu Admin', 'Nhập mật khẩu để tải API Key từ Cloud:')
+  if (pass) {
+    await configStore.borrowKeys(pass)
+  }
 }
 </script>
 

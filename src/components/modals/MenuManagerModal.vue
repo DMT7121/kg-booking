@@ -246,12 +246,26 @@ async function handleDishImageUpload(event: Event) {
               <div class="w-10 h-10 rounded-lg bg-white text-blue-600 flex items-center justify-center text-lg shrink-0 shadow-sm border border-slate-100">
                 <i class="fa-solid fa-book-open"></i>
               </div>
-              <div class="flex-1 min-w-0">
+              <div class="flex-grow min-w-0">
                 <p class="text-[10px] uppercase font-black tracking-widest text-slate-400 mb-0.5 truncate">Thực đơn đang chọn</p>
-                <select v-model="appStore.activeSheet" @change="appStore.switchMenu(appStore.activeSheet)" class="text-sm font-black text-blue-900 bg-transparent outline-none cursor-pointer w-full appearance-none pr-6 bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIGZpbGw9Im5vbmUiIHZpZXdCb3g9IjAgMCAyNCAyNCIgc3Ryb2tlLXdpZHRoPSIyIiBzdHJva2U9IiMxZTNhOGEiPjxwYXRoIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgc3Ryb2tlLWxpbmVqb2luPSJyb3VuZCIgZD0iTTE5IDlsLTcgNy03LTciLz48L3N2Zz4=')] bg-[length:16px_16px] bg-[right_center] bg-no-repeat truncate">
-                  <option v-if="appStore.menuSheets.length === 0" value="">-- Trống --</option>
-                  <option v-for="sheet in appStore.menuSheets" :key="sheet" :value="sheet">{{ sheet }}</option>
-                </select>
+                <div class="flex items-center gap-2">
+                  <select v-model="appStore.activeSheet" @change="appStore.switchMenu(appStore.activeSheet)" class="text-sm font-black text-blue-900 bg-transparent outline-none cursor-pointer flex-grow appearance-none pr-6 bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIGZpbGw9Im5vbmUiIHZpZXdCb3g9IjAgMCAyNCAyNCIgc3Ryb2tlLXdpZHRoPSIyIiBzdHJva2U9IiMxZTNhOGEiPjxwYXRoIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgc3Ryb2tlLWxpbmVqb2luPSJyb3VuZCIgZD0iTTE5IDlsLTcgNy03LTciLz48L3N2Zz4=')] bg-[length:16px_16px] bg-[right_center] bg-no-repeat truncate">
+                    <option v-if="appStore.menuSheets.length === 0" value="">-- Trống --</option>
+                    <option v-for="sheet in appStore.menuSheets" :key="sheet" :value="sheet">{{ sheet }}</option>
+                  </select>
+                  <span 
+                    v-if="appStore.activeSheet"
+                    @click="appStore.activeSheet !== appStore.defaultMenuProfileId && appStore.setDefaultMenuProfile(appStore.activeSheet)"
+                    :class="[
+                      appStore.activeSheet === appStore.defaultMenuProfileId 
+                        ? 'bg-blue-100 text-blue-600 border border-blue-200' 
+                        : 'bg-slate-100 text-slate-500 border border-slate-200 hover:bg-blue-50 hover:text-blue-600 hover:border-blue-200 cursor-pointer',
+                      'text-[10px] font-black uppercase px-2 py-1 rounded tracking-wider shrink-0 select-none transition-all'
+                    ]"
+                  >
+                    {{ appStore.activeSheet === appStore.defaultMenuProfileId ? 'Mặc định' : 'Đặt mặc định' }}
+                  </span>
+                </div>
               </div>
             </div>
             
