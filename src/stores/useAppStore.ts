@@ -260,14 +260,11 @@ export const useAppStore = defineStore('app', () => {
       return uiStore.showToast('Vui lòng nhập tên và nội dung menu!', 'warning')
     }
     
-    if (!sessionPassword.value) {
-      const pass = await uiStore.showPrompt('Bảo mật', `Nhập mã PIN Quản Lý để cập nhật/tạo Menu lên Cloud:`)
-      if (pass === null) return
-      sessionPassword.value = pass
-    }
+    const isAuth = await verifyAdminSession()
+    if (!isAuth) return
 
     try {
-      const data = await api.createMenu(newMenuName.value, newMenuContent.value, sessionPassword.value)
+      const data = await api.createMenu(newMenuName.value, newMenuContent.value, undefined, adminToken.value)
       if (data.ok) {
         uiStore.showToast(uiStore.isUpdateMode ? 'Cập nhật thực đơn thành công!' : 'Tạo menu thành công!', 'success')
         await fetchSheets()
@@ -276,7 +273,6 @@ export const useAppStore = defineStore('app', () => {
         newMenuContent.value = ''
         uiStore.isUpdateMode = false
       } else {
-        if (data.message && data.message.includes('Từ chối')) sessionPassword.value = ''
         throw new Error(data.message)
       }
     } catch (e: any) {
@@ -288,14 +284,11 @@ export const useAppStore = defineStore('app', () => {
     const confirm = await uiStore.showConfirm('Xóa Bộ Thực Đơn', `Bạn có chắc chắn muốn xóa bộ thực đơn "${sheetName}"?`)
     if (!confirm) return
 
-    if (!sessionPassword.value) {
-      const pass = await uiStore.showPrompt('Xóa Bộ Thực Đơn', `Nhập mã PIN Quản Lý để xóa bộ thực đơn "${sheetName}":`)
-      if (pass === null) return
-      sessionPassword.value = pass
-    }
+    const isAuth = await verifyAdminSession()
+    if (!isAuth) return
 
     try {
-      const data = await api.deleteMenu(sheetName, sessionPassword.value)
+      const data = await api.deleteMenu(sheetName, undefined, adminToken.value)
       if (data.ok) {
         uiStore.showToast(`Xóa menu "${sheetName}" thành công!`, 'success')
         await fetchSheets()
@@ -307,7 +300,6 @@ export const useAppStore = defineStore('app', () => {
           }
         }
       } else {
-        if (data.message && data.message.includes('Từ chối')) sessionPassword.value = ''
         throw new Error(data.message)
       }
     } catch (e: any) {
@@ -318,21 +310,17 @@ export const useAppStore = defineStore('app', () => {
   async function uploadMenuImageStore(base64: string) {
     if (!activeSheet.value) return uiStore.showToast('Không có menu nào đang chọn!', 'warning')
     
-    if (!sessionPassword.value) {
-      const pass = await uiStore.showPrompt('Bảo mật', `Nhập mã PIN Quản Lý để thực hiện:`)
-      if (pass === null) return
-      sessionPassword.value = pass
-    }
+    const isAuth = await verifyAdminSession()
+    if (!isAuth) return
 
     uiStore.loading.is = true
     uiStore.loading.msg = 'ĐANG TẢI ẢNH LÊN CLOUD...'
     try {
-      const data = await api.uploadMenuImage(activeSheet.value, base64, sessionPassword.value)
+      const data = await api.uploadMenuImage(activeSheet.value, base64, undefined, adminToken.value)
       if (data.ok && data.url) {
         uiStore.showToast('Tải ảnh thành công!', 'success')
         menuImages.value[activeSheet.value] = data.url
       } else {
-        if (data.message && data.message.includes('Từ chối')) sessionPassword.value = ''
         throw new Error(data.message)
       }
     } catch (e: any) {
@@ -344,21 +332,17 @@ export const useAppStore = defineStore('app', () => {
   }
 
   async function uploadDishImageStore(dishId: string, base64: string) {
-    if (!sessionPassword.value) {
-      const pass = await uiStore.showPrompt('Bảo mật', `Nhập mã PIN Quản Lý để tải ảnh lên:`)
-      if (pass === null) return
-      sessionPassword.value = pass
-    }
+    const isAuth = await verifyAdminSession()
+    if (!isAuth) return
 
     uiStore.loading.is = true
     uiStore.loading.msg = 'ĐANG TẢI ẢNH MÓN LÊN CLOUD...'
     try {
-      const data = await api.uploadDishImage(dishId, base64, sessionPassword.value)
+      const data = await api.uploadDishImage(dishId, base64, undefined, adminToken.value)
       if (data.ok && data.url) {
         uiStore.showToast('Tải ảnh món thành công!', 'success')
         dishImages.value[dishId] = data.url
       } else {
-        if (data.message && data.message.includes('Từ chối')) sessionPassword.value = ''
         throw new Error(data.message)
       }
     } catch (e: any) {
