@@ -2,12 +2,12 @@
 import { ref } from 'vue'
 import { useUIStore } from '@/stores/useUIStore'
 import { useConfigStore } from '@/stores/useConfigStore'
+import { useAppStore } from '@/stores/useAppStore'
 import { PLATFORMS } from '@/utils/constants'
 
 const ui = useUIStore()
 const configStore = useConfigStore()
-
-const showAdminKey = ref(false)
+const appStore = useAppStore()
 
 function copyToClipboard(text: string) {
   navigator.clipboard.writeText(text)
@@ -19,18 +19,55 @@ async function handlePlatformOptions(pId: string) {
     ui.showToast('Pollinations là miễn phí, không cần key!', 'info')
     return
   }
+  const isAdmin = await appStore.verifyAdminSession()
+  if (!isAdmin) return
+
   const newKey = await ui.showPrompt(`Thêm API Key`, `Dán API Key cho ${PLATFORMS[pId].name} vào đây:`)
   if (newKey) {
     configStore.tempKeys[pId] = newKey.trim()
-    configStore.saveApiKey(pId)
+    await configStore.saveApiKey(pId)
   }
 }
 
 async function handleKeyClick(pId: string, idx: number) {
+  const isAdmin = await appStore.verifyAdminSession()
+  if (!isAdmin) return
+
   const confirmed = await ui.showConfirm('Xóa Key', 'Bạn có chắc chắn muốn XÓA API key này?')
   if (confirmed) {
     configStore.deleteApiKey(pId, idx)
+    ui.showToast('Đã xóa API Key thành công', 'success')
   }
+}
+
+async function handleTextModelChange(e: Event) {
+  const target = e.target as HTMLSelectElement
+  const val = target.value
+  const isAdmin = await appStore.verifyAdminSession()
+  if (isAdmin) {
+    configStore.defaults.text = val
+    ui.showToast('Đã cập nhật mô hình LLM', 'success')
+  } else {
+    target.value = configStore.defaults.text
+  }
+}
+
+async function handleVisionModelChange(e: Event) {
+  const target = e.target as HTMLSelectElement
+  const val = target.value
+  const isAdmin = await appStore.verifyAdminSession()
+  if (isAdmin) {
+    configStore.defaults.vision = val
+    ui.showToast('Đã cập nhật mô hình Vision', 'success')
+  } else {
+    target.value = configStore.defaults.vision
+  }
+}
+
+async function handleBorrowKeys() {
+  const isAdmin = await appStore.verifyAdminSession()
+  if (!isAdmin) return
+  await configStore.borrowKeys(appStore.sessionPassword)
 }
 </script>
 
@@ -67,7 +104,7 @@ async function handleKeyClick(pId: string, idx: number) {
           <div class="flex items-center justify-between">
             <label class="text-xs font-black text-slate-800">Mô hình ngôn ngữ (LLM)</label>
             <div class="relative w-44 md:w-56">
-              <select v-model="configStore.defaults.text" class="w-full pl-3 pr-8 py-2 rounded-xl border border-slate-200 bg-white font-bold text-slate-800 text-[11px] focus:border-blue-900 focus:ring-2 focus:ring-blue-50 outline-none transition-all appearance-none text-right">
+              <select :value="configStore.defaults.text" @change="handleTextModelChange" class="w-full pl-3 pr-8 py-2 rounded-xl border border-slate-200 bg-white font-bold text-slate-800 text-[11px] focus:border-blue-900 focus:ring-2 focus:ring-blue-50 outline-none transition-all appearance-none text-right">
                 <option v-for="m in configStore.textModels" :key="m.id" :value="m.id">{{ m.name }} (Tier {{ m.tier }})</option>
               </select>
               <i class="fa-solid fa-chevron-down absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 text-[10px] pointer-events-none"></i>
@@ -78,7 +115,7 @@ async function handleKeyClick(pId: string, idx: number) {
           <div class="flex items-center justify-between">
             <label class="text-xs font-black text-slate-800 flex items-center gap-1.5">Mô hình xử lý hình ảnh (Vision) <i class="fa-solid fa-circle-info text-slate-300"></i></label>
             <div class="relative w-44 md:w-56">
-              <select v-model="configStore.defaults.vision" class="w-full pl-3 pr-8 py-2 rounded-xl border border-slate-200 bg-white font-bold text-slate-800 text-[11px] focus:border-blue-900 focus:ring-2 focus:ring-blue-50 outline-none transition-all appearance-none text-right">
+              <select :value="configStore.defaults.vision" @change="handleVisionModelChange" class="w-full pl-3 pr-8 py-2 rounded-xl border border-slate-200 bg-white font-bold text-slate-800 text-[11px] focus:border-blue-900 focus:ring-2 focus:ring-blue-50 outline-none transition-all appearance-none text-right">
                 <option v-for="m in configStore.visionModels" :key="m.id" :value="m.id">{{ m.name }} (Tier {{ m.tier }})</option>
               </select>
               <i class="fa-solid fa-chevron-down absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 text-[10px] pointer-events-none"></i>
@@ -89,11 +126,10 @@ async function handleKeyClick(pId: string, idx: number) {
 
           <!-- MOI Key -->
           <div class="bg-[#FFF8ED] border border-amber-200 rounded-2xl p-4">
-            <label class="text-[11px] font-black text-amber-600 mb-2 flex items-center gap-1.5"><i class="fa-solid fa-key"></i> MOI Key (Admin)</label>
-            <div class="flex gap-2 relative">
-              <input v-model="configStore.borrowPass" :type="showAdminKey ? 'text' : 'password'" class="flex-grow pl-3 pr-10 py-2.5 rounded-xl border border-amber-200 bg-white font-mono text-xs text-slate-700 focus:border-amber-400 outline-none transition-all" placeholder="Nhập mật khẩu Admin...">
-              <i class="fa-solid cursor-pointer absolute right-20 top-1/2 -translate-y-1/2 text-slate-400 hover:text-amber-600 transition-colors" :class="showAdminKey ? 'fa-eye-slash' : 'fa-eye'" @click="showAdminKey = !showAdminKey"></i>
-              <button @click="configStore.borrowKeys()" class="px-5 bg-[#F59E0B] text-white rounded-xl font-black text-[11px] hover:bg-amber-600 active:scale-95 transition-all">Lưu</button>
+            <label class="text-[11px] font-black text-amber-600 mb-2 flex items-center gap-1.5"><i class="fa-solid fa-key"></i> Tải API Key từ Cloud (Admin)</label>
+            <div class="flex gap-4 justify-between items-center">
+              <p class="text-[10px] font-bold text-slate-500 leading-relaxed">Tự động tải danh sách các API Keys được lưu trữ trên Cloud về trình duyệt này.</p>
+              <button @click="handleBorrowKeys" class="px-5 py-2.5 bg-[#F59E0B] text-white rounded-xl font-black text-[11px] hover:bg-amber-600 active:scale-95 transition-all shrink-0">Tải về</button>
             </div>
           </div>
           

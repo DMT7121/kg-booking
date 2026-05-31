@@ -3,6 +3,7 @@ import { ref, reactive, computed, watch } from 'vue'
 import { PLATFORMS, AI_MODELS, CACHE_KEYS } from '@/utils/constants'
 import { useUIStore } from './useUIStore'
 import * as api from '@/services/api'
+import { useAppStore } from './useAppStore'
 
 export const useConfigStore = defineStore('config', () => {
   const uiStore = useUIStore()
@@ -69,26 +70,27 @@ export const useConfigStore = defineStore('config', () => {
       return
     }
 
-    const adminPass = await uiStore.showPrompt('Đồng bộ Cloud', 'Nhập Pass Admin để đồng bộ Key lên hệ thống (để trống nếu chỉ muốn lưu trên trình duyệt này):')
+    const appStore = useAppStore()
+    const isAuth = await appStore.verifyAdminSession()
+    if (!isAuth) {
+      uiStore.showToast('Chỉ lưu cấu hình trên máy này (Chưa đồng bộ Cloud)', 'warning')
+      return
+    }
 
     try {
       keys[pId].push(keyVal)
       tempKeys[pId] = ''
       localStorage.setItem(CACHE_KEYS.KEYS, JSON.stringify(keys))
 
-      if (adminPass) {
-        const data = await api.saveApiKeyToCloud(pId, keyVal, adminPass)
-        if (data.ok) {
-          uiStore.showToast(`Đã lưu & đồng bộ API Key ${PLATFORMS[pId].name} lên Server!`, 'success')
-        } else {
-          if (data.message?.toLowerCase().includes('trùng')) {
-            uiStore.showToast('Key đã có sẵn trên Cloud, bỏ qua lưu trùng.', 'info')
-          } else {
-            uiStore.showToast(`Lưu cục bộ OK nhưng đồng bộ Cloud bị lỗi: ${data.message}`, 'warning')
-          }
-        }
+      const data = await api.saveApiKeyToCloud(pId, keyVal, appStore.sessionPassword)
+      if (data.ok) {
+        uiStore.showToast(`Đã lưu & đồng bộ API Key ${PLATFORMS[pId].name} lên Server!`, 'success')
       } else {
-        uiStore.showToast('Đã lưu cục bộ an toàn (Chưa đồng bộ lên Cloud).', 'success')
+        if (data.message?.toLowerCase().includes('trùng')) {
+          uiStore.showToast('Key đã có sẵn trên Cloud, bỏ qua lưu trùng.', 'info')
+        } else {
+          uiStore.showToast(`Lưu cục bộ OK nhưng đồng bộ Cloud bị lỗi: ${data.message}`, 'warning')
+        }
       }
     } catch (e: any) {
       uiStore.showToast('Lưu cục bộ hoàn tất (Lỗi đồng bộ).', 'warning')
@@ -100,10 +102,11 @@ export const useConfigStore = defineStore('config', () => {
     localStorage.setItem(CACHE_KEYS.KEYS, JSON.stringify(keys))
   }
 
-  async function borrowKeys() {
-    if (!borrowPass.value) return uiStore.showToast('Nhập pass Admin hoặc Password Truy cập!', 'warning')
+  async function borrowKeys(pass?: string) {
+    const actualPass = pass || borrowPass.value
+    if (!actualPass) return uiStore.showToast('Nhập pass Admin hoặc Password Truy cập!', 'warning')
     try {
-      const data = await api.borrowApiKeys(borrowPass.value)
+      const data = await api.borrowApiKeys(actualPass)
       if (data.ok) {
         let addedCount = 0
         data.keys.forEach((k: any) => {

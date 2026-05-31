@@ -506,25 +506,12 @@ export const useAppStore = defineStore('app', () => {
   }
 
   async function updateRemoteConfig() {
-    let pass = sessionPassword.value
-    if (!pass) {
-      const isAuth = await verifyAdminSession()
-      if (!isAuth) {
-        uiStore.showToast('Chỉ lưu cấu hình trên máy này (Chưa đồng bộ Cloud)', 'warning')
-        return
-      }
-      pass = sessionPassword.value
-    } else {
-      // Session is already valid, update activity timer since saving is an action
-      const now = Date.now()
-      lastAuthTime.value = now
-      sessionStorage.setItem('kg_admin_session_time', String(now))
-    }
-    
-    if (!pass) {
+    const isAuth = await verifyAdminSession()
+    if (!isAuth) {
       uiStore.showToast('Chỉ lưu cấu hình trên máy này (Chưa đồng bộ Cloud)', 'warning')
       return
     }
+    const pass = sessionPassword.value
 
     uiStore.showToast('Đang lưu cấu hình lên Server...', 'info')
     uiStore.connectionStatus = 'syncing'

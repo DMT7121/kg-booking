@@ -29,6 +29,13 @@ const configStore = useConfigStore()
 const { updatePreviewScale, confirmStaffAndSave, triggerSave } = useBillRender()
 const { handleInputFocus, handleInputBlur, copyToClipboard, copyBookingConfirmation } = useForm()
 
+async function handleOpenConfig(type: string) {
+  if (type === 'ai') {
+    const isAdmin = await appStore.verifyAdminSession()
+    if (!isAdmin) return
+  }
+  ui.openConfig(type)
+}
 
 // --- Watchers ---
 watch(() => ui.tempTable, (val) => {
@@ -224,7 +231,7 @@ onMounted(() => {
             </button>
             
             <!-- AI -->
-            <button @click="ui.openConfig('ai')" :class="['w-full px-4 py-4 flex items-center gap-4 transition-colors border-b border-slate-50 group', ui.activeSettingModal === 'ai' ? 'bg-blue-50/50' : 'hover:bg-slate-50 active:bg-slate-100']">
+            <button @click="handleOpenConfig('ai')" :class="['w-full px-4 py-4 flex items-center gap-4 transition-colors border-b border-slate-50 group', ui.activeSettingModal === 'ai' ? 'bg-blue-50/50' : 'hover:bg-slate-50 active:bg-slate-100']">
               <div class="w-12 h-12 rounded-2xl bg-purple-50 text-purple-500 flex items-center justify-center text-xl shrink-0 group-hover:scale-110 transition-transform">
                 <i class="fa-solid fa-wand-magic-sparkles"></i>
               </div>
