@@ -41,7 +41,10 @@ const customerCrmProfile = computed(() => {
   })
   
   const lastOrder = sorted[0]
-  const noShowCount = orders.filter(o => o.status === 'NO_SHOW' || o.status === 'CANCELED').length
+  const noShowCount = orders.filter(o => {
+    const note = (o.parsedCustomer.note || '').toLowerCase()
+    return note.includes('huy') || note.includes('hủy') || note.includes('cancel') || note.includes('no show') || note.includes('noshow') || note.includes('bom')
+  }).length
 
   let greeting = `Chào anh/chị ${lastOrder.parsedCustomer.name || 'Khách'}, rất vui được đón tiếp anh/chị quay lại Kings Grill!`
   let promo = ''

@@ -661,7 +661,7 @@ export function useAI() {
     const confidences: Record<string, { value: any; confidence: number; source_text: string; needs_review: boolean }> = {}
 
     const calcScore = (field: string, aiVal: any, rbVal: any) => {
-      if (!aiVal) return { confidence: 0.0, source_text: '', needs_review: true }
+      if (!aiVal) return { value: '', confidence: 0.0, source_text: '', needs_review: true }
       
       const cleanAI = String(aiVal).trim().toLowerCase()
       const cleanRB = rbVal ? String(rbVal).trim().toLowerCase() : ''
@@ -669,43 +669,43 @@ export function useAI() {
       if (field === 'phone') {
         const cleaned = cleanPhoneNumber(aiVal)
         if (/^0[35789]\d{8}$/.test(cleaned)) {
-          return { confidence: 1.0, source_text: aiVal, needs_review: false }
+          return { value: aiVal, confidence: 1.0, source_text: aiVal, needs_review: false }
         }
-        return { confidence: 0.5, source_text: aiVal, needs_review: true }
+        return { value: aiVal, confidence: 0.5, source_text: aiVal, needs_review: true }
       }
       
       if (field === 'date') {
         if (/^\d{2}\/\d{2}\/\d{4}$/.test(aiVal)) {
-          return { confidence: 0.95, source_text: aiVal, needs_review: false }
+          return { value: aiVal, confidence: 0.95, source_text: aiVal, needs_review: false }
         }
-        return { confidence: 0.4, source_text: aiVal, needs_review: true }
+        return { value: aiVal, confidence: 0.4, source_text: aiVal, needs_review: true }
       }
 
       if (field === 'time') {
         if (/^\d{2}:\d{2}$/.test(aiVal)) {
-          return { confidence: 0.95, source_text: aiVal, needs_review: false }
+          return { value: aiVal, confidence: 0.95, source_text: aiVal, needs_review: false }
         }
-        return { confidence: 0.4, source_text: aiVal, needs_review: true }
+        return { value: aiVal, confidence: 0.4, source_text: aiVal, needs_review: true }
       }
       
       if (field === 'pax') {
         const num = parseInt(aiVal)
-        if (num > 0) return { confidence: 0.95, source_text: aiVal, needs_review: false }
-        return { confidence: 0.4, source_text: aiVal, needs_review: true }
+        if (num > 0) return { value: aiVal, confidence: 0.95, source_text: aiVal, needs_review: false }
+        return { value: aiVal, confidence: 0.4, source_text: aiVal, needs_review: true }
       }
       
       if (field === 'name') {
-        if (aiVal === 'Khách hàng') return { confidence: 0.5, source_text: aiVal, needs_review: true }
-        if (cleanAI === cleanRB) return { confidence: 0.9, source_text: aiVal, needs_review: false }
-        return { confidence: 0.75, source_text: aiVal, needs_review: false }
+        if (aiVal === 'Khách hàng') return { value: aiVal, confidence: 0.5, source_text: aiVal, needs_review: true }
+        if (cleanAI === cleanRB) return { value: aiVal, confidence: 0.9, source_text: aiVal, needs_review: false }
+        return { value: aiVal, confidence: 0.75, source_text: aiVal, needs_review: false }
       }
 
       if (field === 'tables') {
-        if (/^[a-g]\d{1,2}/i.test(aiVal)) return { confidence: 0.95, source_text: aiVal, needs_review: false }
-        return { confidence: 0.8, source_text: aiVal, needs_review: false }
+        if (/^[a-g]\d{1,2}/i.test(aiVal)) return { value: aiVal, confidence: 0.95, source_text: aiVal, needs_review: false }
+        return { value: aiVal, confidence: 0.8, source_text: aiVal, needs_review: false }
       }
 
-      return { confidence: 0.8, source_text: aiVal, needs_review: false }
+      return { value: aiVal, confidence: 0.8, source_text: aiVal, needs_review: false }
     }
 
     if (!parsed.customer) {

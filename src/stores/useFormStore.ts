@@ -42,6 +42,7 @@ export interface AIMetadata {
   repair_applied: boolean
   latency: string
   confidence_score?: number
+  confidences?: Record<string, { value: any; confidence: number; source_text: string; needs_review: boolean }>
 }
 
 export const useFormStore = defineStore('form', () => {
