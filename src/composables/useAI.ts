@@ -71,6 +71,7 @@ export function useAI() {
       console.warn(`[AI Proxy] ${model.provider} failed: ${e.message}`)
       throw e
     }
+  }
 
 
   // ═══════════════════════════════════════════════════════════════
