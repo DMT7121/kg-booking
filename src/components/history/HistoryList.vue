@@ -67,9 +67,7 @@ function shareBillLink(orderId: string, name: string) {
 }
 
 // --- Edit ---
-async function handleEditOrder(order: any) {
-  const isAdmin = await appStore.verifyAdminSession()
-  if (!isAdmin) return
+function handleEditOrder(order: any) {
   editHistoricOrder(order)
 }
 

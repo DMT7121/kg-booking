@@ -443,9 +443,8 @@ export const useAppStore = defineStore('app', () => {
           const index = bankList.value.findIndex((b: any) => b.bankId === accountId || b.number === accountId)
           if (index !== -1) {
             defaultBankAccountIndex.value = index
-            if (!localStorage.getItem(CACHE_KEYS.SELECTED_BANK)) {
-              selectedBankIndex.value = index
-            }
+            selectedBankIndex.value = index
+            localStorage.setItem(CACHE_KEYS.SELECTED_BANK, String(index))
           }
         }
         if (result.data.default_menu_profile_id) {
@@ -610,6 +609,8 @@ export const useAppStore = defineStore('app', () => {
         const index = bankList.value.findIndex((b: any) => b.bankId === accountId || b.number === accountId)
         if (index !== -1) {
           defaultBankAccountIndex.value = index
+          selectedBankIndex.value = index
+          localStorage.setItem(CACHE_KEYS.SELECTED_BANK, String(index))
         }
         uiStore.showToast('Đã đặt tài khoản mặc định thành công!', 'success')
       } else {

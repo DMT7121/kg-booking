@@ -14,10 +14,8 @@ function close() {
   ui.selectedBooking = null
 }
 
-async function handleEdit() {
+function handleEdit() {
   if (!ui.selectedBooking) return
-  const isAdmin = await appStore.verifyAdminSession()
-  if (!isAdmin) return
   editHistoricOrder(ui.selectedBooking)
   ui.tab = 'create'
   close()

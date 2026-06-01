@@ -347,7 +347,7 @@ function goToTomorrowTimeline() {
 
       <!-- Bill Preview (Overlay độc lập cho cả desktop và mobile) -->
       <div 
-        v-if="ui.tab === 'preview'" 
+        v-show="ui.tab === 'preview'" 
         class="absolute inset-0 z-[110] bg-slate-100 flex flex-col w-full h-full overflow-hidden animate-fade-in"
       >
         <BillPreview />
