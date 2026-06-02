@@ -566,13 +566,25 @@ export function useAI() {
 
   function fillBookingFormSafely(parsedResult: any, options: { mode: 'all' | 'customer' | 'menu' }) {
     const { mode } = options
+
+    function parseTableCode(tableStr: string): { zone: string; number: string } | null {
+      if (!tableStr) return null
+      const clean = tableStr.trim().toUpperCase()
+      const match = clean.match(/^([A-Z\s]+)?(\d+)?$/)
+      if (!match) return { zone: '', number: clean }
+      return {
+        zone: match[1] ? match[1].trim() : '',
+        number: match[2] || ''
+      }
+    }
+
     const setFormVal = (field: string, newValue: any, setter: (val: any) => void) => {
       if (newValue === undefined || newValue === null) return
       const isDirty = isFieldDirty(field)
       if (!isDirty) {
         setter(newValue)
       } else {
-        formStore.warnings.push(`Trường ${field} không được ghi đè vì nhân viên đã sửa thủ công thành "${formStore.customer[field as any]}".`)
+        formStore.warnings.push(`Trường ${field} không được ghi đè vì nhân viên đã sửa thủ công thành "${formStore.customer[field as keyof typeof formStore.customer]}".`)
       }
     }
 
@@ -1480,7 +1492,7 @@ Output JSON: { "amount": Number, "content": "String", "bank": "String", "time": 
 - Không tìm thấy → null. Chỉ trả về JSON thuần.`
       
       const optimizedImg = await resizeImage(base64Img, 1120)
-      const aiResponse = await smartRouter('vision', sysPrompt, 'Phân tích ảnh chuyển khoản', optimizedImg)
+      const aiResponse = (await smartRouter('vision', sysPrompt, 'Phân tích ảnh chuyển khoản', optimizedImg)) as any
 
       const amountVal = aiResponse?.parsed?.amount || aiResponse?.amount
       const contentVal = aiResponse?.parsed?.content || aiResponse?.content
