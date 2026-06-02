@@ -226,7 +226,11 @@ function onDrop(e: DragEvent) {
           <div class="text-[9px] font-black text-white uppercase tracking-wider">Đã nhận diện hình ảnh</div>
           <div class="text-[8px] text-blue-100 italic">Vision OCR Ready</div>
         </div>
-        <button @click="formStore.aiImage = null"    <button @click="handleAnalyze" class="w-full mt-3 py-3 rounded-xl font-black text-sm shadow-lg border flex justify-center items-center gap-2 active:scale-95 transition-all min-h-[48px] active-effect cursor-pointer"
+        <button @click="formStore.aiImage = null" class="text-white/60 hover:text-red-300 mr-2 transition-colors min-h-[44px] min-w-[44px]"><i class="fa-solid fa-trash-can"></i></button>
+      </div>
+    </div>
+
+    <button @click="handleAnalyze" class="w-full mt-3 py-3 rounded-xl font-black text-sm shadow-lg border flex justify-center items-center gap-2 active:scale-95 transition-all min-h-[48px] active-effect cursor-pointer"
       :class="isProcessing ? 'bg-red-500 hover:bg-red-600 text-white border-red-600' : 'bg-white hover:bg-slate-50 text-blue-700 border-white/50'">
       <i v-if="isProcessing" class="fa-solid fa-spinner animate-spin"></i>
       <i v-else class="fa-solid fa-rocket"></i>
