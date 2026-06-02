@@ -70,6 +70,7 @@ export const useFormStore = defineStore('form', () => {
   const warnings = ref<string[]>([])
   const unresolvedItems = ref<string[]>([])
   const originalAiValues = ref<any>(null)
+  const parsedAiResult = ref<any>(null)
 
   // --- Tax ---
   const taxEnabled = ref(false)
@@ -208,13 +209,14 @@ export const useFormStore = defineStore('form', () => {
     warnings.value = []
     unresolvedItems.value = []
     originalAiValues.value = null
+    parsedAiResult.value = null
     clearDraft()
   }
 
   return {
     id, version, originalState,
     customer, items, deposit, staff,
-    rawInput, aiImage, oldBillFileId, aiMetadata, warnings, unresolvedItems, originalAiValues,
+    rawInput, aiImage, oldBillFileId, aiMetadata, warnings, unresolvedItems, originalAiValues, parsedAiResult,
     taxEnabled, billMode, saveType,
     calculatedTotals, filteredBillItems, previewTitle,
     getDataSnapshot, $reset

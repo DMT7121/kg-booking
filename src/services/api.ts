@@ -93,6 +93,14 @@ export function createAIAbortController(): AbortController {
   return activeAIController
 }
 
+/** Abort active AI request */
+export function abortActiveAIRequest() {
+  if (activeAIController) {
+    activeAIController.abort()
+    activeAIController = null
+  }
+}
+
 /** Clear active controller after completion */
 export function clearAIAbortController() {
   activeAIController = null
@@ -223,8 +231,8 @@ export async function callAiProxy(payload: {
   jsonMode?: boolean
   format?: string
   url: string
-}): Promise<any> {
-  return postGAS({ action: 'callAiService', ...payload })
+}, signal?: AbortSignal): Promise<any> {
+  return postGAS({ action: 'callAiService', ...payload }, signal)
 }
 
 export async function callAiService(payload: {
@@ -236,8 +244,8 @@ export async function callAiService(payload: {
   jsonMode?: boolean
   format?: string
   url: string
-}): Promise<any> {
-  return postGAS({ action: 'callAiService', ...payload })
+}, signal?: AbortSignal): Promise<any> {
+  return postGAS({ action: 'callAiService', ...payload }, signal)
 }
 
 export async function upsertSystemConfig(key: string, value: any, options?: any, token?: string): Promise<any> {
