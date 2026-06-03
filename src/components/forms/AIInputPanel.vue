@@ -48,7 +48,7 @@ async function handleAnalyze() {
 }
 
 watch(() => formStore.aiMetadata, (newVal) => {
-  if (newVal) {
+  if (newVal && configStore.defaults.aiWorkflowMode === 'review') {
     showAiReview.value = true
   } else {
     showAiReview.value = false
@@ -198,7 +198,7 @@ function onDrop(e: DragEvent) {
 
     <div class="absolute top-0 right-0 p-6 opacity-10 pointer-events-none transform translate-x-4 -translate-y-4"><i class="fa-solid fa-bolt-lightning text-7xl text-white"></i></div>
     <div class="flex justify-between items-center mb-3 relative z-10">
-      <h3 class="font-black text-white text-[9px] uppercase tracking-widest flex items-center gap-2"><i class="fa-solid fa-wand-sparkles text-yellow-300"></i> AI Core v6.0</h3>
+      <h3 class="font-black text-white text-[9px] uppercase tracking-widest flex items-center gap-2"><i class="fa-solid fa-wand-sparkles text-yellow-300"></i> AI Core v7.0</h3>
       <span class="text-[8px] px-2 py-0.5 bg-white text-blue-700 rounded-full font-black uppercase shadow-sm border border-white/50" :class="{'animate-pulse': ui.listening}">{{ ui.listening ? 'LISTENING...' : 'SMART ROUTING ON' }}</span>
     </div>
 

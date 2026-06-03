@@ -551,7 +551,33 @@ export function useAI() {
   }
 
   function isFieldDirty(field: string): boolean {
-    if (!formStore.originalAiValues) return false
+    // If the field is currently empty or default in the form, it is NEVER dirty (we want AI to fill it)
+    if (field === 'name' && !formStore.customer.name) return false
+    if (field === 'phone' && !formStore.customer.phone) return false
+    if (field === 'date' && !formStore.customer.date) return false
+    if (field === 'time' && !formStore.customer.time) return false
+    if (field === 'pax' && !formStore.customer.pax) return false
+    if (field === 'tables') {
+      const currentTable = (uiStore.tempTable.zone || '') + (uiStore.tempTable.number || '')
+      if (!currentTable.trim()) return false
+    }
+
+    // If there are no previously saved AI values, and the field has some custom value, we treat it as dirty 
+    // to protect manual entries from the first run.
+    if (!formStore.originalAiValues) {
+      if (field === 'name' && formStore.customer.name) return true
+      if (field === 'phone' && formStore.customer.phone) return true
+      if (field === 'date' && formStore.customer.date) return true
+      if (field === 'time' && formStore.customer.time) return true
+      if (field === 'pax' && formStore.customer.pax) return true
+      if (field === 'tables') {
+        const currentTable = (uiStore.tempTable.zone || '') + (uiStore.tempTable.number || '')
+        if (currentTable.trim()) return true
+      }
+      return false
+    }
+
+    // If we have previous AI values, check if the current form value differs from what the AI previously wrote.
     if (field === 'name') return formStore.customer.name !== formStore.originalAiValues.name
     if (field === 'phone') return cleanPhoneNumber(formStore.customer.phone) !== cleanPhoneNumber(formStore.originalAiValues.phone)
     if (field === 'date') return formatDateStr(formStore.customer.date) !== formatDateStr(formStore.originalAiValues.date)
@@ -589,32 +615,34 @@ export function useAI() {
     }
 
     if (mode === 'all' || mode === 'customer') {
-      if (parsedResult.customer) {
-        if (parsedResult.customer.name) {
-          setFormVal('name', parsedResult.customer.name, (val) => { formStore.customer.name = val })
+      const customerInfo = parsedResult.customer || parsedResult
+      if (customerInfo) {
+        if (customerInfo.name) {
+          setFormVal('name', customerInfo.name, (val) => { formStore.customer.name = val })
         }
-        if (parsedResult.customer.phone) {
-          setFormVal('phone', cleanPhoneNumber(parsedResult.customer.phone), (val) => { formStore.customer.phone = val })
+        if (customerInfo.phone) {
+          setFormVal('phone', cleanPhoneNumber(customerInfo.phone), (val) => { formStore.customer.phone = val })
         }
       }
       
-      if (parsedResult.booking) {
-        if (parsedResult.booking.event_date) {
-          setFormVal('date', formatDateStr(parsedResult.booking.event_date), (val) => { formStore.customer.date = val })
+      const bookingInfo = parsedResult.booking || parsedResult.reservation || parsedResult
+      if (bookingInfo) {
+        if (bookingInfo.event_date || bookingInfo.date) {
+          setFormVal('date', formatDateStr(bookingInfo.event_date || bookingInfo.date), (val) => { formStore.customer.date = val })
         }
-        if (parsedResult.booking.event_time) {
-          setFormVal('time', parsedResult.booking.event_time, (val) => { formStore.customer.time = val })
+        if (bookingInfo.event_time || bookingInfo.time) {
+          setFormVal('time', bookingInfo.event_time || bookingInfo.time, (val) => { formStore.customer.time = val })
         }
-        if (parsedResult.booking.guest_count) {
-          setFormVal('pax', String(parsedResult.booking.guest_count), (val) => { formStore.customer.pax = val })
+        if (bookingInfo.guest_count || bookingInfo.pax) {
+          setFormVal('pax', String(bookingInfo.guest_count || bookingInfo.pax), (val) => { formStore.customer.pax = val })
         }
-        if (parsedResult.booking.need) {
-          setFormVal('type', parsedResult.booking.need, (val) => { formStore.customer.type = val })
+        if (bookingInfo.need || bookingInfo.type) {
+          setFormVal('type', bookingInfo.need || bookingInfo.type, (val) => { formStore.customer.type = val })
         }
-        if (parsedResult.booking.table_number) {
+        if (bookingInfo.table_number || bookingInfo.table_code) {
           const isTableDirty = isFieldDirty('tables')
           if (!isTableDirty) {
-            const table = parseTableCode(parsedResult.booking.table_number)
+            const table = parseTableCode(bookingInfo.table_number || bookingInfo.table_code)
             if (table) {
               uiStore.tempTable.zone = table.zone
               uiStore.tempTable.number = table.number
@@ -623,8 +651,10 @@ export function useAI() {
         }
       }
 
-      if (parsedResult.notes?.customer_note) {
-        const parsedNote = parsedResult.notes.customer_note.trim()
+      const notesInfo = parsedResult.notes || parsedResult
+      const customerNoteVal = notesInfo?.customer_note || parsedResult.booking?.notes || parsedResult.reservation?.notes
+      if (customerNoteVal) {
+        const parsedNote = customerNoteVal.trim()
         if (parsedNote) {
           if (!formStore.customer.note) {
             formStore.customer.note = parsedNote
@@ -634,38 +664,54 @@ export function useAI() {
         }
       }
       
-      if (parsedResult.deposit?.amount) {
-        formStore.deposit.amount = parsedResult.deposit.amount
-        if (parsedResult.deposit.status === 'đã cọc' || parsedResult.deposit.status === 'YES') {
+      const depositInfo = parsedResult.deposit || parsedResult.payment || parsedResult
+      const depositAmountVal = depositInfo?.amount
+      if (depositAmountVal) {
+        formStore.deposit.amount = depositAmountVal
+        if (depositInfo.status === 'đã cọc' || depositInfo.status === 'YES' || depositInfo.method === 'transfer') {
           formStore.deposit.isPaid = true
         }
-        if (parsedResult.deposit.bank_ref) {
-          formStore.deposit.note = `AI Ref: ${parsedResult.deposit.bank_ref}`
+        if (depositInfo.bank_ref || depositInfo.bank_reference) {
+          formStore.deposit.note = `AI Ref: ${depositInfo.bank_ref || depositInfo.bank_reference}`
         }
       }
     }
 
     if (mode === 'all' || mode === 'menu') {
-      if (parsedResult.menu_items && Array.isArray(parsedResult.menu_items)) {
+      const menuItems = parsedResult.menu_items || parsedResult.items
+      if (menuItems && Array.isArray(menuItems)) {
         const existingItems = [...formStore.items]
-        for (const newItem of parsedResult.menu_items) {
+        for (const newItem of menuItems) {
           const matchIdx = existingItems.findIndex(i => 
-            stripAccents(i.name).toLowerCase().trim() === stripAccents(newItem.matched_name).toLowerCase().trim() &&
+            stripAccents(i.name).toLowerCase().trim() === stripAccents(newItem.matched_name || newItem.name).toLowerCase().trim() &&
             i.note === newItem.note
           )
           if (matchIdx !== -1) {
-            existingItems[matchIdx].qty += newItem.quantity
+            existingItems[matchIdx].qty += newItem.quantity || newItem.qty || 1
           } else {
             existingItems.push({
-              name: newItem.matched_name,
-              qty: newItem.quantity,
-              price: newItem.unit_price,
-              note: newItem.note
+              name: newItem.matched_name || newItem.name,
+              qty: newItem.quantity || newItem.qty || 1,
+              price: newItem.unit_price || newItem.price || 0,
+              note: newItem.note || newItem.notes || ""
             })
           }
         }
         formStore.items = existingItems
       }
+    }
+
+    // Save final applied state to originalAiValues for subsequent edits and self-learning corrections
+    formStore.originalAiValues = {
+      name: formStore.customer.name,
+      phone: formStore.customer.phone,
+      date: formStore.customer.date,
+      time: formStore.customer.time,
+      pax: String(formStore.customer.pax || ''),
+      tables: (uiStore.tempTable.zone || '') + (uiStore.tempTable.number || ''),
+      type: formStore.customer.type || 'Ăn thường',
+      note: formStore.customer.note || '',
+      items: JSON.parse(JSON.stringify(formStore.items || []))
     }
   }
 
@@ -1450,17 +1496,6 @@ export function useAI() {
 
       // Store results in the form store to open Review Card
       formStore.parsedAiResult = validatedResult
-      formStore.originalAiValues = {
-        name: validatedResult.customer.name,
-        phone: validatedResult.customer.phone,
-        date: validatedResult.booking.event_date,
-        time: validatedResult.booking.event_time,
-        pax: String(validatedResult.booking.guest_count || ''),
-        tables: validatedResult.booking.table_number,
-        type: validatedResult.booking.need || 'Ăn thường',
-        note: validatedResult.notes.customer_note,
-        items: JSON.parse(JSON.stringify(validatedResult.menu_items || []))
-      }
 
       formStore.aiMetadata = {
         ...routingInfo,
@@ -1468,6 +1503,11 @@ export function useAI() {
       }
       formStore.warnings = validatedResult.needs_review_fields.map((f: string) => `Trường ${f} cần kiểm tra lại độ chính xác`)
       formStore.unresolvedItems = validatedResult.menu_items.filter((i: any) => i.needs_review).map((i: any) => i.raw_name)
+
+      // Direct auto-fill if workflow mode is set to 'direct'
+      if (configStore.defaults.aiWorkflowMode !== 'review') {
+        fillBookingFormSafely(validatedResult, { mode: 'all' })
+      }
 
     } catch (e: any) {
       if (e.name !== 'AbortError') {

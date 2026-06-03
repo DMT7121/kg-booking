@@ -67,6 +67,18 @@ async function handleVisionModelChange(e: Event) {
   }
 }
 
+async function handleWorkflowModeChange(e: Event) {
+  const target = e.target as HTMLSelectElement
+  const val = target.value
+  const isAdmin = await appStore.verifyAdminSession()
+  if (isAdmin) {
+    configStore.defaults.aiWorkflowMode = val
+    ui.showToast(`Đã cập nhật quy trình AI thành: ${val === 'direct' ? 'Điền trực tiếp' : 'Xem lại trước khi điền'}`, 'success')
+  } else {
+    target.value = configStore.defaults.aiWorkflowMode
+  }
+}
+
 async function handleBorrowKeys() {
   const pass = await ui.showPrompt('Nhập mật khẩu Admin', 'Nhập mật khẩu để tải API Key từ Cloud:')
   if (pass) {
@@ -161,6 +173,18 @@ async function handleDeleteAlias(alias: string) {
             <div class="relative w-44 md:w-56">
               <select :value="configStore.defaults.vision" @change="handleVisionModelChange" class="w-full pl-3 pr-8 py-2 rounded-xl border border-slate-200 bg-white font-bold text-slate-800 text-[11px] focus:border-blue-900 focus:ring-2 focus:ring-blue-50 outline-none transition-all appearance-none text-right">
                 <option v-for="m in configStore.visionModels" :key="m.id" :value="m.id">{{ m.name }} (Tier {{ m.tier }})</option>
+              </select>
+              <i class="fa-solid fa-chevron-down absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 text-[10px] pointer-events-none"></i>
+            </div>
+          </div>
+
+          <!-- AI Workflow Mode Selection -->
+          <div class="flex items-center justify-between">
+            <label class="text-xs font-black text-slate-800">Quy trình xử lý AI</label>
+            <div class="relative w-44 md:w-56">
+              <select :value="configStore.defaults.aiWorkflowMode || 'direct'" @change="handleWorkflowModeChange" class="w-full pl-3 pr-8 py-2 rounded-xl border border-slate-200 bg-white font-bold text-slate-800 text-[11px] focus:border-blue-900 focus:ring-2 focus:ring-blue-50 outline-none transition-all appearance-none text-right">
+                <option value="direct">Điền trực tiếp (V6 style)</option>
+                <option value="review">Xem lại trước khi điền (V7 style)</option>
               </select>
               <i class="fa-solid fa-chevron-down absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 text-[10px] pointer-events-none"></i>
             </div>
