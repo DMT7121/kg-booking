@@ -193,7 +193,7 @@ export function useAI() {
       if (hasPhone || hasCustomerKeywords) {
         blocks.customer_block.push(trimmed)
       }
-      const isMenuLine = /^\d+\s+[a-zà-ỹ\s]+/i.test(lower) || /combo|set menu|thuc don/i.test(lower)
+      const isMenuLine = /^\d+\s+[\p{L}\s]+/ui.test(lower) || /combo|set menu|thuc don/i.test(lower)
       if (isMenuLine) {
         blocks.menu_block.push(trimmed)
       }
@@ -232,7 +232,7 @@ export function useAI() {
     const lines = cleanText.split('\n')
     let foodLinesCount = 0
     for (const line of lines) {
-      if (/^\d+\s+[a-zà-ỹ\s]+$/i.test(line.trim())) {
+      if (/^\d+\s+[\p{L}\s]+$/ui.test(line.trim())) {
         foodLinesCount++
       }
     }
@@ -281,7 +281,7 @@ export function useAI() {
 
     // Spacing between number and units
     clean = clean.replace(/(\d+)(pax|người|khách|cho|nguoi|khach|ban)/gi, '$1 $2')
-    clean = clean.replace(/([a-zà-ỹ]+)(\d+)\b/gi, '$1 x$2')
+    clean = clean.replace(/([\p{L}]+)(\d+)\b/ugi, '$1 x$2')
 
     // 2. Guest counts ranges & additions
     clean = clean.replace(/\b(\d+)\s*(?:-|–|—|đến|den|to)\s*(\d+)\s*(pax|người|khách|cho|nguoi|khach|guest)/gi, (match, min, max, unit) => {
@@ -297,7 +297,7 @@ export function useAI() {
     clean = clean.replace(/\b(\d{1,2})h(\d{2})\b/gi, '$1:$2')
     clean = clean.replace(/\b(\d{1,2})h\b/gi, '$1:00')
     clean = clean.replace(/\b(\d{1,2})h(\d{2})m\b/gi, '$1:$2')
-    clean = clean.replace(/(\d+)(?![hg\d\s\/:-\.\,])([a-zà-ỹÀ-Ỹ])/gi, '$1 $2')
+    clean = clean.replace(/(\d+)(?![hg\d\s\/:-\.\,])([\p{L}])/ugi, '$1 $2')
 
     clean = clean.replace(/\b(\d{1,2}:\d{2})\s*[-–—đến|den|to]\s*(\d{1,2}:\d{2})\b/g, (match, t1, t2) => t1)
 
@@ -394,7 +394,7 @@ export function useAI() {
       const lineClean = line.trim()
       if (!lineClean) continue
       
-      const nameRegex = /(?:anh|chị|em|chú|cô|ông|bà|anh|chi|em|chu|co|ong|ba|bé|be|khách|khach|tên|ten|đặt|dat|cho|liên hệ|lien he)\s+([A-ZÀ-Ỹa-zà-ỹ]+(?:\s+[A-ZÀ-Ỹa-zà-ỹ]+){0,3})/gu
+      const nameRegex = /(?:anh|chị|em|chú|cô|ông|bà|anh|chi|em|chu|co|ong|ba|bé|be|khách|khach|tên|ten|đặt|dat|cho|liên hệ|lien he)\s+(\p{L}+(?:\s+\p{L}+){0,3})/gu
       let match
       while ((match = nameRegex.exec(lineClean)) !== null) {
         const name = match[1].trim()
@@ -408,10 +408,10 @@ export function useAI() {
     }
 
     const specialPatterns = [
-      { regex: /(?:sinh nhật|sinh nhat|hbd|hpbd|happy birthday|thôi nôi|thoi noi|đầy tháng|day thang|bé|be)\s+of\s+([A-ZÀ-Ỹa-zà-ỹ\s]+)/gi, isPartyOwner: true },
-      { regex: /(?:sinh nhật|sinh nhat|hbd|hpbd|happy birthday|thôi nôi|thoi noi|đầy tháng|day thang|bé|be)\s+([A-ZÀ-Ỹa-zà-ỹ\s]+)/gi, isPartyOwner: true },
-      { regex: /(?:bảng tên|bang ten|chữ|chu|tên|ten)\s+([A-ZÀ-Ỹa-zà-ỹ\s]+)/gi, isPartyOwner: true },
-      { regex: /(?:người đặt|nguoi dat|liên hệ|lien he|anh|chị|chi|anh|sđt|sdt)\s+([A-ZÀ-Ỹa-zà-ỹ\s]+)/gi, isBooker: true }
+      { regex: /(?:sinh nhật|sinh nhat|hbd|hpbd|happy birthday|thôi nôi|thoi noi|đầy tháng|day thang|bé|be)\s+of\s+([\p{L}\s]+)/ugi, isPartyOwner: true },
+      { regex: /(?:sinh nhật|sinh nhat|hbd|hpbd|happy birthday|thôi nôi|thoi noi|đầy tháng|day thang|bé|be)\s+([\p{L}\s]+)/ugi, isPartyOwner: true },
+      { regex: /(?:bảng tên|bang ten|chữ|chu|tên|ten)\s+([\p{L}\s]+)/ugi, isPartyOwner: true },
+      { regex: /(?:người đặt|nguoi dat|liên hệ|lien he|anh|chị|chi|anh|sđt|sdt)\s+([\p{L}\s]+)/ugi, isBooker: true }
     ]
 
     specialPatterns.forEach(({ regex, isPartyOwner, isBooker }) => {
