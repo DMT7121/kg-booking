@@ -297,7 +297,7 @@ export function useAI() {
     clean = clean.replace(/\b(\d{1,2})h(\d{2})\b/gi, '$1:$2')
     clean = clean.replace(/\b(\d{1,2})h\b/gi, '$1:00')
     clean = clean.replace(/\b(\d{1,2})h(\d{2})m\b/gi, '$1:$2')
-    clean = clean.replace(/(\d+)(?![hg\d\s\/:-\.\,])([\p{L}])/ugi, '$1 $2')
+    clean = clean.replace(/(\d+)(?![hg\d\s\/:\-\.,])([\p{L}])/ugi, '$1 $2')
 
     clean = clean.replace(/\b(\d{1,2}:\d{2})\s*[-–—đến|den|to]\s*(\d{1,2}:\d{2})\b/g, (match, t1, t2) => t1)
 
