@@ -266,14 +266,59 @@ export function useAI() {
     if (!rawText) return ''
     let clean = rawText.replace(/\r\n/g, '\n').replace(/\n{2,}/g, '\n\n')
     clean = clean.replace(/\s+/g, ' ')
-    
+
+    // 1. Abbreviations & typos normalization
+    const abbreviations: { pattern: RegExp; replacement: string }[] = [
+      { pattern: /\b(sn|sinh nhat)\b/gi, replacement: 'sinh nhật' },
+      { pattern: /\b(hbd|hpbd)\b/gi, replacement: 'Happy Birthday' },
+      { pattern: /\b(tn)\b/gi, replacement: 'thôi nôi' },
+      { pattern: /\b(thoi noi)\b/gi, replacement: 'thôi nôi' },
+      { pattern: /\b(day thang)\b/gi, replacement: 'đầy tháng' }
+    ]
+    abbreviations.forEach(({ pattern, replacement }) => {
+      clean = clean.replace(pattern, replacement)
+    })
+
+    // Spacing between number and units
     clean = clean.replace(/(\d+)(pax|người|khách|cho|nguoi|khach|ban)/gi, '$1 $2')
     clean = clean.replace(/([a-zà-ỹ]+)(\d+)\b/gi, '$1 x$2')
+
+    // 2. Guest counts ranges & additions
+    clean = clean.replace(/\b(\d+)\s*(?:-|–|—|đến|den|to)\s*(\d+)\s*(pax|người|khách|cho|nguoi|khach|guest)/gi, (match, min, max, unit) => {
+      return `${max} ${unit}`
+    })
     
+    clean = clean.replace(/\b(\d+)\s*(?:người lớn|nguoi lon|lớn|lon)\s*(?:\+|,|và|va)?\s*(\d+)\s*(?:nhỏ|bé|trẻ em|tre em|nho|be)\b/gi, (match, adults, kids) => {
+      const total = parseInt(adults) + parseInt(kids)
+      return `${total} khách`
+    })
+
+    // 3. Time normalizations
     clean = clean.replace(/\b(\d{1,2})h(\d{2})\b/gi, '$1:$2')
     clean = clean.replace(/\b(\d{1,2})h\b/gi, '$1:00')
-    clean = clean.replace(/(\d+)(?![hg\d\s\/:\-\.])([a-zà-ỹÀ-Ỹ])/gi, '$1 $2')
+    clean = clean.replace(/\b(\d{1,2})h(\d{2})m\b/gi, '$1:$2')
+    clean = clean.replace(/(\d+)(?![hg\d\s\/:-\.\,])([a-zà-ỹÀ-Ỹ])/gi, '$1 $2')
 
+    clean = clean.replace(/\b(\d{1,2}:\d{2})\s*[-–—đến|den|to]\s*(\d{1,2}:\d{2})\b/g, (match, t1, t2) => t1)
+
+    clean = clean.replace(/\b(\d{1,2}):(\d{2})\s*(chiều|tối|pm|chieu|toi)\b/gi, (match, h, m) => {
+      let hour = parseInt(h)
+      if (hour < 12) hour += 12
+      return `${String(hour).padStart(2, '0')}:${m}`
+    })
+
+    const hasMorningIndicator = /sáng|trưa|am/i.test(rawText)
+    clean = clean.replace(/\b(vào lúc|lúc|tầm|khoảng|gio|giao|luc|tam|khoang)?\s*(\d{1,2}):(\d{2})\b/gi, (match, prefix, h, m) => {
+      let hour = parseInt(h)
+      if (hour >= 1 && hour <= 11 && !hasMorningIndicator) {
+        if (hour >= 5 && hour <= 11) {
+          hour += 12
+        }
+      }
+      return `${prefix || ''} ${String(hour).padStart(2, '0')}:${m}`
+    })
+
+    // 4. Date normalizations
     const today = new Date()
     const formatDate = (d: Date) => {
       const dd = String(d.getDate()).padStart(2, '0')
@@ -283,9 +328,9 @@ export function useAI() {
     }
 
     const relativePatterns = [
-      { pattern: /\b(hôm nay|nay|tối nay|chiều nay)\b/gi, offset: 0 },
-      { pattern: /\b(ngày mai|mai|chiều mai|tối mai)\b/gi, offset: 1 },
-      { pattern: /\b(ngày mốt|mốt|ngày kia)\b/gi, offset: 2 }
+      { pattern: /\b(hôm nay|nay|tối nay|chiều nay|hom nay|toi nay|chieu nay)\b/gi, offset: 0 },
+      { pattern: /\b(ngày mai|mai|chiều mai|tối mai|ngay mai|chieu mai|toi mai)\b/gi, offset: 1 },
+      { pattern: /\b(ngày mốt|mốt|ngày kia|ngay mot|mot|ngay kia)\b/gi, offset: 2 }
     ]
     
     relativePatterns.forEach(({ pattern, offset }) => {
@@ -296,7 +341,7 @@ export function useAI() {
       }
     })
     
-    const vnDays = ['chủ nhật', 'thứ hai', 'thứ ba', 'thứ tư', 'thứ năm', 'thứ sáu', 'thứ bảy', 'cn', 't2', 't3', 't4', 't5', 't6', 't7']
+    const vnDays = ['chủ nhật', 'thứ hai', 'thứ ba', 'thứ tư', 'thứ năm', 'thứ sáu', 'thứ bảy', 'cn', 't2', 't3', 't4', 't5', 't6', 't7', 'chu nhat', 'thu hai', 'thu ba', 'thu tu', 'thu nam', 'thu sau', 'thu bay']
     vnDays.forEach(day => {
       const regexNext = new RegExp(`(${day})\\s+tuần\\s+sau`, 'gi')
       if (regexNext.test(clean)) {
@@ -319,13 +364,13 @@ export function useAI() {
       }
     })
 
-    if (/cuối tuần này/gi.test(clean)) {
+    if (/cuối tuần này|cuoi tuan nay/gi.test(clean)) {
       const satIndex = 6
       const currentDay = today.getDay()
       const diff = satIndex - currentDay
       const targetDate = new Date(today)
       targetDate.setDate(today.getDate() + diff)
-      clean = clean.replace(/cuối tuần này/gi, formatDate(targetDate))
+      clean = clean.replace(/cuối tuần này|cuoi tuan nay/gi, formatDate(targetDate))
     }
 
     clean = clean.replace(/\b(\d{1,2})[\.\-\/](\d{1,2})[\.\-\/](\d{2,4})\b/g, (match, d, m, y) => {
@@ -336,30 +381,81 @@ export function useAI() {
       return `${day}/${month}/${year}`
     })
 
-    clean = clean.replace(/\b(\d{1,2}:\d{2})\s*-\s*(\d{1,2}:\d{2})\b/g, (match, t1, t2) => t1)
-
-    clean = clean.replace(/\b(\d{1,2}):(\d{2})\s*(chiều|tối|pm)\b/gi, (match, h, m) => {
-      let hour = parseInt(h)
-      if (hour < 12) hour += 12
-      return `${String(hour).padStart(2, '0')}:${m}`
-    })
-    
-    clean = clean.replace(/\b(vào lúc|lúc|tầm|khoảng|gio|giao)\s+(\d{1,2}):(\d{2})\b/gi, (match, prefix, h, m) => {
-      let hour = parseInt(h)
-      if (hour >= 1 && hour <= 11) {
-        const isMorning = /sáng|trưa|am/i.test(rawText)
-        if (!isMorning) hour += 12
-      }
-      return `${prefix} ${String(hour).padStart(2, '0')}:${m}`
-    })
-
-    clean = clean.replace(/\b(\d+)\s*(?:đến|-)\s*(\d+)\s*(khách|người|pax|guest)/gi, '$2 $3')
-    clean = clean.replace(/\b(\d+)\s*(?:lớn|người lớn)\s*(?:\+)?\s*(\d+)\s*(?:nhỏ|bé|trẻ em)/gi, (match, adults, kids) => {
-      const total = parseInt(adults) + parseInt(kids)
-      return `${total} khách`
-    })
-
     return clean.trim()
+  }
+
+  function classifyPeopleNames(text: string) {
+    const peopleNames: string[] = []
+    const bookerCandidates: string[] = []
+    const partyOwnerCandidates: string[] = []
+    
+    const lines = text.split('\n')
+    for (const line of lines) {
+      const lineClean = line.trim()
+      if (!lineClean) continue
+      
+      const nameRegex = /(?:anh|chị|em|chú|cô|ông|bà|anh|chi|em|chu|co|ong|ba|bé|be|khách|khach|tên|ten|đặt|dat|cho|liên hệ|lien he)\s+([A-ZÀ-Ỹa-zà-ỹ]+(?:\s+[A-ZÀ-Ỹa-zà-ỹ]+){0,3})/gu
+      let match
+      while ((match = nameRegex.exec(lineClean)) !== null) {
+        const name = match[1].trim()
+        if (/^(mai|nay|kia|truoc|sau|sang|chieu|toi|ngay|gio|pax|khach|nguoi|ban|dat|mon|set|combo|happy|birthday|hbd|hpbd|sinh|nhat|thoi|noi|giup|giom|cho|sdt|lien|he|table|pax)$/i.test(stripAccents(name))) {
+          continue
+        }
+        if (!peopleNames.includes(name)) {
+          peopleNames.push(name)
+        }
+      }
+    }
+
+    const specialPatterns = [
+      { regex: /(?:sinh nhật|sinh nhat|hbd|hpbd|happy birthday|thôi nôi|thoi noi|đầy tháng|day thang|bé|be)\s+of\s+([A-ZÀ-Ỹa-zà-ỹ\s]+)/gi, isPartyOwner: true },
+      { regex: /(?:sinh nhật|sinh nhat|hbd|hpbd|happy birthday|thôi nôi|thoi noi|đầy tháng|day thang|bé|be)\s+([A-ZÀ-Ỹa-zà-ỹ\s]+)/gi, isPartyOwner: true },
+      { regex: /(?:bảng tên|bang ten|chữ|chu|tên|ten)\s+([A-ZÀ-Ỹa-zà-ỹ\s]+)/gi, isPartyOwner: true },
+      { regex: /(?:người đặt|nguoi dat|liên hệ|lien he|anh|chị|chi|anh|sđt|sdt)\s+([A-ZÀ-Ỹa-zà-ỹ\s]+)/gi, isBooker: true }
+    ]
+
+    specialPatterns.forEach(({ regex, isPartyOwner, isBooker }) => {
+      let match
+      while ((match = regex.exec(text)) !== null) {
+        const name = match[1].trim()
+        if (name.length > 1 && !/^(mai|nay|kia|truoc|sau|sang|chieu|toi|ngay|gio|pax|khach|nguoi|ban|dat|mon|set|combo|happy|birthday|hbd|hpbd|sinh|nhat|thoi|noi|giup|giom|cho|sdt|lien|he|table|pax)$/i.test(stripAccents(name))) {
+          if (!peopleNames.includes(name)) {
+            peopleNames.push(name)
+          }
+          if (isPartyOwner && !partyOwnerCandidates.includes(name)) {
+            partyOwnerCandidates.push(name)
+          }
+          if (isBooker && !bookerCandidates.includes(name)) {
+            bookerCandidates.push(name)
+          }
+        }
+      }
+    })
+
+    peopleNames.forEach(name => {
+      if (bookerCandidates.includes(name) || partyOwnerCandidates.includes(name)) return
+
+      const index = text.indexOf(name)
+      if (index !== -1) {
+        const contextBefore = text.slice(Math.max(0, index - 30), index).toLowerCase()
+        const contextAfter = text.slice(index, index + 30).toLowerCase()
+        
+        const isBookerContext = /đặt|dat|book|liên hệ|lien he|sđt|sdt|khách|khach|tên|ten/.test(contextBefore) || /đặt|dat|book|sđt|sdt|liên hệ|lien he/.test(contextAfter)
+        const isPartyContext = /sinh nhật|sinh nhat|hbd|hpbd|happy|thôi nôi|thoi noi|đầy tháng|day thang|bảng|bang|chữ|chu|trang trí|trang tri|bé|be/.test(contextBefore)
+
+        if (isBookerContext && !isPartyContext) {
+          bookerCandidates.push(name)
+        } else if (isPartyContext) {
+          partyOwnerCandidates.push(name)
+        }
+      }
+    })
+
+    return {
+      peopleNames,
+      bookerCandidates,
+      partyOwnerCandidates
+    }
   }
 
   function extractByRules(normalizedText: string) {
@@ -385,24 +481,13 @@ export function useAI() {
     if (phone) phone = cleanPhoneNumber(phone)
     
     let customer_name: string | null = null
-    const nonDecoLines = normalizedText.split('\n').filter(line => !/happy birthday|hbd|chuc mung/i.test(stripAccents(line)))
-    const nonDecoText = nonDecoLines.join('\n')
+    const nameResults = classifyPeopleNames(normalizedText)
     
-    const nameMatch = nonDecoText.match(/(?:anh|chi|chu|co|khach|ten|dat)\s+([A-ZÀ-Ỹa-zà-ỹ]+(?:\s+[A-ZÀ-Ỹa-zà-ỹ]+){0,3})/u)
-    if (nameMatch) {
-      const candidate = nameMatch[1].trim()
-      if (!/^(mai|nay|kia|truoc|sau|sang|chieu|toi|ngay|gio|pax|khach|nguoi|ban|dat|mon|set|combo)$/i.test(stripAccents(candidate))) {
-        customer_name = candidate
-      }
-    }
-    
-    if (!customer_name && nonDecoLines.length > 0) {
-      const firstLine = nonDecoLines[0].trim()
-      if (phone && firstLine.includes(phone)) {
-        const partBefore = firstLine.split(phone)[0].trim().replace(/[-:\/,\s]+$/, '')
-        if (partBefore && partBefore.split(/\s+/).length <= 4) {
-          customer_name = partBefore
-        }
+    if (nameResults.bookerCandidates.length > 0) {
+      customer_name = nameResults.bookerCandidates[0]
+    } else if (nameResults.peopleNames.length === 1) {
+      if (nameResults.partyOwnerCandidates.length === 0) {
+        customer_name = nameResults.peopleNames[0]
       }
     }
 
@@ -542,7 +627,12 @@ export function useAI() {
     }
     if (menuDetected) return false
     
-    const hasNameOrPhone = !!(ruleResult.customer_name || ruleResult.phone)
+    const nameResults = classifyPeopleNames(formStore.rawInput || '')
+    if (nameResults.peopleNames.length > 1) {
+      return false
+    }
+
+    const hasNameOrPhone = !!(ruleResult.customer_name || ruleResult.phone || nameResults.peopleNames[0])
     const hasDate = !!ruleResult.event_date
     const hasTime = !!ruleResult.event_time
     const hasPax = !!ruleResult.guest_count
@@ -551,7 +641,6 @@ export function useAI() {
   }
 
   function isFieldDirty(field: string): boolean {
-    // If the field is currently empty or default in the form, it is NEVER dirty (we want AI to fill it)
     if (field === 'name' && !formStore.customer.name) return false
     if (field === 'phone' && !formStore.customer.phone) return false
     if (field === 'date' && !formStore.customer.date) return false
@@ -562,8 +651,6 @@ export function useAI() {
       if (!currentTable.trim()) return false
     }
 
-    // If there are no previously saved AI values, and the field has some custom value, we treat it as dirty 
-    // to protect manual entries from the first run.
     if (!formStore.originalAiValues) {
       if (field === 'name' && formStore.customer.name) return true
       if (field === 'phone' && formStore.customer.phone) return true
@@ -577,7 +664,6 @@ export function useAI() {
       return false
     }
 
-    // If we have previous AI values, check if the current form value differs from what the AI previously wrote.
     if (field === 'name') return formStore.customer.name !== formStore.originalAiValues.name
     if (field === 'phone') return cleanPhoneNumber(formStore.customer.phone) !== cleanPhoneNumber(formStore.originalAiValues.phone)
     if (field === 'date') return formatDateStr(formStore.customer.date) !== formatDateStr(formStore.originalAiValues.date)
@@ -588,6 +674,86 @@ export function useAI() {
       return currentTable !== formStore.originalAiValues.tables
     }
     return false
+  }
+
+  function resolveDisplayCustomerName(parsed: any): string {
+    if (parsed.customer?.name && parsed.customer.name.trim()) {
+      return parsed.customer.name;
+    }
+    if (parsed.party?.owner_name && parsed.party.owner_name.trim()) {
+      if (!parsed.warnings) parsed.warnings = [];
+      if (!parsed.warnings.includes('used_party_owner_as_customer_name')) {
+        parsed.warnings.push('used_party_owner_as_customer_name');
+        parsed.needs_review = parsed.needs_review || [];
+        if (!parsed.needs_review.includes('used_party_owner_as_customer_name')) {
+          parsed.needs_review.push('used_party_owner_as_customer_name');
+        }
+      }
+      return parsed.party.owner_name;
+    }
+    if (parsed.raw_entities?.people_names?.length === 1 && parsed.raw_entities.people_names[0].trim()) {
+      if (!parsed.warnings) parsed.warnings = [];
+      if (!parsed.warnings.includes('used_single_ambiguous_name_as_customer_name')) {
+        parsed.warnings.push('used_single_ambiguous_name_as_customer_name');
+        parsed.needs_review = parsed.needs_review || [];
+        if (!parsed.needs_review.includes('used_single_ambiguous_name_as_customer_name')) {
+          parsed.needs_review.push('used_single_ambiguous_name_as_customer_name');
+        }
+      }
+      return parsed.raw_entities.people_names[0];
+    }
+    if (!parsed.warnings) parsed.warnings = [];
+    if (!parsed.warnings.includes('missing_customer_name')) {
+      parsed.warnings.push('missing_customer_name');
+      parsed.needs_review = parsed.needs_review || [];
+      if (!parsed.needs_review.includes('missing_customer_name')) {
+        parsed.needs_review.push('missing_customer_name');
+      }
+    }
+    return '';
+  }
+
+  function buildPartyNote(party: any, existingNote: string): string {
+    const lines: string[] = []
+    if (party) {
+      const ownerName = party.owner_name || '';
+      if (ownerName.trim()) {
+        if (ownerName.includes('và') || ownerName.includes(',') || ownerName.includes(';')) {
+          lines.push('Chủ tiệc / người được tổ chức:')
+          const names = ownerName.split(/và|,|;/).map((n: string) => n.trim()).filter(Boolean)
+          names.forEach((name: string) => {
+            lines.push(`- ${name} — ${party.type || 'Tiệc'}`)
+          })
+        } else {
+          lines.push(`Chủ tiệc / người được tổ chức: ${ownerName.trim()}`)
+        }
+      }
+      if (party.type && !ownerName.includes(party.type)) {
+        lines.push(`Nhu cầu: ${party.type}`)
+      }
+      if (party.display_board_text || party.text_on_board) {
+        lines.push(`Nội dung bảng/trang trí: ${party.display_board_text || party.text_on_board}`)
+      }
+      if (party.special_request) {
+        lines.push(`Ghi chú thêm: ${party.special_request}`)
+      }
+    }
+    
+    const blockText = lines.join('\n')
+    let cleanExisting = existingNote || ''
+    
+    if (cleanExisting.includes('Chủ tiệc / người được tổ chức:')) {
+      const parts = cleanExisting.split(/Chủ tiệc \/ người được tổ chức:.+?(?=\n\n|\n[A-Z]|$)/s)
+      cleanExisting = parts.join('').trim()
+    }
+    
+    if (!blockText) return cleanExisting
+    
+    if (cleanExisting) {
+      if (cleanExisting.includes(blockText)) return cleanExisting
+      return `${blockText}\n\n${cleanExisting}`
+    }
+    return blockText
   }
 
   function fillBookingFormSafely(parsedResult: any, options: { mode: 'all' | 'customer' | 'menu' }) {
@@ -615,14 +781,14 @@ export function useAI() {
     }
 
     if (mode === 'all' || mode === 'customer') {
+      const resolvedName = resolveDisplayCustomerName(parsedResult)
+      if (resolvedName) {
+        setFormVal('name', resolvedName, (val) => { formStore.customer.name = val })
+      }
+      
       const customerInfo = parsedResult.customer || parsedResult
-      if (customerInfo) {
-        if (customerInfo.name) {
-          setFormVal('name', customerInfo.name, (val) => { formStore.customer.name = val })
-        }
-        if (customerInfo.phone) {
-          setFormVal('phone', cleanPhoneNumber(customerInfo.phone), (val) => { formStore.customer.phone = val })
-        }
+      if (customerInfo && customerInfo.phone) {
+        setFormVal('phone', cleanPhoneNumber(customerInfo.phone), (val) => { formStore.customer.phone = val })
       }
       
       const bookingInfo = parsedResult.booking || parsedResult.reservation || parsedResult
@@ -651,17 +817,13 @@ export function useAI() {
         }
       }
 
+      const partyInfo = parsedResult.party || null
       const notesInfo = parsedResult.notes || parsedResult
-      const customerNoteVal = notesInfo?.customer_note || parsedResult.booking?.notes || parsedResult.reservation?.notes
-      if (customerNoteVal) {
-        const parsedNote = customerNoteVal.trim()
-        if (parsedNote) {
-          if (!formStore.customer.note) {
-            formStore.customer.note = parsedNote
-          } else if (!formStore.customer.note.includes(parsedNote)) {
-            formStore.customer.note += `\n${parsedNote}`
-          }
-        }
+      const customerNoteVal = notesInfo?.customer_note || parsedResult.booking?.notes || parsedResult.reservation?.notes || parsedResult.note || ''
+      
+      const updatedNote = buildPartyNote(partyInfo, formStore.customer.note || customerNoteVal)
+      if (updatedNote) {
+        formStore.customer.note = updatedNote
       }
       
       const depositInfo = parsedResult.deposit || parsedResult.payment || parsedResult
@@ -701,7 +863,6 @@ export function useAI() {
       }
     }
 
-    // Save final applied state to originalAiValues for subsequent edits and self-learning corrections
     formStore.originalAiValues = {
       name: formStore.customer.name,
       phone: formStore.customer.phone,
@@ -713,6 +874,53 @@ export function useAI() {
       note: formStore.customer.note || '',
       items: JSON.parse(JSON.stringify(formStore.items || []))
     }
+  }
+
+  function buildPartyNote(party: any, existingNote = ''): string {
+    if (!party) return existingNote || ''
+    
+    const owner = party.owner_name ? String(party.owner_name).trim() : ''
+    const type = party.type ? String(party.type).trim() : ''
+    const board = party.display_board_text ? String(party.display_board_text).trim() : ''
+    const spec = party.special_request ? String(party.special_request).trim() : ''
+    
+    if (!owner && !type && !board && !spec) return existingNote || ''
+
+    let partySection = ''
+    
+    if (owner) {
+      if (owner.includes(';') || owner.includes('\n') || owner.toLowerCase().includes(' và ') || owner.includes(',')) {
+        const names = owner.split(/[;\n,]+| và /i).map(n => n.trim()).filter(Boolean)
+        partySection = `Chủ tiệc / người được tổ chức:\n` + names.map(name => `- ${name} — ${type || 'Sinh nhật'}`).join('\n')
+      } else {
+        partySection = `Chủ tiệc / người được tổ chức: ${owner}`
+        if (type) partySection += `\nNhu cầu: ${type}`
+      }
+    } else if (type) {
+      partySection = `Nhu cầu: ${type}`
+    }
+
+    if (board) {
+      if (partySection) partySection += '\n'
+      partySection += `Nội dung bảng/trang trí: ${board}`
+    }
+
+    if (spec) {
+      if (partySection) partySection += '\n'
+      partySection += `Ghi chú đặc biệt: ${spec}`
+    }
+
+    if (!existingNote) return partySection
+
+    const cleanExisting = existingNote.trim()
+    if (owner && cleanExisting.toLowerCase().includes(owner.toLowerCase())) {
+      return cleanExisting
+    }
+    if (partySection && cleanExisting.toLowerCase().includes(partySection.toLowerCase())) {
+      return cleanExisting
+    }
+    
+    return `${partySection}\n${cleanExisting}`
   }
 
   function repairAndNormalizeJSON(raw: any, inputType = 'unknown'): any {
@@ -768,7 +976,7 @@ export function useAI() {
       return curr !== undefined ? curr : defVal
     }
 
-    const customerName = safeGet(parsed, 'customer.name', parsed.customer_name || "")
+    let customerName = safeGet(parsed, 'customer.name', parsed.customer_name || "")
     const customerPhone = safeGet(parsed, 'customer.phone', parsed.customer_phone || "")
 
     const eventDate = safeGet(parsed, 'booking.event_date', safeGet(parsed, 'reservation.date', parsed.event_date || ""))
@@ -798,10 +1006,52 @@ export function useAI() {
     const depositNeedsReview = !!safeGet(parsed, 'deposit.needs_review', false)
 
     const decorationType = safeGet(parsed, 'decoration.type', parsed.decoration_type || "")
-    const textOnBoard = safeGet(parsed, 'decoration.text_on_board', parsed.decoration_text || "")
+    const textOnBoard = safeGet(parsed, 'decoration.text_on_board', parsed.decoration_text || safeGet(parsed, 'party.display_board_text', ""))
     const decorationNote = safeGet(parsed, 'decoration.note', parsed.decoration_note || "")
 
-    const customerNote = safeGet(parsed, 'notes.customer_note', safeGet(parsed, 'reservation.notes', parsed.note || ""))
+    const rawEntities = parsed.raw_entities || { people_names: [] }
+    const peopleNames = rawEntities.people_names || []
+    const partyOwner = safeGet(parsed, 'party.owner_name', parsed.party_owner || "")
+    const needsReviewFields = parsed.needs_review_fields || []
+    const warnings = parsed.warnings || []
+
+    if (!customerName || !String(customerName).trim()) {
+      if (partyOwner && String(partyOwner).trim()) {
+        customerName = partyOwner
+        if (!needsReviewFields.includes('used_party_owner_as_customer_name')) {
+          needsReviewFields.push('used_party_owner_as_customer_name')
+        }
+        if (!warnings.includes('Dùng tên chủ tiệc làm tên khách hàng đặt bàn')) {
+          warnings.push('Dùng tên chủ tiệc làm tên khách hàng đặt bàn')
+        }
+      } else if (peopleNames.length === 1) {
+        customerName = peopleNames[0]
+        if (!needsReviewFields.includes('used_single_ambiguous_name_as_customer_name')) {
+          needsReviewFields.push('used_single_ambiguous_name_as_customer_name')
+        }
+        if (!warnings.includes('Dùng tên duy nhất trích xuất được làm tên khách hàng')) {
+          warnings.push('Dùng tên duy nhất trích xuất được làm tên khách hàng')
+        }
+      } else if (peopleNames.length > 1) {
+        if (!needsReviewFields.includes('missing_clear_booker_name')) {
+          needsReviewFields.push('missing_clear_booker_name')
+        }
+        if (!warnings.includes('Có nhiều tên người nhưng không xác định rõ ai là người đặt')) {
+          warnings.push('Có nhiều tên người nhưng không xác định rõ ai là người đặt')
+        }
+      } else {
+        if (!needsReviewFields.includes('missing_customer_name')) {
+          needsReviewFields.push('missing_customer_name')
+        }
+        if (!warnings.includes('Không tìm thấy tên khách hàng đặt bàn')) {
+          warnings.push('Không tìm thấy tên khách hàng đặt bàn')
+        }
+      }
+    }
+
+    const partyObj = parsed.party || { type: need, owner_name: partyOwner, display_board_text: textOnBoard, special_request: "" }
+    const rawNote = safeGet(parsed, 'notes.customer_note', safeGet(parsed, 'reservation.notes', parsed.note || ""))
+    const customerNote = buildPartyNote(partyObj, rawNote)
     const internalNote = safeGet(parsed, 'notes.internal_note', parsed.internal_note || "")
     const uncertainInfo = safeGet(parsed, 'notes.uncertain_info', parsed.uncertain_info || [])
 
@@ -845,7 +1095,8 @@ export function useAI() {
       menu_items: parseFloat(String(safeGet(parsed, 'confidence.menu_items', 0.8))) || 0.8,
       deposit: parseFloat(String(safeGet(parsed, 'confidence.deposit', 0.8))) || 0.8
     }
-    fallback.needs_review_fields = parsed.needs_review_fields || []
+    fallback.needs_review_fields = needsReviewFields
+    fallback.warnings = warnings
     fallback.reasoning_summary = parsed.reasoning_summary || ""
 
     return fallback
@@ -853,15 +1104,15 @@ export function useAI() {
 
   function validateParsedFields(aiResult: any) {
     const result = { ...aiResult }
-    const needsReviewFields: string[] = []
-    const conf = result.confidence
-    
+    const needsReviewFields = [...(result.needs_review_fields || [])]
+    const conf = { ...result.confidence }
+
     const cleanPhone = cleanPhoneNumber(result.customer.phone || '')
     if (/^0[35789]\d{8}$/.test(cleanPhone)) {
       conf.phone = 1.0
     } else {
       conf.phone = 0.3
-      needsReviewFields.push('phone')
+      if (!needsReviewFields.includes('phone')) needsReviewFields.push('phone')
     }
 
     if (result.booking.event_date) {
@@ -878,15 +1129,15 @@ export function useAI() {
           conf.event_date = 1.0
         } else {
           conf.event_date = 0.2
-          needsReviewFields.push('event_date')
+          if (!needsReviewFields.includes('event_date')) needsReviewFields.push('event_date')
         }
       } else {
         conf.event_date = 0.2
-        needsReviewFields.push('event_date')
+        if (!needsReviewFields.includes('event_date')) needsReviewFields.push('event_date')
       }
     } else {
       conf.event_date = 0.0
-      needsReviewFields.push('event_date')
+      if (!needsReviewFields.includes('event_date')) needsReviewFields.push('event_date')
     }
 
     if (result.booking.event_time) {
@@ -898,15 +1149,15 @@ export function useAI() {
           conf.event_time = 1.0
         } else {
           conf.event_time = 0.4
-          needsReviewFields.push('event_time')
+          if (!needsReviewFields.includes('event_time')) needsReviewFields.push('event_time')
         }
       } else {
         conf.event_time = 0.2
-        needsReviewFields.push('event_time')
+        if (!needsReviewFields.includes('event_time')) needsReviewFields.push('event_time')
       }
     } else {
       conf.event_time = 0.0
-      needsReviewFields.push('event_time')
+      if (!needsReviewFields.includes('event_time')) needsReviewFields.push('event_time')
     }
 
     const pax = result.booking.guest_count
@@ -914,7 +1165,7 @@ export function useAI() {
       conf.guest_count = 1.0
     } else {
       conf.guest_count = 0.3
-      needsReviewFields.push('guest_count')
+      if (!needsReviewFields.includes('guest_count')) needsReviewFields.push('guest_count')
     }
 
     const name = result.customer.name || ''
@@ -924,7 +1175,7 @@ export function useAI() {
       conf.customer_name = 1.0
     } else {
       conf.customer_name = 0.3
-      needsReviewFields.push('customer_name')
+      if (!needsReviewFields.includes('customer_name')) needsReviewFields.push('customer_name')
     }
 
     const depAmt = result.deposit.amount
@@ -933,21 +1184,74 @@ export function useAI() {
         conf.deposit = 1.0
       } else {
         conf.deposit = 0.4
-        needsReviewFields.push('deposit')
+        if (!needsReviewFields.includes('deposit')) needsReviewFields.push('deposit')
       }
     }
 
-    result.needs_review_fields = needsReviewFields
     const activeFields = ['customer_name', 'phone', 'event_date', 'event_time', 'guest_count']
-    const sum = activeFields.reduce((acc, f) => acc + conf[f], 0)
+    const sum = activeFields.reduce((acc, f) => acc + (conf[f] || 0.8), 0)
     conf.overall = sum / activeFields.length
-    
+
+    const finalConfidences: Record<string, { value: any; confidence: number; source_text: string; needs_review: boolean }> = {
+      name: {
+        value: result.customer.name,
+        confidence: conf.customer_name,
+        source_text: '',
+        needs_review: needsReviewFields.includes('customer_name') || needsReviewFields.includes('used_party_owner_as_customer_name') || needsReviewFields.includes('used_single_ambiguous_name_as_customer_name') || needsReviewFields.includes('missing_clear_booker_name') || needsReviewFields.includes('missing_customer_name') || !result.customer.name
+      },
+      phone: {
+        value: result.customer.phone,
+        confidence: conf.phone,
+        source_text: '',
+        needs_review: needsReviewFields.includes('phone') || !result.customer.phone
+      },
+      date: {
+        value: result.booking.event_date,
+        confidence: conf.event_date,
+        source_text: '',
+        needs_review: needsReviewFields.includes('event_date') || !result.booking.event_date
+      },
+      time: {
+        value: result.booking.event_time,
+        confidence: conf.event_time,
+        source_text: '',
+        needs_review: needsReviewFields.includes('event_time') || !result.booking.event_time
+      },
+      pax: {
+        value: result.booking.guest_count,
+        confidence: conf.guest_count,
+        source_text: '',
+        needs_review: needsReviewFields.includes('guest_count') || !result.booking.guest_count
+      },
+      tables: {
+        value: result.booking.table_number,
+        confidence: 0.8,
+        source_text: '',
+        needs_review: needsReviewFields.includes('tables') || needsReviewFields.includes('table_number')
+      }
+    }
+
+    if (result.needs_review && Array.isArray(result.needs_review)) {
+      result.needs_review.forEach((nr: string) => {
+        if (!needsReviewFields.includes(nr)) needsReviewFields.push(nr)
+      })
+    }
+    if (result.warnings && Array.isArray(result.warnings)) {
+      result.warnings.forEach((w: string) => {
+        if (!needsReviewFields.includes(w)) needsReviewFields.push(w)
+      })
+    }
+
+    result.confidence = conf
+    result.confidences = finalConfidences
+    result.needs_review_fields = needsReviewFields
     return result
   }
 
   function matchMenuItems(rawItems: any[]): any[] {
     const { exactMap, aliasMap, acronymMap } = getMenuIndex()
     const menuList = appStore.menuList || []
+    const attributes = ['trung muoi', 'tieu', 'pho mai', 'mo hanh', 'cay', 'lau', 'nuong', 'xao', 'hap']
     
     return rawItems.map((item) => {
       const rawName = (item.raw_name || item.name || '').trim()
@@ -955,6 +1259,7 @@ export function useAI() {
       
       let match: any = null
       let confidence = 0.0
+      let needsReview = false
       
       if (exactMap.has(clean)) {
         match = exactMap.get(clean)
@@ -965,54 +1270,54 @@ export function useAI() {
       } else if (acronymMap.has(clean)) {
         match = acronymMap.get(clean)
         confidence = 0.95
-      } else {
-        const containsMatch = menuList.find(m => {
-          const mClean = stripAccents(m.name).toLowerCase().trim()
-          return mClean.includes(clean) || clean.includes(mClean)
-        })
-        if (containsMatch) {
-          match = containsMatch
-          confidence = 0.8
-        }
       }
       
       if (!match) {
         const inputTokens = clean.split(/\s+/).filter(t => t.length > 1)
-        if (inputTokens.length > 0) {
-          let bestItem: any = null
-          let bestScore = 0
-          for (const m of menuList) {
-            const mClean = stripAccents(m.name).toLowerCase().trim()
-            const mTokens = mClean.split(/\s+/)
-            const overlap = inputTokens.filter(t => mTokens.some(mt => mt.includes(t) || t.includes(mt))).length
-            const score = overlap / Math.max(inputTokens.length, 1)
-            if (score > bestScore && score >= 0.5) {
-              bestScore = score
-              bestItem = m
-            }
-          }
-          if (bestItem) {
-            match = bestItem
-            confidence = 0.7
-          }
-        }
-      }
-      
-      if (!match) {
-        let bestItem: any = null
-        let minDistance = 999
+        const matchedCandidates: { item: any; score: number; confidence: number }[] = []
+        
         for (const m of menuList) {
           const mClean = stripAccents(m.name).toLowerCase().trim()
+          const mTokens = mClean.split(/\s+/)
+          
+          const overlap = inputTokens.filter(t => mTokens.some(mt => mt.includes(t) || t.includes(mt))).length
+          const overlapScore = overlap / Math.max(inputTokens.length, mTokens.length, 1)
+          
           const dist = levenshteinDistance(clean, mClean)
-          const maxAllowed = Math.floor(mClean.length * 0.3)
-          if (dist < minDistance && dist <= maxAllowed) {
-            minDistance = dist
-            bestItem = m
+          const levenshteinScore = 1 - (dist / Math.max(clean.length, mClean.length, 1))
+          
+          let attributeMatch = true
+          for (const attr of attributes) {
+            const cleanHasAttr = clean.includes(attr)
+            const mCleanHasAttr = mClean.includes(attr)
+            if (cleanHasAttr !== mCleanHasAttr) {
+              attributeMatch = false
+            }
+          }
+          
+          let score = 0.6 * overlapScore + 0.4 * levenshteinScore
+          if (!attributeMatch) {
+            score *= 0.3
+          }
+          
+          if (score >= 0.4) {
+            matchedCandidates.push({ item: m, score, confidence: Math.max(0.1, score) })
           }
         }
-        if (bestItem) {
-          match = bestItem
-          confidence = 0.6
+        
+        matchedCandidates.sort((a, b) => b.score - a.score)
+        
+        if (matchedCandidates.length > 0) {
+          const best = matchedCandidates[0]
+          match = best.item
+          confidence = best.confidence
+          
+          if (matchedCandidates.length > 1) {
+            const runnerUp = matchedCandidates[1]
+            if (best.score - runnerUp.score < 0.15) {
+              needsReview = true
+            }
+          }
         }
       }
       
@@ -1036,7 +1341,7 @@ export function useAI() {
           unit_price: match.price || 0,
           note: note.trim(),
           match_confidence: confidence,
-          needs_review: confidence < 0.75
+          needs_review: needsReview || (confidence < 0.75)
         }
       } else {
         return {
@@ -1091,7 +1396,21 @@ export function useAI() {
     if (candidates.length >= 2) {
       const [m1, m2] = candidates.slice(0, 2)
       if (m1.tier <= 2 && m2.tier <= 2) {
-        runRace = true
+        const hasImage = !!image
+        const isLongText = userPrompt.length > 150
+        const isMixedOrMenu = ['mixed_booking_menu', 'menu_order_text', 'chat_screenshot', 'deposit_bill_image'].includes(inputType)
+        const nameResults = classifyPeopleNames(userPrompt)
+        const hasMultipleNames = nameResults.peopleNames.length > 1
+        const timeRegex = /\b(\d{1,2})[h:](\d{2})?\b/gi
+        const timesCount = (userPrompt.match(timeRegex) || []).length
+        const hasMultipleTimes = timesCount > 1
+        const moneyRegex = /\b\d+\s*(?:k|vnd|trieu|cu|trn|tr)\b/gi
+        const moneyCount = (userPrompt.match(moneyRegex) || []).length
+        const hasMultipleAmounts = moneyCount > 1
+
+        if (hasImage || isLongText || isMixedOrMenu || hasMultipleNames || hasMultipleTimes || hasMultipleAmounts) {
+          runRace = true
+        }
       }
     }
 
@@ -1501,7 +1820,21 @@ export function useAI() {
         ...routingInfo,
         confidences: validatedResult.confidence
       }
-      formStore.warnings = validatedResult.needs_review_fields.map((f: string) => `Trường ${f} cần kiểm tra lại độ chính xác`)
+      const warningMap: Record<string, string> = {
+        phone: 'Số điện thoại không đúng định dạng VN hoặc thiếu số',
+        event_date: 'Ngày đã qua hoặc sai định dạng DD/MM/YYYY',
+        event_time: 'Giờ nằm ngoài khung hoạt động (15:00 - 23:30)',
+        guest_count: 'Số lượng khách ngoài khoảng thông thường (1 - 200)',
+        customer_name: 'Tên chứa từ khóa nghi vấn hoặc để trống',
+        used_party_owner_as_customer_name: '⚠️ Tên chủ tiệc được nạp tạm vào ô Người đặt bàn vì chưa có thông tin người liên hệ rõ ràng.',
+        used_single_ambiguous_name_as_customer_name: '⚠️ Nạp tạm tên người duy nhất tìm thấy vào ô Người đặt bàn (chưa rõ vai trò).',
+        missing_clear_booker_name: '⚠️ Chưa xác định rõ người đặt bàn thực tế.',
+        missing_customer_name: '⚠️ Hoàn toàn không tìm thấy tên người liên hệ nào trong nội dung.',
+        customerName_or_partyOwner_ambiguous: '⚠️ Tên người trong tin nhắn mơ hồ, chưa xác định rõ vai trò.'
+      }
+      formStore.warnings = validatedResult.needs_review_fields.map((f: string) => {
+        return warningMap[f] || `Trường ${f} cần kiểm tra lại độ chính xác`
+      })
       formStore.unresolvedItems = validatedResult.menu_items.filter((i: any) => i.needs_review).map((i: any) => i.raw_name)
 
       // Direct auto-fill if workflow mode is set to 'direct'

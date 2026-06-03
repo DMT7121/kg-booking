@@ -270,175 +270,203 @@ function onDrop(e: DragEvent) {
         </ul>
       </div>
 
-      <!-- Section: Customer & Booking Grid -->
-      <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
-        <!-- Name -->
-        <div class="p-3 rounded-2xl border transition-all" :class="getFieldClass('customer_name', formStore.parsedAiResult.confidence?.customer_name)">
-          <div class="text-[9px] font-black text-slate-450 uppercase tracking-widest">Tên khách</div>
-          <div class="mt-1 flex items-center justify-between gap-2">
-            <template v-if="isEditing">
-              <input type="text" v-model="formStore.parsedAiResult.customer.name" class="w-full px-2.5 py-1.5 text-xs border border-slate-250 rounded-xl focus:ring-2 focus:ring-blue-400 outline-none bg-white font-bold text-slate-800">
-            </template>
-            <template v-else>
-              <span class="text-xs font-black text-slate-800 truncate">{{ formStore.parsedAiResult.customer.name || '---' }}</span>
-              <span class="text-[8px] px-1.5 py-0.5 rounded font-black border shrink-0" :class="getConfidenceColorClass(formStore.parsedAiResult.confidence?.customer_name)">
-                {{ Math.round((formStore.parsedAiResult.confidence?.customer_name || 0) * 100) }}%
-              </span>
-            </template>
+      <!-- Section: Customer & Booking Grid (Blocks 1, 2, 3) -->
+      <div class="space-y-3.5 w-full box-border">
+        <!-- Khối 1: Người đặt bàn / Liên hệ -->
+        <div class="bg-slate-50/50 border border-slate-150 rounded-2xl p-4 space-y-3 w-full box-border">
+          <div class="text-[10px] font-black text-slate-500 uppercase tracking-widest flex items-center gap-1.5 border-b border-slate-200 pb-1.5">
+            <i class="fa-solid fa-address-book text-slate-400"></i> 1. NGƯỜI ĐẶT BÀN / LIÊN HỆ
           </div>
-          <div v-if="!isEditing && (formStore.parsedAiResult.confidence?.customer_name < 0.75)" class="text-[8px] text-amber-600 font-extrabold mt-1 leading-normal">
-            <i class="fa-solid fa-circle-info shrink-0"></i> Tên chứa từ khóa nghi vấn (ngày/giờ/món...)
-          </div>
-        </div>
-
-        <!-- Phone -->
-        <div class="p-3 rounded-2xl border transition-all" :class="getFieldClass('phone', formStore.parsedAiResult.confidence?.phone)">
-          <div class="text-[9px] font-black text-slate-450 uppercase tracking-widest">Số điện thoại</div>
-          <div class="mt-1 flex items-center justify-between gap-2">
-            <template v-if="isEditing">
-              <input type="text" v-model="formStore.parsedAiResult.customer.phone" class="w-full px-2.5 py-1.5 text-xs border border-slate-250 rounded-xl focus:ring-2 focus:ring-blue-400 outline-none bg-white font-bold text-slate-800">
-            </template>
-            <template v-else>
-              <span class="text-xs font-black text-slate-800 truncate">{{ formStore.parsedAiResult.customer.phone || '---' }}</span>
-              <span class="text-[8px] px-1.5 py-0.5 rounded font-black border shrink-0" :class="getConfidenceColorClass(formStore.parsedAiResult.confidence?.phone)">
-                {{ Math.round((formStore.parsedAiResult.confidence?.phone || 0) * 100) }}%
-              </span>
-            </template>
-          </div>
-          <div v-if="!isEditing && (formStore.parsedAiResult.confidence?.phone < 0.75)" class="text-[8px] text-amber-600 font-extrabold mt-1 leading-normal">
-            <i class="fa-solid fa-circle-info shrink-0"></i> SĐT không đúng định dạng VN hoặc thiếu số
-          </div>
-        </div>
-
-        <!-- Date -->
-        <div class="p-3 rounded-2xl border transition-all" :class="getFieldClass('event_date', formStore.parsedAiResult.confidence?.event_date)">
-          <div class="text-[9px] font-black text-slate-450 uppercase tracking-widest">Ngày tổ chức</div>
-          <div class="mt-1 flex items-center justify-between gap-2">
-            <template v-if="isEditing">
-              <input type="text" v-model="formStore.parsedAiResult.booking.event_date" class="w-full px-2.5 py-1.5 text-xs border border-slate-250 rounded-xl focus:ring-2 focus:ring-blue-400 outline-none bg-white font-bold text-slate-800" placeholder="DD/MM/YYYY">
-            </template>
-            <template v-else>
-              <span class="text-xs font-black text-slate-800">{{ formStore.parsedAiResult.booking.event_date || '---' }}</span>
-              <span class="text-[8px] px-1.5 py-0.5 rounded font-black border shrink-0" :class="getConfidenceColorClass(formStore.parsedAiResult.confidence?.event_date)">
-                {{ Math.round((formStore.parsedAiResult.confidence?.event_date || 0) * 100) }}%
-              </span>
-            </template>
-          </div>
-          <div v-if="!isEditing && (formStore.parsedAiResult.confidence?.event_date < 0.75)" class="text-[8px] text-amber-600 font-extrabold mt-1 leading-normal">
-            <i class="fa-solid fa-circle-info shrink-0"></i> Ngày đã qua hoặc sai định dạng DD/MM/YYYY
-          </div>
-        </div>
-
-        <!-- Time -->
-        <div class="p-3 rounded-2xl border transition-all" :class="getFieldClass('event_time', formStore.parsedAiResult.confidence?.event_time)">
-          <div class="text-[9px] font-black text-slate-450 uppercase tracking-widest">Giờ tiệc</div>
-          <div class="mt-1 flex items-center justify-between gap-2">
-            <template v-if="isEditing">
-              <input type="text" v-model="formStore.parsedAiResult.booking.event_time" class="w-full px-2.5 py-1.5 text-xs border border-slate-250 rounded-xl focus:ring-2 focus:ring-blue-400 outline-none bg-white font-bold text-slate-800" placeholder="HH:MM">
-            </template>
-            <template v-else>
-              <span class="text-xs font-black text-slate-800">{{ formStore.parsedAiResult.booking.event_time || '---' }}</span>
-              <span class="text-[8px] px-1.5 py-0.5 rounded font-black border shrink-0" :class="getConfidenceColorClass(formStore.parsedAiResult.confidence?.event_time)">
-                {{ Math.round((formStore.parsedAiResult.confidence?.event_time || 0) * 100) }}%
-              </span>
-            </template>
-          </div>
-          <div v-if="!isEditing && (formStore.parsedAiResult.confidence?.event_time < 0.75)" class="text-[8px] text-amber-600 font-extrabold mt-1 leading-normal">
-            <i class="fa-solid fa-circle-info shrink-0"></i> Giờ nằm ngoài khung hoạt động (15:00 - 23:30)
-          </div>
-        </div>
-
-        <!-- Pax -->
-        <div class="p-3 rounded-2xl border transition-all" :class="getFieldClass('guest_count', formStore.parsedAiResult.confidence?.guest_count)">
-          <div class="text-[9px] font-black text-slate-450 uppercase tracking-widest">Số khách</div>
-          <div class="mt-1 flex items-center justify-between gap-2">
-            <template v-if="isEditing">
-              <input type="number" v-model.number="formStore.parsedAiResult.booking.guest_count" class="w-full px-2.5 py-1.5 text-xs border border-slate-250 rounded-xl focus:ring-2 focus:ring-blue-400 outline-none bg-white font-bold text-slate-800">
-            </template>
-            <template v-else>
-              <span class="text-xs font-black text-slate-800">{{ formStore.parsedAiResult.booking.guest_count || '---' }} pax</span>
-              <span class="text-[8px] px-1.5 py-0.5 rounded font-black border shrink-0" :class="getConfidenceColorClass(formStore.parsedAiResult.confidence?.guest_count)">
-                {{ Math.round((formStore.parsedAiResult.confidence?.guest_count || 0) * 100) }}%
-              </span>
-            </template>
-          </div>
-          <div v-if="!isEditing && (formStore.parsedAiResult.confidence?.guest_count < 0.75)" class="text-[8px] text-amber-600 font-extrabold mt-1 leading-normal">
-            <i class="fa-solid fa-circle-info shrink-0"></i> Số lượng khách ngoài khoảng thông thường (1 - 200)
-          </div>
-        </div>
-
-        <!-- Table -->
-        <div class="p-3 rounded-2xl border border-slate-100 bg-slate-50/50">
-          <div class="text-[9px] font-black text-slate-450 uppercase tracking-widest">Số bàn</div>
-          <div class="mt-1 flex items-center justify-between gap-2">
-            <template v-if="isEditing">
-              <input type="text" v-model="formStore.parsedAiResult.booking.table_number" class="w-full px-2.5 py-1.5 text-xs border border-slate-250 rounded-xl focus:ring-2 focus:ring-blue-400 outline-none bg-white font-bold text-slate-800">
-            </template>
-            <template v-else>
-              <span class="text-xs font-black text-slate-800 truncate">{{ formStore.parsedAiResult.booking.table_number || '---' }}</span>
-            </template>
-          </div>
-        </div>
-
-        <!-- Event Type -->
-        <div class="p-3 rounded-2xl border border-slate-100 bg-slate-50/50">
-          <div class="text-[9px] font-black text-slate-450 uppercase tracking-widest">Loại tiệc / Nhu cầu</div>
-          <div class="mt-1 flex items-center justify-between gap-2">
-            <template v-if="isEditing">
-              <input type="text" v-model="formStore.parsedAiResult.booking.need" class="w-full px-2.5 py-1.5 text-xs border border-slate-250 rounded-xl focus:ring-2 focus:ring-blue-400 outline-none bg-white font-bold text-slate-800">
-            </template>
-            <template v-else>
-              <span class="text-xs font-black text-slate-800 truncate">{{ formStore.parsedAiResult.booking.need || 'Ăn thường' }}</span>
-            </template>
-          </div>
-        </div>
-
-        <!-- Deposit -->
-        <div class="p-3 rounded-2xl border transition-all" :class="getFieldClass('deposit', formStore.parsedAiResult.confidence?.deposit)">
-          <div class="text-[9px] font-black text-slate-450 uppercase tracking-widest">Tiền đặt cọc</div>
-          <div class="mt-1 flex items-center justify-between gap-2">
-            <template v-if="isEditing">
-              <div class="flex gap-1.5 w-full">
-                <input type="number" v-model.number="formStore.parsedAiResult.deposit.amount" class="w-2/3 px-2 py-1 text-xs border border-slate-250 rounded-lg focus:ring-2 focus:ring-blue-400 outline-none bg-white font-bold text-slate-800">
-                <input type="text" v-model="formStore.parsedAiResult.deposit.status" class="w-1/3 px-2 py-1 text-xs border border-slate-250 rounded-lg focus:ring-2 focus:ring-blue-400 outline-none bg-white font-bold text-slate-800 text-center" placeholder="Đã cọc">
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-3 w-full">
+            <!-- Name -->
+            <div class="p-3 rounded-xl border bg-white transition-all w-full box-border" :class="getFieldClass('customer_name', formStore.parsedAiResult.confidence?.customer_name)">
+              <div class="text-[9px] font-black text-slate-400 uppercase tracking-widest">Tên khách</div>
+              <div class="mt-1 flex items-center justify-between gap-2 min-w-0">
+                <template v-if="isEditing">
+                  <input type="text" v-model="formStore.parsedAiResult.customer.name" class="w-full px-2.5 py-1.5 text-xs border border-slate-250 rounded-xl focus:ring-2 focus:ring-blue-400 outline-none bg-white font-bold text-slate-800">
+                </template>
+                <template v-else>
+                  <span class="text-xs font-black text-slate-800 truncate min-w-0 flex-1">{{ formStore.parsedAiResult.customer.name || '---' }}</span>
+                  <span class="text-[8px] px-1.5 py-0.5 rounded font-black border shrink-0" :class="getConfidenceColorClass(formStore.parsedAiResult.confidence?.customer_name)">
+                    {{ Math.round((formStore.parsedAiResult.confidence?.customer_name || 0) * 100) }}%
+                  </span>
+                </template>
               </div>
-            </template>
-            <template v-else>
-              <span class="text-xs font-black text-slate-800">
-                {{ formStore.parsedAiResult.deposit.amount ? formatVND(formStore.parsedAiResult.deposit.amount) : '---' }}
-                <span v-if="formStore.parsedAiResult.deposit.status" class="text-[8px] px-1 py-0.5 bg-blue-100 text-blue-700 rounded font-black uppercase">{{ formStore.parsedAiResult.deposit.status }}</span>
-              </span>
-              <span class="text-[8px] px-1.5 py-0.5 rounded font-black border shrink-0" :class="getConfidenceColorClass(formStore.parsedAiResult.confidence?.deposit)">
-                {{ Math.round((formStore.parsedAiResult.confidence?.deposit || 0) * 100) }}%
-              </span>
-            </template>
-          </div>
-        </div>
-      </div>
-
-      <!-- Decoration & Notes -->
-      <div class="space-y-3.5">
-        <div class="p-3 rounded-2xl border border-slate-100 bg-slate-50/50">
-          <div class="text-[9px] font-black text-slate-450 uppercase tracking-widest">Nội dung bảng chữ / Trang trí</div>
-          <div class="mt-1">
-            <template v-if="isEditing">
-              <input type="text" v-model="formStore.parsedAiResult.decoration.text_on_board" class="w-full px-2.5 py-1.5 text-xs border border-slate-250 rounded-xl focus:ring-2 focus:ring-blue-400 outline-none bg-white font-semibold text-slate-800">
-            </template>
-            <template v-else>
-              <span class="text-xs font-bold text-slate-800 italic block">{{ formStore.parsedAiResult.decoration.text_on_board || 'Không có' }}</span>
-            </template>
+              <div v-if="!isEditing && (formStore.parsedAiResult.confidence?.customer_name < 0.75)" class="text-[8px] text-amber-600 font-extrabold mt-1 leading-normal">
+                <i class="fa-solid fa-circle-info shrink-0"></i> Tên chứa từ khóa nghi vấn (ngày/giờ/món...)
+              </div>
+            </div>
+            <!-- Phone -->
+            <div class="p-3 rounded-xl border bg-white transition-all w-full box-border" :class="getFieldClass('phone', formStore.parsedAiResult.confidence?.phone)">
+              <div class="text-[9px] font-black text-slate-400 uppercase tracking-widest">Số điện thoại</div>
+              <div class="mt-1 flex items-center justify-between gap-2 min-w-0">
+                <template v-if="isEditing">
+                  <input type="text" v-model="formStore.parsedAiResult.customer.phone" class="w-full px-2.5 py-1.5 text-xs border border-slate-250 rounded-xl focus:ring-2 focus:ring-blue-400 outline-none bg-white font-bold text-slate-800">
+                </template>
+                <template v-else>
+                  <span class="text-xs font-black text-slate-800 truncate min-w-0 flex-1">{{ formStore.parsedAiResult.customer.phone || '---' }}</span>
+                  <span class="text-[8px] px-1.5 py-0.5 rounded font-black border shrink-0" :class="getConfidenceColorClass(formStore.parsedAiResult.confidence?.phone)">
+                    {{ Math.round((formStore.parsedAiResult.confidence?.phone || 0) * 100) }}%
+                  </span>
+                </template>
+              </div>
+              <div v-if="!isEditing && (formStore.parsedAiResult.confidence?.phone < 0.75)" class="text-[8px] text-amber-600 font-extrabold mt-1 leading-normal">
+                <i class="fa-solid fa-circle-info shrink-0"></i> SĐT không đúng định dạng VN hoặc thiếu số
+              </div>
+            </div>
           </div>
         </div>
 
-        <div class="p-3 rounded-2xl border border-slate-100 bg-slate-50/50">
-          <div class="text-[9px] font-black text-slate-450 uppercase tracking-widest">Ghi chú từ khách hàng</div>
-          <div class="mt-1">
-            <template v-if="isEditing">
-              <textarea v-model="formStore.parsedAiResult.notes.customer_note" rows="2" class="w-full px-2.5 py-2 text-xs border border-slate-250 rounded-xl focus:ring-2 focus:ring-blue-400 outline-none bg-white font-medium text-slate-800 custom-scrollbar"></textarea>
-            </template>
-            <template v-else>
-              <span class="text-xs font-semibold text-slate-700 block whitespace-pre-line leading-relaxed">{{ formStore.parsedAiResult.notes.customer_note || 'Không có' }}</span>
-            </template>
+        <!-- Khối 2: Thông tin tiệc -->
+        <div class="bg-slate-50/50 border border-slate-150 rounded-2xl p-4 space-y-3 w-full box-border">
+          <div class="text-[10px] font-black text-slate-500 uppercase tracking-widest flex items-center gap-1.5 border-b border-slate-200 pb-1.5">
+            <i class="fa-solid fa-cake-candles text-slate-400"></i> 2. THÔNG TIN TIỆC
+          </div>
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-3 w-full">
+            <!-- Event Type -->
+            <div class="p-3 rounded-xl border border-slate-100 bg-white w-full box-border">
+              <div class="text-[9px] font-black text-slate-400 uppercase tracking-widest">Loại tiệc / Nhu cầu</div>
+              <div class="mt-1">
+                <template v-if="isEditing">
+                  <input type="text" v-model="formStore.parsedAiResult.booking.need" class="w-full px-2.5 py-1.5 text-xs border border-slate-250 rounded-xl focus:ring-2 focus:ring-blue-400 outline-none bg-white font-bold text-slate-800">
+                </template>
+                <template v-else>
+                  <span class="text-xs font-black text-slate-800 truncate block">{{ formStore.parsedAiResult.booking.need || 'Ăn thường' }}</span>
+                </template>
+              </div>
+            </div>
+            <!-- Party Owner Name -->
+            <div class="p-3 rounded-xl border border-slate-100 bg-white w-full box-border">
+              <div class="text-[9px] font-black text-slate-400 uppercase tracking-widest">Chủ tiệc / Người được tổ chức</div>
+              <div class="mt-1">
+                <template v-if="isEditing">
+                  <input type="text" v-model="formStore.parsedAiResult.party.owner_name" class="w-full px-2.5 py-1.5 text-xs border border-slate-250 rounded-xl focus:ring-2 focus:ring-blue-400 outline-none bg-white font-bold text-slate-800">
+                </template>
+                <template v-else>
+                  <span class="text-xs font-black text-slate-800 truncate block">{{ formStore.parsedAiResult.party?.owner_name || 'Không có' }}</span>
+                </template>
+              </div>
+            </div>
+            <!-- Decoration Text -->
+            <div class="p-3 rounded-xl border border-slate-100 bg-white col-span-1 md:col-span-2 w-full box-border">
+              <div class="text-[9px] font-black text-slate-400 uppercase tracking-widest">Nội dung bảng chữ / Trang trí</div>
+              <div class="mt-1">
+                <template v-if="isEditing">
+                  <input type="text" v-model="formStore.parsedAiResult.decoration.text_on_board" class="w-full px-2.5 py-1.5 text-xs border border-slate-250 rounded-xl focus:ring-2 focus:ring-blue-400 outline-none bg-white font-semibold text-slate-800">
+                </template>
+                <template v-else>
+                  <span class="text-xs font-bold text-slate-850 italic block">{{ formStore.parsedAiResult.decoration.text_on_board || 'Không có' }}</span>
+                </template>
+              </div>
+            </div>
+            <!-- Note to be added to voucher -->
+            <div class="p-3 rounded-xl border border-slate-100 bg-white col-span-1 md:col-span-2 w-full box-border">
+              <div class="text-[9px] font-black text-slate-400 uppercase tracking-widest">Ghi chú từ khách hàng (Thêm vào phiếu)</div>
+              <div class="mt-1">
+                <template v-if="isEditing">
+                  <textarea v-model="formStore.parsedAiResult.notes.customer_note" rows="2" class="w-full px-2.5 py-2 text-xs border border-slate-250 rounded-xl focus:ring-2 focus:ring-blue-400 outline-none bg-white font-medium text-slate-800 custom-scrollbar"></textarea>
+                </template>
+                <template v-else>
+                  <span class="text-xs font-semibold text-slate-700 block whitespace-pre-line leading-relaxed">{{ formStore.parsedAiResult.notes.customer_note || 'Không có' }}</span>
+                </template>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Khối 3: Thông tin lịch & đặt cọc -->
+        <div class="bg-slate-50/50 border border-slate-150 rounded-2xl p-4 space-y-3 w-full box-border">
+          <div class="text-[10px] font-black text-slate-500 uppercase tracking-widest flex items-center gap-1.5 border-b border-slate-200 pb-1.5">
+            <i class="fa-solid fa-calendar-days text-slate-400"></i> 3. THÔNG TIN LỊCH & ĐẶT CỌC
+          </div>
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-3 w-full">
+            <!-- Date -->
+            <div class="p-3 rounded-xl border bg-white transition-all w-full box-border" :class="getFieldClass('event_date', formStore.parsedAiResult.confidence?.event_date)">
+              <div class="text-[9px] font-black text-slate-400 uppercase tracking-widest">Ngày tổ chức</div>
+              <div class="mt-1 flex items-center justify-between gap-2 min-w-0">
+                <template v-if="isEditing">
+                  <input type="text" v-model="formStore.parsedAiResult.booking.event_date" class="w-full px-2.5 py-1.5 text-xs border border-slate-250 rounded-xl focus:ring-2 focus:ring-blue-400 outline-none bg-white font-bold text-slate-800" placeholder="DD/MM/YYYY">
+                </template>
+                <template v-else>
+                  <span class="text-xs font-black text-slate-800 truncate min-w-0 flex-1">{{ formStore.parsedAiResult.booking.event_date || '---' }}</span>
+                  <span class="text-[8px] px-1.5 py-0.5 rounded font-black border shrink-0" :class="getConfidenceColorClass(formStore.parsedAiResult.confidence?.event_date)">
+                    {{ Math.round((formStore.parsedAiResult.confidence?.event_date || 0) * 100) }}%
+                  </span>
+                </template>
+              </div>
+              <div v-if="!isEditing && (formStore.parsedAiResult.confidence?.event_date < 0.75)" class="text-[8px] text-amber-600 font-extrabold mt-1 leading-normal">
+                <i class="fa-solid fa-circle-info shrink-0"></i> Ngày đã qua hoặc sai định dạng DD/MM/YYYY
+              </div>
+            </div>
+            <!-- Time -->
+            <div class="p-3 rounded-xl border bg-white transition-all w-full box-border" :class="getFieldClass('event_time', formStore.parsedAiResult.confidence?.event_time)">
+              <div class="text-[9px] font-black text-slate-400 uppercase tracking-widest">Giờ tiệc</div>
+              <div class="mt-1 flex items-center justify-between gap-2 min-w-0">
+                <template v-if="isEditing">
+                  <input type="text" v-model="formStore.parsedAiResult.booking.event_time" class="w-full px-2.5 py-1.5 text-xs border border-slate-250 rounded-xl focus:ring-2 focus:ring-blue-400 outline-none bg-white font-bold text-slate-800" placeholder="HH:MM">
+                </template>
+                <template v-else>
+                  <span class="text-xs font-black text-slate-800 truncate min-w-0 flex-1">{{ formStore.parsedAiResult.booking.event_time || '---' }}</span>
+                  <span class="text-[8px] px-1.5 py-0.5 rounded font-black border shrink-0" :class="getConfidenceColorClass(formStore.parsedAiResult.confidence?.event_time)">
+                    {{ Math.round((formStore.parsedAiResult.confidence?.event_time || 0) * 100) }}%
+                  </span>
+                </template>
+              </div>
+              <div v-if="!isEditing && (formStore.parsedAiResult.confidence?.event_time < 0.75)" class="text-[8px] text-amber-600 font-extrabold mt-1 leading-normal">
+                <i class="fa-solid fa-circle-info shrink-0"></i> Giờ nằm ngoài khung hoạt động (15:00 - 23:30)
+              </div>
+            </div>
+            <!-- Guest Count -->
+            <div class="p-3 rounded-xl border bg-white transition-all w-full box-border" :class="getFieldClass('guest_count', formStore.parsedAiResult.confidence?.guest_count)">
+              <div class="text-[9px] font-black text-slate-400 uppercase tracking-widest">Số khách</div>
+              <div class="mt-1 flex items-center justify-between gap-2 min-w-0">
+                <template v-if="isEditing">
+                  <input type="number" v-model.number="formStore.parsedAiResult.booking.guest_count" class="w-full px-2.5 py-1.5 text-xs border border-slate-250 rounded-xl focus:ring-2 focus:ring-blue-400 outline-none bg-white font-bold text-slate-800">
+                </template>
+                <template v-else>
+                  <span class="text-xs font-black text-slate-800 truncate min-w-0 flex-1">{{ formStore.parsedAiResult.booking.guest_count || '---' }} pax</span>
+                  <span class="text-[8px] px-1.5 py-0.5 rounded font-black border shrink-0" :class="getConfidenceColorClass(formStore.parsedAiResult.confidence?.guest_count)">
+                    {{ Math.round((formStore.parsedAiResult.confidence?.guest_count || 0) * 100) }}%
+                  </span>
+                </template>
+              </div>
+              <div v-if="!isEditing && (formStore.parsedAiResult.confidence?.guest_count < 0.75)" class="text-[8px] text-amber-600 font-extrabold mt-1 leading-normal">
+                <i class="fa-solid fa-circle-info shrink-0"></i> Số lượng khách ngoài khoảng thông thường (1 - 200)
+              </div>
+            </div>
+            <!-- Table -->
+            <div class="p-3 rounded-xl border border-slate-100 bg-white w-full box-border">
+              <div class="text-[9px] font-black text-slate-450 uppercase tracking-widest">Số bàn</div>
+              <div class="mt-1 flex items-center justify-between gap-2">
+                <template v-if="isEditing">
+                  <input type="text" v-model="formStore.parsedAiResult.booking.table_number" class="w-full px-2.5 py-1.5 text-xs border border-slate-250 rounded-xl focus:ring-2 focus:ring-blue-400 outline-none bg-white font-bold text-slate-800">
+                </template>
+                <template v-else>
+                  <span class="text-xs font-black text-slate-800 truncate block">{{ formStore.parsedAiResult.booking.table_number || '---' }}</span>
+                </template>
+              </div>
+            </div>
+            <!-- Deposit -->
+            <div class="p-3 rounded-xl border bg-white transition-all col-span-1 md:col-span-2 w-full box-border" :class="getFieldClass('deposit', formStore.parsedAiResult.confidence?.deposit)">
+              <div class="text-[9px] font-black text-slate-450 uppercase tracking-widest">Tiền đặt cọc</div>
+              <div class="mt-1 flex items-center justify-between gap-2 min-w-0">
+                <template v-if="isEditing">
+                  <div class="flex gap-1.5 w-full">
+                    <input type="number" v-model.number="formStore.parsedAiResult.deposit.amount" class="w-2/3 px-2 py-1 text-xs border border-slate-250 rounded-lg focus:ring-2 focus:ring-blue-400 outline-none bg-white font-bold text-slate-800">
+                    <input type="text" v-model="formStore.parsedAiResult.deposit.status" class="w-1/3 px-2 py-1 text-xs border border-slate-250 rounded-lg focus:ring-2 focus:ring-blue-400 outline-none bg-white font-bold text-slate-800 text-center" placeholder="Đã cọc">
+                  </div>
+                </template>
+                <template v-else>
+                  <span class="text-xs font-black text-slate-800 truncate min-w-0 flex-1">
+                    {{ formStore.parsedAiResult.deposit.amount ? formatVND(formStore.parsedAiResult.deposit.amount) : '---' }}
+                    <span v-if="formStore.parsedAiResult.deposit.status" class="text-[8px] px-1 py-0.5 bg-blue-100 text-blue-700 rounded font-black uppercase shrink-0 inline-block">{{ formStore.parsedAiResult.deposit.status }}</span>
+                  </span>
+                  <span class="text-[8px] px-1.5 py-0.5 rounded font-black border shrink-0" :class="getConfidenceColorClass(formStore.parsedAiResult.confidence?.deposit)">
+                    {{ Math.round((formStore.parsedAiResult.confidence?.deposit || 0) * 100) }}%
+                  </span>
+                </template>
+              </div>
+            </div>
           </div>
         </div>
       </div>
