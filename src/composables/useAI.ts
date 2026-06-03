@@ -334,6 +334,30 @@ export function useAI() {
     }
   }
 
+  /** Strip Set Menu component description lines from input before sending to AI */
+  function stripSetMenuComponents(text: string): string {
+    const lines = text.split('\n')
+    const result: string[] = []
+    let inSetMenuBlock = false
+    for (const line of lines) {
+      const trimmed = line.trim()
+      const lower = stripAccents(trimmed).toLowerCase()
+      // Detect Set Menu order line
+      if (/set\s*menu|combo\s*\d/i.test(lower) && /x\s*\d|\(x\d\)|\d\s*phan/i.test(lower)) {
+        inSetMenuBlock = true
+        result.push(trimmed)
+        continue
+      }
+      if (inSetMenuBlock) {
+        // Lines like "1/ ...", "2/ ...", "1. ..." with brackets/parens = component descriptions
+        if (/^\d+[\/.)]\s+/i.test(trimmed)) continue
+        inSetMenuBlock = false
+      }
+      result.push(trimmed)
+    }
+    return result.join('\n')
+  }
+
   function classifyInputType(rawInput: string, hasImage: boolean): string {
     const cleanText = stripAccents(rawInput).toLowerCase().trim()
     const phoneRegex = /(0[35789]\d{8})/g
@@ -611,10 +635,22 @@ export function useAI() {
     }
     
     let event_time: string | null = null
-    const timeRegex = /\b(\d{2}):(\d{2})\b/g
-    const timeMatch = normalizedText.match(timeRegex)
-    if (timeMatch) {
-      event_time = timeMatch[0]
+    // Match HH:mm (colon) format first
+    const colonTimeMatch = normalizedText.match(/\b(\d{1,2}):(\d{2})\b/)
+    if (colonTimeMatch) {
+      event_time = colonTimeMatch[0].length === 4 ? '0' + colonTimeMatch[0] : colonTimeMatch[0]
+    }
+    // Match Vietnamese time: 18h15, 7h30, 18h, 7h toi
+    if (!event_time) {
+      const vnTimeMatch = clean.match(/(\d{1,2})h(\d{2})?/)
+      if (vnTimeMatch) {
+        let h = parseInt(vnTimeMatch[1])
+        const m = vnTimeMatch[2] ? parseInt(vnTimeMatch[2]) : 0
+        // Restaurant context: hours < 12 likely PM
+        if (h < 12 && !/sang/i.test(clean)) h += 12
+        if (h >= 24) h -= 12
+        event_time = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`
+      }
     }
 
     let guest_count: number | null = null
@@ -651,19 +687,25 @@ export function useAI() {
     }
 
     let deposit_amount: number | null = null
-    const depositMatch = clean.match(/(\d+)\s*(?:k|vnd|trieu|cu|trn|tr)/i)
-    if (depositMatch) {
-      let amt = parseInt(depositMatch[1])
-      const unit = depositMatch[0].replace(depositMatch[1], '').trim()
-      if (unit.includes('k')) amt *= 1000
-      else if (unit.includes('tr') || unit.includes('cu')) amt *= 1000000
-      else if (amt < 1000) amt *= 1000
-      deposit_amount = amt
+    // Only extract deposit when deposit context keywords are present
+    const hasDepositCtx = /coc|dat coc|doi coc|da coc/i.test(clean)
+    if (hasDepositCtx) {
+      const depMatch = clean.match(/(?:coc|dat coc|doi coc|da coc)\s*(\d+(?:[.,]\d+)?)\s*(k|tr|trieu|cu|trn)/i)
+        || clean.match(/(\d+(?:[.,]\d+)?)\s*(k|tr|trieu|cu|trn)(?=\s|$)/i)
+      if (depMatch) {
+        let amt = parseFloat(depMatch[1].replace(',', '.'))
+        const unit = depMatch[2].toLowerCase()
+        if (unit === 'k') amt *= 1000
+        else if (unit.startsWith('tr') || unit === 'cu' || unit === 'trn') amt *= 1000000
+        deposit_amount = Math.round(amt)
+      }
     }
     
     let deposit_status = 'chờ cọc'
     if (/da chuyen|chuyen roi|da coc/i.test(clean)) {
       deposit_status = 'đã cọc'
+    } else if (/doi coc|cho coc|chua coc/i.test(clean)) {
+      deposit_status = 'chờ cọc'
     }
 
     const note = blocks.note_block || ''
@@ -1392,6 +1434,10 @@ export function useAI() {
         let note = item.note || item.notes || ''
         const isSet = /set|combo|goi|phan/i.test(match.name)
         let description = match.desc || appStore.menuDetails?.[match.name] || ''
+        // Fallback to SETS constant for Set Menu descriptions (legacy support)
+        if (!description && isSet && SETS[match.name.toUpperCase()]) {
+          description = SETS[match.name.toUpperCase()]
+        }
         if (description) {
           if (isSet) {
             const formattedNote = formatSetNote(description)
@@ -1819,8 +1865,16 @@ export function useAI() {
           }
         }
 
-        // Build context & Call AI
-        const menuContext = appStore.menuList.map((i: any) => `- ${i.name} (${formatVND(i.price)})`).join('\n')
+        // Build context & Call AI — Optimize menu context to reduce token usage
+        const inputTokensForMenu = stripAccents(promptText).toLowerCase().split(/\s+/).filter((t: string) => t.length > 2)
+        const relevantMenu = appStore.menuList.filter((i: any) => {
+          const cName = (i.cleanName || stripAccents(i.name).toLowerCase()).split(/\s+/)
+          return cName.some((w: string) => inputTokensForMenu.some((t: string) => w.includes(t) || t.includes(w)))
+        })
+        const menuToSend = relevantMenu.length > 0 ? relevantMenu.slice(0, 30) : appStore.menuList.slice(0, 30)
+        const menuContext = menuToSend.map((i: any) => `- ${i.name} (${formatVND(i.price)})`).join('\n')
+        // Strip Set Menu component description lines to prevent AI from mis-parsing them as separate items
+        const aiPromptText = stripSetMenuComponents(promptText)
         const systemPrompt = ADVANCED_AI_PROMPT
           .replace('{{MENU_CONTEXT}}', menuContext)
           .replace('{{CURRENT_DATE}}', (() => {
@@ -1833,7 +1887,7 @@ export function useAI() {
             const min = String(now.getMinutes()).padStart(2, '0')
             return `${dayNames[now.getDay()]}, ${dd}/${mm}/${yyyy} ${hh}:${min}`
           })())
-          .replace('{{RAW_INPUT}}', promptText)
+          .replace('{{RAW_INPUT}}', aiPromptText)
           .replace('{{RULE_BASED_HINTS}}', JSON.stringify(ruleBasedResult, null, 2))
           .replace(/\{\{TOMORROW_DD_MM_YYYY\}\}/g, (() => {
             const tom = new Date()
@@ -1890,6 +1944,18 @@ export function useAI() {
           }
         } catch (errSheet) {
           console.warn('Menu sheet routing error:', errSheet)
+        }
+
+        // Preserve date from UI context if AI returned empty date
+        if (!rawJsonParsed.booking?.event_date && formStore.customer.date) {
+          rawJsonParsed.booking.event_date = formStore.customer.date
+        }
+
+        // Apply rule-based deposit override if explicit deposit found in input
+        if (ruleBasedResult.deposit_amount && ruleBasedResult.deposit_amount > 0) {
+          if (!rawJsonParsed.deposit) rawJsonParsed.deposit = {}
+          rawJsonParsed.deposit.amount = ruleBasedResult.deposit_amount
+          rawJsonParsed.deposit.status = ruleBasedResult.deposit_status || 'chờ cọc'
         }
 
         finalParsedResult = rawJsonParsed
