@@ -30,8 +30,19 @@ export const useConfigStore = defineStore('config', () => {
 
   const keys = reactive<Record<string, string[]>>(savedKeys)
   const keysStatus = reactive<Record<string, { configured: boolean, count: number, maskedList: string[] }>>({})
-  const defaultsObj = JSON.parse(localStorage.getItem(CACHE_KEYS.DEFAULTS) || '{"text":"openai/gpt-oss-120b", "vision":"gemini-2.5-flash","aiWorkflowMode":"direct"}')
+  const defaultsObj = JSON.parse(localStorage.getItem(CACHE_KEYS.DEFAULTS) || '{"text":"llama-3.3-70b-versatile", "vision":"gemini-2.5-flash","aiWorkflowMode":"direct"}')
   if (!defaultsObj.aiWorkflowMode) defaultsObj.aiWorkflowMode = 'direct'
+
+  // Validate and sanitize active model selections
+  const validTextIds = AI_MODELS.filter(m => m.type === 'text').map(m => m.id)
+  const validVisionIds = AI_MODELS.filter(m => m.type === 'vision').map(m => m.id)
+  if (!validTextIds.includes(defaultsObj.text)) {
+    defaultsObj.text = 'llama-3.3-70b-versatile'
+  }
+  if (!validVisionIds.includes(defaultsObj.vision)) {
+    defaultsObj.vision = 'gemini-2.5-flash'
+  }
+
   const defaults = reactive(defaultsObj)
   const visibleKeys = reactive<Record<string, boolean>>({})
   const tempKeys = reactive<Record<string, string>>({})
