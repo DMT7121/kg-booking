@@ -1900,8 +1900,8 @@ export function useAI() {
 
         const optimizedImg = formStore.aiImage ? await resizeImage(formStore.aiImage, 1120) : null
         
-        // 7. Run AI router
-        const routerResponse = await smartRouter(type, systemPrompt, promptText, optimizedImg, inputType, activeController.signal)
+        // 7. Run AI router — use stripped text to prevent Set Menu component mis-parsing
+        const routerResponse = await smartRouter(type, systemPrompt, aiPromptText, optimizedImg, inputType, activeController.signal)
         routingInfo = routerResponse.routing
         
         // 8. Repair and Normalize JSON to V7 strict format
