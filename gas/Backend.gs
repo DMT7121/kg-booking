@@ -82,60 +82,81 @@ function doGet(e) {
 }
 
 function doPost(e) {
-  const lock = LockService.getScriptLock();
-  if (!lock.tryLock(10000)) return jsonResponse({ok: false, message: "Server busy, try again."});
   try {
     if (!e || !e.postData) return jsonResponse({ok: false, message: "No post data"});
     const data = JSON.parse(e.postData.contents);
     const action = data.action;
-    let result = {};
-    switch (action) {
-      case "saveOrder": result = saveOrder(data.data); break;
-      case "deleteOrder": result = deleteOrder(data.id, data.password, data.token); break;
-      case "getHistory": result = getHistoryData(); break;
-      case "getMenuSheets": result = getMenuSheets(); break;
-      case "getMenu": result = getMenuData(data.sheetName); break;
-      case "createMenu": result = createNewMenuSheet(data.name, data.rawText, data.password, data.token); break;
-      case "deleteMenu": result = deleteMenuSheet(data.name, data.password, data.token); break;
-      case "uploadMenuImage": result = uploadMenuImage(data.sheetName, data.base64, data.password, data.token); break;
-      case "uploadDishImage": result = uploadDishImage(data.dishId, data.base64, data.password, data.token); break;
-      case "saveConfig": result = saveSystemConfig(data, data.password); break;
-      case "getConfig": result = getSystemConfig(); break;
-      case "getAiRuntimeConfig": result = getAiRuntimeConfig(); break;
-      case "renderPreview": result = renderPreview(data.data); break;
-      case "saveApiKey": result = saveApiKey(data.provider, data.model, data.key, data.password, data.token); break;
-      case "deleteApiKey": result = deleteApiKey(data.provider, data.index, data.token); break;
-      case "saveApiKeys": result = saveApiKeys(data.keys, data.password, data.token); break;
-      case "borrowApiKeys": result = getSharedApiKeys(data.password, data.token); break;
-      
-      // NEW ENDPOINTS
-      case "authAdminSettings": result = authAdminSettings(data.password); break;
-      case "verifyAdminSettings": result = { ok: true, valid: verifyAdminSettingsToken(data.token) }; break;
-      case "logoutAdminSettings": result = logoutAdminSettings(data.token); break;
-      case "getAdminSystemConfig": result = getAdminSystemConfig(data.token); break;
-      case "saveAiApiConfig": result = saveAiApiConfig(data.token, data.config); break;
-      case "testAiApiKey": result = testAiApiKey(data.token, data.provider, data.apiKey); break;
-      case "callAiService": result = callAiService(data); break;
-      case "upsertSystemConfig": result = upsertSystemConfig(data.key, data.value, data.options, data.token); break;
-      case "upsertSystemConfigBatch": result = upsertSystemConfigBatch(data.configPatch, data.options, data.token); break;
-      case "mergeSystemConfig": result = mergeSystemConfig(data.configPatch, data.options, data.token); break;
-      case "backupSystemConfig": result = backupSystemConfig(data.reason, data.token); break;
-      case "restoreSystemConfigBackup": result = restoreSystemConfigBackup(data.backupId, data.token); break;
-      case "getSystemConfigBackups": result = getSystemConfigBackups(data.token); break;
-      case "getSystemConfigAuditLogs": result = getSystemConfigAuditLogs(data.token); break;
-      case "getMenuAliases": result = getMenuAliases(data.token); break;
-      case "saveMenuAlias": result = saveMenuAlias(data.alias, data.dishName, data.token); break;
-      case "deleteMenuAlias": result = deleteMenuAlias(data.alias, data.token); break;
-      case "logAiCorrection": result = logAiCorrection(data.inputText, data.wrongValue, data.correctValue, data.field, data.token); break;
-      case "getAiCorrections": result = getAiCorrections(data.token); break;
-      
-      default: result = { ok: false, message: "Unknown Action" };
+    
+    // Write actions that modify configuration or sheets and need script lock protection
+    const writeActions = [
+      "saveOrder", "deleteOrder", "createMenu", "deleteMenu", 
+      "uploadMenuImage", "uploadDishImage", "saveConfig", "saveApiKey", 
+      "deleteApiKey", "saveApiKeys", "saveAiApiConfig", "saveMenuAlias", 
+      "deleteMenuAlias", "logAiCorrection", "upsertSystemConfig", 
+      "upsertSystemConfigBatch", "mergeSystemConfig", "restoreSystemConfigBackup"
+    ];
+    
+    const isWrite = writeActions.indexOf(action) !== -1;
+    let lock = null;
+    if (isWrite) {
+      lock = LockService.getScriptLock();
+      if (!lock.tryLock(15000)) { // 15 seconds wait limit for write lock
+        return jsonResponse({ok: false, message: "Server busy (lock timeout), please try again."});
+      }
     }
-    return jsonResponse({ok: true, ...result});
+    
+    try {
+      let result = {};
+      switch (action) {
+        case "saveOrder": result = saveOrder(data.data); break;
+        case "deleteOrder": result = deleteOrder(data.id, data.password, data.token); break;
+        case "getHistory": result = getHistoryData(); break;
+        case "getMenuSheets": result = getMenuSheets(); break;
+        case "getMenu": result = getMenuData(data.sheetName); break;
+        case "createMenu": result = createNewMenuSheet(data.name, data.rawText, data.password, data.token); break;
+        case "deleteMenu": result = deleteMenuSheet(data.name, data.password, data.token); break;
+        case "uploadMenuImage": result = uploadMenuImage(data.sheetName, data.base64, data.password, data.token); break;
+        case "uploadDishImage": result = uploadDishImage(data.dishId, data.base64, data.password, data.token); break;
+        case "saveConfig": result = saveSystemConfig(data, data.password); break;
+        case "getConfig": result = getSystemConfig(); break;
+        case "getAiRuntimeConfig": result = getAiRuntimeConfig(); break;
+        case "renderPreview": result = renderPreview(data.data); break;
+        case "saveApiKey": result = saveApiKey(data.provider, data.model, data.key, data.password, data.token); break;
+        case "deleteApiKey": result = deleteApiKey(data.provider, data.index, data.token); break;
+        case "saveApiKeys": result = saveApiKeys(data.keys, data.password, data.token); break;
+        case "borrowApiKeys": result = getSharedApiKeys(data.password, data.token); break;
+        
+        // NEW ENDPOINTS
+        case "authAdminSettings": result = authAdminSettings(data.password); break;
+        case "verifyAdminSettings": result = { ok: true, valid: verifyAdminSettingsToken(data.token) }; break;
+        case "logoutAdminSettings": result = logoutAdminSettings(data.token); break;
+        case "getAdminSystemConfig": result = getAdminSystemConfig(data.token); break;
+        case "saveAiApiConfig": result = saveAiApiConfig(data.token, data.config); break;
+        case "testAiApiKey": result = testAiApiKey(data.token, data.provider, data.apiKey); break;
+        case "callAiService": result = callAiService(data); break;
+        case "upsertSystemConfig": result = upsertSystemConfig(data.key, data.value, data.options, data.token); break;
+        case "upsertSystemConfigBatch": result = upsertSystemConfigBatch(data.configPatch, data.options, data.token); break;
+        case "mergeSystemConfig": result = mergeSystemConfig(data.configPatch, data.options, data.token); break;
+        case "backupSystemConfig": result = backupSystemConfig(data.reason, data.token); break;
+        case "restoreSystemConfigBackup": result = restoreSystemConfigBackup(data.backupId, data.token); break;
+        case "getSystemConfigBackups": result = getSystemConfigBackups(data.token); break;
+        case "getSystemConfigAuditLogs": result = getSystemConfigAuditLogs(data.token); break;
+        case "getMenuAliases": result = getMenuAliases(data.token); break;
+        case "saveMenuAlias": result = saveMenuAlias(data.alias, data.dishName, data.token); break;
+        case "deleteMenuAlias": result = deleteMenuAlias(data.alias, data.token); break;
+        case "logAiCorrection": result = logAiCorrection(data.inputText, data.wrongValue, data.correctValue, data.field, data.token); break;
+        case "getAiCorrections": result = getAiCorrections(data.token); break;
+        
+        default: result = { ok: false, message: "Unknown Action" };
+      }
+      return jsonResponse({ok: true, ...result});
+    } finally {
+      if (lock) {
+        lock.releaseLock();
+      }
+    }
   } catch (err) {
     return jsonResponse({ok: false, message: err.toString()});
-  } finally {
-    lock.releaseLock();
   }
 }
 

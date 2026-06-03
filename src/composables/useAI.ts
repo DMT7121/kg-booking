@@ -20,19 +20,17 @@ import { getCachedMenu, cacheMenu } from '@/services/cache'
  * - Fuzzy 3-level menu matching
  * - Dual-schema normalizer (V6 + legacy flat)
  */
+// Shared cache Map & indexing state across all useAI calls (Module Scope)
+const responseCache = new Map<string, { data: any; timestamp: number; ttl: number }>()
+let cachedIndex: any = null
+let lastMenuVer = 0
+let lastAliasVer = 0
+
 export function useAI() {
   const uiStore = useUIStore()
   const formStore = useFormStore()
   const configStore = useConfigStore()
   const appStore = useAppStore()
-
-  // Response cache Map
-  const responseCache = new Map<string, { data: any; timestamp: number; ttl: number }>()
-
-  // Menu index caching
-  let cachedIndex: any = null
-  let lastMenuVer = 0
-  let lastAliasVer = 0
 
   function createMenuIndex(menuList: any[], aliases: any[]) {
     const exactMap = new Map<string, any>()
