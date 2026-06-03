@@ -654,7 +654,7 @@ export function useAI() {
     }
 
     let guest_count: number | null = null
-    const paxMatch = clean.match(/(\d+)\s*(pax|nguoi|khach|cho)/i)
+    const paxMatch = clean.match(/(\d+)\s*(pax|nguoi|ng|khach|cho)/i)
     if (paxMatch) {
       guest_count = parseInt(paxMatch[1])
     }
@@ -1946,9 +1946,29 @@ export function useAI() {
           console.warn('Menu sheet routing error:', errSheet)
         }
 
-        // Preserve date from UI context if AI returned empty date
-        if (!rawJsonParsed.booking?.event_date && formStore.customer.date) {
+        // Apply ALL rule-based overrides to AI result (rule-based is more reliable for structured fields)
+        if (!rawJsonParsed.booking) rawJsonParsed.booking = {}
+        if (ruleBasedResult.table_code && !rawJsonParsed.booking.table_number) {
+          rawJsonParsed.booking.table_number = ruleBasedResult.table_code
+        }
+        if (ruleBasedResult.event_time) {
+          rawJsonParsed.booking.event_time = ruleBasedResult.event_time
+        }
+        if (ruleBasedResult.event_date) {
+          rawJsonParsed.booking.event_date = ruleBasedResult.event_date
+        } else if (!rawJsonParsed.booking.event_date && formStore.customer.date) {
           rawJsonParsed.booking.event_date = formStore.customer.date
+        }
+        if (ruleBasedResult.guest_count && ruleBasedResult.guest_count > 0) {
+          rawJsonParsed.booking.guest_count = ruleBasedResult.guest_count
+        }
+        if (ruleBasedResult.customer_name && !rawJsonParsed.customer?.name) {
+          if (!rawJsonParsed.customer) rawJsonParsed.customer = {}
+          rawJsonParsed.customer.name = ruleBasedResult.customer_name
+        }
+        if (ruleBasedResult.phone && !rawJsonParsed.customer?.phone) {
+          if (!rawJsonParsed.customer) rawJsonParsed.customer = {}
+          rawJsonParsed.customer.phone = ruleBasedResult.phone
         }
 
         // Apply rule-based deposit override if explicit deposit found in input
