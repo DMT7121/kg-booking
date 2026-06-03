@@ -1475,10 +1475,32 @@ export function useAI() {
             repairApplied = true
           }
           if (parsed) {
-            return finalizeResult(parsed, model, 'waterfall', repairApplied)
+            const normalizedParsed = repairAndNormalizeJSON(parsed, inputType)
+            const validated = validateParsedFields(normalizedParsed)
+            const isTier0 = model.tier === 0
+            let needsFallback = false
+            
+            if (isTier0) {
+              const overallConf = validated.confidence?.overall || 0.8
+              const ruleBasedResult = extractByRules(userPrompt)
+              
+              const missingPhone = !validated.customer?.phone && !!ruleBasedResult.phone
+              const missingDate = !(validated.booking?.date || validated.booking?.event_date) && !!ruleBasedResult.event_date
+              const missingTime = !(validated.booking?.time || validated.booking?.event_time) && !!ruleBasedResult.event_time
+              
+              if (overallConf < 0.75 || missingPhone || missingDate || missingTime) {
+                needsFallback = true
+                console.warn(`[AI Router] Model Tier 0 (${model.name}) failed validation checks. Overall: ${overallConf}, missingPhone: ${missingPhone}, missingDate: ${missingDate}, missingTime: ${missingTime}. Falling back to next candidate...`)
+              }
+            }
+            
+            if (!needsFallback) {
+              return finalizeResult(parsed, model, 'waterfall', repairApplied)
+            }
+            fallbackCount++
           }
         }
-        throw new Error(`Invalid output format from ${model.name}`)
+        throw new Error(`Invalid output format or validation failed from ${model.name}`)
       } catch (e: any) {
         console.warn(`[AI Router] Model ${model.name} failed:`, e.message)
         fallbackCount++
@@ -1767,6 +1789,103 @@ export function useAI() {
       const validatedResult = validateParsedFields(finalParsedResult)
       validatedResult.routing = routingInfo
 
+      // Apply deterministic entity lock override protection
+      if (ruleBasedResult) {
+        // 1. Phone number check:
+        if (ruleBasedResult.phone) {
+          const aiPhone = validatedResult.customer?.phone || ''
+          if (cleanPhoneNumber(aiPhone) !== cleanPhoneNumber(ruleBasedResult.phone)) {
+            const hasExplanation = (validatedResult.warnings || []).some((w: string) => 
+              /phone|sđt|sdt|override|chuyển|đổi/i.test(w)
+            ) || (validatedResult.needs_review || []).some((w: string) =>
+              /phone|sđt|sdt|override/i.test(w)
+            ) || (validatedResult.reasoning_summary || '').toLowerCase().includes('phone')
+            
+            if (!hasExplanation) {
+              validatedResult.customer.phone = ruleBasedResult.phone
+              if (!validatedResult.warnings) validatedResult.warnings = []
+              validatedResult.warnings.push('Hệ thống tự động khôi phục SĐT do phát hiện AI ghi đè không có lý do.')
+            }
+          }
+        }
+        
+        // 2. Date check:
+        if (ruleBasedResult.event_date) {
+          const aiDate = validatedResult.booking?.event_date || validatedResult.booking?.date || ''
+          if (formatDateStr(aiDate) !== formatDateStr(ruleBasedResult.event_date)) {
+            const hasExplanation = (validatedResult.warnings || []).some((w: string) => 
+              /date|ngày|ngay|override/i.test(w)
+            ) || (validatedResult.reasoning_summary || '').toLowerCase().includes('date')
+            
+            if (!hasExplanation) {
+              if (validatedResult.booking) {
+                validatedResult.booking.event_date = ruleBasedResult.event_date
+                validatedResult.booking.date = ruleBasedResult.event_date
+              }
+              if (!validatedResult.warnings) validatedResult.warnings = []
+              validatedResult.warnings.push('Hệ thống tự động khôi phục ngày đặt bàn do phát hiện AI ghi đè không có lý do.')
+            }
+          }
+        }
+        
+        // 3. Time check:
+        if (ruleBasedResult.event_time) {
+          const aiTime = validatedResult.booking?.event_time || validatedResult.booking?.time || ''
+          if (aiTime !== ruleBasedResult.event_time) {
+            const hasExplanation = (validatedResult.warnings || []).some((w: string) => 
+              /time|giờ|gio|override/i.test(w)
+            ) || (validatedResult.reasoning_summary || '').toLowerCase().includes('time')
+            
+            if (!hasExplanation) {
+              if (validatedResult.booking) {
+                validatedResult.booking.event_time = ruleBasedResult.event_time
+                validatedResult.booking.time = ruleBasedResult.event_time
+              }
+              if (!validatedResult.warnings) validatedResult.warnings = []
+              validatedResult.warnings.push('Hệ thống tự động khôi phục giờ đặt bàn do phát hiện AI ghi đè không có lý do.')
+            }
+          }
+        }
+        
+        // 4. Guest count check:
+        if (ruleBasedResult.guest_count) {
+          const aiPax = validatedResult.booking?.guest_count || validatedResult.booking?.pax || null
+          if (aiPax !== ruleBasedResult.guest_count) {
+            const hasExplanation = (validatedResult.warnings || []).some((w: string) => 
+              /guest|khách|khach|người|nguoi|pax|override/i.test(w)
+            ) || (validatedResult.reasoning_summary || '').toLowerCase().includes('guest')
+            
+            if (!hasExplanation) {
+              if (validatedResult.booking) {
+                validatedResult.booking.guest_count = ruleBasedResult.guest_count
+                validatedResult.booking.pax = ruleBasedResult.guest_count
+              }
+              if (!validatedResult.warnings) validatedResult.warnings = []
+              validatedResult.warnings.push('Hệ thống tự động khôi phục số lượng khách do phát hiện AI ghi đè không có lý do.')
+            }
+          }
+        }
+        
+        // 5. Table code check:
+        if (ruleBasedResult.table_code) {
+          const aiTable = validatedResult.booking?.table_number || validatedResult.booking?.tables || ''
+          if (aiTable.trim().toUpperCase() !== ruleBasedResult.table_code.trim().toUpperCase()) {
+            const hasExplanation = (validatedResult.warnings || []).some((w: string) => 
+              /table|bàn|ban|override/i.test(w)
+            ) || (validatedResult.reasoning_summary || '').toLowerCase().includes('table')
+            
+            if (!hasExplanation) {
+              if (validatedResult.booking) {
+                validatedResult.booking.table_number = ruleBasedResult.table_code
+                validatedResult.booking.tables = ruleBasedResult.table_code
+              }
+              if (!validatedResult.warnings) validatedResult.warnings = []
+              validatedResult.warnings.push('Hệ thống tự động khôi phục mã bàn do phát hiện AI ghi đè không có lý do.')
+            }
+          }
+        }
+      }
+
       // Display Success Toast
       const modeIcon = routingInfo.mode === 'bypass-local' ? '🚀' : routingInfo.mode === 'cache-hit' ? '💾' : '⚡'
       uiStore.showToast(
@@ -1985,6 +2104,12 @@ Salad bò - 120000
     ocrExtractText,
     parseMenuAI,
     checkAndLogAiCorrections,
-    fillBookingFormSafely
+    fillBookingFormSafely,
+    extractByRules,
+    preNormalizeInput,
+    classifyInputType,
+    shouldBypassAI,
+    validateParsedFields,
+    repairAndNormalizeJSON
   }
 }

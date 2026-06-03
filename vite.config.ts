@@ -10,7 +10,7 @@ export default defineConfig({
       registerType: 'autoUpdate',
       includeAssets: ['favicon.ico', 'favicon.svg', 'favicon-96x96.png', 'apple-touch-icon.png'],
       manifest: {
-        name: "KING's GRILL Manager AI",
+        name: "KING's GRILL BOOKING APP",
         short_name: 'KGApp',
         description: 'Hệ thống quản lý đặt bàn nhà hàng King\'s Grill',
         theme_color: '#0f172a',

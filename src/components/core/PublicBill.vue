@@ -378,7 +378,7 @@ onUnmounted(() => { if (timer) clearInterval(timer) })
 
       <!-- BACK BUTTON -->
       <div class="text-center mt-6 mb-4">
-        <p class="text-slate-500 font-bold text-xs mb-1">&copy; 2024 King's Grill Manager</p>
+        <p class="text-slate-500 font-bold text-xs mb-1">&copy; 2024 KING's GRILL BOOKING APP</p>
         <p class="text-slate-600 font-bold text-[10px] uppercase tracking-widest">Hệ thống công nghệ nhà hàng</p>
       </div>
     </div>

@@ -15,6 +15,7 @@ import HistoryList from '@/components/history/HistoryList.vue'
 import HistoryTimeline from '@/components/history/HistoryTimeline.vue'
 import AnalyticsDashboard from '@/components/history/AnalyticsDashboard.vue'
 import QuickDashboard from '@/components/history/QuickDashboard.vue'
+import TestDashboard from '@/components/history/TestDashboard.vue'
 import BillPreview from './BillPreview.vue'
 import { formatVND } from '@/utils'
 
@@ -60,7 +61,7 @@ function reloadApp() {
 }
 
 // --- Tab Swipe (mobile only) ---
-const mobileTabs = ['dashboard', 'timeline', 'history', 'analytics', 'create', 'preview']
+const mobileTabs = ['dashboard', 'timeline', 'history', 'analytics', 'create', 'preview', 'test']
 const tabRef = computed(() => ui.tab)
 const { onSwipeStart, onSwipeEnd } = useTabSwipe(
   tabRef as any,
@@ -193,6 +194,10 @@ function goToTomorrowTimeline() {
           <i class="fa-solid fa-eye"></i>
           <span>Phiếu</span>
         </button>
+        <button @click="ui.tab = 'test'" :class="['px-3 py-2 rounded-xl text-[11px] font-black uppercase tracking-wider transition-all flex items-center gap-1.5 min-h-[36px] whitespace-nowrap', ui.tab === 'test' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-400 hover:text-white hover:bg-slate-800/50']">
+          <i class="fa-solid fa-flask"></i>
+          <span>Kiểm Thử</span>
+        </button>
       </div>
 
       <!-- RIGHT: QUICK ACTIONS / SYSTEM -->
@@ -268,6 +273,7 @@ function goToTomorrowTimeline() {
             <HistoryTimeline v-else-if="ui.tab === 'timeline'" key="timeline" />
             <HistoryList v-else-if="ui.tab === 'history'" key="history" />
             <AnalyticsDashboard v-else-if="ui.tab === 'analytics'" key="analytics" />
+            <TestDashboard v-else-if="ui.tab === 'test'" key="test" />
             <div v-else-if="ui.tab === 'create'" key="create" class="flex-grow flex flex-col overflow-hidden relative min-h-0">
               <div class="flex-grow overflow-y-auto p-3 md:p-4 space-y-3 pb-6 bg-gray-50/30 scroll-smooth custom-scrollbar">
                 <!-- Mode Edit Warning Banner -->
@@ -520,6 +526,14 @@ function goToTomorrowTimeline() {
                   <i class="fa-solid fa-wand-magic-sparkles"></i>
                 </div>
                 <span>AI</span>
+              </button>
+
+              <!-- Kiểm thử -->
+              <button @click="ui.tab = 'test'; showMoreSheet = false" class="bg-slate-50 text-slate-700 p-3 rounded-2xl font-bold text-[11px] hover:bg-slate-100 transition-all active:scale-95 flex flex-col items-center justify-center gap-2 border border-slate-100">
+                <div class="w-10 h-10 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center text-lg">
+                  <i class="fa-solid fa-flask"></i>
+                </div>
+                <span>Kiểm thử</span>
               </button>
 
               <!-- Kiểm tra hệ thống -->

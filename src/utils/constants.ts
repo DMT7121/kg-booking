@@ -749,6 +749,10 @@ Thông tin gợi ý từ Rule-Based Parser nếu có:
 
 {{RULE_BASED_HINTS}}
 
+Thông tin thực thể bị khóa (LOCKED_ENTITIES - TUYỆT ĐỐI không thay đổi trừ khi có lý do cực kỳ đặc biệt):
+
+{{LOCKED_ENTITIES}}
+
 Danh sách món / thực đơn hiện có nếu có:
 
 {{MENU_CONTEXT}}
