@@ -1689,7 +1689,7 @@ export function useAI() {
         const menuContext = appStore.menuList.map((i: any) => `- ${i.name} (${formatVND(i.price)})`).join('\n')
         const systemPrompt = ADVANCED_AI_PROMPT
           .replace('{{MENU_CONTEXT}}', menuContext)
-          .replace('{{CURRENT_TIME}}', (() => {
+          .replace('{{CURRENT_DATE}}', (() => {
             const now = new Date()
             const dayNames = ['Chủ Nhật', 'Thứ Hai', 'Thứ Ba', 'Thứ Tư', 'Thứ Năm', 'Thứ Sáu', 'Thứ Bảy']
             const dd = String(now.getDate()).padStart(2, '0')
@@ -1698,6 +1698,16 @@ export function useAI() {
             const hh = String(now.getHours()).padStart(2, '0')
             const min = String(now.getMinutes()).padStart(2, '0')
             return `${dayNames[now.getDay()]}, ${dd}/${mm}/${yyyy} ${hh}:${min}`
+          })())
+          .replace('{{RAW_INPUT}}', promptText)
+          .replace('{{RULE_BASED_HINTS}}', JSON.stringify(ruleBasedResult, null, 2))
+          .replace(/\{\{TOMORROW_DD_MM_YYYY\}\}/g, (() => {
+            const tom = new Date()
+            tom.setDate(tom.getDate() + 1)
+            const dd = String(tom.getDate()).padStart(2, '0')
+            const mm = String(tom.getMonth() + 1).padStart(2, '0')
+            const yyyy = tom.getFullYear()
+            return `${dd}/${mm}/${yyyy}`
           })())
 
         const optimizedImg = formStore.aiImage ? await resizeImage(formStore.aiImage, 1120) : null
