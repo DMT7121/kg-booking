@@ -114,6 +114,120 @@ export function useAI() {
   }
 
   async function callAIModel(model: AIModel, sysPrompt: string, userPrompt: string, image: string | null = null, jsonMode = true, signal?: AbortSignal): Promise<string | null> {
+    const localKeys = configStore.keys[model.provider] || []
+    
+    // Check if we can perform a direct client-side call
+    // (If the provider is pollinations, we try direct call first even with no key since it's free)
+    const canCallDirect = localKeys.length > 0 || model.provider === 'pollinations'
+    
+    if (canCallDirect) {
+      const keyList = model.provider === 'pollinations' ? ['free'] : localKeys
+      for (let i = 0; i < keyList.length; i++) {
+        const key = keyList[i]
+        try {
+          console.log(`[AI] Attempting direct client-side fetch for ${model.provider} (key #${i + 1})...`)
+          let fetchUrl = model.url
+          const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+          let body: any = {}
+
+          if (model.format === 'gemini') {
+            fetchUrl += `?key=${key}`
+            body = {
+              contents: [{
+                parts: [
+                  { text: sysPrompt + '\n\nUser Input:\n' + userPrompt },
+                  ...(image ? [{ inline_data: { mime_type: 'image/jpeg', data: image.split(',')[1] } }] : [])
+                ]
+              }],
+              generationConfig: { temperature: 0.1 },
+              ...(model.id.includes('2.5') ? { generationConfig: { temperature: 0.1, thinkingConfig: { thinkingBudget: 0 } } } : {})
+            }
+          } else {
+            if (key !== 'free') headers['Authorization'] = `Bearer ${key}`
+            if (model.provider === 'openrouter') {
+              headers['HTTP-Referer'] = window.location.origin
+              headers['X-Title'] = "KING's GRILL BOOKING APP"
+            }
+
+            let msgContent: any = userPrompt
+            if (image) {
+              msgContent = [
+                { type: 'text', text: userPrompt },
+                { type: 'image_url', image_url: { url: image } }
+              ]
+            }
+
+            const noResponseFormat = ['pollinations', 'huggingface']
+            const effectiveSys = (jsonMode && noResponseFormat.includes(model.provider))
+              ? sysPrompt + '\n\nCRITICAL: Respond ONLY with raw JSON. No markdown, no ```json blocks. Start with { end with }.'
+              : sysPrompt
+
+            body = {
+              model: model.id,
+              messages: [
+                { role: 'system', content: effectiveSys },
+                { role: 'user', content: msgContent }
+              ],
+              temperature: 0.1,
+              ...(jsonMode && !noResponseFormat.includes(model.provider) ? { response_format: { type: 'json_object' } } : {})
+            }
+          }
+
+          // Build abort signal combined with standard 25s timeout
+          const controller = new AbortController()
+          const timeoutId = setTimeout(() => controller.abort(), 25000)
+          
+          // Connect parent abort signal if provided
+          if (signal) {
+            signal.addEventListener('abort', () => controller.abort())
+          }
+
+          const res = await fetch(fetchUrl, {
+            method: 'POST',
+            headers,
+            body: JSON.stringify(body),
+            signal: controller.signal
+          })
+          clearTimeout(timeoutId)
+
+          if (res.status === 429) throw new Error('Rate limit exceeded (CORS/Client)')
+          if (res.status === 401) throw new Error('Invalid API Key')
+          if (res.status === 404) throw new Error('Model not found')
+          if (!res.ok) {
+            const errText = await res.text().catch(() => `HTTP ${res.status}`)
+            throw new Error(errText.substring(0, 200))
+          }
+
+          const json = await res.json()
+          let content: string | null = null
+
+          if (model.format === 'gemini') {
+            const parts = json.candidates?.[0]?.content?.parts || []
+            for (let p = parts.length - 1; p >= 0; p--) {
+              if (parts[p].text && !parts[p].thought) {
+                content = parts[p].text
+                break
+              }
+            }
+            if (!content) content = parts.find((p: any) => p.text)?.text || null
+          } else {
+            content = json.choices?.[0]?.message?.content
+          }
+
+          if (!content) throw new Error('Empty response from model')
+          
+          console.log(`[AI] Direct client-side fetch successful for ${model.provider}!`)
+          return content
+        } catch (e: any) {
+          const errMsg = e.name === 'AbortError' ? 'Timeout (25s)' : e.message
+          console.warn(`[AI] Direct client-side fetch failed for ${model.provider} key #${i + 1}: ${errMsg}`)
+          // Fall back to the next key or proxy
+        }
+      }
+    }
+
+    // Fallback to Server-Side Proxy (Google Apps Script)
+    console.log(`[AI] Falling back to GAS Server Proxy for ${model.provider}...`)
     try {
       const res = await api.callAiProxy({
         provider: model.provider,
@@ -130,7 +244,7 @@ export function useAI() {
       }
       return res.content
     } catch (e: any) {
-      console.warn(`[AI Proxy] ${model.provider} failed: ${e.message}`)
+      console.warn(`[AI Proxy] Server proxy fallback for ${model.provider} failed: ${e.message}`)
       throw e
     }
   }
@@ -1801,7 +1915,10 @@ export function useAI() {
               /phone|sđt|sdt|override/i.test(w)
             ) || (validatedResult.reasoning_summary || '').toLowerCase().includes('phone')
             
-            if (!hasExplanation) {
+            const isLowConf = (validatedResult.confidence?.phone ?? 1.0) < 0.6
+            const isEmpty = !aiPhone
+            
+            if ((isEmpty || isLowConf) && !hasExplanation) {
               validatedResult.customer.phone = ruleBasedResult.phone
               if (!validatedResult.warnings) validatedResult.warnings = []
               validatedResult.warnings.push('Hệ thống tự động khôi phục SĐT do phát hiện AI ghi đè không có lý do.')
@@ -1817,7 +1934,10 @@ export function useAI() {
               /date|ngày|ngay|override/i.test(w)
             ) || (validatedResult.reasoning_summary || '').toLowerCase().includes('date')
             
-            if (!hasExplanation) {
+            const isLowConf = (validatedResult.confidence?.event_date ?? 1.0) < 0.6
+            const isEmpty = !aiDate
+            
+            if ((isEmpty || isLowConf) && !hasExplanation) {
               if (validatedResult.booking) {
                 validatedResult.booking.event_date = ruleBasedResult.event_date
                 validatedResult.booking.date = ruleBasedResult.event_date
@@ -1836,7 +1956,10 @@ export function useAI() {
               /time|giờ|gio|override/i.test(w)
             ) || (validatedResult.reasoning_summary || '').toLowerCase().includes('time')
             
-            if (!hasExplanation) {
+            const isLowConf = (validatedResult.confidence?.event_time ?? 1.0) < 0.6
+            const isEmpty = !aiTime
+            
+            if ((isEmpty || isLowConf) && !hasExplanation) {
               if (validatedResult.booking) {
                 validatedResult.booking.event_time = ruleBasedResult.event_time
                 validatedResult.booking.time = ruleBasedResult.event_time
@@ -1855,7 +1978,10 @@ export function useAI() {
               /guest|khách|khach|người|nguoi|pax|override/i.test(w)
             ) || (validatedResult.reasoning_summary || '').toLowerCase().includes('guest')
             
-            if (!hasExplanation) {
+            const isLowConf = (validatedResult.confidence?.guest_count ?? 1.0) < 0.6
+            const isEmpty = aiPax === null || aiPax === undefined
+            
+            if ((isEmpty || isLowConf) && !hasExplanation) {
               if (validatedResult.booking) {
                 validatedResult.booking.guest_count = ruleBasedResult.guest_count
                 validatedResult.booking.pax = ruleBasedResult.guest_count
@@ -1874,7 +2000,10 @@ export function useAI() {
               /table|bàn|ban|override/i.test(w)
             ) || (validatedResult.reasoning_summary || '').toLowerCase().includes('table')
             
-            if (!hasExplanation) {
+            const isLowConf = (validatedResult.confidences?.tables?.confidence ?? 0.8) < 0.6
+            const isEmpty = !aiTable
+            
+            if ((isEmpty || isLowConf) && !hasExplanation) {
               if (validatedResult.booking) {
                 validatedResult.booking.table_number = ruleBasedResult.table_code
                 validatedResult.booking.tables = ruleBasedResult.table_code
