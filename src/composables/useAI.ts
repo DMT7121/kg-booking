@@ -2038,20 +2038,10 @@ export function useAI() {
         if (ruleBasedResult.event_time) {
           const aiTime = validatedResult.booking?.event_time || validatedResult.booking?.time || ''
           if (aiTime !== ruleBasedResult.event_time) {
-            const hasExplanation = (validatedResult.warnings || []).some((w: string) => 
-              /time|giờ|gio|override/i.test(w)
-            ) || (validatedResult.reasoning_summary || '').toLowerCase().includes('time')
-            
-            const isLowConf = (validatedResult.confidence?.event_time ?? 1.0) < 0.6
-            const isEmpty = !aiTime
-            
-            if ((isEmpty || isLowConf) && !hasExplanation) {
-              if (validatedResult.booking) {
-                validatedResult.booking.event_time = ruleBasedResult.event_time
-                validatedResult.booking.time = ruleBasedResult.event_time
-              }
-              if (!validatedResult.warnings) validatedResult.warnings = []
-              validatedResult.warnings.push('Hệ thống tự động khôi phục giờ đặt bàn do phát hiện AI ghi đè không có lý do.')
+            // Rule-based time regex is always more reliable — override unconditionally
+            if (validatedResult.booking) {
+              validatedResult.booking.event_time = ruleBasedResult.event_time
+              validatedResult.booking.time = ruleBasedResult.event_time
             }
           }
         }
@@ -2060,20 +2050,10 @@ export function useAI() {
         if (ruleBasedResult.guest_count) {
           const aiPax = validatedResult.booking?.guest_count || validatedResult.booking?.pax || null
           if (aiPax !== ruleBasedResult.guest_count) {
-            const hasExplanation = (validatedResult.warnings || []).some((w: string) => 
-              /guest|khách|khach|người|nguoi|pax|override/i.test(w)
-            ) || (validatedResult.reasoning_summary || '').toLowerCase().includes('guest')
-            
-            const isLowConf = (validatedResult.confidence?.guest_count ?? 1.0) < 0.6
-            const isEmpty = aiPax === null || aiPax === undefined
-            
-            if ((isEmpty || isLowConf) && !hasExplanation) {
-              if (validatedResult.booking) {
-                validatedResult.booking.guest_count = ruleBasedResult.guest_count
-                validatedResult.booking.pax = ruleBasedResult.guest_count
-              }
-              if (!validatedResult.warnings) validatedResult.warnings = []
-              validatedResult.warnings.push('Hệ thống tự động khôi phục số lượng khách do phát hiện AI ghi đè không có lý do.')
+            // Rule-based pax regex is always more reliable — override unconditionally
+            if (validatedResult.booking) {
+              validatedResult.booking.guest_count = ruleBasedResult.guest_count
+              validatedResult.booking.pax = ruleBasedResult.guest_count
             }
           }
         }
@@ -2082,20 +2062,10 @@ export function useAI() {
         if (ruleBasedResult.table_code) {
           const aiTable = validatedResult.booking?.table_number || validatedResult.booking?.tables || ''
           if (aiTable.trim().toUpperCase() !== ruleBasedResult.table_code.trim().toUpperCase()) {
-            const hasExplanation = (validatedResult.warnings || []).some((w: string) => 
-              /table|bàn|ban|override/i.test(w)
-            ) || (validatedResult.reasoning_summary || '').toLowerCase().includes('table')
-            
-            const isLowConf = (validatedResult.confidences?.tables?.confidence ?? 0.8) < 0.6
-            const isEmpty = !aiTable
-            
-            if ((isEmpty || isLowConf) && !hasExplanation) {
-              if (validatedResult.booking) {
-                validatedResult.booking.table_number = ruleBasedResult.table_code
-                validatedResult.booking.tables = ruleBasedResult.table_code
-              }
-              if (!validatedResult.warnings) validatedResult.warnings = []
-              validatedResult.warnings.push('Hệ thống tự động khôi phục mã bàn do phát hiện AI ghi đè không có lý do.')
+            // Rule-based table regex is always more reliable — override unconditionally
+            if (validatedResult.booking) {
+              validatedResult.booking.table_number = ruleBasedResult.table_code
+              validatedResult.booking.tables = ruleBasedResult.table_code
             }
           }
         }
