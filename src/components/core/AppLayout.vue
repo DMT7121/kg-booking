@@ -21,6 +21,7 @@ const WebhookConfigModal = defineAsyncComponent(() => import('@/components/modal
 const BookingDetailModal = defineAsyncComponent(() => import('@/components/modals/BookingDetailModal.vue'))
 const FloorPlanModal = defineAsyncComponent(() => import('@/components/modals/FloorPlanModal.vue'))
 const CustomerCareModal = defineAsyncComponent(() => import('@/components/modals/CustomerCareModal.vue'))
+const GuideConfigModal = defineAsyncComponent(() => import('@/components/modals/GuideConfigModal.vue'))
 
 const ui = useUIStore()
 const formStore = useFormStore()
@@ -432,6 +433,16 @@ function handleGlobalKeydown(e: KeyboardEvent) {
               </div>
               <i class="fa-solid fa-chevron-right text-sm" :class="ui.activeSettingModal === 'webhook' ? 'text-blue-500' : 'text-slate-300'"></i>
             </button>
+            <button @click="ui.openConfig('guide')" :class="['w-full px-4 py-4 flex items-center gap-4 transition-colors group border-t border-slate-50', ui.activeSettingModal === 'guide' ? 'bg-blue-50/50' : 'hover:bg-slate-50 active:bg-slate-100']">
+              <div class="w-12 h-12 rounded-2xl bg-indigo-50 text-indigo-500 flex items-center justify-center text-xl shrink-0 group-hover:scale-110 transition-transform">
+                <i class="fa-solid fa-book-open"></i>
+              </div>
+              <div class="flex-1 text-left">
+                <div class="font-black text-slate-800 text-[13px] mb-0.5">Hướng dẫn sử dụng</div>
+                <div class="text-[10px] font-bold text-slate-400 leading-tight">Hướng dẫn chi tiết quy trình tạo phiếu,<br>sử dụng AI và đồng bộ dữ liệu</div>
+              </div>
+              <i class="fa-solid fa-chevron-right text-sm" :class="ui.activeSettingModal === 'guide' ? 'text-blue-500' : 'text-slate-300'"></i>
+            </button>
           </div>
         </div>
 
@@ -454,6 +465,7 @@ function handleGlobalKeydown(e: KeyboardEvent) {
         <MenuManagerModal />
         <StaffModal />
         <WebhookConfigModal />
+        <GuideConfigModal />
       </div>
     </div>
 

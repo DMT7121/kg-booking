@@ -56,11 +56,7 @@ function _createBillRender() {
     if (uiStore.loading.is) return
     if (validateFn && !validateFn()) return
     
-    // Only require admin verification when saving to the database/cloud
-    if (type === 'save') {
-      const isAdmin = await appStore.verifyAdminSession()
-      if (!isAdmin) return
-    }
+    // Bypassed admin password verification for save/update action as requested
     
     uiStore.pendingAction = type
     uiStore.showStaffSelector = true

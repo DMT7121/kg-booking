@@ -401,14 +401,25 @@ function saveOrder(p) {
   p.billUrl = billUrl;
   if(transferUrl) p.deposit.image = transferUrl;
 
-  const ss = SpreadsheetApp.openById(CONFIG.SS_ID);
-  const sheet = initSheetIfNeeded_(ss, CONFIG.SHEET_NAME_ORDERS, CONFIG.ORDER_HEADERS, "#dbeafe");
-  
   const bookingId = p.id || Utilities.getUuid();
-  
+
+  // Use Sheets API V4 to search and save for maximum speed (Sheet API optimization)
+  const spreadsheetId = CONFIG.SS_ID;
+  const rangeName = CONFIG.SHEET_NAME_ORDERS + "!A:B";
+  let values = [];
+  try {
+    const response = Sheets.Spreadsheets.Values.get(spreadsheetId, rangeName);
+    values = response.values || [];
+  } catch (err) {
+    // If sheet does not exist, initialize using standard route
+    const ss = SpreadsheetApp.openById(CONFIG.SS_ID);
+    initSheetIfNeeded_(ss, CONFIG.SHEET_NAME_ORDERS, CONFIG.ORDER_HEADERS, "#dbeafe");
+    const response = Sheets.Spreadsheets.Values.get(spreadsheetId, rangeName);
+    values = response.values || [];
+  }
+
   // Find existing booking row by ID to prevent duplication
   let foundRowIndex = -1;
-  const values = sheet.getDataRange().getValues();
   for (let i = 1; i < values.length; i++) {
     if (values[i][0] === bookingId) {
       foundRowIndex = i + 1;
@@ -436,9 +447,21 @@ function saveOrder(p) {
   ];
 
   if (isNew) {
-    sheet.appendRow(row);
+    const appendRange = CONFIG.SHEET_NAME_ORDERS + "!A1";
+    const valueRange = {
+      values: [row]
+    };
+    Sheets.Spreadsheets.Values.append(valueRange, spreadsheetId, appendRange, {
+      valueInputOption: "USER_ENTERED"
+    });
   } else {
-    sheet.getRange(foundRowIndex, 1, 1, row.length).setValues([row]);
+    const updateRange = CONFIG.SHEET_NAME_ORDERS + "!A" + foundRowIndex + ":J" + foundRowIndex;
+    const valueRange = {
+      values: [row]
+    };
+    Sheets.Spreadsheets.Values.update(valueRange, spreadsheetId, updateRange, {
+      valueInputOption: "USER_ENTERED"
+    });
   }
 
   let calendarSync = { status: "SKIPPED" };
@@ -877,13 +900,57 @@ function deleteOrder(id, password, token) {
   if (!checkAdminAccess_(token, password)) {
     return { ok: false, message: "Từ chối truy cập! Yêu cầu mật khẩu Admin để xóa đơn." };
   }
+  const spreadsheetId = CONFIG.SS_ID;
+  const rangeName = CONFIG.SHEET_NAME_ORDERS + "!A:A";
+  const response = Sheets.Spreadsheets.Values.get(spreadsheetId, rangeName);
+  const ids = response.values || [];
+  
+  let foundRowIndex = -1;
+  for (let i = 1; i < ids.length; i++) {
+    if (ids[i][0] == id) {
+      foundRowIndex = i + 1;
+      break;
+    }
+  }
+
+  if (foundRowIndex === -1) {
+    return { message: "Order Not Found" };
+  }
+
+  const sheetId = getSheetId_(CONFIG.SHEET_NAME_ORDERS);
+  if (sheetId !== null) {
+    const requests = [{
+      deleteDimension: {
+        range: {
+          sheetId: sheetId,
+          dimension: "ROWS",
+          startIndex: foundRowIndex - 1,
+          endIndex: foundRowIndex
+        }
+      }
+    }];
+    Sheets.Spreadsheets.batchUpdate({requests: requests}, spreadsheetId);
+    return { message: "Order Deleted" };
+  }
+  
+  // Fallback to standard method if sheet ID couldn't be retrieved
   const ss = SpreadsheetApp.openById(CONFIG.SS_ID);
   const sheet = ss.getSheetByName(CONFIG.SHEET_NAME_ORDERS);
-  const data = sheet.getDataRange().getValues();
-  for (let i = 1; i < data.length; i++) {
-    if (data[i][0] == id) { sheet.deleteRow(i + 1); return { message: "Order Deleted" }; }
-  }
-  return { message: "Order Not Found" };
+  sheet.deleteRow(foundRowIndex);
+  return { message: "Order Deleted" };
+}
+
+function getSheetId_(sheetName) {
+  try {
+    const spreadsheet = Sheets.Spreadsheets.get(CONFIG.SS_ID);
+    const sheets = spreadsheet.sheets || [];
+    for (let i = 0; i < sheets.length; i++) {
+      if (sheets[i].properties.title === sheetName) {
+        return sheets[i].properties.sheetId;
+      }
+    }
+  } catch(e) {}
+  return null;
 }
 
 // --- PHẦN 4: UTILS ---

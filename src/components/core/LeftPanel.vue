@@ -270,6 +270,22 @@ function goToTomorrowTimeline() {
             <AnalyticsDashboard v-else-if="ui.tab === 'analytics'" key="analytics" />
             <div v-else-if="ui.tab === 'create'" key="create" class="flex-grow flex flex-col overflow-hidden relative min-h-0">
               <div class="flex-grow overflow-y-auto p-3 md:p-4 space-y-3 pb-6 bg-gray-50/30 scroll-smooth custom-scrollbar">
+                <!-- Mode Edit Warning Banner -->
+                <div v-if="formStore.id" class="bg-blue-50 border border-blue-200 rounded-2xl p-4 shadow-sm flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 animate-fade-in">
+                  <div class="flex items-center gap-2.5">
+                    <div class="w-8 h-8 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center shrink-0">
+                      <i class="fa-solid fa-pen-to-square"></i>
+                    </div>
+                    <div>
+                      <div class="font-black text-slate-800 text-xs uppercase tracking-wider">Đang chỉnh sửa phiếu đặt</div>
+                      <div class="text-[11px] text-slate-500 font-semibold mt-0.5">Khách: <span class="text-blue-700 font-black">{{ formStore.customer.name || 'Chưa có tên' }}</span> <span v-if="formStore.customer.phone">(SĐT: {{ formStore.customer.phone }})</span></div>
+                    </div>
+                  </div>
+                  <button @click="handleCreateNewForm" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold text-xs uppercase transition-all active:scale-95 flex items-center justify-center gap-1.5 shadow-sm shrink-0">
+                    <i class="fa-solid fa-file-circle-plus"></i> Tạo lịch mới
+                  </button>
+                </div>
+
                 <AIInputPanel />
 
                 <!-- Smart Checklist Widget -->
@@ -324,18 +340,21 @@ function goToTomorrowTimeline() {
               </div>
 
               <!-- Sticky bottom bar -->
-              <div class="bg-white border-t border-slate-200 p-4 shrink-0 shadow-[0_-4px_16px_rgba(0,0,0,0.05)] flex items-center justify-between gap-4 z-10 safe-area-pb">
+              <div class="bg-white border-t border-slate-200 p-4 shrink-0 shadow-[0_-4px_16px_rgba(0,0,0,0.05)] flex flex-wrap items-center justify-between gap-3 z-10 safe-area-pb">
                 <div class="min-w-0">
                   <div class="text-[9px] font-black uppercase tracking-wider text-slate-400">Tổng tạm tính</div>
                   <div class="text-base font-black text-slate-800 tracking-tight leading-none mt-1">
                     {{ formatVND(formStore.calculatedTotals.final) }}
                   </div>
                 </div>
-                <div class="flex-grow max-w-[200px]">
-                  <button v-if="formStore.id" @click="doSave('save')" class="w-full bg-blue-600 hover:bg-blue-700 text-white rounded-2xl py-3 px-4 font-black text-xs uppercase shadow-[0_4px_12px_rgba(37,99,235,0.25)] flex items-center justify-center gap-1.5 transition-all active:scale-95 border border-blue-500">
+                <div class="flex items-center gap-2">
+                  <button v-slot:default v-if="formStore.id" @click="handleCreateNewForm" class="bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-2xl py-3 px-3.5 font-black text-xs uppercase flex items-center justify-center gap-1.5 transition-all active:scale-95 border border-slate-200">
+                    <i class="fa-solid fa-file-circle-plus text-slate-500"></i> Tạo lịch mới
+                  </button>
+                  <button v-if="formStore.id" @click="doSave('save')" class="bg-blue-600 hover:bg-blue-700 text-white rounded-2xl py-3 px-4 font-black text-xs uppercase shadow-[0_4px_12px_rgba(37,99,235,0.25)] flex items-center justify-center gap-1.5 transition-all active:scale-95 border border-blue-500">
                     <i class="fa-solid fa-cloud-arrow-up text-sm text-blue-200"></i> Cập Nhật
                   </button>
-                  <button v-else-if="formStore.customer.name" @click="doSave('save')" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl py-3 px-4 font-black text-xs uppercase shadow-[0_4px_12px_rgba(5,150,105,0.25)] flex items-center justify-center gap-1.5 transition-all active:scale-95 border border-emerald-500">
+                  <button v-else-if="formStore.customer.name" @click="doSave('save')" class="bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl py-3 px-6 font-black text-xs uppercase shadow-[0_4px_12px_rgba(5,150,105,0.25)] flex items-center justify-center gap-1.5 transition-all active:scale-95 border border-emerald-500">
                     <i class="fa-solid fa-check-double text-sm text-emerald-200"></i> Tạo Đơn
                   </button>
                 </div>
