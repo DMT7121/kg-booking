@@ -876,52 +876,7 @@ export function useAI() {
     }
   }
 
-  function buildPartyNote(party: any, existingNote = ''): string {
-    if (!party) return existingNote || ''
-    
-    const owner = party.owner_name ? String(party.owner_name).trim() : ''
-    const type = party.type ? String(party.type).trim() : ''
-    const board = party.display_board_text ? String(party.display_board_text).trim() : ''
-    const spec = party.special_request ? String(party.special_request).trim() : ''
-    
-    if (!owner && !type && !board && !spec) return existingNote || ''
 
-    let partySection = ''
-    
-    if (owner) {
-      if (owner.includes(';') || owner.includes('\n') || owner.toLowerCase().includes(' và ') || owner.includes(',')) {
-        const names = owner.split(/[;\n,]+| và /i).map(n => n.trim()).filter(Boolean)
-        partySection = `Chủ tiệc / người được tổ chức:\n` + names.map(name => `- ${name} — ${type || 'Sinh nhật'}`).join('\n')
-      } else {
-        partySection = `Chủ tiệc / người được tổ chức: ${owner}`
-        if (type) partySection += `\nNhu cầu: ${type}`
-      }
-    } else if (type) {
-      partySection = `Nhu cầu: ${type}`
-    }
-
-    if (board) {
-      if (partySection) partySection += '\n'
-      partySection += `Nội dung bảng/trang trí: ${board}`
-    }
-
-    if (spec) {
-      if (partySection) partySection += '\n'
-      partySection += `Ghi chú đặc biệt: ${spec}`
-    }
-
-    if (!existingNote) return partySection
-
-    const cleanExisting = existingNote.trim()
-    if (owner && cleanExisting.toLowerCase().includes(owner.toLowerCase())) {
-      return cleanExisting
-    }
-    if (partySection && cleanExisting.toLowerCase().includes(partySection.toLowerCase())) {
-      return cleanExisting
-    }
-    
-    return `${partySection}\n${cleanExisting}`
-  }
 
   function repairAndNormalizeJSON(raw: any, inputType = 'unknown'): any {
     const fallback: any = {
