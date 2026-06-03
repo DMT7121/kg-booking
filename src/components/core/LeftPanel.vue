@@ -348,7 +348,7 @@ function goToTomorrowTimeline() {
                   </div>
                 </div>
                 <div class="flex items-center gap-2">
-                  <button v-slot:default v-if="formStore.id" @click="handleCreateNewForm" class="bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-2xl py-3 px-3.5 font-black text-xs uppercase flex items-center justify-center gap-1.5 transition-all active:scale-95 border border-slate-200">
+                  <button v-if="formStore.id" @click="handleCreateNewForm" class="bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-2xl py-3 px-3.5 font-black text-xs uppercase flex items-center justify-center gap-1.5 transition-all active:scale-95 border border-slate-200">
                     <i class="fa-solid fa-file-circle-plus text-slate-500"></i> Tạo lịch mới
                   </button>
                   <button v-if="formStore.id" @click="doSave('save')" class="bg-blue-600 hover:bg-blue-700 text-white rounded-2xl py-3 px-4 font-black text-xs uppercase shadow-[0_4px_12px_rgba(37,99,235,0.25)] flex items-center justify-center gap-1.5 transition-all active:scale-95 border border-blue-500">
