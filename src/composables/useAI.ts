@@ -279,7 +279,7 @@ export function useAI() {
   }
 
   // Segment input blocks locally
-  export type InputSegment = {
+  type InputSegment = {
     raw: string;
     lineIndex: number;
     type?: 'table' | 'name' | 'phone' | 'datetime' | 'guest_count' | 'purpose' | 'staff' | 'menu' | 'note' | 'unknown';
@@ -287,9 +287,9 @@ export function useAI() {
     extracted?: Record<string, any>;
   };
 
-  export type TableCode = { zone: string; number: string; raw: string };
+  type TableCode = { zone: string; number: string; raw: string };
 
-  export type HardEntities = {
+  type HardEntities = {
     phones: Array<{ value: string; confidence: number; warning?: string }>;
     dates: Array<{ value: string; confidence: number; raw: string }>;
     times: Array<{ value: string; confidence: number; raw: string }>;
@@ -2465,12 +2465,22 @@ export function useAI() {
 
     const startTime = performance.now()
 
+    let inputType = 'unknown'
+    let ruleBasedResult: any = null
+    let hardEntities: HardEntities = {
+      phones: [],
+      dates: [],
+      times: [],
+      guestCounts: [],
+      tables: []
+    }
+
     try {
       const type = formStore.aiImage ? 'vision' : 'text'
       const hasImage = !!formStore.aiImage
       
       // 1. Classification
-      const inputType = classifyInputType(formStore.rawInput || '', hasImage)
+      inputType = classifyInputType(formStore.rawInput || '', hasImage)
       
       // 2. Pre-normalization
       let promptText = formStore.aiImage
@@ -2479,8 +2489,8 @@ export function useAI() {
       promptText = preNormalizeInput(promptText)
 
       // 3. Local Rule Extraction
-      const ruleBasedResult = extractByRules(promptText)
-      const hardEntities = extractHardEntities(promptText)
+      ruleBasedResult = extractByRules(promptText)
+      hardEntities = extractHardEntities(promptText)
 
       // 4. Resolve Context against current form state
       const contextResolved = resolveContext(ruleBasedResult)
