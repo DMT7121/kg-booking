@@ -279,7 +279,460 @@ export function useAI() {
   }
 
   // Segment input blocks locally
-  function segmentInputBlocks(text: string) {
+  export type InputSegment = {
+    raw: string;
+    lineIndex: number;
+    type?: 'table' | 'name' | 'phone' | 'datetime' | 'guest_count' | 'purpose' | 'staff' | 'menu' | 'note' | 'unknown';
+    confidence: number;
+    extracted?: Record<string, any>;
+  };
+
+  export type TableCode = { zone: string; number: string; raw: string };
+
+  export type HardEntities = {
+    phones: Array<{ value: string; confidence: number; warning?: string }>;
+    dates: Array<{ value: string; confidence: number; raw: string }>;
+    times: Array<{ value: string; confidence: number; raw: string }>;
+    guestCounts: Array<{ value: number; confidence: number; raw: string }>;
+    tables: Array<{ zone: string; number: string; raw: string; confidence: number }>;
+  };
+
+  function parseTableCodes(input: string): TableCode[] {
+    if (!input) return []
+    const results: TableCode[] = []
+    let s = stripAccents(input).toUpperCase().trim()
+    s = s.replace(/[+\/]/g, ',')
+    s = s.replace(/\b([A-G])(\d+)\s*[-–—]\s*([A-G])?(\d+)\b/gi, (match, z1, n1, z2, n2) => {
+      const zone = z1.toUpperCase()
+      const start = parseInt(n1)
+      const end = parseInt(n2)
+      if (!isNaN(start) && !isNaN(end) && start <= end && end - start <= 10) {
+        const generated: string[] = []
+        for (let i = start; i <= end; i++) {
+          generated.push(`${zone}${i}`)
+        }
+        return generated.join(',')
+      }
+      return match
+    })
+    const tokens = s.split(/[,\s]+/).filter(Boolean)
+    let currentZone = 'A'
+    for (const token of tokens) {
+      const fullMatch = token.match(/^([A-G])(\d+)$/)
+      if (fullMatch) {
+        currentZone = fullMatch[1]
+        results.push({ zone: currentZone, number: fullMatch[2], raw: token })
+        continue
+      }
+      const numMatch = token.match(/^(\d+)$/)
+      if (numMatch) {
+        results.push({ zone: currentZone, number: numMatch[1], raw: currentZone + numMatch[1] })
+        continue
+      }
+      const zoneMatch = token.match(/^([A-G])$/)
+      if (zoneMatch) {
+        currentZone = zoneMatch[1]
+        results.push({ zone: currentZone, number: '', raw: token })
+        continue
+      }
+    }
+    return results
+  }
+
+  function parseDishItems(input: string): Array<{ name: string; qty: number }> {
+    const results: Array<{ name: string; qty: number }> = []
+    const cleanInput = input.trim()
+    if (!cleanInput) return []
+    const regex = /(\d+)\s*([\p{L}\s]+)(?=\s*\d|$)/gu
+    let match
+    while ((match = regex.exec(cleanInput)) !== null) {
+      const qty = parseInt(match[1])
+      const name = match[2].trim()
+      if (name.length > 2) {
+        results.push({ name, qty })
+      }
+    }
+    if (results.length === 0) {
+      const suffixRegex = /([\p{L}\s]+?)\s*(?:x)?\s*(\d+)(?=\s*[\p{L}]|$)/gu
+      while ((match = suffixRegex.exec(cleanInput)) !== null) {
+        const name = match[1].trim()
+        const qty = parseInt(match[2])
+        if (name.length > 2) {
+          results.push({ name, qty })
+        }
+      }
+    }
+    if (results.length === 0 && cleanInput) {
+      results.push({ name: cleanInput, qty: 1 })
+    }
+    return results
+  }
+
+  function extractHardEntities(normalizedText: string): HardEntities {
+    const phones: HardEntities['phones'] = []
+    const dates: HardEntities['dates'] = []
+    const times: HardEntities['times'] = []
+    const guestCounts: HardEntities['guestCounts'] = []
+    const tables: HardEntities['tables'] = []
+    const clean = stripAccents(normalizedText).toLowerCase()
+
+    const phoneRegex = /(0[35789]\d{7,9})/g
+    let phoneMatch
+    while ((phoneMatch = phoneRegex.exec(normalizedText)) !== null) {
+      const val = cleanPhoneNumber(phoneMatch[1])
+      const isMaybeInvalid = val.length < 10
+      phones.push({
+        value: val,
+        confidence: isMaybeInvalid ? 0.5 : 0.95,
+        warning: isMaybeInvalid ? 'phone_maybe_invalid' : undefined
+      })
+    }
+
+    const today = new Date()
+    const formatDateStrLocal = (d: Date) => {
+      const dd = String(d.getDate()).padStart(2, '0')
+      const mm = String(d.getMonth() + 1).padStart(2, '0')
+      const yyyy = d.getFullYear()
+      return `${dd}/${mm}/${yyyy}`
+    }
+
+    const relativePatterns = [
+      { regex: /\b(hom nay|nay|toi nay|chieu nay)\b/gi, offset: 0, raw: 'hôm nay' },
+      { regex: /\b(ngay mai|mai|chieu mai|toi mai)\b/gi, offset: 1, raw: 'ngày mai' },
+      { regex: /\b(ngay mot|mot|ngay kia)\b/gi, offset: 2, raw: 'ngày mốt' }
+    ]
+    relativePatterns.forEach(({ regex, offset, raw }) => {
+      if (regex.test(clean)) {
+        const targetDate = new Date(today)
+        targetDate.setDate(today.getDate() + offset)
+        dates.push({ value: formatDateStrLocal(targetDate), confidence: 0.95, raw })
+      }
+    })
+
+    const explicitDateRegex = /\b(\d{1,2})[\.\-\/](\d{1,2})[\.\-\/](\d{2,4})\b/g
+    let dateMatch
+    while ((dateMatch = explicitDateRegex.exec(normalizedText)) !== null) {
+      const d = String(dateMatch[1]).padStart(2, '0')
+      const m = String(dateMatch[2]).padStart(2, '0')
+      let y = String(dateMatch[3])
+      if (y.length === 2) y = '20' + y
+      dates.push({ value: `${d}/${m}/${y}`, confidence: 0.95, raw: dateMatch[0] })
+    }
+
+    const partialDateRegex = /\b(\d{1,2})[\/\.\-](\d{1,2})\b(?![\/\.\-\d])/g
+    let partialMatch
+    while ((partialMatch = partialDateRegex.exec(normalizedText)) !== null) {
+      const day = parseInt(partialMatch[1])
+      const month = parseInt(partialMatch[2])
+      if (day >= 1 && day <= 31 && month >= 1 && month <= 12) {
+        const dd = String(day).padStart(2, '0')
+        const mm = String(month).padStart(2, '0')
+        dates.push({ value: `${dd}/${mm}/${today.getFullYear()}`, confidence: 0.9, raw: partialMatch[0] })
+      }
+    }
+
+    const rangeTimeRegex = /\b(\d{1,2})[h:](\d{2})?\s*[-–—đến|den|to]\s*(\d{1,2})[h:](\d{2})?\b/gi
+    let rangeMatch
+    if ((rangeMatch = rangeTimeRegex.exec(clean)) !== null) {
+      let h = parseInt(rangeMatch[1])
+      const m = rangeMatch[2] ? parseInt(rangeMatch[2]) : 0
+      if (h < 12 && !/sang/i.test(clean)) h += 12
+      times.push({ value: `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`, confidence: 0.95, raw: rangeMatch[0] })
+    }
+
+    const standardTimeRegex = /\b(\d{1,2})[h:](\d{2})?\b/gi
+    let timeMatchObj
+    while ((timeMatchObj = standardTimeRegex.exec(clean)) !== null) {
+      if (times.length > 0 && timeMatchObj.index >= normalizedText.indexOf(times[0].raw) && timeMatchObj.index <= normalizedText.indexOf(times[0].raw) + times[0].raw.length) {
+        continue
+      }
+      let h = parseInt(timeMatchObj[1])
+      const m = timeMatchObj[2] ? parseInt(timeMatchObj[2]) : 0
+      if (h < 12 && !/sang/i.test(clean)) h += 12
+      if (h >= 24) h -= 12
+      times.push({ value: `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`, confidence: 0.95, raw: timeMatchObj[0] })
+    }
+
+    const additionGuestRegex = /\b(\d+)\s*(?:nguoi lon|lon)\s*(?:\+|,|va)?\s*(\d+)\s*(?:nho|be|tre em)\b/gi
+    let addMatch
+    while ((addMatch = additionGuestRegex.exec(clean)) !== null) {
+      const total = parseInt(addMatch[1]) + parseInt(addMatch[2])
+      guestCounts.push({ value: total, confidence: 0.95, raw: addMatch[0] })
+    }
+
+    const rangeGuestRegex = /\b(\d+)\s*(?:-|đến|den|to)\s*(\d+)\s*(?:pax|nguoi|khach|guest)\b/gi
+    let rangeGuestMatch
+    while ((rangeGuestMatch = rangeGuestRegex.exec(clean)) !== null) {
+      const maxVal = Math.max(parseInt(rangeGuestMatch[1]), parseInt(rangeGuestMatch[2]))
+      guestCounts.push({ value: maxVal, confidence: 0.95, raw: rangeGuestMatch[0] })
+    }
+
+    const stdGuestRegex = /\b(\d+)\s*(?:pax|nguoi|người|khach|khách|guest|pax|ng\b)/gi
+    let stdGuestMatch
+    while ((stdGuestMatch = stdGuestRegex.exec(clean)) !== null) {
+      const val = parseInt(stdGuestMatch[1])
+      const alreadyMatched = guestCounts.some(g => clean.indexOf(g.raw) <= stdGuestMatch!.index && stdGuestMatch!.index <= clean.indexOf(g.raw) + g.raw.length)
+      if (!alreadyMatched) {
+        guestCounts.push({ value: val, confidence: 0.9, raw: stdGuestMatch[0] })
+      }
+    }
+
+    const tableCodes = parseTableCodes(normalizedText)
+    tableCodes.forEach(tc => {
+      tables.push({
+        zone: tc.zone,
+        number: tc.number,
+        raw: tc.raw,
+        confidence: 0.95
+      })
+    })
+
+    return { phones, dates, times, guestCounts, tables }
+  }
+
+  function applyDeterministicRuleLock(aiResult: any, hardEntities: HardEntities, ruleBasedResult?: any): any {
+    const result = { ...aiResult }
+    if (!result.customer) result.customer = {}
+    if (!result.booking) result.booking = {}
+    if (!result.warnings) result.warnings = []
+    if (!result.deposit) result.deposit = {}
+    if (!result.staff) result.staff = {}
+
+    const debugLogs: string[] = []
+
+    if (hardEntities.phones.length > 0) {
+      const rulePhone = hardEntities.phones[0].value
+      const aiPhone = cleanPhoneNumber(result.customer.phone || '')
+      if (rulePhone && aiPhone !== rulePhone) {
+        debugLogs.push(`Phone override: rule "${rulePhone}" vs AI "${aiPhone}"`)
+        result.customer.phone = rulePhone
+        result.warnings.push('Hệ thống tự động khóa SĐT chính xác từ rule engine.')
+      } else if (!aiPhone) {
+        result.customer.phone = rulePhone
+      }
+    }
+
+    if (hardEntities.dates.length > 0) {
+      const ruleDate = hardEntities.dates[0].value
+      const aiDate = formatDateStr(result.booking.event_date || result.booking.date || '')
+      if (ruleDate && aiDate !== ruleDate) {
+        debugLogs.push(`Date override: rule "${ruleDate}" vs AI "${aiDate}"`)
+        result.booking.event_date = ruleDate
+        result.booking.date = ruleDate
+        result.warnings.push('Hệ thống tự động khóa Ngày đặt bàn chính xác từ rule engine.')
+      } else if (!aiDate) {
+        result.booking.event_date = ruleDate
+        result.booking.date = ruleDate
+      }
+    }
+
+    if (hardEntities.times.length > 0) {
+      const ruleTime = hardEntities.times[0].value
+      const aiTime = result.booking.event_time || result.booking.time || ''
+      if (ruleTime && aiTime !== ruleTime) {
+        debugLogs.push(`Time override: rule "${ruleTime}" vs AI "${aiTime}"`)
+        result.booking.event_time = ruleTime
+        result.booking.time = ruleTime
+        result.warnings.push('Hệ thống tự động khóa Giờ đặt bàn chính xác từ rule engine.')
+      } else if (!aiTime) {
+        result.booking.event_time = ruleTime
+        result.booking.time = ruleTime
+      }
+    }
+
+    if (hardEntities.guestCounts.length > 0) {
+      const rulePax = hardEntities.guestCounts[0].value
+      const aiPax = parseInt(String(result.booking.guest_count || result.booking.pax || ''))
+      if (rulePax && aiPax !== rulePax) {
+        debugLogs.push(`Guest count override: rule "${rulePax}" vs AI "${aiPax}"`)
+        result.booking.guest_count = rulePax
+        result.booking.pax = rulePax
+        result.warnings.push('Hệ thống tự động khóa Số khách chính xác từ rule engine.')
+      } else if (isNaN(aiPax)) {
+        result.booking.guest_count = rulePax
+        result.booking.pax = rulePax
+      }
+    }
+
+    if (hardEntities.tables.length > 0) {
+      const ruleTablesStr = hardEntities.tables.map(t => t.raw).join(', ')
+      const aiTablesStr = result.booking.table_number || result.booking.table_code || ''
+      if (ruleTablesStr && aiTablesStr !== ruleTablesStr) {
+        debugLogs.push(`Tables override: rule "${ruleTablesStr}" vs AI "${aiTablesStr}"`)
+        result.booking.table_number = ruleTablesStr
+        result.booking.table_code = ruleTablesStr
+        result.warnings.push('Hệ thống tự động khóa Bàn chính xác từ rule engine.')
+      } else if (!aiTablesStr) {
+        result.booking.table_number = ruleTablesStr
+        result.booking.table_code = ruleTablesStr
+      }
+    }
+
+    // Customer name override protection from ruleBasedResult
+    if (ruleBasedResult?.customer_name) {
+      const aiName = result.customer.name || ''
+      const isBadName = !aiName || aiName === 'Khách hàng' || /sinh nhat|lien hoan|an thuong|dmt|nhan/i.test(stripAccents(aiName).toLowerCase())
+      if (isBadName && aiName !== ruleBasedResult.customer_name) {
+        debugLogs.push(`Customer name override: rule "${ruleBasedResult.customer_name}" vs AI "${aiName}"`)
+        result.customer.name = ruleBasedResult.customer_name
+      }
+    }
+
+    // Deposit override protection from ruleBasedResult
+    if (ruleBasedResult?.deposit_amount && ruleBasedResult.deposit_amount > 0) {
+      const aiDeposit = result.deposit?.amount || null
+      if (aiDeposit !== ruleBasedResult.deposit_amount) {
+        debugLogs.push(`Deposit override: rule "${ruleBasedResult.deposit_amount}" vs AI "${aiDeposit}"`)
+        result.deposit.amount = ruleBasedResult.deposit_amount
+        result.deposit.status = ruleBasedResult.deposit_status || 'chờ cọc'
+      }
+    }
+
+    // Staff receiver override protection from ruleBasedResult
+    if (ruleBasedResult?.receiver) {
+      const aiReceiver = result.staff?.receiver || ''
+      if (aiReceiver !== ruleBasedResult.receiver) {
+        debugLogs.push(`Receiver override: rule "${ruleBasedResult.receiver}" vs AI "${aiReceiver}"`)
+        result.staff.receiver = ruleBasedResult.receiver
+      }
+    }
+
+    if (debugLogs.length > 0) {
+      console.log('[Rule-Lock Debug]', debugLogs.join(' | '))
+    }
+
+    return result
+  }
+
+  function prepareAIPayload(promptText: string, sysPrompt: string, ruleBasedResult: any): { sysPrompt: string; userPrompt: string; isLocalOnly: boolean; reason?: string } {
+    const inputLower = stripAccents(promptText).toLowerCase()
+    const inputTokens = inputLower.split(/\s+/).filter(t => t.length > 2)
+    const candidates = appStore.menuList.filter((item: any) => {
+      const cleanName = stripAccents(item.name).toLowerCase()
+      const nameTokens = cleanName.split(/\s+/)
+      const hasTokenMatch = nameTokens.some(t => inputTokens.some(it => it.includes(t) || t.includes(it)))
+      const acronymMatch = item.acronym && inputTokens.includes(String(item.acronym).toLowerCase())
+      return hasTokenMatch || acronymMatch
+    })
+
+    const fullSize = sysPrompt.length + promptText.length
+    const menuToSend = (fullSize > 12000 && candidates.length > 0) ? candidates.slice(0, 15) : appStore.menuList.slice(0, 30)
+    const menuContext = menuToSend.map((i: any) => `- ${i.name} (${formatVND(i.price)})`).join('\n')
+
+    let finalSysPrompt = sysPrompt.replace(/\{\{MENU_CONTEXT\}\}/g, menuContext)
+
+    if (finalSysPrompt.length + promptText.length > 25000) {
+      finalSysPrompt = finalSysPrompt.replace(/Ví dụ:[^]*?(?=\n\n|\n[A-Z]|$)/g, '').trim()
+    }
+
+    if (finalSysPrompt.length + promptText.length > 40000) {
+      return {
+        sysPrompt: finalSysPrompt,
+        userPrompt: promptText,
+        isLocalOnly: true,
+        reason: 'payload_too_large'
+      }
+    }
+
+    return {
+      sysPrompt: finalSysPrompt,
+      userPrompt: promptText,
+      isLocalOnly: false
+    }
+  }
+
+  function segmentInputBlocks(normalizedText: string): InputSegment[] {
+    if (!normalizedText) return []
+    const lines = normalizedText.split('\n')
+    return lines.map((line, idx) => {
+      const trimmed = line.trim()
+      if (!trimmed) {
+        return { raw: trimmed, lineIndex: idx, type: 'unknown', confidence: 0.1 }
+      }
+      const lower = stripAccents(trimmed).toLowerCase()
+      let type: InputSegment['type'] = 'unknown'
+      let confidence = 0.5
+      const extracted: Record<string, any> = {}
+
+      const phoneRegex = /(0[35789]\d{7,9})/g
+      const phoneMatch = trimmed.match(phoneRegex)
+      if (phoneMatch) {
+        type = 'phone'
+        confidence = 0.9
+        extracted.phone = phoneMatch[0]
+      }
+
+      const tableRegex = /\b([a-g]\d{1,2})\b/i
+      const hasTableKeyword = /\b(ban|ban\s+\d+|table)\b/i.test(lower)
+      const hasTableCode = tableRegex.test(trimmed)
+      if (hasTableCode || hasTableKeyword) {
+        if (type === 'unknown' || (type === 'phone' && hasTableKeyword)) {
+          type = 'table'
+          confidence = 0.95
+        }
+      }
+
+      const guestRegex = /(\d+)\s*(?:pax|nguoi|người|khach|khách|pax|ban|ng\b)/i
+      if (guestRegex.test(trimmed) || /nguoi lon|tre em|lon\s*\+\s*nho|be/i.test(lower)) {
+        if (type === 'unknown' || type === 'table') {
+          type = 'guest_count'
+          confidence = 0.9
+        }
+      }
+
+      const hasTime = /\b\d{1,2}:\d{2}\b/g.test(lower) || /\b\d{1,2}h\d{2}?\b/g.test(lower) || /\b\d{1,2}\s*h\b/g.test(lower)
+      const hasDate = /\b\d{1,2}[\/\.\-]\d{1,2}(?:[\/\.\-]\d{2,4})?\b/g.test(lower) || /ngay|hom nay|mai|mot/i.test(lower)
+      if (hasTime || hasDate) {
+        if (type === 'unknown' || type === 'guest_count') {
+          type = 'datetime'
+          confidence = 0.9
+        }
+      }
+
+      if (/sinh nhat|sn\b|hbd|hpbd|happy birthday|thoi noi|thôi nôi|day thang|lien hoan|tat nien|hop lop|ky niem/i.test(lower)) {
+        if (type === 'unknown') {
+          type = 'purpose'
+          confidence = 0.85
+        }
+      }
+
+      if (/nhan:|nhan\s+nv|nhan\s+dmt|nv\b/i.test(lower)) {
+        if (type === 'unknown') {
+          type = 'staff'
+          confidence = 0.9
+        }
+      }
+
+      const startsWithNumberMenu = /^\d+[\s\p{L}]/u.test(trimmed) || /x\s*\d+\b/i.test(trimmed) || /\d+\s*(?:hàu|suon|mon|com|lau|ga|heo|bo|mi|nuoc)/i.test(lower)
+      if (startsWithNumberMenu && type === 'unknown') {
+        type = 'menu'
+        confidence = 0.8
+      }
+
+      const nameResults = classifyPeopleNames(trimmed)
+      if (nameResults.peopleNames.length > 0 && type === 'unknown') {
+        type = 'name'
+        confidence = 0.75
+      }
+
+      if (type === 'unknown') {
+        if (/yeu cau|note|ghi chu|luu y/i.test(lower)) {
+          type = 'note'
+          confidence = 0.8
+        }
+      }
+
+      return {
+        raw: trimmed,
+        lineIndex: idx,
+        type,
+        confidence,
+        extracted
+      }
+    })
+  }
+
+  function segmentInputBlocksCompat(text: string) {
     const blocks = {
       customer_block: [] as string[],
       booking_time_block: [] as string[],
@@ -312,7 +765,7 @@ export function useAI() {
       if (hasTime || hasDate) {
         blocks.booking_time_block.push(trimmed)
       }
-      const hasPhone = /(0[35789]\d{8})/g.test(lower)
+      const hasPhone = /(0[35789]\d{7,9})/g.test(lower)
       const hasCustomerKeywords = /anh|chi|dat ban|khach/i.test(lower)
       if (hasPhone || hasCustomerKeywords) {
         blocks.customer_block.push(trimmed)
@@ -412,10 +865,17 @@ export function useAI() {
 
   function preNormalizeInput(rawText: string): string {
     if (!rawText) return ''
-    let clean = rawText.replace(/\r\n/g, '\n').replace(/\n{2,}/g, '\n\n')
-    // P0: Preserve newlines — collapse only spaces/tabs, NOT newlines
-    // This is critical for classifyPeopleNames() and segmentInputBlocks() which split by '\n'
+    
+    // Clean carriage returns and keep spacing neat
+    let clean = rawText.replace(/\r\n/g, '\n')
     clean = clean.replace(/[^\S\n]+/g, ' ')
+    
+    // Trim each line individually to clean indentation/tabs, while preserving lines
+    clean = clean
+      .split('\n')
+      .map(line => line.trim())
+      .join('\n')
+
     clean = clean.replace(/\n{3,}/g, '\n\n')
 
     // 1. Abbreviations & typos normalization
@@ -625,11 +1085,11 @@ export function useAI() {
   }
 
   function extractByRules(normalizedText: string) {
-    const blocks = segmentInputBlocks(normalizedText)
+    const blocks = segmentInputBlocksCompat(normalizedText)
     const clean = stripAccents(normalizedText).toLowerCase()
     
     let phone: string | null = null
-    const phoneRegex = /(0[35789]\d{8})/g
+    const phoneRegex = /(0[35789]\d{7,9})/g
     const custPhoneMatch = blocks.customer_block.match(phoneRegex)
     if (custPhoneMatch) {
       phone = custPhoneMatch[0]
@@ -749,6 +1209,12 @@ export function useAI() {
 
     const note = blocks.note_block || ''
 
+    let receiver: string | null = null
+    const receiverMatch = clean.match(/(?:nhan:|nhan\s+nv|nhan\s+dmt|nv\b)\s*([a-z0-9]+)/i)
+    if (receiverMatch) {
+      receiver = receiverMatch[1].toUpperCase()
+    }
+
     const menu_items: any[] = []
 
     // Format 0: OCR table format — "STT Món ăn Số lượng Đơn giá" header detected
@@ -837,7 +1303,8 @@ export function useAI() {
       deposit_amount,
       deposit_status,
       note,
-      menu_items
+      menu_items,
+      receiver
     }
   }
 
@@ -1535,23 +2002,48 @@ export function useAI() {
     const menuList = appStore.menuList || []
     const attributes = ['trung muoi', 'tieu', 'pho mai', 'mo hanh', 'cay', 'lau', 'nuong', 'xao', 'hap']
     
-    return rawItems.map((item) => {
+    // Flatten multi-dish inputs (e.g. "6hàu phô mai 6 hàu mỡ hành")
+    const expandedItems: any[] = []
+    for (const item of rawItems) {
+      const rawName = (item.raw_name || item.name || '').trim()
+      const parsedSubDishes = parseDishItems(rawName)
+      if (parsedSubDishes.length > 0) {
+        for (const sub of parsedSubDishes) {
+          const originalQty = item.quantity || item.qty || 1
+          const finalQty = (sub.qty === 1 && originalQty > 1) ? originalQty : sub.qty
+          expandedItems.push({
+            raw_name: sub.name,
+            quantity: finalQty,
+            unit_price: item.unit_price || item.price || null,
+            note: item.note || item.notes || ''
+          })
+        }
+      } else {
+        expandedItems.push(item)
+      }
+    }
+
+    return expandedItems.map((item) => {
       const rawName = (item.raw_name || item.name || '').trim()
       const clean = stripAccents(rawName).toLowerCase().trim()
       
       let match: any = null
       let confidence = 0.0
       let needsReview = false
+      let matchType: 'exact' | 'alias' | 'acronym' | 'fuzzy' | 'none' = 'none'
       
       if (exactMap.has(clean)) {
         match = exactMap.get(clean)
         confidence = 1.0
+        matchType = 'exact'
       } else if (aliasMap.has(clean)) {
         match = aliasMap.get(clean)
         confidence = 1.0
+        matchType = 'alias'
       } else if (acronymMap.has(clean)) {
         match = acronymMap.get(clean)
         confidence = 0.95
+        matchType = 'acronym'
       }
       
       if (!match) {
@@ -1593,6 +2085,7 @@ export function useAI() {
           const best = matchedCandidates[0]
           match = best.item
           confidence = best.confidence
+          matchType = 'fuzzy'
           
           if (matchedCandidates.length > 1) {
             const runnerUp = matchedCandidates[1]
@@ -1622,22 +2115,40 @@ export function useAI() {
         
         return {
           raw_name: rawName,
+          inputName: rawName,
           matched_name: match.name,
+          matchedName: match.name,
+          name: match.name,
           quantity: item.quantity || item.qty || 1,
+          qty: item.quantity || item.qty || 1,
           unit_price: match.price || 0,
+          price: match.price || 0,
           note: note.trim(),
           match_confidence: confidence,
-          needs_review: needsReview || (confidence < 0.75)
+          confidence,
+          needs_review: needsReview || (confidence < 0.75),
+          matchType,
+          match_type: matchType,
+          warning: confidence < 0.75 ? 'dish_fuzzy_match_low_confidence' : undefined
         }
       } else {
         return {
           raw_name: rawName,
+          inputName: rawName,
           matched_name: rawName,
+          matchedName: rawName,
+          name: rawName,
           quantity: item.quantity || item.qty || 1,
+          qty: item.quantity || item.qty || 1,
           unit_price: 0,
+          price: 0,
           note: (item.note || item.notes || '').trim(),
           match_confidence: 0.0,
-          needs_review: true
+          confidence: 0.0,
+          needs_review: true,
+          matchType: 'none',
+          match_type: 'none',
+          warning: 'dish_not_found'
         }
       }
     })
@@ -1969,6 +2480,7 @@ export function useAI() {
 
       // 3. Local Rule Extraction
       const ruleBasedResult = extractByRules(promptText)
+      const hardEntities = extractHardEntities(promptText)
 
       // 4. Resolve Context against current form state
       const contextResolved = resolveContext(ruleBasedResult)
@@ -2038,18 +2550,10 @@ export function useAI() {
           }
         }
 
-        // Build context & Call AI — Optimize menu context to reduce token usage
-        const inputTokensForMenu = stripAccents(promptText).toLowerCase().split(/\s+/).filter((t: string) => t.length > 2)
-        const relevantMenu = appStore.menuList.filter((i: any) => {
-          const cName = (i.cleanName || stripAccents(i.name).toLowerCase()).split(/\s+/)
-          return cName.some((w: string) => inputTokensForMenu.some((t: string) => w.includes(t) || t.includes(w)))
-        })
-        const menuToSend = relevantMenu.length > 0 ? relevantMenu.slice(0, 30) : appStore.menuList.slice(0, 30)
-        const menuContext = menuToSend.map((i: any) => `- ${i.name} (${formatVND(i.price)})`).join('\n')
+        // Build context template — system prompt with MENU_CONTEXT left as template placeholder
         // Strip Set Menu component description lines to prevent AI from mis-parsing them as separate items
         const aiPromptText = stripSetMenuComponents(promptText)
-        const systemPrompt = ADVANCED_AI_PROMPT
-          .replace('{{MENU_CONTEXT}}', menuContext)
+        const systemPromptTemplate = ADVANCED_AI_PROMPT
           .replace('{{CURRENT_DATE}}', (() => {
             const now = new Date()
             const dayNames = ['Chủ Nhật', 'Thứ Hai', 'Thứ Ba', 'Thứ Tư', 'Thứ Năm', 'Thứ Sáu', 'Thứ Bảy']
@@ -2071,181 +2575,100 @@ export function useAI() {
             return `${dd}/${mm}/${yyyy}`
           })())
 
-        const optimizedImg = formStore.aiImage ? await resizeImage(formStore.aiImage, 1120) : null
-        
-        // 7. Run AI router — use stripped text to prevent Set Menu component mis-parsing
-        const routerResponse = await smartRouter(type, systemPrompt, aiPromptText, optimizedImg, inputType, activeController.signal)
-        routingInfo = routerResponse.routing
-        
-        // 8. Repair and Normalize JSON to V7 strict format
-        const rawJsonParsed = repairAndNormalizeJSON(routerResponse.parsed, inputType)
+        // 6. Use prepareAIPayload to compress prompts and enforce Token Guard limits
+        const payload = prepareAIPayload(aiPromptText, systemPromptTemplate, ruleBasedResult)
 
-        // Apply admin learning dictionary corrections
-        Object.keys(appliedCorrections).forEach(field => {
-          const val = appliedCorrections[field]
-          if (field === 'name' || field === 'phone') {
-            rawJsonParsed.customer[field] = val
-          } else {
-            if (field === 'tables') rawJsonParsed.booking.table_number = val
-            else rawJsonParsed.booking[field] = val
+        if (payload.isLocalOnly) {
+          // Compact Local bypass activation if payload is too large
+          isBypassed = true
+          const latency = ((performance.now() - startTime) / 1000).toFixed(2)
+          routingInfo = {
+            pipeline: 'text',
+            tier_used: 0,
+            model_used: 'Local Rule Engine V7.0 (Payload Compact)',
+            fallback_count: 0,
+            repair_applied: false,
+            latency,
+            mode: 'bypass-local'
           }
-        })
-
-        // 9. Match menu items using fuzzy maps
-        if (rawJsonParsed.menu_items && rawJsonParsed.menu_items.length > 0) {
-          rawJsonParsed.menu_items = matchMenuItems(rawJsonParsed.menu_items)
-        }
-
-        // 10. Menu Sheet switching detection
-        try {
-          const allMenus = await loadAllMenusData()
-          const { bestSheet, score, isBorderline } = resolveBestMenuSheet(promptText, rawJsonParsed.menu_items || [], allMenus)
+          finalParsedResult = repairAndNormalizeJSON({
+            customer: { name: contextResolved.customer_name || 'Khách hàng', phone: contextResolved.phone },
+            booking: {
+              event_date: contextResolved.event_date,
+              event_time: contextResolved.event_time,
+              guest_count: contextResolved.guest_count,
+              table_number: contextResolved.table_code,
+              need: contextResolved.booking_need
+            },
+            menu_items: resolveMenuItemsLocally(contextResolved.menu_items || [])
+          }, inputType)
           
-          if (bestSheet && bestSheet !== appStore.activeSheet) {
-            if (isBorderline) {
-              const confirmed = await uiStore.showConfirm(
-                'Đổi thực đơn?',
-                `Nhận diện thực đơn "${bestSheet}". Bạn có muốn chuyển sang thực đơn này không?`
-              )
-              if (confirmed) {
-                await appStore.switchMenu(bestSheet)
-              }
+          if (!finalParsedResult.warnings) finalParsedResult.warnings = []
+          finalParsedResult.warnings.push('Đoạn text đặt bàn quá dài, kích hoạt chế độ tự động tách thông tin tối giản.')
+        } else {
+          const optimizedImg = formStore.aiImage ? await resizeImage(formStore.aiImage, 1120) : null
+
+          // 7. Run AI router — using compressed payload prompts
+          const routerResponse = await smartRouter(type, payload.sysPrompt, payload.userPrompt, optimizedImg, inputType, activeController.signal)
+          routingInfo = routerResponse.routing
+
+          // 8. Repair and Normalize JSON to V7 strict format
+          const rawJsonParsed = repairAndNormalizeJSON(routerResponse.parsed, inputType)
+
+          // Apply admin learning dictionary corrections
+          Object.keys(appliedCorrections).forEach(field => {
+            const val = appliedCorrections[field]
+            if (field === 'name' || field === 'phone') {
+              rawJsonParsed.customer[field] = val
             } else {
-              await appStore.switchMenu(bestSheet)
-              uiStore.showToast(`Đã tự động chuyển sang thực đơn: ${bestSheet}`, 'success')
+              if (field === 'tables') rawJsonParsed.booking.table_number = val
+              else rawJsonParsed.booking[field] = val
             }
+          })
+
+          // 9. Match menu items using fuzzy maps
+          if (rawJsonParsed.menu_items && rawJsonParsed.menu_items.length > 0) {
+            rawJsonParsed.menu_items = matchMenuItems(rawJsonParsed.menu_items)
           }
-        } catch (errSheet) {
-          console.warn('Menu sheet routing error:', errSheet)
-        }
 
-        // P3: Rule-based ALWAYS overrides AI for deterministic structured fields
-        // (regex is more reliable than AI for phone, table, time, date, guest count)
-        if (!rawJsonParsed.booking) rawJsonParsed.booking = {}
-        if (!rawJsonParsed.customer) rawJsonParsed.customer = {}
-        if (ruleBasedResult.table_code) {
-          rawJsonParsed.booking.table_number = ruleBasedResult.table_code
-        }
-        if (ruleBasedResult.event_time) {
-          rawJsonParsed.booking.event_time = ruleBasedResult.event_time
-        }
-        if (ruleBasedResult.event_date) {
-          rawJsonParsed.booking.event_date = ruleBasedResult.event_date
-        } else if (!rawJsonParsed.booking.event_date && formStore.customer.date) {
-          rawJsonParsed.booking.event_date = formStore.customer.date
-        }
-        if (ruleBasedResult.guest_count && ruleBasedResult.guest_count > 0) {
-          rawJsonParsed.booking.guest_count = ruleBasedResult.guest_count
-        }
-        if (ruleBasedResult.phone) {
-          rawJsonParsed.customer.phone = ruleBasedResult.phone
-        }
-        if (ruleBasedResult.customer_name) {
-          rawJsonParsed.customer.name = ruleBasedResult.customer_name
-        }
-        if (ruleBasedResult.booking_need && ruleBasedResult.booking_need !== 'Ăn thường') {
-          rawJsonParsed.booking.need = ruleBasedResult.booking_need
-        }
+          // 10. Menu Sheet switching detection
+          try {
+            const allMenus = await loadAllMenusData()
+            const { bestSheet, score, isBorderline } = resolveBestMenuSheet(promptText, rawJsonParsed.menu_items || [], allMenus)
+            
+            if (bestSheet && bestSheet !== appStore.activeSheet) {
+              if (isBorderline) {
+                const confirmed = await uiStore.showConfirm(
+                  'Đổi thực đơn?',
+                  `Nhận diện thực đơn "${bestSheet}". Bạn có muốn chuyển sang thực đơn này không?`
+                )
+                if (confirmed) {
+                  await appStore.switchMenu(bestSheet)
+                }
+              } else {
+                await appStore.switchMenu(bestSheet)
+                uiStore.showToast(`Đã tự động chuyển sang thực đơn: ${bestSheet}`, 'success')
+              }
+            }
+          } catch (errSheet) {
+            console.warn('Menu sheet routing error:', errSheet)
+          }
 
-        // Apply rule-based deposit override if explicit deposit found in input
-        if (ruleBasedResult.deposit_amount && ruleBasedResult.deposit_amount > 0) {
-          if (!rawJsonParsed.deposit) rawJsonParsed.deposit = {}
-          rawJsonParsed.deposit.amount = ruleBasedResult.deposit_amount
-          rawJsonParsed.deposit.status = ruleBasedResult.deposit_status || 'chờ cọc'
-        }
+          finalParsedResult = rawJsonParsed
 
-        finalParsedResult = rawJsonParsed
-        
-        // Save to cache
-        const cacheKey = getSmartCacheKey(formStore.rawInput, inputType, appStore.activeSheet, formStore.customer.date)
-        setSmartCache(cacheKey, finalParsedResult, inputType)
+          // Save to cache
+          const cacheKey = getSmartCacheKey(formStore.rawInput, inputType, appStore.activeSheet, formStore.customer.date)
+          setSmartCache(cacheKey, finalParsedResult, inputType)
+        }
       }
+
+      // 10. Unified Deterministic Rule Lock
+      // This applies rules unconditionally on AI-inferred, cached, and bypassed outputs before validation
+      finalParsedResult = applyDeterministicRuleLock(finalParsedResult, hardEntities, ruleBasedResult)
 
       // 11. Validate fields and compute confidence scores
       const validatedResult = validateParsedFields(finalParsedResult)
       validatedResult.routing = routingInfo
-
-      // Apply deterministic entity lock override protection
-      if (ruleBasedResult) {
-        // 1. Phone number check:
-        if (ruleBasedResult.phone) {
-          const aiPhone = validatedResult.customer?.phone || ''
-          if (cleanPhoneNumber(aiPhone) !== cleanPhoneNumber(ruleBasedResult.phone)) {
-            const hasExplanation = (validatedResult.warnings || []).some((w: string) => 
-              /phone|sđt|sdt|override|chuyển|đổi/i.test(w)
-            ) || (validatedResult.needs_review || []).some((w: string) =>
-              /phone|sđt|sdt|override/i.test(w)
-            ) || (validatedResult.reasoning_summary || '').toLowerCase().includes('phone')
-            
-            const isLowConf = (validatedResult.confidence?.phone ?? 1.0) < 0.6
-            const isEmpty = !aiPhone
-            
-            if ((isEmpty || isLowConf) && !hasExplanation) {
-              validatedResult.customer.phone = ruleBasedResult.phone
-              if (!validatedResult.warnings) validatedResult.warnings = []
-              validatedResult.warnings.push('Hệ thống tự động khôi phục SĐT do phát hiện AI ghi đè không có lý do.')
-            }
-          }
-        }
-        
-        // 2. Date check:
-        if (ruleBasedResult.event_date) {
-          const aiDate = validatedResult.booking?.event_date || validatedResult.booking?.date || ''
-          if (formatDateStr(aiDate) !== formatDateStr(ruleBasedResult.event_date)) {
-            const hasExplanation = (validatedResult.warnings || []).some((w: string) => 
-              /date|ngày|ngay|override/i.test(w)
-            ) || (validatedResult.reasoning_summary || '').toLowerCase().includes('date')
-            
-            const isLowConf = (validatedResult.confidence?.event_date ?? 1.0) < 0.6
-            const isEmpty = !aiDate
-            
-            if ((isEmpty || isLowConf) && !hasExplanation) {
-              if (validatedResult.booking) {
-                validatedResult.booking.event_date = ruleBasedResult.event_date
-                validatedResult.booking.date = ruleBasedResult.event_date
-              }
-              if (!validatedResult.warnings) validatedResult.warnings = []
-              validatedResult.warnings.push('Hệ thống tự động khôi phục ngày đặt bàn do phát hiện AI ghi đè không có lý do.')
-            }
-          }
-        }
-        
-        // 3. Time check:
-        if (ruleBasedResult.event_time) {
-          const aiTime = validatedResult.booking?.event_time || validatedResult.booking?.time || ''
-          if (aiTime !== ruleBasedResult.event_time) {
-            // Rule-based time regex is always more reliable — override unconditionally
-            if (validatedResult.booking) {
-              validatedResult.booking.event_time = ruleBasedResult.event_time
-              validatedResult.booking.time = ruleBasedResult.event_time
-            }
-          }
-        }
-        
-        // 4. Guest count check:
-        if (ruleBasedResult.guest_count) {
-          const aiPax = validatedResult.booking?.guest_count || validatedResult.booking?.pax || null
-          if (aiPax !== ruleBasedResult.guest_count) {
-            // Rule-based pax regex is always more reliable — override unconditionally
-            if (validatedResult.booking) {
-              validatedResult.booking.guest_count = ruleBasedResult.guest_count
-              validatedResult.booking.pax = ruleBasedResult.guest_count
-            }
-          }
-        }
-        
-        // 5. Table code check:
-        if (ruleBasedResult.table_code) {
-          const aiTable = validatedResult.booking?.table_number || validatedResult.booking?.tables || ''
-          if (aiTable.trim().toUpperCase() !== ruleBasedResult.table_code.trim().toUpperCase()) {
-            // Rule-based table regex is always more reliable — override unconditionally
-            if (validatedResult.booking) {
-              validatedResult.booking.table_number = ruleBasedResult.table_code
-              validatedResult.booking.tables = ruleBasedResult.table_code
-            }
-          }
-        }
-      }
 
       // Display Success Toast
       const modeIcon = routingInfo.mode === 'bypass-local' ? '🚀' : routingInfo.mode === 'cache-hit' ? '💾' : '⚡'
