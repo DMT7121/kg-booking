@@ -568,13 +568,29 @@ export function useAI() {
       }
     }
 
+    if (!result.party) result.party = {}
+
     // Customer name override protection from ruleBasedResult
     if (ruleBasedResult?.customer_name) {
       const aiName = result.customer.name || ''
-      const isBadName = !aiName || aiName === 'Khách hàng' || /sinh nhat|lien hoan|an thuong|dmt|nhan/i.test(stripAccents(aiName).toLowerCase())
+      const isCompany = /^(cty|công ty|doanh nghiệp|đoàn|doan|team|group|phòng|phong)\b/i.test(ruleBasedResult.customer_name)
+      const isBadName = !aiName || aiName === 'Khách hàng' || isCompany || /sinh nhat|lien hoan|an thuong|dmt|nhan/i.test(stripAccents(aiName).toLowerCase())
       if (isBadName && aiName !== ruleBasedResult.customer_name) {
         debugLogs.push(`Customer name override: rule "${ruleBasedResult.customer_name}" vs AI "${aiName}"`)
         result.customer.name = ruleBasedResult.customer_name
+        if (isCompany) {
+          result.party.owner_name = ruleBasedResult.customer_name
+        }
+      }
+    }
+
+    // Booking need (party type) override protection from ruleBasedResult
+    if (ruleBasedResult?.booking_need) {
+      const aiNeed = result.booking?.need || ''
+      if (ruleBasedResult.booking_need !== 'Ăn thường' && aiNeed !== ruleBasedResult.booking_need) {
+        debugLogs.push(`Booking need override: rule "${ruleBasedResult.booking_need}" vs AI "${aiNeed}"`)
+        result.booking.need = ruleBasedResult.booking_need
+        result.party.type = ruleBasedResult.booking_need
       }
     }
 
@@ -1037,7 +1053,8 @@ export function useAI() {
       { regex: /(?:sinh nhật|sinh nhat|hbd|hpbd|happy birthday|thôi nôi|thoi noi|đầy tháng|day thang|bé|be)\s+of\s+([\p{L}\s]+)/ugi, isPartyOwner: true },
       { regex: /(?:sinh nhật|sinh nhat|hbd|hpbd|happy birthday|thôi nôi|thoi noi|đầy tháng|day thang|bé|be)\s+([\p{L}\s]+)/ugi, isPartyOwner: true },
       { regex: /(?:bảng tên|bang ten|chữ|chu|tên|ten)\s+([\p{L}\s]+)/ugi, isPartyOwner: true },
-      { regex: /(?:người đặt|nguoi dat|liên hệ|lien he|anh|chị|chi|anh|sđt|sdt)\s+([\p{L}\s]+)/ugi, isBooker: true }
+      { regex: /(?:người đặt|nguoi dat|liên hệ|lien he|anh|chị|chi|anh|sđt|sdt)\s+([\p{L}\s]+)/ugi, isBooker: true },
+      { regex: /\b((?:cty|công ty|đoàn|doan|team|group|phòng|phong)\s+\p{L}+(?:\s+(?!cho\b|dat\b|dat\s+ban|xin\b|gui\b|nha\b|ngay\b|luc\b|vao\b|sdt\b|ban\b)\p{L}+){0,4})\b/ugi, isBooker: true, isPartyOwner: true }
     ]
 
     specialPatterns.forEach(({ regex, isPartyOwner, isBooker }) => {
@@ -1171,9 +1188,15 @@ export function useAI() {
     }
 
     let booking_need = 'Ăn thường'
-    if (/sinh nhat|sn|thoi noi|mung tho/i.test(clean)) booking_need = 'Sinh nhật'
-    else if (/lien hoan|tiec|hop lop|cong ty|tat nien/i.test(clean)) booking_need = 'Liên hoan'
-    else if (/hen ho|lang mang|ky niem/i.test(clean)) booking_need = 'Hẹn hò'
+    if (/sinh nhat|sn|mung tho/i.test(clean)) booking_need = 'Sinh nhật'
+    else if (/thoi noi/i.test(clean)) booking_need = 'Thôi nôi (1st)'
+    else if (/cong ty|cty|doanh nghiep|ortholite/i.test(clean)) booking_need = 'Công ty'
+    else if (/tat nien/i.test(clean)) booking_need = 'Tất niên'
+    else if (/tan nien/i.test(clean)) booking_need = 'Tân niên'
+    else if (/cuoi|bao hy/i.test(clean)) booking_need = 'Cưới/Báo hỷ'
+    else if (/farewell|chia tay/i.test(clean)) booking_need = 'Farewell (Tiệc chia tay)'
+    else if (/ky niem/i.test(clean)) booking_need = 'Kỉ niệm'
+    else if (/lien hoan|tiec|hop lop/i.test(clean)) booking_need = 'Liên hoan'
 
     let decoration_text = ''
     if (blocks.decoration_block) {
@@ -1582,7 +1605,7 @@ export function useAI() {
           setFormVal('pax', String(bookingInfo.guest_count || bookingInfo.pax), (val) => { formStore.customer.pax = val })
         }
         // Party type: check booking.need, booking.type, AND party.type (AI may use any of these)
-        const partyType = bookingInfo.need || bookingInfo.type || parsedResult.party?.type || ''
+        const partyType = normalizePartyType(bookingInfo.need || bookingInfo.type || parsedResult.party?.type || '')
         if (partyType && partyType !== 'Ăn thường') {
           setFormVal('type', partyType, (val) => { formStore.customer.type = val })
         }
@@ -1621,6 +1644,23 @@ export function useAI() {
           if (depositInfo.bank_ref || depositInfo.bank_reference) {
             formStore.deposit.note = `AI Ref: ${depositInfo.bank_ref || depositInfo.bank_reference}`
           }
+        }
+      }
+
+      // Staff / Receiver match (from rule engine or AI)
+      const receiver = parsedResult.staff?.receiver || parsedResult.receiver || null
+      if (receiver && appStore.staffList) {
+        const cleanRec = stripAccents(receiver).toLowerCase().trim()
+        const matchedStaff = appStore.staffList.find((s: any) => 
+          s.isActive !== false && (
+            stripAccents(s.name).toLowerCase().trim() === cleanRec ||
+            stripAccents(s.name).toLowerCase().replace(/\s+/g, '') === cleanRec ||
+            stripAccents(s.name).toLowerCase().split(/\s+/).map((w: string) => w[0]).join('') === cleanRec
+          )
+        )
+        if (matchedStaff) {
+          formStore.staff.name = matchedStaff.name
+          formStore.staff.phone = matchedStaff.phone || ''
         }
       }
     }
@@ -1671,6 +1711,21 @@ export function useAI() {
   }
 
 
+
+  function normalizePartyType(typeStr: string): string {
+    if (!typeStr) return 'Ăn thường'
+    const s = stripAccents(typeStr).toLowerCase().trim()
+    if (/sinh nhat|sn|mung tho/i.test(s)) return 'Sinh nhật'
+    if (/thoi noi/i.test(s)) return 'Thôi nôi (1st)'
+    if (/cong ty|cty|doanh nghiep|ortholite/i.test(s)) return 'Công ty'
+    if (/tat nien/i.test(s)) return 'Tất niên'
+    if (/tan nien/i.test(s)) return 'Tân niên'
+    if (/cuoi|bao hy/i.test(s)) return 'Cưới/Báo hỷ'
+    if (/farewell|chia tay/i.test(s)) return 'Farewell (Tiệc chia tay)'
+    if (/ky niem/i.test(s)) return 'Kỉ niệm'
+    if (/lien hoan|tiec|hop lop/i.test(s)) return 'Liên hoan'
+    return 'Ăn thường'
+  }
 
   function repairAndNormalizeJSON(raw: any, inputType = 'unknown'): any {
     const fallback: any = {
@@ -1733,7 +1788,8 @@ export function useAI() {
     const guestCount = safeGet(parsed, 'booking.guest_count', safeGet(parsed, 'reservation.pax', parsed.guest_count || null))
     const tableCount = safeGet(parsed, 'booking.table_count', parsed.table_count || null)
     const tableNumber = safeGet(parsed, 'booking.table_number', safeGet(parsed, 'reservation.table_code', parsed.table_number || ""))
-    const need = safeGet(parsed, 'booking.need', safeGet(parsed, 'reservation.type', parsed.booking_need || ""))
+    const needRaw = safeGet(parsed, 'booking.need', safeGet(parsed, 'reservation.type', parsed.booking_need || ""))
+    const need = normalizePartyType(needRaw)
     const status = safeGet(parsed, 'booking.status', parsed.status || "")
 
     const parsedItems = parsed.menu_items || parsed.items || parsed.menuItems || []

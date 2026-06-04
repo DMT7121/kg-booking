@@ -221,7 +221,7 @@ NGUYÊN TẮC BẮT BUỘC:
 
 ## 1.1. Người đặt bàn / người liên hệ
 
-Là người trực tiếp đặt bàn hoặc người nhà hàng cần liên hệ để xác nhận.
+Là cá nhân hoặc tổ chức/công ty trực tiếp đặt bàn hoặc người nhà hàng cần liên hệ để xác nhận.
 
 Các dấu hiệu nhận biết:
 
@@ -235,7 +235,8 @@ Các dấu hiệu nhận biết:
 - "sđt chị Trang"
 - "chị Hạnh đặt"
 - "Thu Hà / 079..."
-- tên đứng gần số điện thoại
+- Tên đứng gần số điện thoại.
+- Tên công ty, đoàn khách, hội nhóm (ví dụ: "Cty Ortholite VN", "Công ty Ortholite", "Đoàn Ortholite", "Team marketing", "Group 20 người") -> Đây là tên khách đặt và chủ tiệc!
 
 Thông tin này đưa vào:
 
@@ -426,15 +427,19 @@ Nếu khách nói "đặt 2 bảng", đưa vào \\\`party.special_request\\\` ho
 
 # 6. QUY TẮC XỬ LÝ LOẠI TIỆC
 
-Nhận diện \\\`party.type\\\`:
+Nhận diện \\\`party.type\\\` khớp chính xác với danh sách loại tiệc của hệ thống:
 
 - "sinh nhật", "sn", "sinh nhat", "happy birthday", "hbd", "hpbd" => "Sinh nhật"
-- "thôi nôi", "thoi noi" => "Thôi nôi"
+- "thôi nôi", "thoi noi" => "Thôi nôi (1st)"
 - "đầy tháng", "day thang" => "Đầy tháng"
+- "công ty", "cty", "doanh nghiệp", "tiệc công ty", "ortholite" => "Công ty"
 - "liên hoan" => "Liên hoan"
-- "họp mặt" => "Họp mặt"
-- "tiệc công ty" => "Tiệc công ty"
-- "kỷ niệm" => "Kỷ niệm"
+- "họp mặt", "họp lớp", "ban be" => "Liên hoan"
+- "kỷ niệm", "ky niem" => "Kỉ niệm"
+- "tất niên", "tat nien" => "Tất niên"
+- "tân niên", "tan nien" => "Tân niên"
+- "cưới", "báo hỷ", "dam cuoi" => "Cưới/Báo hỷ"
+- "chia tay", "farewell" => "Farewell (Tiệc chia tay)"
 
 Nếu có nội dung bảng / trang trí, đưa vào \\\`party.display_board_text\\\`.
 
