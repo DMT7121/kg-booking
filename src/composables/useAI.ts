@@ -777,9 +777,9 @@ export function useAI() {
     // Format 2: Comma-separated dishes from template labels
     // e.g. "Yêu cầu đặt trước (thức ăn,...): khói tây bắc, sụn gà chiên mắm tỏi, miến xào cua"
     if (menu_items.length === 0) {
-      const foodLabelMatch = text.match(/(?:yêu cầu đặt trước|thức ăn|món ăn|thuc an|mon an|dat truoc|order|gọi món|goi mon)[^:]*:\s*(.+)/i)
+      const foodLabelMatch = normalizedText.match(/(?:yêu cầu đặt trước|thức ăn|món ăn|thuc an|mon an|dat truoc|order|gọi món|goi mon)[^:]*:\s*(.+)/i)
       if (foodLabelMatch) {
-        const dishList = foodLabelMatch[1].split(/[,;]/).map(d => d.trim()).filter(d => d.length > 2)
+        const dishList = foodLabelMatch[1].split(/[,;]/).map((d: string) => d.trim()).filter((d: string) => d.length > 2)
         for (const dish of dishList) {
           // Skip if it looks like a non-food label
           if (/^\d+$/.test(dish) || /sinh nhat|lien hoan|cong ty/i.test(dish)) continue
