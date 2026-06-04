@@ -1592,6 +1592,7 @@ function callAiService(payload) {
             { role: 'user', content: msgContent }
           ],
           temperature: 0.1,
+          max_tokens: 4096,
           ...(payload.jsonMode && noResponseFormat.indexOf(provider) === -1 ? { response_format: { type: 'json_object' } } : {})
         };
         const response = UrlFetchApp.fetch(url, {

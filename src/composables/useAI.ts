@@ -2815,10 +2815,18 @@ Output JSON: { "amount": Number, "content": "String", "bank": "String", "time": 
 
     try {
       const optimizedImg = await resizeImage(base64Img, 1600)
+      const defaultId = configStore.defaults.vision
       const candidates = AI_MODELS
         .filter(m => m.type === 'vision')
         .filter(m => m.provider === 'pollinations' || (configStore.keysStatus[m.provider]?.configured))
-        .sort((a, b) => a.tier - b.tier)
+
+      candidates.sort((a, b) => {
+        if (defaultId) {
+          if (a.id === defaultId) return -1
+          if (b.id === defaultId) return 1
+        }
+        return a.tier - b.tier
+      })
 
       if (candidates.length === 0) {
         throw new Error('Chưa cấu hình API Key cho Vision/OCR. Vào Cài đặt → thêm Key Google/Groq.')
