@@ -266,6 +266,17 @@ export function useAI() {
     }
   }
 
+  // Schema Validation (from V6.0 — verify AI output has required fields)
+  function validateSchema(parsed: any): boolean {
+    if (!parsed || typeof parsed !== 'object') return false
+    const hasCustomer = parsed.customer && (parsed.customer.name || parsed.customer.phone)
+    const hasBooking = parsed.booking && (parsed.booking.event_date || parsed.booking.event_time || parsed.booking.guest_count || parsed.booking.table_number)
+    const hasReservation = parsed.reservation && (parsed.reservation.date || parsed.reservation.time || parsed.reservation.pax || parsed.reservation.table_code)
+    const hasItems = (Array.isArray(parsed.menu_items) && parsed.menu_items.length > 0) || (Array.isArray(parsed.items) && parsed.items.length > 0)
+    const hasLegacy = parsed.customer && (parsed.customer.date || parsed.customer.time || parsed.customer.tables)
+    return hasCustomer || hasBooking || hasReservation || hasItems || hasLegacy
+  }
+
   // Segment input blocks locally
   function segmentInputBlocks(text: string) {
     const blocks = {
@@ -401,7 +412,10 @@ export function useAI() {
   function preNormalizeInput(rawText: string): string {
     if (!rawText) return ''
     let clean = rawText.replace(/\r\n/g, '\n').replace(/\n{2,}/g, '\n\n')
-    clean = clean.replace(/\s+/g, ' ')
+    // P0: Preserve newlines — collapse only spaces/tabs, NOT newlines
+    // This is critical for classifyPeopleNames() and segmentInputBlocks() which split by '\n'
+    clean = clean.replace(/[^\S\n]+/g, ' ')
+    clean = clean.replace(/\n{3,}/g, '\n\n')
 
     // 1. Abbreviations & typos normalization
     const abbreviations: { pattern: RegExp; replacement: string }[] = [
@@ -937,15 +951,23 @@ export function useAI() {
   function fillBookingFormSafely(parsedResult: any, options: { mode: 'all' | 'customer' | 'menu' }) {
     const { mode } = options
 
+    // P2: Robust 4-case table parser (from V6.0)
     function parseTableCode(tableStr: string): { zone: string; number: string } | null {
       if (!tableStr) return null
-      const clean = tableStr.trim().toUpperCase()
-      const match = clean.match(/^([A-Z\s]+)?(\d+)?$/)
-      if (!match) return { zone: '', number: clean }
-      return {
-        zone: match[1] ? match[1].trim() : '',
-        number: match[2] || ''
-      }
+      const s = String(tableStr).trim().toUpperCase()
+      // Case 1: Zone + Number — "B5", "C12", "A13"
+      const full = s.match(/^([A-G])(\d+)$/)
+      if (full) return { zone: full[1], number: full[2] }
+      // Case 2: Number only — "5" → default Zone A
+      const numOnly = s.match(/^(\d+)$/)
+      if (numOnly) return { zone: 'A', number: numOnly[1] }
+      // Case 3: Zone only — "C"
+      const zoneOnly = s.match(/^([A-G])$/)
+      if (zoneOnly) return { zone: zoneOnly[1], number: '' }
+      // Case 4: Unknown format — try best effort
+      const bestEffort = s.match(/([A-G])?\s*(\d+)/)
+      if (bestEffort) return { zone: bestEffort[1] || 'A', number: bestEffort[2] }
+      return null
     }
 
     const setFormVal = (field: string, newValue: any, setter: (val: any) => void) => {
@@ -1970,9 +1992,11 @@ export function useAI() {
           console.warn('Menu sheet routing error:', errSheet)
         }
 
-        // Apply ALL rule-based overrides to AI result (rule-based is more reliable for structured fields)
+        // P3: Rule-based ALWAYS overrides AI for deterministic structured fields
+        // (regex is more reliable than AI for phone, table, time, date, guest count)
         if (!rawJsonParsed.booking) rawJsonParsed.booking = {}
-        if (ruleBasedResult.table_code && !rawJsonParsed.booking.table_number) {
+        if (!rawJsonParsed.customer) rawJsonParsed.customer = {}
+        if (ruleBasedResult.table_code) {
           rawJsonParsed.booking.table_number = ruleBasedResult.table_code
         }
         if (ruleBasedResult.event_time) {
@@ -1986,13 +2010,11 @@ export function useAI() {
         if (ruleBasedResult.guest_count && ruleBasedResult.guest_count > 0) {
           rawJsonParsed.booking.guest_count = ruleBasedResult.guest_count
         }
-        if (ruleBasedResult.customer_name && !rawJsonParsed.customer?.name) {
-          if (!rawJsonParsed.customer) rawJsonParsed.customer = {}
-          rawJsonParsed.customer.name = ruleBasedResult.customer_name
-        }
-        if (ruleBasedResult.phone && !rawJsonParsed.customer?.phone) {
-          if (!rawJsonParsed.customer) rawJsonParsed.customer = {}
+        if (ruleBasedResult.phone) {
           rawJsonParsed.customer.phone = ruleBasedResult.phone
+        }
+        if (ruleBasedResult.customer_name) {
+          rawJsonParsed.customer.name = ruleBasedResult.customer_name
         }
 
         // Apply rule-based deposit override if explicit deposit found in input
