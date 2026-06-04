@@ -1026,40 +1026,53 @@ export function useAI() {
         formStore.customer.note = updatedNote
       }
       
-      const depositInfo = parsedResult.deposit || parsedResult.payment || parsedResult
-      const depositAmountVal = depositInfo?.amount
-      if (depositAmountVal) {
-        formStore.deposit.amount = depositAmountVal
-        if (depositInfo.status === 'đã cọc' || depositInfo.status === 'YES' || depositInfo.method === 'transfer') {
-          formStore.deposit.isPaid = true
-        }
-        if (depositInfo.bank_ref || depositInfo.bank_reference) {
-          formStore.deposit.note = `AI Ref: ${depositInfo.bank_ref || depositInfo.bank_reference}`
+      // Deposit: Only from explicit deposit/payment objects (NEVER fallback to parsedResult root)
+      // Also validate that deposit keywords exist in input to prevent AI hallucination
+      const depositInfo = parsedResult.deposit || parsedResult.payment || null
+      if (depositInfo?.amount) {
+        const depositKeywords = /c[oọ][ck]|đ[aặ]t c[oọ][ck]|chuy[eể]n kho[aả]n|thanh to[aá]n|deposit/i
+        const rawInput = formStore.rawInput || ''
+        if (depositKeywords.test(rawInput)) {
+          formStore.deposit.amount = parseInt(String(depositInfo.amount)) || 0
+          if (depositInfo.status === 'đã cọc' || depositInfo.status === 'YES' || depositInfo.method === 'transfer') {
+            formStore.deposit.isPaid = true
+          }
+          if (depositInfo.bank_ref || depositInfo.bank_reference) {
+            formStore.deposit.note = `AI Ref: ${depositInfo.bank_ref || depositInfo.bank_reference}`
+          }
         }
       }
     }
 
     if (mode === 'all' || mode === 'menu') {
       const menuItems = parsedResult.menu_items || parsedResult.items
-      if (menuItems && Array.isArray(menuItems)) {
-        const existingItems = [...formStore.items]
-        for (const newItem of menuItems) {
-          const matchIdx = existingItems.findIndex(i => 
-            stripAccents(i.name).toLowerCase().trim() === stripAccents(newItem.matched_name || newItem.name).toLowerCase().trim() &&
-            i.note === newItem.note
-          )
-          if (matchIdx !== -1) {
-            existingItems[matchIdx].qty += newItem.quantity || newItem.qty || 1
-          } else {
-            existingItems.push({
-              name: newItem.matched_name || newItem.name,
-              qty: newItem.quantity || newItem.qty || 1,
-              price: newItem.unit_price || newItem.price || 0,
-              note: newItem.note || newItem.notes || ""
-            })
+      if (menuItems && Array.isArray(menuItems) && menuItems.length > 0) {
+        const newItems = menuItems.map((newItem: any) => ({
+          name: newItem.matched_name || newItem.name,
+          qty: newItem.quantity || newItem.qty || 1,
+          price: newItem.unit_price || newItem.price || 0,
+          note: newItem.note || newItem.notes || ""
+        }))
+
+        if (mode === 'all') {
+          // Full analysis → REPLACE items entirely (like V6 — prevents qty doubling)
+          formStore.items = newItems
+        } else {
+          // Menu-only mode → MERGE incrementally
+          const existingItems = [...formStore.items]
+          for (const item of newItems) {
+            const matchIdx = existingItems.findIndex(i => 
+              stripAccents(i.name).toLowerCase().trim() === stripAccents(item.name).toLowerCase().trim() &&
+              i.note === item.note
+            )
+            if (matchIdx !== -1) {
+              existingItems[matchIdx].qty += item.qty
+            } else {
+              existingItems.push(item)
+            }
           }
+          formStore.items = existingItems
         }
-        formStore.items = existingItems
       }
     }
 
