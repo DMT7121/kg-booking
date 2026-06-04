@@ -749,6 +749,7 @@ export function useAI() {
     const note = blocks.note_block || ''
 
     const menu_items: any[] = []
+    // Format 1: "3 sườn nướng" or "sườn nướng x3" from menu_block
     const menuLines = blocks.menu_block.split('\n')
     for (const line of menuLines) {
       const lineClean = line.trim()
@@ -766,6 +767,25 @@ export function useAI() {
           menu_items.push({
             raw_name: lineMatch2[1].trim(),
             quantity: parseInt(lineMatch2[2]),
+            unit_price: null,
+            note: ''
+          })
+        }
+      }
+    }
+
+    // Format 2: Comma-separated dishes from template labels
+    // e.g. "Yêu cầu đặt trước (thức ăn,...): khói tây bắc, sụn gà chiên mắm tỏi, miến xào cua"
+    if (menu_items.length === 0) {
+      const foodLabelMatch = text.match(/(?:yêu cầu đặt trước|thức ăn|món ăn|thuc an|mon an|dat truoc|order|gọi món|goi mon)[^:]*:\s*(.+)/i)
+      if (foodLabelMatch) {
+        const dishList = foodLabelMatch[1].split(/[,;]/).map(d => d.trim()).filter(d => d.length > 2)
+        for (const dish of dishList) {
+          // Skip if it looks like a non-food label
+          if (/^\d+$/.test(dish) || /sinh nhat|lien hoan|cong ty/i.test(dish)) continue
+          menu_items.push({
+            raw_name: dish,
+            quantity: 1,
             unit_price: null,
             note: ''
           })
@@ -811,6 +831,66 @@ export function useAI() {
       resolved.booking_need = formStore.customer.type
     }
     return resolved
+  }
+
+  // V6 Port: Fuzzy menu matching (exact → contains → word overlap)
+  function fuzzyMatchMenu(inputName: string) {
+    const menuList = appStore.menuList
+    if (!menuList || menuList.length === 0) return null
+    const clean = stripAccents(inputName).toLowerCase().trim()
+    if (!clean || clean.length < 2) return null
+
+    // 1. Exact match (cleanName or acronym)
+    const exact = menuList.find((m: any) => m.cleanName === clean || m.acronym === clean)
+    if (exact) return exact
+
+    // 2. Alias match
+    const aliases = appStore.menuAliases || []
+    const aliasMatch = aliases.find((a: any) => stripAccents(a.alias).toLowerCase().trim() === clean)
+    if (aliasMatch) {
+      const dish = menuList.find((m: any) => m.name === aliasMatch.dishName)
+      if (dish) return dish
+    }
+
+    // 3. Contains match: input contains menu name or vice versa
+    const contains = menuList.find((m: any) =>
+      clean.includes(m.cleanName) || m.cleanName.includes(clean)
+    )
+    if (contains) return contains
+
+    // 4. Word overlap match (for partial names like "ba chi" → "ba chi heo nuong")
+    const inputWords = clean.split(/\s+/).filter((w: string) => w.length > 1)
+    if (inputWords.length > 0) {
+      let bestMatch: any = null
+      let bestScore = 0
+      for (const m of menuList) {
+        const menuWords = (m.cleanName || '').split(/\s+/)
+        const overlap = inputWords.filter((w: string) => menuWords.some((mw: string) => mw.includes(w) || w.includes(mw))).length
+        const score = overlap / Math.max(inputWords.length, 1)
+        if (score > bestScore && score >= 0.5) {
+          bestScore = score
+          bestMatch = m
+        }
+      }
+      if (bestMatch) return bestMatch
+    }
+    return null
+  }
+
+  // Resolve raw menu items from rule extraction to real menu items using fuzzyMatchMenu
+  function resolveMenuItemsLocally(rawItems: any[]): any[] {
+    if (!rawItems || rawItems.length === 0) return []
+    return rawItems.map(item => {
+      const match = fuzzyMatchMenu(item.raw_name || item.name || '')
+      return {
+        matched_name: match ? match.name : (item.raw_name || item.name),
+        name: match ? match.name : (item.raw_name || item.name),
+        quantity: item.quantity || item.qty || 1,
+        unit_price: match ? match.price : (item.unit_price || 0),
+        price: match ? match.price : (item.unit_price || 0),
+        note: item.note || ''
+      }
+    })
   }
 
   function shouldBypassAI(ruleResult: any, inputType: string, menuDetected: boolean): boolean {
@@ -1897,7 +1977,7 @@ export function useAI() {
             table_number: contextResolved.table_code,
             need: contextResolved.booking_need
           },
-          menu_items: []
+          menu_items: resolveMenuItemsLocally(contextResolved.menu_items || [])
         }, inputType)
       } else {
         // 6. Cache check
