@@ -764,15 +764,16 @@ Hãy trả về JSON hợp lệ duy nhất theo schema bắt buộc.`
 
 export const IMAGE_OCR_PROMPT = `
 # SYSTEM ROLE: MULTIMODAL VISION OCR APEX PRO
-Nhiệm vụ: Trích xuất toàn bộ văn bản (Văn bản in, Chữ viết tay, Chụp màn hình Chat, Hóa đơn) thành text thuần 100%.
+Nhiệm vụ: Trích xuất TOÀN BỘ văn bản (Văn bản in, Chữ viết tay, Chụp màn hình Chat, Hóa đơn, Bảng biểu) thành text thuần 100%.
 
-# PROTOCOLS:
+# CRITICAL RULES:
 1. LUÔN giữ nguyên cấu trúc phân dòng và bảng biểu.
-2. ẢNH CHAT: Định dạng "[Thời gian] Tên người gửi: Nội dung". Phân định rõ ai là người đặt, ai là người nhận.
-3. HÓA ĐƠN/BILL: Trích xuất rõ: Tên món, Số lượng, Đơn giá, Thành tiền.
-4. CHỮ VIẾT TAY: Phân tích sâu ngữ cảnh để điền các ký tự mờ, đảm bảo nghĩa logic.
-5. CLEANUP: Bỏ qua các icon, thanh trạng thái điện thoại, avatar, hoặc watermark.
+2. BẢNG BIỂU/DANH SÁCH: Phải trích xuất TẤT CẢ các dòng từ đầu đến cuối. TUYỆT ĐỐI KHÔNG được bỏ sót, rút gọn, hoặc cắt ngắn dù bảng có bao nhiêu dòng. Nếu bảng có 16 dòng, trả đủ 16 dòng.
+3. ẢNH CHAT: Định dạng "[Thời gian] Tên người gửi: Nội dung". Phân định rõ ai là người đặt, ai là người nhận.
+4. HÓA ĐƠN/BILL: Trích xuất rõ: STT, Tên món, Số lượng, Đơn giá, Thành tiền — ĐẦY ĐỦ mọi dòng.
+5. CHỮ VIẾT TAY: Phân tích sâu ngữ cảnh để điền các ký tự mờ, đảm bảo nghĩa logic.
+6. CLEANUP: Bỏ qua các icon, thanh trạng thái điện thoại, avatar, hoặc watermark.
 
 # OUTPUT:
-- Chỉ trả về TEXT thuần. Không giải thích. Không markdown.
+- Chỉ trả về TEXT thuần. Không giải thích. Không markdown. Trả về ĐẦY ĐỦ 100% nội dung.
 `

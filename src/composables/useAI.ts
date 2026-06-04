@@ -169,6 +169,7 @@ export function useAI() {
                 { role: 'user', content: msgContent }
               ],
               temperature: 0.1,
+              max_tokens: 4096,
               ...(jsonMode && !noResponseFormat.includes(model.provider) ? { response_format: { type: 'json_object' } } : {})
             }
           }
@@ -2313,7 +2314,7 @@ Output JSON: { "amount": Number, "content": "String", "bank": "String", "time": 
     uiStore.loading.subMsg = 'Vision Processing...'
 
     try {
-      const optimizedImg = await resizeImage(base64Img, 800)
+      const optimizedImg = await resizeImage(base64Img, 1600)
       const candidates = AI_MODELS
         .filter(m => m.type === 'vision')
         .filter(m => m.provider === 'pollinations' || (configStore.keysStatus[m.provider]?.configured))
@@ -2329,7 +2330,7 @@ Output JSON: { "amount": Number, "content": "String", "bank": "String", "time": 
       for (const model of candidates) {
         try {
           uiStore.loading.subMsg = `OCR: ${model.name}...`
-          const rawResult = await callAIModel(model, IMAGE_OCR_PROMPT, 'Trích xuất toàn bộ văn bản từ ảnh này.', optimizedImg, false)
+          const rawResult = await callAIModel(model, IMAGE_OCR_PROMPT, 'Trích xuất TOÀN BỘ văn bản từ ảnh này. CRITICAL: Nếu có bảng, phải trích xuất TẤT CẢ các dòng từ đầu đến cuối, KHÔNG được bỏ sót hay cắt ngắn. Trả về đầy đủ 100% nội dung.', optimizedImg, false)
 
           if (rawResult && rawResult.trim().length > 10) {
             const latency = ((performance.now() - startTime) / 1000).toFixed(1)
