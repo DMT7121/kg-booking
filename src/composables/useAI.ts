@@ -415,11 +415,18 @@ export function useAI() {
       clean = clean.replace(pattern, replacement)
     })
 
+    // 2. Time normalizations (MUST run before spacing regex to protect "18h15", "7h30" etc.)
+    clean = clean.replace(/\b(\d{1,2})h(\d{2})m\b/gi, '$1:$2')
+    clean = clean.replace(/\b(\d{1,2})h(\d{2})\b/gi, '$1:$2')
+    clean = clean.replace(/\b(\d{1,2})h\b/gi, '$1:00')
+
     // Spacing between number and units
     clean = clean.replace(/(\d+)(pax|người|khách|cho|nguoi|khach|ban)/gi, '$1 $2')
-    clean = clean.replace(/([\p{L}]+)(\d+)\b/ugi, '$1 x$2')
+    // Require 2+ letters to avoid corrupting table codes (C6) and residual time tokens
+    clean = clean.replace(/([\p{L}]{2,})(\d+)\b/ugi, '$1 x$2')
+    clean = clean.replace(/(\d+)(?![hg\d\s\/:\-\.,])([\p{L}])/ugi, '$1 $2')
 
-    // 2. Guest counts ranges & additions
+    // 3. Guest counts ranges & additions
     clean = clean.replace(/\b(\d+)\s*(?:-|–|—|đến|den|to)\s*(\d+)\s*(pax|người|khách|cho|nguoi|khach|guest)/gi, (match, min, max, unit) => {
       return `${max} ${unit}`
     })
@@ -428,12 +435,6 @@ export function useAI() {
       const total = parseInt(adults) + parseInt(kids)
       return `${total} khách`
     })
-
-    // 3. Time normalizations
-    clean = clean.replace(/\b(\d{1,2})h(\d{2})\b/gi, '$1:$2')
-    clean = clean.replace(/\b(\d{1,2})h\b/gi, '$1:00')
-    clean = clean.replace(/\b(\d{1,2})h(\d{2})m\b/gi, '$1:$2')
-    clean = clean.replace(/(\d+)(?![hg\d\s\/:\-\.,])([\p{L}])/ugi, '$1 $2')
 
     clean = clean.replace(/\b(\d{1,2}:\d{2})\s*[-–—đến|den|to]\s*(\d{1,2}:\d{2})\b/g, (match, t1, t2) => t1)
 
