@@ -750,27 +750,58 @@ export function useAI() {
     const note = blocks.note_block || ''
 
     const menu_items: any[] = []
-    // Format 1: "3 sườn nướng" or "sườn nướng x3" from menu_block
-    const menuLines = blocks.menu_block.split('\n')
-    for (const line of menuLines) {
-      const lineClean = line.trim()
-      const lineMatch = lineClean.match(/^(\d+)\s+(.+)$/)
-      if (lineMatch) {
-        menu_items.push({
-          raw_name: lineMatch[2].trim(),
-          quantity: parseInt(lineMatch[1]),
-          unit_price: null,
-          note: ''
-        })
-      } else {
-        const lineMatch2 = lineClean.match(/^(.+?)\s*x\s*(\d+)$/i)
-        if (lineMatch2) {
+
+    // Format 0: OCR table format — "STT Món ăn Số lượng Đơn giá" header detected
+    // Lines like: "1 Miến xào cua 2 229,000" → {name: "Miến xào cua", qty: 2, price: 229000}
+    const isTableFormat = /stt|s\s*t\s*t|món ăn|mon an|số lượng|so luong|đơn giá|don gia/i.test(normalizedText)
+    if (isTableFormat) {
+      const allLines = normalizedText.split('\n')
+      for (const line of allLines) {
+        const trimmed = line.trim()
+        // Match: STT  DishName  Qty  Price (e.g., "1 Miến xào cua 2 229,000")
+        const tableMatch = trimmed.match(/^(\d{1,3})\s+([\p{L}\s,]+?)\s+(\d{1,3})\s+([\d,.]+)\s*$/u)
+        if (tableMatch) {
+          const stt = parseInt(tableMatch[1])
+          const name = tableMatch[2].trim()
+          const qty = parseInt(tableMatch[3])
+          const priceStr = tableMatch[4].replace(/[,.]/g, '')
+          const price = parseInt(priceStr) || 0
+          // Validate: STT should be sequential (1-99), qty reasonable (1-999)
+          if (stt >= 1 && stt <= 99 && qty >= 1 && qty <= 999 && name.length > 1) {
+            menu_items.push({
+              raw_name: name,
+              quantity: qty,
+              unit_price: price,
+              note: ''
+            })
+          }
+        }
+      }
+    }
+
+    // Format 1: "3 sườn nướng" or "sườn nướng x3" from menu_block (skip if table format already matched)
+    if (menu_items.length === 0) {
+      const menuLines = blocks.menu_block.split('\n')
+      for (const line of menuLines) {
+        const lineClean = line.trim()
+        const lineMatch = lineClean.match(/^(\d+)\s+(.+)$/)
+        if (lineMatch) {
           menu_items.push({
-            raw_name: lineMatch2[1].trim(),
-            quantity: parseInt(lineMatch2[2]),
+            raw_name: lineMatch[2].trim(),
+            quantity: parseInt(lineMatch[1]),
             unit_price: null,
             note: ''
           })
+        } else {
+          const lineMatch2 = lineClean.match(/^(.+?)\s*x\s*(\d+)$/i)
+          if (lineMatch2) {
+            menu_items.push({
+              raw_name: lineMatch2[1].trim(),
+              quantity: parseInt(lineMatch2[2]),
+              unit_price: null,
+              note: ''
+            })
+          }
         }
       }
     }
@@ -2256,8 +2287,44 @@ export function useAI() {
 
     } catch (e: any) {
       if (e.name !== 'AbortError') {
-        uiStore.error.show = true
-        uiStore.error.msg = 'V7.0 Engine Error: ' + e.message
+        // LOCAL FALLBACK: If AI fails but rule-based extraction found data, use it
+        const localItems = resolveMenuItemsLocally(ruleBasedResult?.menu_items || [])
+        if (localItems.length > 0 || ruleBasedResult?.phone || ruleBasedResult?.customer_name) {
+          console.warn('[AI] All models failed, using LOCAL FALLBACK with rule-based data')
+          const fallbackResult = repairAndNormalizeJSON({
+            customer: { name: ruleBasedResult.customer_name || '', phone: ruleBasedResult.phone || '' },
+            booking: {
+              event_date: ruleBasedResult.event_date,
+              event_time: ruleBasedResult.event_time,
+              guest_count: ruleBasedResult.guest_count,
+              table_number: ruleBasedResult.table_code,
+              need: ruleBasedResult.booking_need
+            },
+            deposit: ruleBasedResult.deposit_amount ? {
+              amount: ruleBasedResult.deposit_amount,
+              status: ruleBasedResult.deposit_status || 'chờ cọc'
+            } : undefined,
+            menu_items: localItems,
+            routing: { mode: 'local-fallback', model_used: 'Rule Engine', latency: '0.0', fallback_count: 0, tier_used: -1 }
+          }, inputType)
+
+          const validatedFallback = validateParsedFields(fallbackResult)
+          validatedFallback.routing = fallbackResult.routing
+          formStore.parsedAiResult = validatedFallback
+          formStore.aiMetadata = { ...fallbackResult.routing }
+
+          uiStore.showToast(
+            `<b>⚠️ LOCAL FALLBACK</b><br/>AI không khả dụng. Đã dùng Rule Engine trích xuất ${localItems.length} món.`,
+            'warning', 5000
+          )
+
+          if (configStore.defaults.aiWorkflowMode !== 'review') {
+            fillBookingFormSafely(validatedFallback, { mode: 'all' })
+          }
+        } else {
+          uiStore.error.show = true
+          uiStore.error.msg = 'V7.0 Engine Error: ' + e.message
+        }
       }
     } finally {
       uiStore.loading.is = false
