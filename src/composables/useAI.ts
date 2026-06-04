@@ -543,10 +543,12 @@ export function useAI() {
       const lineClean = line.trim()
       if (!lineClean) continue
       
-      const nameRegex = /(?:anh|chị|em|chú|cô|ông|bà|anh|chi|em|chu|co|ong|ba|bé|be|khách|khach|tên|ten|đặt|dat|cho|liên hệ|lien he)\s+(\p{L}+(?:\s+\p{L}+){0,3})/gu
+      const nameRegex = /(?:anh|chị|em|chú|cô|ông|bà|anh|chi|em|chu|co|ong|ba|bé|be|khách|khach|tên|ten|đặt|dat|cho|liên hệ|lien he)\s+(\p{L}+(?:\s+(?!cho\b|dat\b|dat\s+ban|xin\b|gui\b|nha\b|ngay\b|luc\b|vao\b|sdt\b|ban\b)\p{L}+){0,3})/gu
       let match
       while ((match = nameRegex.exec(lineClean)) !== null) {
         const name = match[1].trim()
+        // Filter single-char names (abbreviations like "c" for chị, "a" for anh)
+        if (name.length <= 1) continue
         if (/^(mai|nay|kia|truoc|sau|sang|chieu|toi|ngay|gio|pax|khach|nguoi|ban|dat|mon|set|combo|happy|birthday|hbd|hpbd|sinh|nhat|thoi|noi|giup|giom|cho|sdt|lien|he|table|pax)$/i.test(stripAccents(name))) {
           continue
         }
@@ -673,14 +675,23 @@ export function useAI() {
     }
     
     let table_code: string | null = null
-    const tableMatch = clean.match(/ban\s+([a-g]?\d{1,2})/i)
-    if (tableMatch) {
-      const code = tableMatch[1].toUpperCase()
-      table_code = /^[A-G]/.test(code) ? code : 'A' + code
-    } else {
+    // Priority 1: "bàn A13" — table with letter prefix (letter required)
+    const tableWithLetterMatch = clean.match(/ban\s+([a-g]\d{1,2})\b/i)
+    if (tableWithLetterMatch) {
+      table_code = tableWithLetterMatch[1].toUpperCase()
+    }
+    // Priority 2: standalone "A13", "B8", "C6" anywhere
+    if (!table_code) {
       const directMatch = clean.match(/\b([a-g]\d{1,2})\b/i)
       if (directMatch) {
         table_code = directMatch[1].toUpperCase()
+      }
+    }
+    // Priority 3: "bàn 5" — bare number, NOT followed by guest-count words
+    if (!table_code) {
+      const bareTableMatch = clean.match(/ban\s+(\d{1,2})\b(?!\s*(?:ng\b|nguoi|khach|pax|cho\b))/i)
+      if (bareTableMatch) {
+        table_code = 'A' + bareTableMatch[1]
       }
     }
 
