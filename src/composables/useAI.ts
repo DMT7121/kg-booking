@@ -1002,8 +1002,10 @@ export function useAI() {
         if (bookingInfo.guest_count || bookingInfo.pax) {
           setFormVal('pax', String(bookingInfo.guest_count || bookingInfo.pax), (val) => { formStore.customer.pax = val })
         }
-        if (bookingInfo.need || bookingInfo.type) {
-          setFormVal('type', bookingInfo.need || bookingInfo.type, (val) => { formStore.customer.type = val })
+        // Party type: check booking.need, booking.type, AND party.type (AI may use any of these)
+        const partyType = bookingInfo.need || bookingInfo.type || parsedResult.party?.type || ''
+        if (partyType && partyType !== 'Ăn thường') {
+          setFormVal('type', partyType, (val) => { formStore.customer.type = val })
         }
         if (bookingInfo.table_number || bookingInfo.table_code) {
           const isTableDirty = isFieldDirty('tables')
@@ -2028,6 +2030,9 @@ export function useAI() {
         }
         if (ruleBasedResult.customer_name) {
           rawJsonParsed.customer.name = ruleBasedResult.customer_name
+        }
+        if (ruleBasedResult.booking_need && ruleBasedResult.booking_need !== 'Ăn thường') {
+          rawJsonParsed.booking.need = ruleBasedResult.booking_need
         }
 
         // Apply rule-based deposit override if explicit deposit found in input
