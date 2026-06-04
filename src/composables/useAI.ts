@@ -518,6 +518,18 @@ export function useAI() {
       return `${day}/${month}/${year}`
     })
 
+    // Handle 2-part dates without year: "6/6", "15/7", "06.06" → append current year
+    clean = clean.replace(/\b(\d{1,2})[\/\.\-](\d{1,2})\b(?![\/\.\-\d])/g, (match, d, m) => {
+      const day = parseInt(d)
+      const month = parseInt(m)
+      if (day >= 1 && day <= 31 && month >= 1 && month <= 12) {
+        const dd = String(day).padStart(2, '0')
+        const mm = String(month).padStart(2, '0')
+        return `${dd}/${mm}/${today.getFullYear()}`
+      }
+      return match
+    })
+
     return clean.trim()
   }
 
