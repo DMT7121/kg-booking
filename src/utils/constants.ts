@@ -46,7 +46,7 @@ export const AI_MODELS: AIModel[] = [
   // Tier 2: Cerebras Wafer-Scale (2000+ tok/s) - Verified IDs
   { id: 'llama3.1-70b', name: 'Llama 3.1 70B (Cerebras)', provider: 'cerebras', type: 'text', tier: 2, url: 'https://api.cerebras.ai/v1/chat/completions', format: 'openai' },
   { id: 'llama3.1-8b', name: 'Llama 3.1 8B (Cerebras)', provider: 'cerebras', type: 'text', tier: 2, url: 'https://api.cerebras.ai/v1/chat/completions', format: 'openai' },
-  { id: 'llama-3.2-3b-preview', name: 'Llama 3.2 3B (Groq)', provider: 'groq', type: 'text', tier: 2, url: 'https://api.groq.com/openai/v1/chat/completions', format: 'openai' },
+  { id: 'llama-3.1-8b-instant', name: 'Llama 3.1 8B (Groq)', provider: 'groq', type: 'text', tier: 2, url: 'https://api.groq.com/openai/v1/chat/completions', format: 'openai' },
   // Tier 3: Mistral & GitHub — High Quality
   { id: 'mistral-small-latest', name: 'Mistral Small 4', provider: 'mistral', type: 'text', tier: 3, url: 'https://api.mistral.ai/v1/chat/completions', format: 'openai' },
   { id: 'gpt-4o-mini', name: 'GitHub GPT-4o-Mini', provider: 'github', type: 'text', tier: 3, url: 'https://models.inference.ai.azure.com/chat/completions', format: 'openai' },
