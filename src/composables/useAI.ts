@@ -2,6 +2,7 @@ import { useUIStore } from '@/stores/useUIStore'
 import { useFormStore } from '@/stores/useFormStore'
 import { useConfigStore } from '@/stores/useConfigStore'
 import { useAppStore } from '@/stores/useAppStore'
+import { useLogStore } from '@/stores/useLogStore'
 import { parseJSON, resizeImage, stripAccents, formatVND, formatSetNote, cleanPhoneNumber, formatDateStr } from '@/utils'
 import { AI_MODELS, SETS, ADVANCED_AI_PROMPT, IMAGE_OCR_PROMPT } from '@/utils/constants'
 import type { AIModel } from '@/utils/constants'
@@ -31,6 +32,7 @@ export function useAI() {
   const formStore = useFormStore()
   const configStore = useConfigStore()
   const appStore = useAppStore()
+  const logStore = useLogStore()
 
   function createMenuIndex(menuList: any[], aliases: any[]) {
     const exactMap = new Map<string, any>()
@@ -114,6 +116,7 @@ export function useAI() {
   }
 
   async function callAIModel(model: AIModel, sysPrompt: string, userPrompt: string, image: string | null = null, jsonMode = true, signal?: AbortSignal): Promise<string | null> {
+    logStore.addLog(`[Model: ${model.name}] Bắt đầu gọi model. Provider: ${model.provider}, Chế độ JSON: ${jsonMode}`)
     const localKeys = configStore.keys[model.provider] || []
     
     // Check if we can perform a direct client-side call
@@ -126,6 +129,7 @@ export function useAI() {
         const key = keyList[i]
         try {
           console.log(`[AI] Attempting direct client-side fetch for ${model.provider} (key #${i + 1})...`)
+          logStore.addLog(`[Model: ${model.name}] Thử gọi API trực tiếp qua client (Key #${i + 1})...`)
           let fetchUrl = model.url
           const headers: Record<string, string> = { 'Content-Type': 'application/json' }
           let body: any = {}
@@ -218,10 +222,12 @@ export function useAI() {
           if (!content) throw new Error('Empty response from model')
           
           console.log(`[AI] Direct client-side fetch successful for ${model.provider}!`)
+          logStore.addLog(`[Model: ${model.name}] Gọi API trực tiếp qua client thành công!`, 'success')
           return content
         } catch (e: any) {
           const errMsg = e.name === 'AbortError' ? 'Timeout (25s)' : e.message
           console.warn(`[AI] Direct client-side fetch failed for ${model.provider} key #${i + 1}: ${errMsg}`)
+          logStore.addLog(`[Model: ${model.name}] Lỗi khi gọi trực tiếp qua client (Key #${i + 1}): ${errMsg}`, 'warning')
           // Fall back to the next key or proxy
         }
       }
@@ -229,6 +235,7 @@ export function useAI() {
 
     // Fallback to Server-Side Proxy (Google Apps Script)
     console.log(`[AI] Falling back to GAS Server Proxy for ${model.provider}...`)
+    logStore.addLog(`[Model: ${model.name}] Chuyển tiếp yêu cầu qua Server Proxy (GAS)...`, 'info')
     try {
       const res = await api.callAiProxy({
         provider: model.provider,
@@ -243,26 +250,39 @@ export function useAI() {
       if (!res.ok) {
         throw new Error(res.message || 'AI Proxy failed')
       }
+      logStore.addLog(`[Model: ${model.name}] Gọi qua Server Proxy (GAS) thành công!`, 'success')
       return res.content
     } catch (e: any) {
       console.warn(`[AI Proxy] Server proxy fallback for ${model.provider} failed: ${e.message}`)
+      logStore.addLog(`[Model: ${model.name}] Lỗi khi gọi qua Server Proxy (GAS): ${e.message}`, 'error')
       throw e
     }
   }
 
   async function repairJSON(badString: string): Promise<any> {
     uiStore.loading.subMsg = '🔧 Auto-repair JSON...'
+    logStore.addLog('Phát hiện dữ liệu JSON bị lỗi cấu trúc. Đang kích hoạt AI tự động sửa (repair)...', 'warning')
     const repairPrompt = `Fix this broken JSON. Return ONLY valid JSON, nothing else:\n\n${badString.substring(0, 2000)}`
     const repairCandidates = AI_MODELS
       .filter(m => m.type === 'text')
       .filter(m => m.provider === 'pollinations' || (configStore.keysStatus[m.provider]?.configured))
       .sort((a, b) => a.tier - b.tier)
     
-    if (repairCandidates.length === 0) return null
+    if (repairCandidates.length === 0) {
+      logStore.addLog('Không tìm thấy model AI khả dụng để tự động sửa lỗi JSON.', 'error')
+      return null
+    }
     try {
       const fixedStr = await callAIModel(repairCandidates[0], 'Return ONLY valid JSON', repairPrompt)
-      return parseJSON(fixedStr || '')
-    } catch {
+      const parsed = parseJSON(fixedStr || '')
+      if (parsed) {
+        logStore.addLog('Tự động sửa lỗi JSON thành công!', 'success')
+      } else {
+        logStore.addLog('Tự động sửa lỗi JSON thất bại. Kết quả trả về không phải JSON hợp lệ.', 'error')
+      }
+      return parsed
+    } catch (e: any) {
+      logStore.addLog(`Tự động sửa lỗi JSON thất bại: ${e.message}`, 'error')
       return null
     }
   }
@@ -2098,6 +2118,7 @@ export function useAI() {
       const rawName = (item.raw_name || item.name || '').trim()
       const parsedSubDishes = parseDishItems(rawName)
       if (parsedSubDishes.length > 0) {
+        logStore.addLog(`Tách món ghép: "${rawName}" -> [${parsedSubDishes.map(d => `${d.qty}x ${d.name}`).join(', ')}]`)
         for (const sub of parsedSubDishes) {
           const originalQty = item.quantity || item.qty || 1
           const finalQty = (sub.qty === 1 && originalQty > 1) ? originalQty : sub.qty
@@ -2126,14 +2147,17 @@ export function useAI() {
         match = exactMap.get(clean)
         confidence = 1.0
         matchType = 'exact'
+        logStore.addLog(`[Khớp món] "${rawName}" -> "${match.name}" (Khớp chính xác, Độ tin cậy: 100%)`, 'success')
       } else if (aliasMap.has(clean)) {
         match = aliasMap.get(clean)
         confidence = 1.0
         matchType = 'alias'
+        logStore.addLog(`[Khớp món] "${rawName}" -> "${match.name}" (Khớp alias, Độ tin cậy: 100%)`, 'success')
       } else if (acronymMap.has(clean)) {
         match = acronymMap.get(clean)
         confidence = 0.95
         matchType = 'acronym'
+        logStore.addLog(`[Khớp món] "${rawName}" -> "${match.name}" (Khớp viết tắt, Độ tin cậy: 95%)`, 'success')
       }
       
       if (!match) {
@@ -2183,6 +2207,7 @@ export function useAI() {
               needsReview = true
             }
           }
+          logStore.addLog(`[Khớp món] "${rawName}" -> "${match.name}" (Khớp mờ, Độ tin cậy: ${Math.round(confidence * 100)}%), Cần duyệt lại: ${needsReview}`, confidence < 0.75 ? 'warning' : 'info')
         }
       }
       
@@ -2222,6 +2247,7 @@ export function useAI() {
           warning: confidence < 0.75 ? 'dish_fuzzy_match_low_confidence' : undefined
         }
       } else {
+        logStore.addLog(`[Khớp món] Không tìm thấy món khớp cho "${rawName}"`, 'error')
         return {
           raw_name: rawName,
           inputName: rawName,
@@ -2275,7 +2301,9 @@ export function useAI() {
       return a.tier - b.tier
     })
     
+    logStore.addLog(`[AI Router] Các model AI khả dụng: ${candidates.map(c => c.name).join(', ')}`)
     if (candidates.length === 0) {
+      logStore.addLog(`[AI Router] Lỗi: Chưa cấu hình API Key cho ${type === 'text' ? 'Text' : 'Vision'}`, 'error')
       throw new Error(`Chưa cấu hình API Key cho ${type === 'text' ? 'Text' : 'Vision'}`)
     }
 
@@ -2324,6 +2352,7 @@ export function useAI() {
     if (runRace) {
       const [m1, m2] = candidates.slice(0, 2)
       uiStore.loading.subMsg = `⚡ Race Mode: ${m1.name} vs ${m2.name}...`
+      logStore.addLog(`[AI Router] Kích hoạt Chế độ Chạy đua (Race Mode): [${m1.name}] song song với [${m2.name}]...`, 'info')
       
       try {
         const raceResult = await new Promise<{ raw: string | null; model: AIModel }>((resolve, reject) => {
@@ -2365,6 +2394,7 @@ export function useAI() {
         })
 
         if (raceResult.raw) {
+          logStore.addLog(`[AI Router] Model thắng cuộc đua: [${raceResult.model.name}]`, 'success')
           let parsed = parseJSON(raceResult.raw)
           let repairApplied = false
           if (!parsed) {
@@ -2377,6 +2407,7 @@ export function useAI() {
         }
       } catch (e: any) {
         console.warn('[AI Router] Race mode failed, falling back to Waterfall...', e)
+        logStore.addLog(`[AI Router] Chế độ Race Mode thất bại (Lỗi: ${e.message}). Chuyển sang chế độ tuần tự (Waterfall)...`, 'warning')
         fallbackCount += 2
         lastError = e
       }
@@ -2387,6 +2418,7 @@ export function useAI() {
       const model = candidates[i]
       try {
         uiStore.loading.subMsg = `Waterfall (Tier ${model.tier}): ${model.name}...`
+        logStore.addLog(`[AI Router] Waterfall (Tier ${model.tier}): Thử gọi model [${model.name}]...`)
         const controller = new AbortController()
         if (signal) {
           signal.addEventListener('abort', () => controller.abort())
@@ -2425,10 +2457,12 @@ export function useAI() {
               if (overallConf < 0.75 || missingPhone || missingDate || missingTime) {
                 needsFallback = true
                 console.warn(`[AI Router] Model Tier 0 (${model.name}) failed validation checks. Overall: ${overallConf}, missingPhone: ${missingPhone}, missingDate: ${missingDate}, missingTime: ${missingTime}. Falling back to next candidate...`)
+                logStore.addLog(`[AI Router] Model [${model.name}] (Tier 0) không vượt qua kiểm định: độ tin cậy thấp (${overallConf}) hoặc thiếu thông tin cốt lõi (SĐT, ngày, giờ). Chuyển sang model tiếp theo.`, 'warning')
               }
             }
             
             if (!needsFallback) {
+              logStore.addLog(`[AI Router] Model [${model.name}] trích xuất thành công!`, 'success')
               return finalizeResult(parsed, model, 'waterfall', repairApplied)
             }
             fallbackCount++
@@ -2437,11 +2471,13 @@ export function useAI() {
         throw new Error(`Invalid output format or validation failed from ${model.name}`)
       } catch (e: any) {
         console.warn(`[AI Router] Model ${model.name} failed:`, e.message)
+        logStore.addLog(`[AI Router] Model [${model.name}] thất bại: ${e.message}`, 'warning')
         fallbackCount++
         lastError = e
       }
     }
     
+    logStore.addLog(`[AI Router] Tất cả các model AI đều thất bại. Lỗi cuối: ${lastError?.message || 'Không có model khả dụng'}`, 'error')
     throw new Error('Tất cả các model AI đều thất bại. Lỗi cuối: ' + (lastError?.message || 'Không có model khả dụng'))
   }
 
@@ -2548,6 +2584,9 @@ export function useAI() {
       return uiStore.showToast('Vui lòng nhập dữ liệu hoặc chụp ảnh!', 'warning')
     }
 
+    logStore.startNewSession('Phân tích AI')
+    logStore.addLog(`Bắt đầu xử lý tin nhắn/ảnh đặt bàn...`)
+
     const activeController = api.createAIAbortController()
     uiStore.loading.is = true
     uiStore.loading.msg = 'AI PIPELINE V7.0'
@@ -2571,16 +2610,19 @@ export function useAI() {
       
       // 1. Classification
       inputType = classifyInputType(formStore.rawInput || '', hasImage)
+      logStore.addLog(`Phân loại loại đầu vào: "${inputType}"`)
       
       // 2. Pre-normalization
       let promptText = formStore.aiImage
         ? (formStore.rawInput || 'Phân tích ảnh này để lấy thông tin đặt bàn, khách hàng và danh sách món ăn.')
         : formStore.rawInput
       promptText = preNormalizeInput(promptText)
+      logStore.addLog(`Đã chuẩn hóa tiền xử lý văn bản đầu vào.`)
 
       // 3. Local Rule Extraction
       ruleBasedResult = extractByRules(promptText)
       hardEntities = extractHardEntities(promptText)
+      logStore.addLog(`Trích xuất Rule-Engine: Tên=${ruleBasedResult.customer_name || 'chưa có'}, SĐT=${ruleBasedResult.phone || 'chưa có'}, Ngày=${ruleBasedResult.event_date || 'chưa có'}, Giờ=${ruleBasedResult.event_time || 'chưa có'}, Khách=${ruleBasedResult.guest_count || 'chưa có'}, Bàn=${ruleBasedResult.table_code || 'chưa có'}`)
 
       // 4. Resolve Context against current form state
       const contextResolved = resolveContext(ruleBasedResult)
@@ -2601,6 +2643,7 @@ export function useAI() {
       // 5. Bypass check (if simple enough and no dishes)
       if (type === 'text' && shouldBypassAI(contextResolved, inputType, hasDishes)) {
         isBypassed = true
+        logStore.addLog(`Kích hoạt chế độ Bypass AI: Tin nhắn đơn giản và không có món ăn. Sử dụng trực tiếp Rule Engine.`, 'success')
         const latency = ((performance.now() - startTime) / 1000).toFixed(2)
         routingInfo = {
           pipeline: 'text',
@@ -2631,6 +2674,7 @@ export function useAI() {
         if (cached) {
           finalParsedResult = cached
           isBypassed = true
+          logStore.addLog(`Cache Hit: Tìm thấy kết quả đã xử lý trước đó trong cache. Bỏ qua gọi AI.`, 'success')
           const latency = ((performance.now() - startTime) / 1000).toFixed(2)
           routingInfo = {
             ...cached.routing,
@@ -2641,12 +2685,14 @@ export function useAI() {
       }
 
       if (!finalParsedResult) {
+        logStore.addLog(`Bắt đầu chạy pipeline gọi AI...`)
         // Apply admin self-learning corrections before calling AI
         const corrections = appStore.aiCorrections || []
         const appliedCorrections: Record<string, string> = {}
         for (const corr of corrections) {
           if (corr.inputText && stripAccents(promptText).toLowerCase().includes(stripAccents(corr.inputText).toLowerCase())) {
             appliedCorrections[corr.field] = corr.correctValue
+            logStore.addLog(`Áp dụng sửa lỗi tự học (AI Correction) cho trường [${corr.field}]: "${corr.correctValue}"`)
           }
         }
 
@@ -2681,6 +2727,7 @@ export function useAI() {
         if (payload.isLocalOnly) {
           // Compact Local bypass activation if payload is too large
           isBypassed = true
+          logStore.addLog(`Kích hoạt Token Guard: Dữ liệu đầu vào quá lớn, tự động kích hoạt chế độ tách tối giản cục bộ.`, 'warning')
           const latency = ((performance.now() - startTime) / 1000).toFixed(2)
           routingInfo = {
             pipeline: 'text',
@@ -2707,6 +2754,9 @@ export function useAI() {
           finalParsedResult.warnings.push('Đoạn text đặt bàn quá dài, kích hoạt chế độ tự động tách thông tin tối giản.')
         } else {
           const optimizedImg = formStore.aiImage ? await resizeImage(formStore.aiImage, 1120) : null
+          if (optimizedImg) {
+            logStore.addLog(`Đang tối ưu hóa kích thước hình ảnh để gửi AI...`)
+          }
 
           // 7. Run AI router — using compressed payload prompts
           const routerResponse = await smartRouter(type, payload.sysPrompt, payload.userPrompt, optimizedImg, inputType, activeController.signal)
@@ -2714,6 +2764,7 @@ export function useAI() {
 
           // 8. Repair and Normalize JSON to V7 strict format
           const rawJsonParsed = repairAndNormalizeJSON(routerResponse.parsed, inputType)
+          logStore.addLog(`Đã trích xuất và chuẩn hóa JSON đầu ra của AI.`)
 
           // Apply admin learning dictionary corrections
           Object.keys(appliedCorrections).forEach(field => {
@@ -2728,6 +2779,7 @@ export function useAI() {
 
           // 9. Match menu items using fuzzy maps
           if (rawJsonParsed.menu_items && rawJsonParsed.menu_items.length > 0) {
+            logStore.addLog(`Bắt đầu đối khớp ${rawJsonParsed.menu_items.length} món ăn trích xuất được với thực đơn nhà hàng...`)
             rawJsonParsed.menu_items = matchMenuItems(rawJsonParsed.menu_items)
           }
 
@@ -2737,15 +2789,20 @@ export function useAI() {
             const { bestSheet, score, isBorderline } = resolveBestMenuSheet(promptText, rawJsonParsed.menu_items || [], allMenus)
             
             if (bestSheet && bestSheet !== appStore.activeSheet) {
+              logStore.addLog(`Phát hiện khả năng khớp thực đơn tốt hơn tại Sheet: "${bestSheet}" (Điểm: ${score}).`)
               if (isBorderline) {
                 const confirmed = await uiStore.showConfirm(
                   'Đổi thực đơn?',
                   `Nhận diện thực đơn "${bestSheet}". Bạn có muốn chuyển sang thực đơn này không?`
                 )
                 if (confirmed) {
+                  logStore.addLog(`Người dùng đồng ý chuyển sang thực đơn: "${bestSheet}"`, 'info')
                   await appStore.switchMenu(bestSheet)
+                } else {
+                  logStore.addLog(`Người dùng từ chối chuyển sang thực đơn: "${bestSheet}"`, 'warning')
                 }
               } else {
+                logStore.addLog(`Tự động chuyển sang thực đơn phù hợp nhất: "${bestSheet}"`, 'success')
                 await appStore.switchMenu(bestSheet)
                 uiStore.showToast(`Đã tự động chuyển sang thực đơn: ${bestSheet}`, 'success')
               }
@@ -2764,11 +2821,19 @@ export function useAI() {
 
       // 10. Unified Deterministic Rule Lock
       // This applies rules unconditionally on AI-inferred, cached, and bypassed outputs before validation
+      logStore.addLog(`Áp dụng Luật khóa dữ liệu deterministic (Deterministic Rule Lock)...`)
       finalParsedResult = applyDeterministicRuleLock(finalParsedResult, hardEntities, ruleBasedResult)
 
       // 11. Validate fields and compute confidence scores
       const validatedResult = validateParsedFields(finalParsedResult)
       validatedResult.routing = routingInfo
+      
+      logStore.addLog(`Độ tin cậy tổng thể: ${Math.round((validatedResult.confidence?.overall || 0) * 100)}%`)
+      if (validatedResult.needs_review_fields.length > 0) {
+        logStore.addLog(`Các trường cần duyệt lại: [${validatedResult.needs_review_fields.join(', ')}]`, 'warning')
+      } else {
+        logStore.addLog(`Tất cả các trường đạt độ tin cậy an toàn.`, 'success')
+      }
 
       // Display Success Toast
       const modeIcon = routingInfo.mode === 'bypass-local' ? '🚀' : routingInfo.mode === 'cache-hit' ? '💾' : '⚡'
@@ -2805,15 +2870,18 @@ export function useAI() {
 
       // Direct auto-fill if workflow mode is set to 'direct'
       if (configStore.defaults.aiWorkflowMode !== 'review') {
+        logStore.addLog(`Chế độ tự động nạp form (Direct Mode): Đang nạp toàn bộ thông tin...`)
         fillBookingFormSafely(validatedResult, { mode: 'all' })
       }
 
     } catch (e: any) {
       if (e.name !== 'AbortError') {
+        logStore.addLog(`Lỗi Pipeline AI: ${e.message}`, 'error')
         // LOCAL FALLBACK: If AI fails but rule-based extraction found data, use it
         const localItems = resolveMenuItemsLocally(ruleBasedResult?.menu_items || [])
         if (localItems.length > 0 || ruleBasedResult?.phone || ruleBasedResult?.customer_name) {
           console.warn('[AI] All models failed, using LOCAL FALLBACK with rule-based data')
+          logStore.addLog(`Bắt đầu chạy Chế độ dự phòng cục bộ (Local Fallback)...`, 'warning')
           const fallbackResult = repairAndNormalizeJSON({
             customer: { name: ruleBasedResult.customer_name || '', phone: ruleBasedResult.phone || '' },
             booking: {
@@ -2840,6 +2908,7 @@ export function useAI() {
             `<b>⚠️ LOCAL FALLBACK</b><br/>AI không khả dụng. Đã dùng Rule Engine trích xuất ${localItems.length} món.`,
             'warning', 5000
           )
+          logStore.addLog(`Local Fallback thành công! Trích xuất được ${localItems.length} món.`, 'success')
 
           if (configStore.defaults.aiWorkflowMode !== 'review') {
             fillBookingFormSafely(validatedFallback, { mode: 'all' })
@@ -2852,10 +2921,13 @@ export function useAI() {
     } finally {
       uiStore.loading.is = false
       api.clearAIAbortController()
+      logStore.addLog(`=== KẾT THÚC PHIÊN PHÂN TÍCH (Tổng độ trễ: ${((performance.now() - startTime)/1000).toFixed(2)}s) ===`, 'info')
     }
   }
 
   async function verifyTransferImage(base64Img: string) {
+    logStore.startNewSession('Xác thực Bill Chuyển Khoản')
+    logStore.addLog(`Khởi chạy AI xác thực Bill chuyển khoản...`)
     uiStore.loading.is = true
     uiStore.loading.msg = 'AI KIỂM TRA BILL CK...'
     uiStore.loading.subMsg = 'Analyzing...'
@@ -2873,32 +2945,41 @@ Output JSON: { "amount": Number, "content": "String", "bank": "String", "time": 
       const contentVal = aiResponse?.parsed?.content || aiResponse?.content
       const timeVal = aiResponse?.parsed?.time || aiResponse?.time
 
+      logStore.addLog(`AI trích xuất bill thành công. Số tiền: ${amountVal}, Nội dung: "${contentVal}", Thời gian: "${timeVal}"`)
+
       if (amountVal) {
         const aiAmount = parseInt(String(amountVal))
         const aiContent = String(contentVal || '')
         const expected = parseInt(String(formStore.deposit.amount))
 
+        logStore.addLog(`So sánh số tiền quét được (${aiAmount}) với số tiền cần cọc (${expected}).`)
         if (aiAmount === expected) {
           formStore.deposit.isPaid = true
           formStore.deposit.note = aiContent || 'AI Verified ✓'
           formStore.deposit.time = String(timeVal || new Date().toLocaleString('vi-VN'))
           uiStore.showToast(`✅ Xác thực thành công!\nSố tiền: ${formatVND(aiAmount)}\nNội dung: ${aiContent}`, 'success')
+          logStore.addLog(`Xác thực khớp hoàn toàn! Đã tự động cập nhật Trạng thái cọc thành ĐÃ CỌC.`, 'success')
         } else {
           uiStore.verifyModal.show = true
           uiStore.verifyModal.scanned = { amount: aiAmount, content: aiContent }
           uiStore.verifyModal.expected = { amount: expected }
+          logStore.addLog(`Số tiền trên Bill không khớp với số tiền cần cọc! Yêu cầu người dùng duyệt thủ công.`, 'warning')
         }
       } else {
         throw new Error('Không đọc được thông tin chuyển khoản')
       }
     } catch (e: any) {
       uiStore.showToast('Lỗi xác thực: ' + e.message, 'warning')
+      logStore.addLog(`Lỗi xác thực: ${e.message}`, 'error')
     } finally {
       uiStore.loading.is = false
+      logStore.addLog(`=== KẾT THÚC XÁC THỰC BILL ===`, 'info')
     }
   }
 
   async function ocrExtractText(base64Img: string): Promise<string> {
+    logStore.startNewSession('AI OCR Đọc Ảnh')
+    logStore.addLog(`Bắt đầu trích xuất văn bản từ hình ảnh (OCR)...`)
     uiStore.loading.is = true
     uiStore.loading.msg = 'AI OCR ĐANG ĐỌC ẢNH...'
     uiStore.loading.subMsg = 'Vision Processing...'
@@ -2918,7 +2999,9 @@ Output JSON: { "amount": Number, "content": "String", "bank": "String", "time": 
         return a.tier - b.tier
       })
 
+      logStore.addLog(`Các model OCR khả dụng: ${candidates.map(c => c.name).join(', ')}`)
       if (candidates.length === 0) {
+        logStore.addLog(`Chưa cấu hình API Key cho Vision/OCR.`, 'error')
         throw new Error('Chưa cấu hình API Key cho Vision/OCR. Vào Cài đặt → thêm Key Google/Groq.')
       }
 
@@ -2928,24 +3011,29 @@ Output JSON: { "amount": Number, "content": "String", "bank": "String", "time": 
       for (const model of candidates) {
         try {
           uiStore.loading.subMsg = `OCR: ${model.name}...`
+          logStore.addLog(`Thử chạy OCR bằng model: [${model.name}]...`)
           const rawResult = await callAIModel(model, IMAGE_OCR_PROMPT, 'Trích xuất TOÀN BỘ văn bản từ ảnh này. CRITICAL: Nếu có bảng, phải trích xuất TẤT CẢ các dòng từ đầu đến cuối, KHÔNG được bỏ sót hay cắt ngắn. Trả về đầy đủ 100% nội dung.', optimizedImg, false)
 
           if (rawResult && rawResult.trim().length > 10) {
             const latency = ((performance.now() - startTime) / 1000).toFixed(1)
             const cleanText = rawResult.trim().replace(/```[a-zA-Z]*\n([\s\S]*?)```/g, '$1').trim()
             uiStore.showToast(`<b>OCR ⚡</b> ${model.name} | ${latency}s`, 'success', 3000)
+            logStore.addLog(`OCR thành công với [${model.name}] (Độ trễ: ${latency}s). Số ký tự trích xuất: ${cleanText.length}`, 'success')
             return cleanText
           } else {
             throw new Error('OCR trả về kết quả rỗng')
           }
         } catch (e: any) {
           console.warn(`[OCR] ${model.name} failed:`, e.message)
+          logStore.addLog(`OCR model [${model.name}] thất bại: ${e.message}`, 'warning')
           lastError = e
         }
       }
+      logStore.addLog(`Tất cả các model OCR đều thất bại.`, 'error')
       throw new Error('OCR thất bại: ' + (lastError?.message || 'Không có model khả dụng'))
     } finally {
       uiStore.loading.is = false
+      logStore.addLog(`=== KẾT THÚC OCR ===`, 'info')
     }
   }
 
