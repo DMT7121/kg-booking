@@ -586,6 +586,16 @@ function findAvailableCalendarSlot(sheet, startCol, bookingId) {
   return -1;
 }
 
+function getColLetter_(col) {
+  let temp, letter = '';
+  while (col > 0) {
+    temp = (col - 1) % 26;
+    letter = String.fromCharCode(65 + temp) + letter;
+    col = (col - temp - 1) / 26;
+  }
+  return letter;
+}
+
 function writeBookingBlock(sheet, row, startCol, data, bookingId, billUrl) {
   const infoCol = startCol + 1;
   const rawName = data.customer.name || "Khách";
@@ -646,26 +656,163 @@ function writeBookingBlock(sheet, row, startCol, data, bookingId, billUrl) {
   if (menuText) finalNoteLines.push(menuText);
   const row6 = finalNoteLines.join('\n').trim();
   const blockData = [[row1], [row2], [row3], [row4], [row5], [row6]];
-  
-  sheet.getRange(row, startCol)
-       .setValue(data.customer.tables)
-       .setFontWeight("bold")
-       .setHorizontalAlignment("center")
-       .setVerticalAlignment("middle")
-       .setNote(bookingId);
-       
-  const infoRange = sheet.getRange(row, infoCol, 6, 1);
-  infoRange.setValues(blockData);
-  infoRange.setWrap(true);
-  sheet.getRange(row, infoCol).setFontWeight("bold");
+
+  const ss = sheet.getParent();
+  const spreadsheetId = ss.getId();
+  const sheetId = sheet.getSheetId();
+
+  const startColLetter = getColLetter_(startCol);
+  const infoColLetter = getColLetter_(infoCol);
+  const sheetNameQuote = "'" + sheet.getName().replace(/'/g, "''") + "'";
+  const range1 = sheetNameQuote + "!" + startColLetter + row;
+  const range2 = sheetNameQuote + "!" + infoColLetter + row + ":" + infoColLetter + (row + 5);
+
+  const valueRanges = [
+    {
+      range: range1,
+      values: [[data.customer.tables]]
+    },
+    {
+      range: range2,
+      values: blockData
+    }
+  ];
+
+  // Batch update values
+  Sheets.Spreadsheets.Values.batchUpdate({
+    valueInputOption: "USER_ENTERED",
+    data: valueRanges
+  }, spreadsheetId);
+
+  // Batch update formats & notes
+  const requests = [
+    {
+      updateCells: {
+        range: {
+          sheetId: sheetId,
+          startRowIndex: row - 1,
+          endRowIndex: row,
+          startColumnIndex: startCol - 1,
+          endColumnIndex: startCol
+        },
+        rows: [{
+          values: [{
+            note: bookingId,
+            userEnteredFormat: {
+              textFormat: { bold: true },
+              horizontalAlignment: "CENTER",
+              verticalAlignment: "MIDDLE"
+            }
+          }]
+        }],
+        fields: "note,userEnteredFormat(textFormat/bold,horizontalAlignment,verticalAlignment)"
+      }
+    },
+    {
+      repeatCell: {
+        range: {
+          sheetId: sheetId,
+          startRowIndex: row - 1,
+          endRowIndex: row + 5,
+          startColumnIndex: infoCol - 1,
+          endColumnIndex: infoCol
+        },
+        cell: {
+          userEnteredFormat: {
+            wrapStrategy: "WRAP"
+          }
+        },
+        fields: "userEnteredFormat.wrapStrategy"
+      }
+    },
+    {
+      updateCells: {
+        range: {
+          sheetId: sheetId,
+          startRowIndex: row - 1,
+          endRowIndex: row,
+          startColumnIndex: infoCol - 1,
+          endColumnIndex: infoCol
+        },
+        rows: [{
+          values: [{
+            userEnteredFormat: {
+              textFormat: { bold: true }
+            }
+          }]
+        }],
+        fields: "userEnteredFormat.textFormat/bold"
+      }
+    }
+  ];
+
+  Sheets.Spreadsheets.batchUpdate({ requests: requests }, spreadsheetId);
 }
 
 function writeMovedMarker(sheet, row, startCol, text, bookingId) {
   const infoCol = startCol + 1;
-  sheet.getRange(row, startCol).setValue(sheet.getRange(row, startCol).getValue()).setNote(bookingId + "_MOVED");
+  const ss = sheet.getParent();
+  const spreadsheetId = ss.getId();
+  const sheetId = sheet.getSheetId();
+
+  const infoColLetter = getColLetter_(infoCol);
+  const sheetNameQuote = "'" + sheet.getName().replace(/'/g, "''") + "'";
+
   const empty6 = [[""], [""], [""], [""], [""], [""]];
-  sheet.getRange(row, infoCol, 6, 1).setValues(empty6);
-  sheet.getRange(row, infoCol).setValue(text).setFontWeight("bold").setFontColor("#94a3b8");
+  empty6[0] = [text];
+
+  const valueRanges = [
+    {
+      range: sheetNameQuote + "!" + infoColLetter + row + ":" + infoColLetter + (row + 5),
+      values: empty6
+    }
+  ];
+
+  Sheets.Spreadsheets.Values.batchUpdate({
+    valueInputOption: "USER_ENTERED",
+    data: valueRanges
+  }, spreadsheetId);
+
+  const requests = [
+    {
+      updateCells: {
+        range: {
+          sheetId: sheetId,
+          startRowIndex: row - 1,
+          endRowIndex: row,
+          startColumnIndex: startCol - 1,
+          endColumnIndex: startCol
+        },
+        rows: [{
+          values: [{
+            note: bookingId + "_MOVED"
+          }]
+        }],
+        fields: "note"
+      }
+    },
+    {
+      updateCells: {
+        range: {
+          sheetId: sheetId,
+          startRowIndex: row - 1,
+          endRowIndex: row,
+          startColumnIndex: infoCol - 1,
+          endColumnIndex: infoCol
+        },
+        rows: [{
+          values: [{
+            userEnteredFormat: {
+              textFormat: { bold: true, foregroundColor: { red: 0.58, green: 0.64, blue: 0.72 } }
+            }
+          }]
+        }],
+        fields: "userEnteredFormat.textFormat(bold,foregroundColor)"
+      }
+    }
+  ];
+
+  Sheets.Spreadsheets.batchUpdate({ requests: requests }, spreadsheetId);
 }
 
 function logLocationHistory(ss, bookingId, action, oldDate, newDate, oldTable, newTable, oldRange, newRange, status, note) {
@@ -739,8 +886,37 @@ function clearCalendarEntryById(ss, bookingId) {
       const col = Number(existing.block_start_col);
       const infoCol = Number(existing.block_end_col);
       if (validateLocationBelongsToBooking(sheet, row, col, row + 5, infoCol, bookingId)) {
-        sheet.getRange(row, col).setValue("").setNote("");
-        sheet.getRange(row, infoCol, 6, 1).setValues([[""], [""], [""], [""], [""], [""]]);
+        const spreadsheetId = ss.getId();
+        const sheetId = sheet.getSheetId();
+        
+        const colLetter = getColLetter_(col);
+        const infoColLetter = getColLetter_(infoCol);
+        const sheetNameQuote = "'" + sheetName.replace(/'/g, "''") + "'";
+
+        const valueRanges = [
+          { range: sheetNameQuote + "!" + colLetter + row, values: [[""]] },
+          { range: sheetNameQuote + "!" + infoColLetter + row + ":" + infoColLetter + (row + 5), values: [[""], [""], [""], [""], [""], [""]] }
+        ];
+        
+        Sheets.Spreadsheets.Values.batchUpdate({
+          valueInputOption: "USER_ENTERED",
+          data: valueRanges
+        }, spreadsheetId);
+
+        const requests = [{
+          updateCells: {
+            range: {
+              sheetId: sheetId,
+              startRowIndex: row - 1,
+              endRowIndex: row,
+              startColumnIndex: col - 1,
+              endColumnIndex: col
+            },
+            rows: [{ values: [{ note: "" }] }],
+            fields: "note"
+          }
+        }];
+        Sheets.Spreadsheets.batchUpdate({ requests: requests }, spreadsheetId);
       }
     }
     updateBookingLocationIndex(ss, bookingId, existing.calendar_sheet_name, existing.event_date, existing.table_number, existing.block_start_row, existing.block_start_col, existing.block_end_col, "", "ARCHIVED", {customer:{}}, "Deleted");

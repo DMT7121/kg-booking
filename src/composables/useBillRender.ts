@@ -360,10 +360,11 @@ function _createBillRender() {
               appStore.updateOfflineQueueCount()
             })
 
-          // If save-only mode, wait for sync to complete before switching tab
+          // If save-only mode, switch tab immediately (Optimistic UI) and run sync in background
           if (formStore.saveType === 'save') {
-            await syncPromise
             uiStore.loading.is = false
+            uiStore.tab = 'history'
+            uiStore.showToast('💾 Đang lưu ngầm lên Google Sheets...', 'info', 3000)
           }
         }
       } else {
