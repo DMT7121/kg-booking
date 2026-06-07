@@ -1553,14 +1553,11 @@ export function useAI() {
           lines.push('Chủ tiệc / người được tổ chức:')
           const names = ownerName.split(/và|,|;/).map((n: string) => n.trim()).filter(Boolean)
           names.forEach((name: string) => {
-            lines.push(`- ${name} — ${party.type || 'Tiệc'}`)
+            lines.push(`- ${name}`)
           })
         } else {
           lines.push(`Chủ tiệc / người được tổ chức: ${ownerName.trim()}`)
         }
-      }
-      if (party.type && !ownerName.includes(party.type)) {
-        lines.push(`Nhu cầu: ${party.type}`)
       }
       if (party.display_board_text || party.text_on_board) {
         lines.push(`Nội dung bảng/trang trí: ${party.display_board_text || party.text_on_board}`)
