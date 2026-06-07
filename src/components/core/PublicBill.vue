@@ -39,10 +39,11 @@ const formatDepositTime = (timeStr?: string): string => {
 const depositTransferContent = computed(() => {
   if (!order.value) return ''
   const c = order.value.customer || {}
-  const n = (c.name || 'KH').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/đ/g, 'd').replace(/Đ/g, 'D').toUpperCase().substring(0, 20).replace(/[^A-Z0-9 ]/g, '').trim()
+  let n = (c.name || 'KH').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/đ/g, 'd').replace(/Đ/g, 'D').toUpperCase().replace(/[^A-Z0-9]/g, '').trim()
+  n = n.substring(0, 10)
   const p = c.phone ? c.phone.replace(/\D/g, '').slice(-4) : ''
   const idSuf = (order.value.id || '').replace(/-/g, '').substring(0, 4).toUpperCase()
-  return `${n} DAT COC ${p} ${idSuf}`.trim()
+  return `KG ${n} ${p} ${idSuf}`.trim()
 })
 
 const calculatedTotals = computed(() => {
