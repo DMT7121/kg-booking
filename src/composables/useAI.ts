@@ -773,7 +773,8 @@ export function useAI() {
         blocks.deposit_block.push(trimmed)
         continue
       }
-      if (/(\d+)\s*(?:pax|nguoi|khach|cho)/gi.test(lower) || /nguoi lon|tre em|lon.*nho|be/i.test(lower)) {
+      const isGuestLine = /(\d+)\s*(?:pax|nguoi|người|ng|khach|khách|cho)/gi.test(lower) || /nguoi lon|tre em|lon.*nho|be/i.test(lower)
+      if (isGuestLine) {
         blocks.guest_count_block.push(trimmed)
       }
       const hasTime = /\b\d{1,2}:\d{2}\b/gi.test(lower) || /\b\d{1,2}h\d{2}\b/gi.test(lower) || /\b\d{1,2}h\b/gi.test(lower)
@@ -786,7 +787,8 @@ export function useAI() {
       if (hasPhone || hasCustomerKeywords) {
         blocks.customer_block.push(trimmed)
       }
-      const isMenuLine = /^\d+\s+[\p{L}\s]+/ui.test(lower) || /combo|set menu|thuc don/i.test(lower)
+      const isMenuLine = (/^\d+\s+[\p{L}\s]+/ui.test(lower) || /combo|set menu|thuc don/i.test(lower)) &&
+                         !hasTime && !hasDate && !hasPhone && !isGuestLine
       if (isMenuLine) {
         blocks.menu_block.push(trimmed)
       }
@@ -1047,6 +1049,39 @@ export function useAI() {
           peopleNames.push(name)
         }
       }
+
+      // Standalone Name Fallback: Check if the line itself represents a name (e.g. "Lê Giang")
+      // Remove phone, time, date, and common formatting characters to inspect the clean line
+      let cleanLine = lineClean
+        .replace(/(0[35789]\d{7,9})/g, '') // remove phone
+        .replace(/\b\d{1,2}[h:]\d{2}?\b/gi, '') // remove time
+        .replace(/\b\d{1,2}[\/\.\-]\d{1,2}(?:[\/\.\-]\d{2,4})?\b/g, '') // remove date
+        .replace(/[0-9()\-–—:+.,\/[\]]/g, ' ') // remove digits & punctuation
+        .replace(/\s+/g, ' ')
+        .trim()
+
+      const cleanWords = cleanLine.split(/\s+/).filter(Boolean)
+      if (cleanWords.length >= 2 && cleanWords.length <= 5) {
+        const isPureLetters = cleanWords.every(w => /^\p{L}+$/u.test(w))
+        const stopWords = new Set([
+          'ngay', 'mai', 'hom', 'nay', 'kia', 'mot', 'tuan', 'thang', 'nam',
+          'gio', 'luc', 'tam', 'khoang', 'sang', 'trua', 'chieu', 'toi',
+          'pax', 'nguoi', 'khach', 'ban', 'table', 'ghe',
+          'sinh', 'nhat', 'thoi', 'noi', 'hop', 'lop', 'lien', 'hoan', 'tiec', 'cuoi', 'hpbd', 'hbd', 'sn', 'mung', 'tho', 'tieu', 'ca', 'nhac',
+          'coc', 'ck', 'chuyen', 'khoan', 'bill', 'bank', 'banking', 'momo',
+          'mon', 'an', 'menu', 'combo', 'set', 'lau', 'nuong', 'xao', 'hap', 'bo', 'ga', 'heo', 'suon', 'de', 'tom', 'cua', 'muc',
+          'nv', 'dmt', 'nhan', 'gui', 'nha', 'giup', 'giom', 'sdt', 'lien', 'he',
+          'an', 'thuong', 'lon', 'nho', 'be', 'tre', 'em'
+        ])
+        const hasStopWord = cleanWords.some(w => stopWords.has(stripAccents(w).toLowerCase()))
+
+        if (isPureLetters && !hasStopWord) {
+          const candidateName = cleanWords.join(' ')
+          if (!peopleNames.includes(candidateName)) {
+            peopleNames.push(candidateName)
+          }
+        }
+      }
     }
 
     const specialPatterns = [
@@ -1128,9 +1163,11 @@ export function useAI() {
     
     if (nameResults.bookerCandidates.length > 0) {
       customer_name = nameResults.bookerCandidates[0]
-    } else if (nameResults.peopleNames.length === 1) {
-      if (nameResults.partyOwnerCandidates.length === 0) {
-        customer_name = nameResults.peopleNames[0]
+    } else {
+      // Fallback: Pick the first name that is not a party owner candidate
+      const potentialBookers = nameResults.peopleNames.filter(name => !nameResults.partyOwnerCandidates.includes(name))
+      if (potentialBookers.length > 0) {
+        customer_name = potentialBookers[0]
       }
     }
 
