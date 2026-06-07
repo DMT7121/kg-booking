@@ -41,6 +41,26 @@ const formatDepositTime = (timeStr?: string): string => {
   }
 }
 
+const getDayOfWeek = (dateStr?: string): string => {
+  if (!dateStr) return ''
+  try {
+    const parts = dateStr.split('/')
+    if (parts.length === 3) {
+      const day = parseInt(parts[0], 10)
+      const month = parseInt(parts[1], 10) - 1
+      const year = parseInt(parts[2], 10)
+      const date = new Date(year, month, day)
+      if (!isNaN(date.getTime())) {
+        const days = ['Chủ Nhật', 'Thứ Hai', 'Thứ Ba', 'Thứ Tư', 'Thứ Năm', 'Thứ Sáu', 'Thứ Bảy']
+        return days[date.getDay()]
+      }
+    }
+    return ''
+  } catch (e) {
+    return ''
+  }
+}
+
 const currentTimestamp = ref('')
 let _timestampTimer: ReturnType<typeof setInterval> | null = null
 
@@ -390,7 +410,7 @@ function openZaloChat() {
                 <div class="font-black text-blue-950 text-[14px]">{{ formStore.customer.phone || '---' }}</div>
                 
                 <div class="flex items-center gap-3 text-slate-500 font-bold uppercase text-[11px] tracking-wider"><i class="fa-regular fa-calendar-days w-4 text-center text-[13px]"></i> Thời gian</div>
-                <div class="font-black text-blue-950 text-[14px]">{{ formStore.customer.date || 'dd/mm/yyyy' }} • {{ formStore.customer.time || '--:--' }}</div>
+                <div class="font-black text-blue-950 text-[14px]">{{ getDayOfWeek(formStore.customer.date) ? getDayOfWeek(formStore.customer.date) + ', ' : '' }}{{ formStore.customer.date || 'dd/mm/yyyy' }} • {{ formStore.customer.time || '--:--' }}</div>
                 
                 <div class="flex items-center gap-3 text-slate-500 font-bold uppercase text-[11px] tracking-wider"><i class="fa-solid fa-users w-4 text-center text-[13px]"></i> Số khách</div>
                 <div class="font-black text-blue-950 text-[14px]">{{ formStore.customer.pax || '0' }} người</div>
