@@ -396,6 +396,13 @@ Quy tắc:
 - "hôm nay", "nay", "tối nay" = ngày hiện tại.
 - "mai", "ngày mai", "tối mai", "chiều mai" = ngày hiện tại + 1 ngày.
 - "mốt", "ngày mốt", "ngày kia" = ngày hiện tại + 2 ngày.
+- Nếu có thứ trong tuần (ví dụ: "chủ nhật", "CN", "thứ bảy", "T7", "thứ năm", etc.):
+  - Hãy tính toán ngày dựa trên ngày hiện tại {{CURRENT_DATE}}.
+  - Nếu ngày đó trong tuần đã trôi qua hoặc là chính ngày hôm nay (tùy ngữ cảnh), thông thường nó thuộc tuần sau trừ khi có ghi chú "tuần này".
+  - Ví dụ: Nếu hôm nay là Thứ Ba 09/06/2026:
+    - "CN" / "Chủ Nhật" = Chủ nhật tuần này (14/06/2026).
+    - "Thứ Bảy" / "T7" = Thứ bảy tuần này (13/06/2026).
+    - "Thứ Hai" / "T2" (đã qua) = Thứ hai tuần sau (15/06/2026).
 - "7h" trong ngữ cảnh nhà hàng buổi tối = "19:00".
 - "5h30 chiều" = "17:30".
 - "16h30-17h" = lấy giờ sớm hơn, tức "16:30".

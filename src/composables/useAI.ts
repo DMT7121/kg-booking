@@ -321,6 +321,10 @@ export function useAI() {
     if (!input) return []
     const results: TableCode[] = []
     let s = stripAccents(input).toUpperCase().trim()
+    
+    // Normalize "BAN 5" -> "A5", "TABLE 12" -> "A12"
+    s = s.replace(/\b(BAN|TABLE|GHE)\s+(\d+)\b/g, 'A$2')
+    
     s = s.replace(/[+\/]/g, ',')
     s = s.replace(/\b([A-G])(\d+)\s*[-–—]\s*([A-G])?(\d+)\b/gi, (match, z1, n1, z2, n2) => {
       const zone = z1.toUpperCase()
@@ -335,24 +339,42 @@ export function useAI() {
       }
       return match
     })
+    
     const tokens = s.split(/[,\s]+/).filter(Boolean)
     let currentZone = 'A'
-    for (const token of tokens) {
+    let lastTableIdx = -99
+    
+    for (let idx = 0; idx < tokens.length; idx++) {
+      const token = tokens[idx]
+      
       const fullMatch = token.match(/^([A-G])(\d+)$/)
       if (fullMatch) {
         currentZone = fullMatch[1]
         results.push({ zone: currentZone, number: fullMatch[2], raw: token })
+        lastTableIdx = idx
         continue
       }
+      
       const numMatch = token.match(/^(\d+)$/)
       if (numMatch) {
-        results.push({ zone: currentZone, number: numMatch[1], raw: currentZone + numMatch[1] })
+        // Safe guards for bare numbers:
+        // 1. Must be preceded by a table token within 2 steps
+        // 2. Next token must not be a unit (e.g. "người", "khách", "tuổi", "pax")
+        const nextToken = tokens[idx + 1] || ''
+        const isNextUnit = /^(NG|NGUOI|KHACH|PAX|TUOI|T|TRE|LON|NHO|NAM|THANG|CUOI)$/i.test(nextToken)
+        
+        if (idx - lastTableIdx <= 2 && !isNextUnit) {
+          results.push({ zone: currentZone, number: numMatch[1], raw: currentZone + numMatch[1] })
+          lastTableIdx = idx
+        }
         continue
       }
+      
       const zoneMatch = token.match(/^([A-G])$/)
       if (zoneMatch) {
         currentZone = zoneMatch[1]
         results.push({ zone: currentZone, number: '', raw: token })
+        lastTableIdx = idx
         continue
       }
     }
@@ -428,6 +450,41 @@ export function useAI() {
         dates.push({ value: formatDateStrLocal(targetDate), confidence: 0.95, raw })
       }
     })
+
+    // Weekday patterns (CN, thứ 7, thứ bảy, etc.)
+    const weekdayRegex = /\b(chu\s*nhat|cn|thu\s*hai|t2|thu\s*ba|t3|thu\s*tu|t4|thu\s*nam|t5|thu\s*sau|t6|thu\s*bay|t7|thu\s*2|thu\s*3|thu\s*4|thu\s*5|thu\s*6|thu\s*7)\b(?:\s+(tuan\s+)?(nay|sau))?/gi
+    const getWeekdayIndex = (w: string): number => {
+      const cleanW = stripAccents(w).toLowerCase().replace(/\s+/g, '')
+      if (/cn|chunhat/.test(cleanW)) return 0
+      if (/t2|thuhai|thu2/.test(cleanW)) return 1
+      if (/t3|thuba|thu3/.test(cleanW)) return 2
+      if (/t4|thutu|thu4/.test(cleanW)) return 3
+      if (/t5|thunam|thu5/.test(cleanW)) return 4
+      if (/t6|thusau|thu6/.test(cleanW)) return 5
+      if (/t7|thubay|thu7/.test(cleanW)) return 6
+      return -1
+    }
+
+    let weekdayMatch
+    while ((weekdayMatch = weekdayRegex.exec(clean)) !== null) {
+      const wIndex = getWeekdayIndex(weekdayMatch[1])
+      if (wIndex !== -1) {
+        const currentDay = today.getDay()
+        const vnToday = currentDay === 0 ? 7 : currentDay
+        const vnTarget = wIndex === 0 ? 7 : wIndex
+        let diff = vnTarget - vnToday
+        if (diff < 0) {
+          diff += 7
+        }
+        const modifier = weekdayMatch[3] ? weekdayMatch[3].toLowerCase() : ''
+        if (modifier === 'sau' && (vnTarget - vnToday) >= 0) {
+          diff += 7
+        }
+        const targetDate = new Date(today)
+        targetDate.setDate(today.getDate() + diff)
+        dates.push({ value: formatDateStrLocal(targetDate), confidence: 0.95, raw: weekdayMatch[0] })
+      }
+    }
 
     const explicitDateRegex = /\b(\d{1,2})[\.\-\/](\d{1,2})[\.\-\/](\d{2,4})\b/g
     let dateMatch
