@@ -979,16 +979,34 @@ export function useAI() {
       { pattern: /\b(hbd|hpbd)\b/gi, replacement: 'Happy Birthday' },
       { pattern: /\b(tn)\b/gi, replacement: 'thôi nôi' },
       { pattern: /\b(thoi noi)\b/gi, replacement: 'thôi nôi' },
-      { pattern: /\b(day thang)\b/gi, replacement: 'đầy tháng' }
+      { pattern: /\b(day thang)\b/gi, replacement: 'đầy tháng' },
+      { pattern: /\b(hn)\b/gi, replacement: 'hôm nay' },
+      { pattern: /\b(kh)\b/gi, replacement: 'khách' },
+      { pattern: /\b(ng)\b/gi, replacement: 'người' }
     ]
     abbreviations.forEach(({ pattern, replacement }) => {
       clean = clean.replace(pattern, replacement)
+    })
+
+    // Normalise thứ 2 -> thứ hai, thứ 7 -> thứ bảy
+    clean = clean.replace(/\bthu\s+(\d)\b/gi, (match, num) => {
+      const mapping: Record<string, string> = {
+        '2': 'thứ hai',
+        '3': 'thứ ba',
+        '4': 'thứ tư',
+        '5': 'thứ năm',
+        '6': 'thứ sáu',
+        '7': 'thứ bảy'
+      }
+      return mapping[num] || match
     })
 
     // 2. Time normalizations (MUST run before spacing regex to protect "18h15", "7h30" etc.)
     clean = clean.replace(/\b(\d{1,2})h(\d{2})m\b/gi, '$1:$2')
     clean = clean.replace(/\b(\d{1,2})h(\d{2})\b/gi, '$1:$2')
     clean = clean.replace(/\b(\d{1,2})h\b/gi, '$1:00')
+    clean = clean.replace(/\b(\d{1,2})g(\d{2})\b/gi, '$1:$2')
+    clean = clean.replace(/\b(\d{1,2})g\b/gi, '$1:00')
 
     // Spacing between number and units
     clean = clean.replace(/(\d+)(pax|người|khách|cho|nguoi|khach|ban)/gi, '$1 $2')
@@ -2743,6 +2761,33 @@ export function useAI() {
 
       if (!finalParsedResult) {
         logStore.addLog(`Bắt đầu chạy pipeline gọi AI...`)
+        
+        // Optimistic UI: Fill basic fields instantly using Rule Engine to give sub-second user experience
+        logStore.addLog(`[Optimistic UI] Tự động điền nhanh các thông tin cơ bản trích xuất được từ Rule Engine...`)
+        const optimisticResult = {
+          customer: {
+            name: contextResolved.customer_name || ruleBasedResult.customer_name || '',
+            phone: contextResolved.phone || ruleBasedResult.phone || ''
+          },
+          booking: {
+            event_date: contextResolved.event_date || ruleBasedResult.event_date || '',
+            event_time: contextResolved.event_time || ruleBasedResult.event_time || '',
+            guest_count: contextResolved.guest_count || ruleBasedResult.guest_count || null,
+            table_number: contextResolved.table_code || ruleBasedResult.table_code || '',
+            need: contextResolved.booking_need || ruleBasedResult.booking_need || 'Ăn thường'
+          },
+          party: {
+            type: contextResolved.booking_need || ruleBasedResult.booking_need || 'Ăn thường',
+            owner_name: '',
+            display_board_text: ruleBasedResult.decoration_text || '',
+            special_request: ''
+          },
+          notes: {
+            customer_note: ruleBasedResult.note || ''
+          }
+        }
+        fillBookingFormSafely(optimisticResult, { mode: 'customer' })
+        uiStore.showToast('⚡ Đã nhận diện nhanh thông tin khách hàng...', 'info')
         // Apply admin self-learning corrections before calling AI
         const corrections = appStore.aiCorrections || []
         const appliedCorrections: Record<string, string> = {}
