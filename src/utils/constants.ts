@@ -38,20 +38,25 @@ export const AI_MODELS: AIModel[] = [
   // ══════ TEXT PIPELINE (VERIFIED JUNE 2026) ══════
   // Tier 0: Ultra-Fast — Groq LPU (1000+ tok/s)
   { id: 'llama-3.3-70b-versatile', name: 'Llama 3.3 70B (Groq)', provider: 'groq', type: 'text', tier: 0, url: 'https://api.groq.com/openai/v1/chat/completions', format: 'openai' },
-  { id: 'deepseek-r1-distill-llama-70b', name: 'DeepSeek R1 70B (Groq)', provider: 'groq', type: 'text', tier: 0, url: 'https://api.groq.com/openai/v1/chat/completions', format: 'openai' },
+  { id: 'openai/gpt-oss-120b', name: 'OpenAI GPT-OSS 120B (Groq)', provider: 'groq', type: 'text', tier: 0, url: 'https://api.groq.com/openai/v1/chat/completions', format: 'openai' },
   // Tier 1: Google Gemini Fleet (Super Reliable & Free 15 RPM)
+  { id: 'gemini-3.5-flash', name: 'Gemini 3.5 Flash (Google)', provider: 'google', type: 'text', tier: 1, url: 'https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent', format: 'gemini' },
   { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash (Google)', provider: 'google', type: 'text', tier: 1, url: 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent', format: 'gemini' },
   { id: 'gemini-2.0-flash', name: 'Gemini 2.0 Flash (Google)', provider: 'google', type: 'text', tier: 1, url: 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent', format: 'gemini' },
   { id: 'llama-3.2-11b-vision-preview', name: 'Llama 3.2 11B (Groq)', provider: 'groq', type: 'text', tier: 1, url: 'https://api.groq.com/openai/v1/chat/completions', format: 'openai' },
   // Tier 2: Cerebras Wafer-Scale (2000+ tok/s) - Verified IDs
-  { id: 'llama3.1-70b', name: 'Llama 3.1 70B (Cerebras)', provider: 'cerebras', type: 'text', tier: 2, url: 'https://api.cerebras.ai/v1/chat/completions', format: 'openai' },
-  { id: 'llama3.1-8b', name: 'Llama 3.1 8B (Cerebras)', provider: 'cerebras', type: 'text', tier: 2, url: 'https://api.cerebras.ai/v1/chat/completions', format: 'openai' },
+  { id: 'gpt-oss-120b', name: 'GPT OSS 120B (Cerebras)', provider: 'cerebras', type: 'text', tier: 2, url: 'https://api.cerebras.ai/v1/chat/completions', format: 'openai' },
+  { id: 'zai-glm-4.7', name: 'Z.ai GLM 4.7 (Cerebras)', provider: 'cerebras', type: 'text', tier: 2, url: 'https://api.cerebras.ai/v1/chat/completions', format: 'openai' },
   { id: 'llama-3.1-8b-instant', name: 'Llama 3.1 8B (Groq)', provider: 'groq', type: 'text', tier: 2, url: 'https://api.groq.com/openai/v1/chat/completions', format: 'openai' },
   // Tier 3: Mistral & GitHub — High Quality
+  { id: 'mistral-large-latest', name: 'Mistral Large (Mistral)', provider: 'mistral', type: 'text', tier: 3, url: 'https://api.mistral.ai/v1/chat/completions', format: 'openai' },
   { id: 'mistral-small-latest', name: 'Mistral Small 4', provider: 'mistral', type: 'text', tier: 3, url: 'https://api.mistral.ai/v1/chat/completions', format: 'openai' },
-  { id: 'gpt-4o-mini', name: 'GitHub GPT-4o-Mini', provider: 'github', type: 'text', tier: 3, url: 'https://models.inference.ai.azure.com/chat/completions', format: 'openai' },
+  { id: 'gpt-4o', name: 'GitHub GPT-4o', provider: 'github', type: 'text', tier: 3, url: 'https://models.github.ai/inference/chat/completions', format: 'openai' },
+  { id: 'gpt-4o-mini', name: 'GitHub GPT-4o-Mini', provider: 'github', type: 'text', tier: 3, url: 'https://models.github.ai/inference/chat/completions', format: 'openai' },
   // Tier 4: SambaNova & Free Fallback (Requires Key/Balance)
+  { id: 'DeepSeek-R1', name: 'DeepSeek R1 (SambaNova)', provider: 'sambanova', type: 'text', tier: 4, url: 'https://api.sambanova.ai/v1/chat/completions', format: 'openai' },
   { id: 'DeepSeek-V3.1', name: 'DeepSeek V3.1 (SambaNova)', provider: 'sambanova', type: 'text', tier: 4, url: 'https://api.sambanova.ai/v1/chat/completions', format: 'openai' },
+  { id: 'Llama-4-Maverick-17B-128E-Instruct', name: 'Llama 4 Maverick (SambaNova)', provider: 'sambanova', type: 'text', tier: 4, url: 'https://api.sambanova.ai/v1/chat/completions', format: 'openai' },
   { id: 'Meta-Llama-3.3-70B-Instruct', name: 'Llama 3.3 70B (SambaNova)', provider: 'sambanova', type: 'text', tier: 4, url: 'https://api.sambanova.ai/v1/chat/completions', format: 'openai' },
   { id: 'openai', name: 'Pollinations GPT (Free)', provider: 'pollinations', type: 'text', tier: 5, url: 'https://text.pollinations.ai/openai/v1/chat/completions', format: 'openai' },
 
@@ -59,12 +64,16 @@ export const AI_MODELS: AIModel[] = [
   // Tier 0: Fastest — Groq LPU Hardware - Verified Vision Model
   { id: 'llama-3.2-11b-vision-preview', name: 'Llama 3.2 11B (Groq)', provider: 'groq', type: 'vision', tier: 0, url: 'https://api.groq.com/openai/v1/chat/completions', format: 'openai' },
   // Tier 1: Google Gemini Fleet
+  { id: 'gemini-3.5-flash', name: 'Gemini 3.5 Flash', provider: 'google', type: 'vision', tier: 1, url: 'https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent', format: 'gemini' },
   { id: 'gemini-2.0-flash', name: 'Gemini 2.0 Flash', provider: 'google', type: 'vision', tier: 1, url: 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent', format: 'gemini' },
   { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash', provider: 'google', type: 'vision', tier: 1, url: 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent', format: 'gemini' },
   // Tier 2: Mistral Vision
+  { id: 'pixtral-large-latest', name: 'Pixtral Large (Vision)', provider: 'mistral', type: 'vision', tier: 2, url: 'https://api.mistral.ai/v1/chat/completions', format: 'openai' },
   { id: 'mistral-small-latest', name: 'Mistral Small 4 (Vision)', provider: 'mistral', type: 'vision', tier: 2, url: 'https://api.mistral.ai/v1/chat/completions', format: 'openai' },
   // Tier 3: GitHub & SambaNova Backup
-  { id: 'gpt-4o-mini', name: 'GitHub GPT-4o-Mini (Vision)', provider: 'github', type: 'vision', tier: 3, url: 'https://models.inference.ai.azure.com/chat/completions', format: 'openai' },
+  { id: 'gpt-4o', name: 'GitHub GPT-4o (Vision)', provider: 'github', type: 'vision', tier: 3, url: 'https://models.github.ai/inference/chat/completions', format: 'openai' },
+  { id: 'gpt-4o-mini', name: 'GitHub GPT-4o-Mini (Vision)', provider: 'github', type: 'vision', tier: 3, url: 'https://models.github.ai/inference/chat/completions', format: 'openai' },
+  { id: 'Llama-4-Maverick-17B-128E-Instruct', name: 'Llama 4 Maverick (SambaNova)', provider: 'sambanova', type: 'vision', tier: 3, url: 'https://api.sambanova.ai/v1/chat/completions', format: 'openai' },
   { id: 'Llama-4-Scout-17B-16E-Instruct', name: 'Llama 4 Scout (SambaNova)', provider: 'sambanova', type: 'vision', tier: 3, url: 'https://api.sambanova.ai/v1/chat/completions', format: 'openai' }
 ]
 
