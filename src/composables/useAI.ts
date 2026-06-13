@@ -2553,11 +2553,23 @@ export function useAI() {
           signal.addEventListener('abort', () => controller.abort())
         }
         
+        const getTimeoutForModel = (m: AIModel): number => {
+          if (m.type === 'vision') return 20000
+          const p = m.provider.toLowerCase()
+          if (p === 'groq' || p === 'cerebras' || p === 'sambanova') {
+            return 6000
+          }
+          if (p === 'google' || p === 'mistral' || p === 'github') {
+            return 10000
+          }
+          return 15000
+        }
+
         const timeoutPromise = new Promise<null>((_, reject) => {
           setTimeout(() => {
             controller.abort()
             reject(new Error(`Timeout model ${model.name}`))
-          }, 15000)
+          }, getTimeoutForModel(model))
         })
         
         const apiCallPromise = callAIModel(model, sysPrompt, userPrompt, image, true, controller.signal)

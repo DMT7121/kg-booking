@@ -58,7 +58,14 @@ export const AI_MODELS: AIModel[] = [
   { id: 'DeepSeek-V3.1', name: 'DeepSeek V3.1 (SambaNova)', provider: 'sambanova', type: 'text', tier: 4, url: 'https://api.sambanova.ai/v1/chat/completions', format: 'openai' },
   { id: 'Llama-4-Maverick-17B-128E-Instruct', name: 'Llama 4 Maverick (SambaNova)', provider: 'sambanova', type: 'text', tier: 4, url: 'https://api.sambanova.ai/v1/chat/completions', format: 'openai' },
   { id: 'Meta-Llama-3.3-70B-Instruct', name: 'Llama 3.3 70B (SambaNova)', provider: 'sambanova', type: 'text', tier: 4, url: 'https://api.sambanova.ai/v1/chat/completions', format: 'openai' },
+  { id: 'openrouter/free', name: 'OpenRouter Free Router', provider: 'openrouter', type: 'text', tier: 4, url: 'https://openrouter.ai/api/v1/chat/completions', format: 'openai' },
+  { id: 'meta-llama/llama-3.3-70b-instruct:free', name: 'Llama 3.3 70B (Free)', provider: 'openrouter', type: 'text', tier: 4, url: 'https://openrouter.ai/api/v1/chat/completions', format: 'openai' },
+  { id: 'deepseek/deepseek-r1:free', name: 'DeepSeek R1 (Free)', provider: 'openrouter', type: 'text', tier: 4, url: 'https://openrouter.ai/api/v1/chat/completions', format: 'openai' },
+  { id: 'google/gemini-2.5-flash:free', name: 'Gemini 2.5 Flash (Free)', provider: 'openrouter', type: 'text', tier: 4, url: 'https://openrouter.ai/api/v1/chat/completions', format: 'openai' },
   { id: 'openai', name: 'Pollinations GPT (Free)', provider: 'pollinations', type: 'text', tier: 5, url: 'https://text.pollinations.ai/openai/v1/chat/completions', format: 'openai' },
+  { id: 'qwen', name: 'Qwen 2.5 72B (Free)', provider: 'pollinations', type: 'text', tier: 5, url: 'https://text.pollinations.ai/openai/v1/chat/completions', format: 'openai' },
+  { id: 'llama', name: 'Llama 3.3 70B (Free)', provider: 'pollinations', type: 'text', tier: 5, url: 'https://text.pollinations.ai/openai/v1/chat/completions', format: 'openai' },
+  { id: 'deepseek', name: 'DeepSeek R1 / V3 (Free)', provider: 'pollinations', type: 'text', tier: 5, url: 'https://text.pollinations.ai/openai/v1/chat/completions', format: 'openai' },
 
   // ══════ VISION PIPELINE (VERIFIED JUNE 2026) ══════
   // Tier 0: Fastest — Groq LPU Hardware - Verified Vision Model
@@ -74,7 +81,9 @@ export const AI_MODELS: AIModel[] = [
   { id: 'gpt-4o', name: 'GitHub GPT-4o (Vision)', provider: 'github', type: 'vision', tier: 3, url: 'https://models.github.ai/inference/chat/completions', format: 'openai' },
   { id: 'gpt-4o-mini', name: 'GitHub GPT-4o-Mini (Vision)', provider: 'github', type: 'vision', tier: 3, url: 'https://models.github.ai/inference/chat/completions', format: 'openai' },
   { id: 'Llama-4-Maverick-17B-128E-Instruct', name: 'Llama 4 Maverick (SambaNova)', provider: 'sambanova', type: 'vision', tier: 3, url: 'https://api.sambanova.ai/v1/chat/completions', format: 'openai' },
-  { id: 'Llama-4-Scout-17B-16E-Instruct', name: 'Llama 4 Scout (SambaNova)', provider: 'sambanova', type: 'vision', tier: 3, url: 'https://api.sambanova.ai/v1/chat/completions', format: 'openai' }
+  { id: 'Llama-4-Scout-17B-16E-Instruct', name: 'Llama 4 Scout (SambaNova)', provider: 'sambanova', type: 'vision', tier: 3, url: 'https://api.sambanova.ai/v1/chat/completions', format: 'openai' },
+  { id: 'google/gemini-2.5-flash:free', name: 'Gemini 2.5 Flash (Free)', provider: 'openrouter', type: 'vision', tier: 3, url: 'https://openrouter.ai/api/v1/chat/completions', format: 'openai' },
+  { id: 'meta-llama/llama-3.2-11b-vision-instruct:free', name: 'Llama 3.2 11B (Free)', provider: 'openrouter', type: 'vision', tier: 3, url: 'https://openrouter.ai/api/v1/chat/completions', format: 'openai' }
 ]
 
 // --- ITEM CLASSIFICATION KEYS ---
