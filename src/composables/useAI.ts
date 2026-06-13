@@ -1011,7 +1011,13 @@ export function useAI() {
     // Spacing between number and units
     clean = clean.replace(/(\d+)(pax|người|khách|cho|nguoi|khach|ban)/gi, '$1 $2')
     // Require 2+ letters to avoid corrupting table codes (C6) and residual time tokens
-    clean = clean.replace(/([\p{L}]{2,})(\d+)\b/ugi, '$1 x$2')
+    clean = clean.replace(/([\p{L}]{2,})(\d+)\b/ugi, (match, word, num) => {
+      const lowerWord = stripAccents(word).toLowerCase()
+      if (/^(set|combo|menu|ban|table|vip|tang|goi|phong|kv|khu|khu\s+vuc)$/.test(lowerWord)) {
+        return `${word} ${num}`
+      }
+      return `${word} x${num}`
+    })
     clean = clean.replace(/(\d+)(?![hg\d\s\/:\-\.,])([\p{L}])/ugi, '$1 $2')
 
     // 3. Guest counts ranges & additions
@@ -1166,7 +1172,18 @@ export function useAI() {
           'coc', 'ck', 'chuyen', 'khoan', 'bill', 'bank', 'banking', 'momo',
           'mon', 'an', 'menu', 'combo', 'set', 'lau', 'nuong', 'xao', 'hap', 'bo', 'ga', 'heo', 'suon', 'de', 'tom', 'cua', 'muc',
           'nv', 'dmt', 'nhan', 'gui', 'nha', 'giup', 'giom', 'sdt', 'lien', 'he',
-          'an', 'thuong', 'lon', 'nho', 'be', 'tre', 'em'
+          'an', 'thuong', 'lon', 'nho', 'be', 'tre', 'em',
+          'yeu', 'cau', 'trang', 'tri', 'phong', 'lanh', 'sanh', 'may', 'ngoai', 'troi', 'san', 'khau', 'gan', 'bong', 'bay', 'board', 'chu', 
+          'thiet', 'ke', 'bao', 'gia', 'thuc', 'don', 'uong', 'tien', 'giam', 'gia', 'khuyen', 'mai', 'tang', 'banh', 'kem', 'hoa', 'nen', 
+          'hat', 'acoustic', 'phuc', 'vu', 'nhan', 'vien', 'ho', 'tro', 'chu', 'dao', 'nhiet', 'tinh', 'phi', 'dich', 'vu', 'free', 'mien', 
+          'phi', 'bat', 'dua', 'chen', 'ly', 'coc', 'da', 'khan', 'uot', 'ngot', 'cay', 'chua', 'man', 'lat', 'nhat', 'nuong', 'lau', 'hap', 
+          'chien', 'xao', 'luoc', 'goi', 'salad', 'sup', 'canh', 'com', 'mi', 'bun', 'pho', 'chao', 'khoai', 'tay', 'ngo', 'bap', 'dau', 
+          'rau', 'dua', 'ca', 'chua', 'hanh', 'toi', 'ot', 'tieu', 'sa', 'gung', 'rieng', 'me', 'dam', 'giam', 'sot', 'mam', 'muoi', 'duong', 
+          'chinh', 'nem', 'dau', 'bo', 'sua', 'trung', 'bot', 'tuong', 'thit', 'bo', 'heo', 'lon', 'ga', 'vit', 'ngan', 'ngong', 'de', 'cuu', 
+          'tho', 'ech', 'luon', 'ca', 'tom', 'cua', 'ghe', 'muc', 'bach', 'tuoc', 'hau', 'so', 'ngheu', 'oc', 'hen', 'sua', 'cha', 'gio', 
+          'xuc', 'xich', 'lap', 'xuong', 'roi', 'chi', 'suon', 'nam', 'linh', 'long', 'doi', 'tai', 'mui', 'luoi', 'chan', 'canh', 'dui', 
+          'uc', 'me', 'gan', 'tim', 'cat', 'pheo', 'day', 'bao', 'tu', 'gan', 'sun', 'xuong', 'duoi', 'dau', 'co', 'da', 'mo', 'nac', 
+          'than', 'vai', 'nong', 'ma', 'nam', 'sua', 'doi', 'sun'
         ])
         const hasStopWord = cleanWords.some(w => stopWords.has(stripAccents(w).toLowerCase()))
 
@@ -1255,12 +1272,15 @@ export function useAI() {
     
     let customer_name: string | null = null
     const nameResults = classifyPeopleNames(normalizedText)
+    const requestKeywords = /\byeu\s+cau\b|\bphong\s+lanh\b|\btrang\s+tri\b|\bbong\s+bong\b|\bbong\s+bay\b|\bcom\s+chien\b|\bthuc\s+don\b|\bmon\s+an\b|\bcoc\b|\bchuyen\s+khoan\b|\bset\s+menu\b|\bcombo\b|\bbao\s+gia\b|\bbia\b|\bnuoc\s+ngot\b/i
+    const filterValidNames = (names: string[]) => names.filter(n => !requestKeywords.test(stripAccents(n).toLowerCase()))
     
-    if (nameResults.bookerCandidates.length > 0) {
-      customer_name = nameResults.bookerCandidates[0]
+    const validBookers = filterValidNames(nameResults.bookerCandidates)
+    if (validBookers.length > 0) {
+      customer_name = validBookers[0]
     } else {
       // Fallback: Pick the first name that is not a party owner candidate
-      const potentialBookers = nameResults.peopleNames.filter(name => !nameResults.partyOwnerCandidates.includes(name))
+      const potentialBookers = filterValidNames(nameResults.peopleNames).filter(name => !nameResults.partyOwnerCandidates.includes(name))
       if (potentialBookers.length > 0) {
         customer_name = potentialBookers[0]
       }
@@ -1506,11 +1526,18 @@ export function useAI() {
       if (dish) return dish
     }
 
-    // 3. Contains match: input contains menu name or vice versa
-    const contains = menuList.find((m: any) =>
-      clean.includes(m.cleanName) || m.cleanName.includes(clean)
-    )
-    if (contains) return contains
+    // 3. Contains match: input contains menu name or vice versa (sorted by closest length)
+    const containsCandidates: { item: any; score: number }[] = []
+    for (const m of menuList) {
+      if (m.cleanName && (clean.includes(m.cleanName) || m.cleanName.includes(clean))) {
+        const lenDiff = Math.abs(clean.length - m.cleanName.length)
+        containsCandidates.push({ item: m, score: 1 / (1 + lenDiff) })
+      }
+    }
+    if (containsCandidates.length > 0) {
+      containsCandidates.sort((a, b) => b.score - a.score)
+      return containsCandidates[0].item
+    }
 
     // 4. Word overlap match (for partial names like "ba chi" → "ba chi heo nuong")
     const inputWords = clean.split(/\s+/).filter((w: string) => w.length > 1)
@@ -1604,7 +1631,14 @@ export function useAI() {
 
   function resolveDisplayCustomerName(parsed: any): string {
     if (parsed.customer?.name && parsed.customer.name.trim()) {
-      return parsed.customer.name;
+      const name = parsed.customer.name.trim()
+      const cleanNameLower = stripAccents(name).toLowerCase()
+      // Guard: do not allow request, notes or food keywords to be used as customer name
+      const requestKeywords = /\byeu\s+cau\b|\bphong\s+lanh\b|\btrang\s+tri\b|\bbong\s+bong\b|\bbong\s+bay\b|\bcom\s+chien\b|\bthuc\s+don\b|\bmon\s+an\b|\bcoc\b|\bchuyen\s+khoan\b|\bset\s+menu\b|\bcombo\b|\bbao\s+gia\b|\bbia\b|\bnuoc\s+ngot\b/i
+      if (requestKeywords.test(cleanNameLower)) {
+        return ''
+      }
+      return name;
     }
     if (parsed.party?.owner_name && parsed.party.owner_name.trim()) {
       if (!parsed.warnings) parsed.warnings = [];
@@ -2235,6 +2269,26 @@ export function useAI() {
         logStore.addLog(`[Khớp món] "${rawName}" -> "${match.name}" (Khớp viết tắt, Độ tin cậy: 95%)`, 'success')
       }
       
+      // 1.5. Contains match (subset/superset check)
+      if (!match) {
+        const containsCandidates: { item: any; score: number }[] = []
+        for (const m of menuList) {
+          const mClean = stripAccents(m.name).toLowerCase().trim()
+          if (mClean && clean && (mClean.includes(clean) || clean.includes(mClean))) {
+            const lenDiff = Math.abs(clean.length - mClean.length)
+            const score = 1 / (1 + lenDiff)
+            containsCandidates.push({ item: m, score })
+          }
+        }
+        if (containsCandidates.length > 0) {
+          containsCandidates.sort((a, b) => b.score - a.score)
+          match = containsCandidates[0].item
+          confidence = 0.95
+          matchType = 'fuzzy'
+          logStore.addLog(`[Khớp món] "${rawName}" -> "${match.name}" (Khớp chứa, Độ tin cậy: 95%)`, 'success')
+        }
+      }
+      
       if (!match) {
         const inputTokens = clean.split(/\s+/).filter(t => t.length > 1)
         const matchedCandidates: { item: any; score: number; confidence: number }[] = []
@@ -2244,7 +2298,7 @@ export function useAI() {
           const mTokens = mClean.split(/\s+/)
           
           const overlap = inputTokens.filter(t => mTokens.some(mt => mt.includes(t) || t.includes(mt))).length
-          const overlapScore = overlap / Math.max(inputTokens.length, mTokens.length, 1)
+          const overlapScore = (overlap / Math.max(inputTokens.length, 1)) * 0.7 + (overlap / Math.max(mTokens.length, 1)) * 0.3
           
           const dist = levenshteinDistance(clean, mClean)
           const levenshteinScore = 1 - (dist / Math.max(clean.length, mClean.length, 1))
