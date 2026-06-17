@@ -121,6 +121,68 @@ export function useAI() {
     return clean.replace(/\s+/g, ' ').trim()
   }
 
+  // Helper to clean redundant booking details (name, phone, pax, menu items) from customer note
+  function cleanBookingNotes(noteText: string, customer: any, booking: any, menuItems: any[]): string {
+    if (!noteText) return ''
+    
+    const lines = noteText.split('\n')
+    const cleanedLines = lines.filter(line => {
+      const cleanLine = stripAccents(line).toLowerCase().trim()
+      if (!cleanLine) return false
+      
+      // 1. Remove redundancy if the line looks like a label / metadata
+      if (/^(nguoi dat|ten khach|khach hang|sdt|dien thoai|phone|lien he|so dt|ngay dat|ngay tiec|gio tiec|so luong khach|so khach|so pax|so nguoi|pax|nguoi|ban|so ban):/i.test(cleanLine)) {
+        return false
+      }
+      
+      // 2. Remove customer name or phone if present in the line
+      if (customer) {
+        if (customer.name) {
+          const cleanName = stripAccents(customer.name).toLowerCase().trim()
+          if (cleanName && cleanLine.includes(cleanName) && /^(anh|chi|khach|nguoi|lien|sdt|dt)/.test(cleanLine)) {
+            return false
+          }
+        }
+        if (customer.phone) {
+          const cleanPhone = String(customer.phone).replace(/\D/g, '')
+          if (cleanPhone && cleanLine.replace(/\D/g, '').includes(cleanPhone)) {
+            return false
+          }
+        }
+      }
+      
+      // 3. Remove booking pax if line is just the pax count
+      if (booking && booking.guest_count) {
+        const guestStr = String(booking.guest_count)
+        if (new RegExp(`^\\b${guestStr}\\s*(?:pax|nguoi|ng|khach|cho)\\b$`, 'i').test(cleanLine) ||
+            new RegExp(`^\\b${guestStr}\\s*nguoi\\s*(?:lon)?\\b$`, 'i').test(cleanLine)) {
+          return false
+        }
+      }
+      
+      // 4. Remove menu items from the notes
+      if (Array.isArray(menuItems)) {
+        for (const item of menuItems) {
+          const rawName = item.raw_name || item.name || ''
+          const itemBase = stripAccents(rawName).toLowerCase().trim()
+          if (itemBase && itemBase.length > 2) {
+            let lineContent = cleanLine.replace(/^[-+\d\s.*]+/, '').trim()
+            lineContent = lineContent.replace(/(?:[x\*]|\bphan|\bcon)\s*\d+\s*$/i, '').trim()
+            lineContent = lineContent.replace(/^\d+\s*(?:[x\*]|\bphan|\bcon)/i, '').trim()
+            
+            if (lineContent === itemBase || lineContent.includes(itemBase)) {
+              return false
+            }
+          }
+        }
+      }
+      
+      return true
+    })
+    
+    return cleanedLines.join('\n').trim()
+  }
+
   function getMenuIndex() {
     const menuList = appStore.menuList || []
     const aliases = appStore.menuAliases || []
@@ -2020,10 +2082,15 @@ export function useAI() {
       const notesInfo = parsedResult.notes || parsedResult
       const customerNoteVal = notesInfo?.customer_note || parsedResult.booking?.notes || parsedResult.reservation?.notes || parsedResult.note || ''
       
-      const updatedNote = buildPartyNote(partyInfo, formStore.customer.note || customerNoteVal)
-      if (updatedNote) {
-        formStore.customer.note = updatedNote
-      }
+      const currentItems = parsedResult.menu_items || parsedResult.items || []
+      let updatedNote = buildPartyNote(partyInfo, formStore.customer.note || customerNoteVal)
+      updatedNote = cleanBookingNotes(
+        updatedNote,
+        { name: formStore.customer.name, phone: formStore.customer.phone },
+        { guest_count: formStore.customer.pax },
+        currentItems
+      )
+      formStore.customer.note = updatedNote
       
       // Deposit: Only from explicit deposit/payment objects (NEVER fallback to parsedResult root)
       // Also validate that deposit keywords exist in input to prevent AI hallucination
@@ -2255,7 +2322,12 @@ export function useAI() {
 
     const partyObj = parsed.party || { type: need, owner_name: partyOwner, display_board_text: textOnBoard, special_request: "" }
     const rawNote = safeGet(parsed, 'notes.customer_note', safeGet(parsed, 'reservation.notes', parsed.note || ""))
-    const customerNote = buildPartyNote(partyObj, rawNote)
+    const customerNote = cleanBookingNotes(
+      buildPartyNote(partyObj, rawNote),
+      { name: customerName, phone: customerPhone },
+      { guest_count: guestCount },
+      menuItems
+    )
     const internalNote = safeGet(parsed, 'notes.internal_note', parsed.internal_note || "")
     const uncertainInfo = safeGet(parsed, 'notes.uncertain_info', parsed.uncertain_info || [])
 
