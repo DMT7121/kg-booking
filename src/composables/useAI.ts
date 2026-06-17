@@ -741,11 +741,50 @@ export function useAI() {
       return hasTokenMatch || acronymMatch
     })
 
-    const fullSize = sysPrompt.length + promptText.length
-    // If prompt is large, restrict context. Otherwise, send the entire menu list to allow full matching.
-    const menuToSend = (fullSize > 15000 && candidates.length > 0) ? candidates.slice(0, 30) : appStore.menuList
-    const menuContext = menuToSend.map((i: any) => `- ${i.name} (${formatVND(i.price)})`).join('\n')
+    // Establish a strict character limit for the prompt to stay within Groq's TPM limits (12,000 tokens ≈ 15,000 chars)
+    // We aim for a safe budget of 10,000 characters total for finalSysPrompt + promptText
+    const basePromptWithoutMenu = sysPrompt.replace(/\{\{MENU_CONTEXT\}\}/g, '')
+    const baseSize = basePromptWithoutMenu.length + promptText.length
+    const maxMenuChars = Math.max(0, 10000 - baseSize)
 
+    // Build the menu context incrementally up to our maxMenuChars budget
+    let menuToSend: any[] = []
+    if (candidates.length > 0) {
+      let currentChars = 0
+      for (const item of candidates) {
+        const line = `- ${item.name} (${formatVND(item.price)})\n`
+        if (currentChars + line.length > maxMenuChars) break
+        menuToSend.push(item)
+        currentChars += line.length
+      }
+      
+      // If we still have budget, backfill with general menu items to help matching
+      if (currentChars < maxMenuChars) {
+        for (const item of appStore.menuList) {
+          if (candidates.includes(item)) continue
+          const line = `- ${item.name} (${formatVND(item.price)})\n`
+          if (currentChars + line.length > maxMenuChars) break
+          menuToSend.push(item)
+          currentChars += line.length
+        }
+      }
+    } else {
+      // No candidates matched, fill as much of the menu as our budget allows
+      let currentChars = 0
+      for (const item of appStore.menuList) {
+        const line = `- ${item.name} (${formatVND(item.price)})\n`
+        if (currentChars + line.length > maxMenuChars) break
+        menuToSend.push(item)
+        currentChars += line.length
+      }
+    }
+
+    // Ensure we send at least a small context if budget was extremely tight
+    if (menuToSend.length === 0 && appStore.menuList.length > 0) {
+      menuToSend = appStore.menuList.slice(0, 5)
+    }
+
+    const menuContext = menuToSend.map((i: any) => `- ${i.name} (${formatVND(i.price)})`).join('\n')
     let finalSysPrompt = sysPrompt.replace(/\{\{MENU_CONTEXT\}\}/g, menuContext)
 
     if (finalSysPrompt.length + promptText.length > 25000) {
