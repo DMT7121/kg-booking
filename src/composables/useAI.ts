@@ -1077,6 +1077,16 @@ export function useAI() {
       clean = clean.replace(pattern, replacement)
     })
 
+    // spelling normalizations / aliases for dishes
+    const spellingAliases = [
+      { pattern: /\b(dut lo|dut\s+lo)\b/gi, replacement: 'đốt lò' },
+      { pattern: /\b(chac toi|chac\s+toi)\b/gi, replacement: 'cháy tỏi' },
+      { pattern: /\b(sate|sa\s+te)\b/gi, replacement: 'sa tế' }
+    ]
+    spellingAliases.forEach(({ pattern, replacement }) => {
+      clean = clean.replace(pattern, replacement)
+    })
+
     // Normalise thứ 2 -> thứ hai, thứ 7 -> thứ bảy
     clean = clean.replace(/\bthu\s+(\d)\b/gi, (match, num) => {
       const mapping: Record<string, string> = {
@@ -2415,20 +2425,52 @@ export function useAI() {
       // 1.5. Contains match (subset/superset check)
       if (!match) {
         const containsCandidates: { item: any; score: number }[] = []
+        const partModifiers = ['chan', 'canh', 'sun', 'me', 'long', 'doi', 'nam', 'gan', 'duoi', 'luoi', 'tai', 'vu', 'ba chi', 'nầm', 'chân', 'cánh', 'sụn', 'mề', 'lòng', 'dồi', 'gân', 'đuôi', 'lưỡi', 'tai', 'vú', 'ba chỉ']
+        
         for (const m of menuList) {
           const mClean = stripAccents(m.name).toLowerCase().trim()
           if (mClean && clean && (mClean.includes(clean) || clean.includes(mClean))) {
+            // Check if there is a part/type modifier in mClean that is NOT in clean
+            let modifierConflict = false
+            for (const mod of partModifiers) {
+              const mHasMod = new RegExp(`\\b${mod}\\b`, 'i').test(mClean)
+              const cleanHasMod = new RegExp(`\\b${mod}\\b`, 'i').test(clean)
+              if (mHasMod && !cleanHasMod) {
+                modifierConflict = true
+                break
+              }
+            }
+            
             const lenDiff = Math.abs(clean.length - mClean.length)
-            const score = 1 / (1 + lenDiff)
+            let score = 1 / (1 + lenDiff)
+            
+            // StartsWith bonus
+            if (mClean.startsWith(clean)) {
+              score += 2.0
+            }
+            
+            // Word boundary startsWith bonus
+            const cleanWords = clean.split(/\s+/)
+            const mWords = mClean.split(/\s+/)
+            if (mWords.slice(0, cleanWords.length).join(' ') === clean) {
+              score += 1.0
+            }
+            
+            if (modifierConflict) {
+              score -= 5.0 // heavy penalty for mismatching parts
+            }
+            
             containsCandidates.push({ item: m, score })
           }
         }
-        if (containsCandidates.length > 0) {
-          containsCandidates.sort((a, b) => b.score - a.score)
-          match = containsCandidates[0].item
+        
+        const validCandidates = containsCandidates.filter(c => c.score > -2.0)
+        if (validCandidates.length > 0) {
+          validCandidates.sort((a, b) => b.score - a.score)
+          match = validCandidates[0].item
           confidence = 0.95
           matchType = 'fuzzy'
-          logStore.addLog(`[Khớp món] "${rawName}" -> "${match.name}" (Khớp chứa, Độ tin cậy: 95%)`, 'success')
+          logStore.addLog(`[Khớp món] "${rawName}" -> "${match.name}" (Khớp chứa, Điểm: ${validCandidates[0].score.toFixed(2)})`, 'success')
         }
       }
       
