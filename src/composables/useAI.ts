@@ -741,11 +741,19 @@ export function useAI() {
       return hasTokenMatch || acronymMatch
     })
 
+    let finalSysPrompt = sysPrompt
+    // If the base prompt size is too large (above 15,000 characters), strip the large few-shot examples section
+    // to fit within strict token limits (like Groq's 12,000 TPM limit) while leaving room for menu items.
+    const promptWithoutMenu = finalSysPrompt.replace(/\{\{MENU_CONTEXT\}\}/g, '')
+    if (promptWithoutMenu.length + promptText.length > 15000) {
+      finalSysPrompt = finalSysPrompt.replace(/# 12\. VÍ DỤ CHUẨN[^]*?(?=\n---|\n# 13|$)/g, '').trim()
+    }
+
     // Establish a strict character limit for the prompt to stay within Groq's TPM limits (12,000 tokens ≈ 15,000 chars)
-    // We aim for a safe budget of 10,000 characters total for finalSysPrompt + promptText
-    const basePromptWithoutMenu = sysPrompt.replace(/\{\{MENU_CONTEXT\}\}/g, '')
+    // We target a safe budget of 15,000 characters total for finalSysPrompt + promptText
+    const basePromptWithoutMenu = finalSysPrompt.replace(/\{\{MENU_CONTEXT\}\}/g, '')
     const baseSize = basePromptWithoutMenu.length + promptText.length
-    const maxMenuChars = Math.max(0, 10000 - baseSize)
+    const maxMenuChars = Math.max(0, 15000 - baseSize)
 
     // Build the menu context incrementally up to our maxMenuChars budget
     let menuToSend: any[] = []
@@ -785,7 +793,7 @@ export function useAI() {
     }
 
     const menuContext = menuToSend.map((i: any) => `- ${i.name} (${formatVND(i.price)})`).join('\n')
-    let finalSysPrompt = sysPrompt.replace(/\{\{MENU_CONTEXT\}\}/g, menuContext)
+    finalSysPrompt = finalSysPrompt.replace(/\{\{MENU_CONTEXT\}\}/g, menuContext)
 
     if (finalSysPrompt.length + promptText.length > 25000) {
       finalSysPrompt = finalSysPrompt.replace(/Ví dụ:[^]*?(?=\n\n|\n[A-Z]|$)/g, '').trim()
