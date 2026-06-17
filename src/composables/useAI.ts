@@ -418,16 +418,43 @@ export function useAI() {
     const tables: HardEntities['tables'] = []
     const clean = stripAccents(normalizedText).toLowerCase()
 
+    const blocks = segmentInputBlocksCompat(normalizedText)
     const phoneRegex = /(0[35789]\d{7,9})/g
-    let phoneMatch
-    while ((phoneMatch = phoneRegex.exec(normalizedText)) !== null) {
-      const val = cleanPhoneNumber(phoneMatch[1])
-      const isMaybeInvalid = val.length < 10
+    let bestCustomerPhone: string | null = null
+    const custPhoneMatch = blocks.customer_block.match(phoneRegex)
+    if (custPhoneMatch) {
+      bestCustomerPhone = cleanPhoneNumber(custPhoneMatch[0])
+    } else {
+      const allPhoneMatch = normalizedText.match(phoneRegex)
+      if (allPhoneMatch) {
+        const depositPhones = blocks.deposit_block.match(phoneRegex)
+        if (depositPhones && depositPhones[0] === allPhoneMatch[0]) {
+          if (allPhoneMatch.length > 1) bestCustomerPhone = cleanPhoneNumber(allPhoneMatch[1])
+        } else {
+          bestCustomerPhone = cleanPhoneNumber(allPhoneMatch[0])
+        }
+      }
+    }
+
+    if (bestCustomerPhone) {
+      const isMaybeInvalid = bestCustomerPhone.length < 10
       phones.push({
-        value: val,
+        value: bestCustomerPhone,
         confidence: isMaybeInvalid ? 0.5 : 0.95,
         warning: isMaybeInvalid ? 'phone_maybe_invalid' : undefined
       })
+    }
+    
+    let phoneMatch
+    while ((phoneMatch = phoneRegex.exec(normalizedText)) !== null) {
+      const val = cleanPhoneNumber(phoneMatch[1])
+      if (val !== bestCustomerPhone && !phones.some(p => p.value === val)) {
+        phones.push({
+          value: val,
+          confidence: 0.5,
+          warning: 'alternative_phone'
+        })
+      }
     }
 
     const today = new Date()
@@ -508,19 +535,24 @@ export function useAI() {
       }
     }
 
+    const matchedTimeRanges: Array<[number, number]> = []
     const rangeTimeRegex = /\b(\d{1,2})[h:](\d{2})?\s*[-–—đến|den|to]\s*(\d{1,2})[h:](\d{2})?\b/gi
     let rangeMatch
-    if ((rangeMatch = rangeTimeRegex.exec(clean)) !== null) {
+    while ((rangeMatch = rangeTimeRegex.exec(clean)) !== null) {
       let h = parseInt(rangeMatch[1])
       const m = rangeMatch[2] ? parseInt(rangeMatch[2]) : 0
       if (h < 12 && !/sang/i.test(clean)) h += 12
       times.push({ value: `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`, confidence: 0.95, raw: rangeMatch[0] })
+      matchedTimeRanges.push([rangeMatch.index, rangeMatch.index + rangeMatch[0].length])
     }
 
     const standardTimeRegex = /\b(\d{1,2})[h:](\d{2})?\b/gi
     let timeMatchObj
     while ((timeMatchObj = standardTimeRegex.exec(clean)) !== null) {
-      if (times.length > 0 && timeMatchObj.index >= normalizedText.indexOf(times[0].raw) && timeMatchObj.index <= normalizedText.indexOf(times[0].raw) + times[0].raw.length) {
+      const start = timeMatchObj.index
+      const end = start + timeMatchObj[0].length
+      const isOverlapping = matchedTimeRanges.some(([s, e]) => (start >= s && start < e) || (end > s && end <= e))
+      if (isOverlapping) {
         continue
       }
       let h = parseInt(timeMatchObj[1])
@@ -528,6 +560,7 @@ export function useAI() {
       if (h < 12 && !/sang/i.test(clean)) h += 12
       if (h >= 24) h -= 12
       times.push({ value: `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`, confidence: 0.95, raw: timeMatchObj[0] })
+      matchedTimeRanges.push([start, end])
     }
 
     const additionGuestRegex = /\b(\d+)\s*(?:nguoi lon|lon)\s*(?:\+|,|va)?\s*(\d+)\s*(?:nho|be|tre em)\b/gi
@@ -709,7 +742,8 @@ export function useAI() {
     })
 
     const fullSize = sysPrompt.length + promptText.length
-    const menuToSend = (fullSize > 12000 && candidates.length > 0) ? candidates.slice(0, 15) : appStore.menuList.slice(0, 30)
+    // If prompt is large, restrict context. Otherwise, send the entire menu list to allow full matching.
+    const menuToSend = (fullSize > 15000 && candidates.length > 0) ? candidates.slice(0, 30) : appStore.menuList
     const menuContext = menuToSend.map((i: any) => `- ${i.name} (${formatVND(i.price)})`).join('\n')
 
     let finalSysPrompt = sysPrompt.replace(/\{\{MENU_CONTEXT\}\}/g, menuContext)
@@ -973,6 +1007,14 @@ export function useAI() {
 
     clean = clean.replace(/\n{3,}/g, '\n\n')
 
+    // Normalize phone numbers (e.g., "090 123 4567", "090.123.4567", "090-123-4567" -> "0901234567")
+    clean = clean.replace(/(?:\+84|84|0)(?:\s*[\.-]?\s*\d){9}\b/g, (match) => {
+      let digits = match.replace(/[\s\.-]+/g, '')
+      if (digits.startsWith('+84')) digits = '0' + digits.slice(3)
+      if (digits.startsWith('84')) digits = '0' + digits.slice(2)
+      return digits
+    })
+
     // 1. Abbreviations & typos normalization
     const abbreviations: { pattern: RegExp; replacement: string }[] = [
       { pattern: /\b(sn|sinh nhat)\b/gi, replacement: 'sinh nhật' },
@@ -1057,6 +1099,54 @@ export function useAI() {
       const yyyy = d.getFullYear()
       return `${dd}/${mm}/${yyyy}`
     }
+
+    // Convert relative weekday words like "thứ bảy", "cn", "thứ hai tuần sau" directly into dates
+    const weekdayNormRegex = /\b(chu\s*nhat|cn|thu\s*hai|thu\s*ba|thu\s*tu|thu\s*nam|thu\s*sau|thu\s*bay|t2|t3|t4|t5|t6|t7)\b(?:\s+(tuan\s+)?(nay|sau))?/gi
+    const getWeekdayIndex = (w: string): number => {
+      const cleanW = stripAccents(w).toLowerCase().replace(/\s+/g, '')
+      if (/cn|chunhat/.test(cleanW)) return 0
+      if (/t2|thuhai/.test(cleanW)) return 1
+      if (/t3|thuba/.test(cleanW)) return 2
+      if (/t4|thutu/.test(cleanW)) return 3
+      if (/t5|thunam/.test(cleanW)) return 4
+      if (/t6|thusau/.test(cleanW)) return 5
+      if (/t7|thubay/.test(cleanW)) return 6
+      return -1
+    }
+    
+    clean = clean.replace(weekdayNormRegex, (match, dayStr, _, modifier) => {
+      const wIndex = getWeekdayIndex(dayStr)
+      if (wIndex === -1) return match
+      const currentDay = today.getDay()
+      const vnToday = currentDay === 0 ? 7 : currentDay
+      const vnTarget = wIndex === 0 ? 7 : wIndex
+      
+      let diff = vnTarget - vnToday
+      if (diff < 0) {
+        diff += 7
+      }
+      
+      const mod = modifier ? modifier.toLowerCase() : ''
+      if (mod === 'sau' && (vnTarget - vnToday) >= 0) {
+        diff += 7
+      }
+      
+      const targetDate = new Date(today)
+      targetDate.setDate(today.getDate() + diff)
+      return formatDate(targetDate)
+    })
+
+    // Convert "ngày X tháng Y" -> "X/Y/YYYY"
+    clean = clean.replace(/\b(?:ngay\s+)?(\d{1,2})\s+(?:thang|thg|t|t\s*)\s*(\d{1,2})\b/gi, (match, d, m) => {
+      const day = parseInt(d)
+      const month = parseInt(m)
+      if (day >= 1 && day <= 31 && month >= 1 && month <= 12) {
+        const dd = String(day).padStart(2, '0')
+        const mm = String(month).padStart(2, '0')
+        return `${dd}/${mm}/${today.getFullYear()}`
+      }
+      return match
+    })
 
     const relativePatterns = [
       { pattern: /\b(hôm nay|nay|tối nay|chiều nay|hom nay|toi nay|chieu nay)\b/gi, offset: 0 },
@@ -1600,8 +1690,8 @@ export function useAI() {
     if (field === 'time' && !formStore.customer.time) return false
     if (field === 'pax' && !formStore.customer.pax) return false
     if (field === 'tables') {
-      const currentTable = (uiStore.tempTable.zone || '') + (uiStore.tempTable.number || '')
-      if (!currentTable.trim()) return false
+      const currentTableNumber = uiStore.tempTable.number || ''
+      if (!currentTableNumber.trim()) return false
     }
 
     if (!formStore.originalAiValues) {
@@ -1611,8 +1701,8 @@ export function useAI() {
       if (field === 'time' && formStore.customer.time) return true
       if (field === 'pax' && formStore.customer.pax) return true
       if (field === 'tables') {
-        const currentTable = (uiStore.tempTable.zone || '') + (uiStore.tempTable.number || '')
-        if (currentTable.trim()) return true
+        const currentTableNumber = uiStore.tempTable.number || ''
+        if (currentTableNumber.trim()) return true
       }
       return false
     }
@@ -1624,7 +1714,9 @@ export function useAI() {
     if (field === 'pax') return String(formStore.customer.pax) !== String(formStore.originalAiValues.pax)
     if (field === 'tables') {
       const currentTable = (uiStore.tempTable.zone || '') + (uiStore.tempTable.number || '')
-      return currentTable !== formStore.originalAiValues.tables
+      const originalTable = formStore.originalAiValues.tables || ''
+      if (!uiStore.tempTable.number && !originalTable) return false
+      return currentTable !== originalTable
     }
     return false
   }
@@ -1795,11 +1887,15 @@ export function useAI() {
       
       // Deposit: Only from explicit deposit/payment objects (NEVER fallback to parsedResult root)
       // Also validate that deposit keywords exist in input to prevent AI hallucination
+      // Deposit: Only from explicit deposit/payment objects (NEVER fallback to parsedResult root)
+      // Also validate that deposit keywords exist in input OR we are analyzing an image to prevent AI hallucination
       const depositInfo = parsedResult.deposit || parsedResult.payment || null
       if (depositInfo?.amount) {
         const depositKeywords = /c[oọ][ck]|đ[aặ]t c[oọ][ck]|chuy[eể]n kho[aả]n|thanh to[aá]n|deposit/i
         const rawInput = formStore.rawInput || ''
-        if (depositKeywords.test(rawInput)) {
+        const hasImageContext = !!formStore.aiImage || ['deposit_bill_image', 'chat_screenshot'].includes(parsedResult.input_type || '')
+        
+        if (depositKeywords.test(rawInput) || hasImageContext) {
           formStore.deposit.amount = parseInt(String(depositInfo.amount)) || 0
           if (depositInfo.status === 'đã cọc' || depositInfo.status === 'YES' || depositInfo.method === 'transfer') {
             formStore.deposit.isPaid = true
@@ -2303,18 +2399,23 @@ export function useAI() {
           const dist = levenshteinDistance(clean, mClean)
           const levenshteinScore = 1 - (dist / Math.max(clean.length, mClean.length, 1))
           
-          let attributeMatch = true
+          let attributeConflict = false
+          let attributeMissingInUser = false
           for (const attr of attributes) {
             const cleanHasAttr = clean.includes(attr)
             const mCleanHasAttr = mClean.includes(attr)
-            if (cleanHasAttr !== mCleanHasAttr) {
-              attributeMatch = false
+            if (cleanHasAttr && !mCleanHasAttr) {
+              attributeConflict = true
+            } else if (!cleanHasAttr && mCleanHasAttr) {
+              attributeMissingInUser = true
             }
           }
           
           let score = 0.6 * overlapScore + 0.4 * levenshteinScore
-          if (!attributeMatch) {
-            score *= 0.3
+          if (attributeConflict) {
+            score *= 0.2
+          } else if (attributeMissingInUser) {
+            score *= 0.8
           }
           
           if (score >= 0.4) {
@@ -2880,6 +2981,7 @@ export function useAI() {
           })())
           .replace('{{RAW_INPUT}}', aiPromptText)
           .replace('{{RULE_BASED_HINTS}}', JSON.stringify(ruleBasedResult, null, 2))
+          .replace('{{LOCKED_ENTITIES}}', JSON.stringify(hardEntities, null, 2))
           .replace(/\{\{TOMORROW_DD_MM_YYYY\}\}/g, (() => {
             const tom = new Date()
             tom.setDate(tom.getDate() + 1)
