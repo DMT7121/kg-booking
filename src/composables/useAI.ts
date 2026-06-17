@@ -71,6 +71,56 @@ export function useAI() {
     return { exactMap, aliasMap, acronymMap, tokenMap }
   }
 
+  // Helper to extract portion size (5 or 10) from a raw dish name string
+  function extractPortionSize(rawName: string): number | null {
+    const clean = stripAccents(rawName).toLowerCase()
+    
+    // Check for explicit "nho" / "lon" keywords
+    if (/\b(nho|nho\s+nhat|nho\s+hon)\b/i.test(clean)) {
+      return 5
+    }
+    if (/\b(lon|lon\s+nhat|lon\s+hon)\b/i.test(clean)) {
+      return 10
+    }
+    
+    // Check for numbers inside parenthesis (e.g. (5), (5 con), (5con))
+    const parenMatch = clean.match(/\(\s*(\d+)\s*(?:con)?\s*\)/i)
+    if (parenMatch) {
+      return parseInt(parenMatch[1], 10)
+    }
+    
+    // Check for standalone/trailing number patterns e.g. "5 con", "5con", "10 con", "10con"
+    const wordMatch = clean.match(/\b(5|10)\s*con\b/i) || clean.match(/\b(5|10)con\b/i)
+    if (wordMatch) {
+      return parseInt(wordMatch[1], 10)
+    }
+    
+    return null
+  }
+
+  // Helper to extract portion size (5 or 10) from a menu item name string
+  function getMenuPortionSize(menuName: string): number | null {
+    const clean = stripAccents(menuName).toLowerCase()
+    const match = clean.match(/\((\d+)\s*(?:con)?\)/) || clean.match(/\b(5|10)\s*con\b/)
+    return match ? parseInt(match[1], 10) : null
+  }
+
+  // Helper to clean up portion-related details and typos to isolate base dish name
+  function getBaseDishName(name: string): string {
+    let clean = stripAccents(name).toLowerCase()
+    // Normalise tcocktail typo
+    clean = clean.replace(/\btcocktail\b/gi, 'cocktail')
+    // Remove (5 con), (10 con), (5), (10), etc.
+    clean = clean.replace(/\(\s*\d+\s*(?:con)?\s*\)/gi, '')
+    // Remove "5 con", "10 con", "5con", "10con"
+    clean = clean.replace(/\b(5|10)\s*con\b/gi, '')
+    clean = clean.replace(/\b(5|10)con\b/gi, '')
+    // Remove "nho", "lon"
+    clean = clean.replace(/\b(nho|lon)\b/gi, '')
+    // Trim extra spaces
+    return clean.replace(/\s+/g, ' ').trim()
+  }
+
   function getMenuIndex() {
     const menuList = appStore.menuList || []
     const aliases = appStore.menuAliases || []
@@ -1081,7 +1131,8 @@ export function useAI() {
     const spellingAliases = [
       { pattern: /\b(dut lo|dut\s+lo)\b/gi, replacement: 'đốt lò' },
       { pattern: /\b(chac toi|chac\s+toi)\b/gi, replacement: 'cháy tỏi' },
-      { pattern: /\b(sate|sa\s+te)\b/gi, replacement: 'sa tế' }
+      { pattern: /\b(sate|sa\s+te)\b/gi, replacement: 'sa tế' },
+      { pattern: /\b(tcocktail|t\s*cocktail)\b/gi, replacement: 'cocktail' }
     ]
     spellingAliases.forEach(({ pattern, replacement }) => {
       clean = clean.replace(pattern, replacement)
@@ -1655,11 +1706,43 @@ export function useAI() {
   }
 
   // V6 Port: Fuzzy menu matching (exact → contains → word overlap)
-  function fuzzyMatchMenu(inputName: string) {
+  function fuzzyMatchMenu(inputName: string, guestCount?: number | null) {
     const menuList = appStore.menuList
     if (!menuList || menuList.length === 0) return null
-    const clean = stripAccents(inputName).toLowerCase().trim()
+    
+    let rawName = inputName.trim()
+    const qtyMatch = rawName.match(/(?:[x\*])\s*(\d+)\s*$/i)
+    if (qtyMatch) {
+      rawName = rawName.replace(/(?:[x\*])\s*(\d+)\s*$/i, '').trim()
+    }
+    const clean = stripAccents(rawName).toLowerCase().trim()
     if (!clean || clean.length < 2) return null
+
+    // Portion resolution logic check
+    const baseRaw = getBaseDishName(rawName)
+    const portionCandidates = menuList.filter((m: any) => getBaseDishName(m.name) === baseRaw)
+    const hasPortions = portionCandidates.some((m: any) => getMenuPortionSize(m.name) !== null)
+    
+    if (portionCandidates.length > 0 && hasPortions) {
+      let targetPortion = extractPortionSize(rawName)
+      if (targetPortion === null) {
+        if (guestCount !== undefined && guestCount !== null) {
+          targetPortion = guestCount < 5 ? 5 : 10
+        } else {
+          const formPax = formStore.customer?.pax
+          const paxNum = formPax ? parseInt(String(formPax), 10) : null
+          if (paxNum !== null && !isNaN(paxNum)) {
+            targetPortion = paxNum < 5 ? 5 : 10
+          } else {
+            targetPortion = 10
+          }
+        }
+      }
+      const portionMatch = portionCandidates.find((m: any) => getMenuPortionSize(m.name) === targetPortion)
+      if (portionMatch) {
+        return portionMatch
+      }
+    }
 
     // 1. Exact match (cleanName or acronym)
     const exact = menuList.find((m: any) => m.cleanName === clean || m.acronym === clean)
@@ -1706,10 +1789,10 @@ export function useAI() {
   }
 
   // Resolve raw menu items from rule extraction to real menu items using fuzzyMatchMenu
-  function resolveMenuItemsLocally(rawItems: any[]): any[] {
+  function resolveMenuItemsLocally(rawItems: any[], guestCount?: number | null): any[] {
     if (!rawItems || rawItems.length === 0) return []
     return rawItems.map(item => {
-      const match = fuzzyMatchMenu(item.raw_name || item.name || '')
+      const match = fuzzyMatchMenu(item.raw_name || item.name || '', guestCount)
       return {
         matched_name: match ? match.name : (item.raw_name || item.name),
         name: match ? match.name : (item.raw_name || item.name),
@@ -2369,7 +2452,7 @@ export function useAI() {
     return result
   }
 
-  function matchMenuItems(rawItems: any[]): any[] {
+  function matchMenuItems(rawItems: any[], guestCount?: number | null): any[] {
     const { exactMap, aliasMap, acronymMap } = getMenuIndex()
     const menuList = appStore.menuList || []
     const attributes = ['trung muoi', 'tieu', 'pho mai', 'mo hanh', 'cay', 'lau', 'nuong', 'xao', 'hap']
@@ -2397,29 +2480,70 @@ export function useAI() {
     }
 
     return expandedItems.map((item) => {
-      const rawName = (item.raw_name || item.name || '').trim()
+      let rawName = (item.raw_name || item.name || '').trim()
+      
+      // Extract quantity multiplier if present at the end, e.g. x2, x6, *2, *6
+      const qtyMatch = rawName.match(/(?:[x\*])\s*(\d+)\s*$/i)
+      if (qtyMatch) {
+        item.quantity = parseInt(qtyMatch[1], 10)
+        rawName = rawName.replace(/(?:[x\*])\s*(\d+)\s*$/i, '').trim()
+      }
+
       const clean = stripAccents(rawName).toLowerCase().trim()
       
       let match: any = null
       let confidence = 0.0
       let needsReview = false
       let matchType: 'exact' | 'alias' | 'acronym' | 'fuzzy' | 'none' = 'none'
+
+      // 0. Portion size matching override for dishes with portion options
+      const baseRaw = getBaseDishName(rawName)
+      const portionCandidates = menuList.filter((m: any) => getBaseDishName(m.name) === baseRaw)
+      const hasPortions = portionCandidates.some((m: any) => getMenuPortionSize(m.name) !== null)
       
-      if (exactMap.has(clean)) {
-        match = exactMap.get(clean)
-        confidence = 1.0
-        matchType = 'exact'
-        logStore.addLog(`[Khớp món] "${rawName}" -> "${match.name}" (Khớp chính xác, Độ tin cậy: 100%)`, 'success')
-      } else if (aliasMap.has(clean)) {
-        match = aliasMap.get(clean)
-        confidence = 1.0
-        matchType = 'alias'
-        logStore.addLog(`[Khớp món] "${rawName}" -> "${match.name}" (Khớp alias, Độ tin cậy: 100%)`, 'success')
-      } else if (acronymMap.has(clean)) {
-        match = acronymMap.get(clean)
-        confidence = 0.95
-        matchType = 'acronym'
-        logStore.addLog(`[Khớp món] "${rawName}" -> "${match.name}" (Khớp viết tắt, Độ tin cậy: 95%)`, 'success')
+      if (portionCandidates.length > 0 && hasPortions) {
+        let targetPortion = extractPortionSize(rawName)
+        if (targetPortion === null) {
+          if (guestCount !== undefined && guestCount !== null) {
+            targetPortion = guestCount < 5 ? 5 : 10
+          } else {
+            // Check formStore as fallback
+            const formPax = formStore.customer?.pax
+            const paxNum = formPax ? parseInt(String(formPax), 10) : null
+            if (paxNum !== null && !isNaN(paxNum)) {
+              targetPortion = paxNum < 5 ? 5 : 10
+            } else {
+              targetPortion = 10 // default fallback
+            }
+          }
+        }
+        
+        const portionMatch = portionCandidates.find((m: any) => getMenuPortionSize(m.name) === targetPortion)
+        if (portionMatch) {
+          match = portionMatch
+          confidence = 0.98
+          matchType = 'fuzzy'
+          logStore.addLog(`[Khớp phần ăn] Trích xuất "${rawName}" (Khách: ${guestCount || formStore.customer?.pax || 'chưa rõ'}) -> Khớp "${match.name}" (Phần ${targetPortion} con, Độ tin cậy: 98%)`, 'success')
+        }
+      }
+      
+      if (!match) {
+        if (exactMap.has(clean)) {
+          match = exactMap.get(clean)
+          confidence = 1.0
+          matchType = 'exact'
+          logStore.addLog(`[Khớp món] "${rawName}" -> "${match.name}" (Khớp chính xác, Độ tin cậy: 100%)`, 'success')
+        } else if (aliasMap.has(clean)) {
+          match = aliasMap.get(clean)
+          confidence = 1.0
+          matchType = 'alias'
+          logStore.addLog(`[Khớp món] "${rawName}" -> "${match.name}" (Khớp alias, Độ tin cậy: 100%)`, 'success')
+        } else if (acronymMap.has(clean)) {
+          match = acronymMap.get(clean)
+          confidence = 0.95
+          matchType = 'acronym'
+          logStore.addLog(`[Khớp món] "${rawName}" -> "${match.name}" (Khớp viết tắt, Độ tin cậy: 95%)`, 'success')
+        }
       }
       
       // 1.5. Contains match (subset/superset check)
@@ -2995,7 +3119,7 @@ export function useAI() {
             table_number: contextResolved.table_code,
             need: contextResolved.booking_need
           },
-          menu_items: resolveMenuItemsLocally(contextResolved.menu_items || [])
+          menu_items: resolveMenuItemsLocally(contextResolved.menu_items || [], contextResolved.guest_count)
         }, inputType)
       } else {
         // 6. Cache check
@@ -3106,7 +3230,7 @@ export function useAI() {
               table_number: contextResolved.table_code,
               need: contextResolved.booking_need
             },
-            menu_items: resolveMenuItemsLocally(contextResolved.menu_items || [])
+            menu_items: resolveMenuItemsLocally(contextResolved.menu_items || [], contextResolved.guest_count)
           }, inputType)
           
           if (!finalParsedResult.warnings) finalParsedResult.warnings = []
@@ -3139,7 +3263,7 @@ export function useAI() {
           // 9. Match menu items using fuzzy maps
           if (rawJsonParsed.menu_items && rawJsonParsed.menu_items.length > 0) {
             logStore.addLog(`Bắt đầu đối khớp ${rawJsonParsed.menu_items.length} món ăn trích xuất được với thực đơn nhà hàng...`)
-            rawJsonParsed.menu_items = matchMenuItems(rawJsonParsed.menu_items)
+            rawJsonParsed.menu_items = matchMenuItems(rawJsonParsed.menu_items, rawJsonParsed.booking?.guest_count)
           }
 
           // 10. Menu Sheet switching detection
@@ -3237,7 +3361,7 @@ export function useAI() {
       if (e.name !== 'AbortError') {
         logStore.addLog(`Lỗi Pipeline AI: ${e.message}`, 'error')
         // LOCAL FALLBACK: If AI fails but rule-based extraction found data, use it
-        const localItems = resolveMenuItemsLocally(ruleBasedResult?.menu_items || [])
+        const localItems = resolveMenuItemsLocally(ruleBasedResult?.menu_items || [], ruleBasedResult?.guest_count)
         if (localItems.length > 0 || ruleBasedResult?.phone || ruleBasedResult?.customer_name) {
           console.warn('[AI] All models failed, using LOCAL FALLBACK with rule-based data')
           logStore.addLog(`Bắt đầu chạy Chế độ dự phòng cục bộ (Local Fallback)...`, 'warning')
