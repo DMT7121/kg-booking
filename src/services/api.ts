@@ -29,14 +29,14 @@ async function postGAS(payload: Record<string, any>, signal?: AbortSignal): Prom
     if (!data.ok && data.message) {
       // Don't show toast for getConfig if it fails silently often, but generally we want to show it.
       // We can skip specific actions if needed, but for now we intercept all.
-      if (payload.action !== 'getConfig' && payload.action !== 'getHistory' && payload.action !== 'logAiCorrection') {
+      if (payload.action !== 'getConfig' && payload.action !== 'getHistory' && payload.action !== 'logAiCorrection' && payload.action !== 'callAiService') {
         ui.showToast(`Lỗi Server: ${data.message}`, 'error')
       }
     }
     return data
   } catch (e: any) {
     if (e.name === 'AbortError') throw e
-    if (payload.action !== 'getConfig' && payload.action !== 'getHistory' && payload.action !== 'logAiCorrection') {
+    if (payload.action !== 'getConfig' && payload.action !== 'getHistory' && payload.action !== 'logAiCorrection' && payload.action !== 'callAiService') {
       ui.showToast(`Lỗi Mạng: ${e.message}`, 'error')
     }
     throw e

@@ -30,7 +30,7 @@ export const useConfigStore = defineStore('config', () => {
 
   const keys = reactive<Record<string, string[]>>(savedKeys)
   const keysStatus = reactive<Record<string, { configured: boolean, count: number, maskedList: string[] }>>({})
-  const defaultsObj = JSON.parse(localStorage.getItem(CACHE_KEYS.DEFAULTS) || '{"text":"llama-3.3-70b-versatile", "vision":"gemini-2.5-flash","aiWorkflowMode":"direct"}')
+  const defaultsObj = JSON.parse(localStorage.getItem(CACHE_KEYS.DEFAULTS) || '{"text":"llama-3.3-70b-versatile", "vision":"gemini-2.0-flash","aiWorkflowMode":"direct"}')
   if (!defaultsObj.aiWorkflowMode) defaultsObj.aiWorkflowMode = 'direct'
 
   // Validate and sanitize active model selections
@@ -40,7 +40,7 @@ export const useConfigStore = defineStore('config', () => {
     defaultsObj.text = 'llama-3.3-70b-versatile'
   }
   if (!validVisionIds.includes(defaultsObj.vision)) {
-    defaultsObj.vision = 'gemini-2.5-flash'
+    defaultsObj.vision = 'gemini-2.0-flash'
   }
 
   const defaults = reactive(defaultsObj)
