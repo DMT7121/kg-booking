@@ -150,6 +150,169 @@ export default {
         }, 200, corsHeaders);
       }
 
+      // --- AI GATEWAY: POST /api/ai/analyze ---
+      if (request.method === 'POST' && path === '/api/ai/analyze') {
+        // 1. Client Authorization
+        const authHeader = request.headers.get('Authorization');
+        if (env.APP_SHARED_SECRET) {
+          if (!authHeader || !authHeader.startsWith('Bearer ') || authHeader.split(' ')[1] !== env.APP_SHARED_SECRET) {
+            return jsonResponse({ ok: false, error: 'Unauthorized: Invalid App Secret Token' }, 401, corsHeaders);
+          }
+        }
+
+        // 2. Parse payload
+        const payload = await request.json();
+        const {
+          model,
+          provider,
+          sysPrompt,
+          userPrompt,
+          image,
+          jsonMode,
+          responseSchema,
+          maxOutputTokens,
+          temperature
+        } = payload;
+
+        if (!sysPrompt || !userPrompt) {
+          return jsonResponse({ ok: false, error: 'Missing required prompts' }, 400, corsHeaders);
+        }
+
+        // 3. Choose API Key and Route URL
+        let apiKey = '';
+        let targetUrl = '';
+        const fetchHeaders = new Headers();
+        fetchHeaders.set('Content-Type', 'application/json');
+        let body = {};
+
+        if (provider === 'google') {
+          apiKey = env.GEMINI_API_KEY;
+          if (!apiKey) {
+            return jsonResponse({ ok: false, error: 'GEMINI_API_KEY is not configured on the gateway' }, 500, corsHeaders);
+          }
+          targetUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+          body = {
+            contents: [{
+              parts: [
+                { text: sysPrompt + '\n\nUser Input:\n' + userPrompt },
+                ...(image ? [{ inline_data: { mime_type: 'image/jpeg', data: image.split(',')[1] } }] : [])
+              ]
+            }],
+            generationConfig: {
+              temperature: temperature ?? 0.1,
+              ...(maxOutputTokens ? { maxOutputTokens } : {}),
+              ...(jsonMode ? { responseMimeType: 'application/json' } : {}),
+              ...(responseSchema && jsonMode ? { responseSchema } : {})
+            },
+            ...(model.includes('2.5') ? { generationConfig: { temperature: temperature ?? 0.1, thinkingConfig: { thinkingBudget: 0 } } } : {})
+          };
+        } else {
+          // OpenAI compatible providers
+          if (provider === 'groq') {
+            apiKey = env.GROQ_API_KEY;
+            targetUrl = 'https://api.groq.com/openai/v1/chat/completions';
+          } else if (provider === 'cerebras') {
+            apiKey = env.CEREBRAS_API_KEY;
+            targetUrl = 'https://api.cerebras.ai/v1/chat/completions';
+          } else if (provider === 'sambanova') {
+            apiKey = env.SAMBANOVA_API_KEY;
+            targetUrl = 'https://api.sambanova.ai/v1/chat/completions';
+          } else if (provider === 'github') {
+            apiKey = env.GITHUB_API_KEY;
+            targetUrl = 'https://models.github.ai/inference/chat/completions';
+          } else if (provider === 'mistral') {
+            apiKey = env.MISTRAL_API_KEY;
+            targetUrl = 'https://api.mistral.ai/v1/chat/completions';
+          } else if (provider === 'openrouter') {
+            apiKey = env.OPENROUTER_API_KEY;
+            targetUrl = 'https://openrouter.ai/api/v1/chat/completions';
+            fetchHeaders.set('HTTP-Referer', 'https://kings-grill-booking.pages.dev');
+            fetchHeaders.set('X-Title', 'KING\'S GRILL BOOKING APP');
+          } else if (provider === 'pollinations') {
+            apiKey = 'free';
+            targetUrl = 'https://text.pollinations.ai/openai/v1/chat/completions';
+          }
+
+          if (!apiKey && provider !== 'pollinations') {
+            return jsonResponse({ ok: false, error: `API Key for provider '${provider}' is not configured on the gateway` }, 500, corsHeaders);
+          }
+
+          if (apiKey && apiKey !== 'free') {
+            fetchHeaders.set('Authorization', `Bearer ${apiKey}`);
+          }
+
+          let msgContent = userPrompt;
+          if (image) {
+            msgContent = [
+              { type: 'text', text: userPrompt },
+              { type: 'image_url', image_url: { url: image } }
+            ];
+          }
+
+          const noResponseFormat = ['pollinations', 'huggingface'];
+          const effectiveSys = (jsonMode && noResponseFormat.includes(provider))
+            ? sysPrompt + '\n\nCRITICAL: Respond ONLY with raw JSON. No markdown, no ```json blocks. Start with { end with }.'
+            : sysPrompt;
+
+          body = {
+            model: model,
+            messages: [
+              { role: 'system', content: effectiveSys },
+              { role: 'user', content: msgContent }
+            ],
+            temperature: temperature ?? 0.1,
+            ...(maxOutputTokens ? { max_tokens: maxOutputTokens } : {}),
+            ...(jsonMode && !noResponseFormat.includes(provider)
+              ? (responseSchema
+                  ? { response_format: { type: 'json_schema', json_schema: { name: 'booking_extraction', strict: true, schema: responseSchema } } }
+                  : { response_format: { type: 'json_object' } }
+                )
+              : {}
+            )
+          };
+        }
+
+        // 4. Send request
+        try {
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 20000); // 20s timeout
+
+          const upstreamRes = await fetch(targetUrl, {
+            method: 'POST',
+            headers: fetchHeaders,
+            body: JSON.stringify(body),
+            signal: controller.signal
+          });
+          clearTimeout(timeoutId);
+
+          if (!upstreamRes.ok) {
+            const errText = await upstreamRes.text().catch(() => `HTTP ${upstreamRes.status}`);
+            return jsonResponse({ ok: false, error: `AI Provider Error: ${errText.substring(0, 150)}` }, upstreamRes.status, corsHeaders);
+          }
+
+          const resJson = await upstreamRes.json();
+          let content = '';
+
+          if (provider === 'google') {
+            const parts = resJson.candidates?.[0]?.content?.parts || [];
+            for (let p = parts.length - 1; p >= 0; p--) {
+              if (parts[p].text && !parts[p].thought) {
+                content = parts[p].text;
+                break;
+              }
+            }
+            if (!content) content = parts.find(p => p.text)?.text || '';
+          } else {
+            content = resJson.choices?.[0]?.message?.content || '';
+          }
+
+          return jsonResponse({ ok: true, content }, 200, corsHeaders);
+        } catch (e) {
+          const errMsg = e.name === 'AbortError' ? 'Gateway Timeout (20s)' : e.message;
+          return jsonResponse({ ok: false, error: 'AI Gateway Error: ' + errMsg }, 500, corsHeaders);
+        }
+      }
+
       // --- AI PROXY: POST /ai-proxy ---
       if (request.method === 'POST' && path === '/ai-proxy') {
         const targetUrl = request.headers.get('x-target-url');

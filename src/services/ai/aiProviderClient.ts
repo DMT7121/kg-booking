@@ -82,9 +82,15 @@ export async function callAIModel(
         signal.addEventListener('abort', () => controller.abort())
       }
 
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+      const sharedSecret = import.meta.env.VITE_APP_SHARED_SECRET
+      if (sharedSecret) {
+        headers['Authorization'] = `Bearer ${sharedSecret}`
+      }
+
       const res = await fetch(`${apiGatewayUrl}/api/ai/analyze`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify({
           model: model.id,
           provider: model.provider,
