@@ -290,9 +290,10 @@ export function useAI() {
             }
           }
 
-          // Build abort signal combined with standard 25s timeout
+          // Build abort signal combined with standard timeout (10s for vision, 6s for text)
           const controller = new AbortController()
-          const timeoutId = setTimeout(() => controller.abort(), 25000)
+          const timeoutMs = model.type === 'vision' ? 10000 : 6000
+          const timeoutId = setTimeout(() => controller.abort(), timeoutMs)
           
           // Connect parent abort signal if provided
           if (signal) {
@@ -3077,15 +3078,15 @@ export function useAI() {
         }
         
         const getTimeoutForModel = (m: AIModel): number => {
-          if (m.type === 'vision') return 20000
+          if (m.type === 'vision') return 8000
           const p = m.provider.toLowerCase()
           if (p === 'groq' || p === 'cerebras' || p === 'sambanova') {
-            return 6000
+            return 3000
           }
           if (p === 'google' || p === 'mistral' || p === 'github') {
-            return 10000
+            return 4000
           }
-          return 15000
+          return 5000
         }
 
         const timeoutPromise = new Promise<null>((_, reject) => {
