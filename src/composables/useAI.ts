@@ -35,6 +35,14 @@ import {
 import { runAIRouter } from '@/services/ai/aiRouter'
 import { callAIModel } from '@/services/ai/aiProviderClient'
 import type { HardEntities } from '@/domain/ai/ruleEngine'
+import { classifyAIInput } from '@/domain/ai/inputClassifier'
+import { evaluateBookingBypass } from '@/domain/booking/bookingCompletenessGate'
+import { analyzeBookingLocally } from '@/services/ai/localFirstBookingAnalyzer'
+import { buildDynamicPrompt } from '@/domain/ai/promptBuilder'
+import type { PromptProfile } from '@/domain/ai/promptBuilder'
+import { retrieveMenuCandidates } from '@/domain/menu/menuCandidateRetriever'
+import { validateAIResult } from '@/domain/ai/aiResultValidator'
+
 
 // Shared cache Map across all useAI calls (Module Scope)
 const responseCache = new Map<string, { data: any; timestamp: number; ttl: number }>()
@@ -399,6 +407,82 @@ export function useAI() {
     return allData
   }
 
+  async function runLegacyPipeline(
+    promptText: string,
+    type: 'text' | 'vision',
+    inputType: string,
+    ruleBasedResult: any,
+    hardEntities: HardEntities,
+    optimizedImg: string | null,
+    signal?: AbortSignal
+  ): Promise<any> {
+    logStore.addLog(`Chạy legacy pipeline fallback...`, 'warning')
+    
+    const aiPromptText = stripSetMenuComponents(promptText)
+    const systemPromptTemplate = ADVANCED_AI_PROMPT
+      .replace('{{CURRENT_DATE}}', (() => {
+        const now = new Date()
+        const dayNames = ['Chủ Nhật', 'Thứ Hai', 'Thứ Ba', 'Thứ Tư', 'Thứ Năm', 'Thứ Sáu', 'Thứ Bảy']
+        const dd = String(now.getDate()).padStart(2, '0')
+        const mm = String(now.getMonth() + 1).padStart(2, '0')
+        const yyyy = now.getFullYear()
+        const hh = String(now.getHours()).padStart(2, '0')
+        const min = String(now.getMinutes()).padStart(2, '0')
+        return `${dayNames[now.getDay()]}, ${dd}/${mm}/${yyyy} ${hh}:${min}`
+      })())
+      .replace('{{RAW_INPUT}}', aiPromptText)
+      .replace('{{RULE_BASED_HINTS}}', JSON.stringify(ruleBasedResult, null, 2))
+      .replace('{{LOCKED_ENTITIES}}', JSON.stringify(hardEntities, null, 2))
+      .replace(/\{\{TOMORROW_DD_MM_YYYY\}\}/g, (() => {
+        const tom = new Date()
+        tom.setDate(tom.getDate() + 1)
+        const dd = String(tom.getDate()).padStart(2, '0')
+        const mm = String(tom.getMonth() + 1).padStart(2, '0')
+        const yyyy = tom.getFullYear()
+        return `${dd}/${mm}/${yyyy}`
+      })())
+
+    const payload = prepareAIPayload(aiPromptText, systemPromptTemplate, ruleBasedResult, appStore.menuList)
+
+    if (payload.isLocalOnly) {
+      logStore.addLog(`Kích hoạt Token Guard: Dữ liệu đầu vào quá lớn, tự động kích hoạt chế độ tách tối giản cục bộ.`, 'warning')
+      const latency = '0.0'
+      const routingInfo = {
+        pipeline: 'text',
+        tier_used: 0,
+        model_used: 'Local Rule Engine V7.0 (Payload Compact)',
+        fallback_count: 0,
+        repair_applied: false,
+        latency,
+        mode: 'bypass-local'
+      }
+      const parsed = repairAndNormalizeJSON({
+        customer: { name: ruleBasedResult.customer_name || 'Khách hàng', phone: ruleBasedResult.phone },
+        booking: {
+          event_date: ruleBasedResult.event_date,
+          event_time: ruleBasedResult.event_time,
+          guest_count: ruleBasedResult.guest_count,
+          table_number: ruleBasedResult.table_code,
+          need: ruleBasedResult.booking_need
+        },
+        menu_items: resolveMenuItemsLocally(
+          ruleBasedResult.menu_items || [], 
+          ruleBasedResult.guest_count,
+          appStore.menuList,
+          appStore.menuAliases,
+          formStore.customer.pax ? parseInt(String(formStore.customer.pax)) : null
+        )
+      }, inputType)
+      
+      if (!parsed.warnings) parsed.warnings = []
+      parsed.warnings.push('Đoạn text đặt bàn quá dài, kích hoạt chế độ tự động tách thông tin tối giản.')
+      return { parsed, routing: routingInfo }
+    } else {
+      const routerResponse = await smartRouter(type, payload.sysPrompt, payload.userPrompt, optimizedImg, inputType, signal)
+      return routerResponse
+    }
+  }
+
   async function processAI() {
     if (!formStore.rawInput && !formStore.aiImage) {
       return uiStore.showToast('Vui lòng nhập dữ liệu hoặc chụp ảnh!', 'warning')
@@ -413,6 +497,16 @@ export function useAI() {
     uiStore.loading.subMsg = 'Analyzing input...'
 
     const startTime = performance.now()
+    
+    const flags = {
+      enableLocalFirstBypass: import.meta.env.VITE_AI_LOCAL_FIRST !== 'false',
+      enableDynamicPrompt: import.meta.env.VITE_AI_DYNAMIC_PROMPT !== 'false',
+      enableMenuCandidateRetrieval: import.meta.env.VITE_AI_MENU_RETRIEVAL !== 'false',
+      enableAsymmetricRace: import.meta.env.VITE_AI_RACE_MODE !== 'false',
+      enableStrictJsonSchema: import.meta.env.VITE_AI_STRICT_JSON !== 'false',
+      enableLegacyFallback: import.meta.env.VITE_AI_LEGACY_FALLBACK !== 'false'
+    }
+
     let inputType = 'unknown'
     let ruleBasedResult: any = null
     let hardEntities: HardEntities = {
@@ -427,65 +521,73 @@ export function useAI() {
       const type = formStore.aiImage ? 'vision' : 'text'
       const hasImage = !!formStore.aiImage
       
-      inputType = classifyInputType(formStore.rawInput || '', hasImage)
-      logStore.addLog(`Phân loại loại đầu vào: "${inputType}"`)
+      const classificationInput = {
+        text: formStore.rawInput || '',
+        hasImage,
+        attachedImageCount: hasImage ? 1 : 0,
+        currentFormState: {
+          customer: formStore.customer,
+          items: formStore.items
+        },
+        now: new Date()
+      }
+      
+      const classification = classifyAIInput(classificationInput)
+      inputType = classification.complexity === 'image_ocr' ? 'chat_screenshot' : 'booking_text'
+      
+      logStore.addLog(`[Classifier] Complexity: "${classification.complexity}", requiresLLM: ${classification.requiresLLM}, requiresMenuContext: ${classification.requiresMenuContext}`)
       
       let promptText = formStore.aiImage
         ? (formStore.rawInput || 'Phân tích ảnh này để lấy thông tin đặt bàn, khách hàng và danh sách món ăn.')
         : formStore.rawInput
       promptText = preNormalizeInput(promptText)
-      logStore.addLog(`Đã chuẩn hóa tiền xử lý văn bản đầu vào.`)
 
       ruleBasedResult = extractByRules(promptText)
       hardEntities = extractHardEntities(promptText)
-      logStore.addLog(`Trích xuất Rule-Engine: Tên=${ruleBasedResult.customer_name || 'chưa có'}, SĐT=${ruleBasedResult.phone || 'chưa có'}, Ngày=${ruleBasedResult.event_date || 'chưa có'}, Giờ=${ruleBasedResult.event_time || 'chưa có'}, Khách=${ruleBasedResult.guest_count || 'chưa có'}, Bàn=${ruleBasedResult.table_code || 'chưa có'}`)
-
-      const contextResolved = resolveContext(ruleBasedResult)
-
-      const inputLower = promptText.toLowerCase()
-      const hasDishes = appStore.menuList.some((m: any) => 
-        inputLower.includes(m.cleanName) || 
-        (m.acronym && inputLower.split(/\s+/).includes(String(m.acronym).toLowerCase()))
-      ) || appStore.menuAliases.some((a: any) => 
-        inputLower.split(/\s+/).includes(a.alias.toLowerCase())
-      )
 
       let finalParsedResult: any = null
-      let isBypassed = false
       let routingInfo: any = null
+      let isBypassed = false
 
-      if (type === 'text' && shouldBypassAI(contextResolved, inputType, hasDishes)) {
-        isBypassed = true
-        logStore.addLog(`Kích hoạt chế độ Bypass AI: Tin nhắn đơn giản và không có món ăn. Sử dụng trực tiếp Rule Engine.`, 'success')
-        const latency = ((performance.now() - startTime) / 1000).toFixed(2)
-        routingInfo = {
-          pipeline: 'text',
-          tier_used: 0,
-          model_used: 'Local Rule Engine V7.0',
-          fallback_count: 0,
-          repair_applied: false,
-          latency,
-          mode: 'bypass-local'
+      if (type === 'text' && flags.enableLocalFirstBypass && classification.shouldTryLocalFirst) {
+        const localAnalysis = analyzeBookingLocally(promptText)
+        const bypass = evaluateBookingBypass(
+          localAnalysis,
+          hasImage,
+          classification.detectedSignals.hasMenuKeyword,
+          classification.detectedSignals.hasAmbiguousPhrase
+        )
+
+        if (bypass.canBypassLLM) {
+          isBypassed = true
+          const latency = ((performance.now() - startTime) / 1000).toFixed(2)
+          logStore.addLog(`[Local Bypass] Tất cả trường cốt lõi hợp lệ. Bỏ qua gọi LLM. Trích xuất thành công: Tên=${localAnalysis.customerName.value}, SĐT=${localAnalysis.phone.value}, Ngày=${localAnalysis.bookingDate.value}, Giờ=${localAnalysis.bookingTime.value}, Khách=${localAnalysis.guestCount.value}`, 'success')
+          
+          routingInfo = {
+            pipeline: 'text',
+            tier_used: 0,
+            model_used: 'Local Rule Engine V7.0 (Bypass)',
+            fallback_count: 0,
+            repair_applied: false,
+            latency,
+            mode: 'bypass-local'
+          }
+
+          finalParsedResult = repairAndNormalizeJSON({
+            customer: { name: localAnalysis.customerName.value || 'Khách hàng', phone: localAnalysis.phone.value },
+            booking: {
+              event_date: localAnalysis.bookingDate.value,
+              event_time: localAnalysis.bookingTime.value,
+              guest_count: localAnalysis.guestCount.value,
+              table_number: '',
+              need: localAnalysis.partyType.value
+            },
+            menu_items: []
+          }, inputType)
         }
-        
-        finalParsedResult = repairAndNormalizeJSON({
-          customer: { name: contextResolved.customer_name || 'Khách hàng', phone: contextResolved.phone },
-          booking: {
-            event_date: contextResolved.event_date,
-            event_time: contextResolved.event_time,
-            guest_count: contextResolved.guest_count,
-            table_number: contextResolved.table_code,
-            need: contextResolved.booking_need
-          },
-          menu_items: resolveMenuItemsLocally(
-            contextResolved.menu_items || [], 
-            contextResolved.guest_count, 
-            appStore.menuList, 
-            appStore.menuAliases,
-            formStore.customer.pax ? parseInt(String(formStore.customer.pax)) : null
-          )
-        }, inputType)
-      } else {
+      }
+
+      if (!isBypassed) {
         const cacheKey = getSmartCacheKey(formStore.rawInput, inputType, appStore.activeSheet, formStore.customer.date)
         const cached = getCachedParseResult(cacheKey)
         
@@ -508,29 +610,20 @@ export function useAI() {
         logStore.addLog(`[Optimistic UI] Tự động điền nhanh các thông tin cơ bản trích xuất được từ Rule Engine...`)
         const optimisticResult = {
           customer: {
-            name: contextResolved.customer_name || ruleBasedResult.customer_name || '',
-            phone: contextResolved.phone || ruleBasedResult.phone || ''
+            name: ruleBasedResult.customer_name || '',
+            phone: ruleBasedResult.phone || ''
           },
           booking: {
-            event_date: contextResolved.event_date || ruleBasedResult.event_date || '',
-            event_time: contextResolved.event_time || ruleBasedResult.event_time || '',
-            guest_count: contextResolved.guest_count || ruleBasedResult.guest_count || null,
-            table_number: contextResolved.table_code || ruleBasedResult.table_code || '',
-            need: contextResolved.booking_need || ruleBasedResult.booking_need || 'Ăn thường'
-          },
-          party: {
-            type: contextResolved.booking_need || ruleBasedResult.booking_need || 'Ăn thường',
-            owner_name: '',
-            display_board_text: ruleBasedResult.decoration_text || '',
-            special_request: ''
-          },
-          notes: {
-            customer_note: ruleBasedResult.note || ''
+            event_date: ruleBasedResult.event_date || '',
+            event_time: ruleBasedResult.event_time || '',
+            guest_count: ruleBasedResult.guest_count || null,
+            table_number: ruleBasedResult.table_code || '',
+            need: ruleBasedResult.booking_need || 'Ăn thường'
           }
         }
         fillBookingFormSafely(optimisticResult, { mode: 'customer' })
         uiStore.showToast('⚡ Đã nhận diện nhanh thông tin khách hàng...', 'info')
-        
+
         const corrections = appStore.aiCorrections || []
         const appliedCorrections: Record<string, string> = {}
         for (const corr of corrections) {
@@ -540,132 +633,165 @@ export function useAI() {
           }
         }
 
-        const aiPromptText = stripSetMenuComponents(promptText)
-        const systemPromptTemplate = ADVANCED_AI_PROMPT
-          .replace('{{CURRENT_DATE}}', (() => {
-            const now = new Date()
-            const dayNames = ['Chủ Nhật', 'Thứ Hai', 'Thứ Ba', 'Thứ Tư', 'Thứ Năm', 'Thứ Sáu', 'Thứ Bảy']
-            const dd = String(now.getDate()).padStart(2, '0')
-            const mm = String(now.getMonth() + 1).padStart(2, '0')
-            const yyyy = now.getFullYear()
-            const hh = String(now.getHours()).padStart(2, '0')
-            const min = String(now.getMinutes()).padStart(2, '0')
-            return `${dayNames[now.getDay()]}, ${dd}/${mm}/${yyyy} ${hh}:${min}`
-          })())
-          .replace('{{RAW_INPUT}}', aiPromptText)
-          .replace('{{RULE_BASED_HINTS}}', JSON.stringify(ruleBasedResult, null, 2))
-          .replace('{{LOCKED_ENTITIES}}', JSON.stringify(hardEntities, null, 2))
-          .replace(/\{\{TOMORROW_DD_MM_YYYY\}\}/g, (() => {
-            const tom = new Date()
-            tom.setDate(tom.getDate() + 1)
-            const dd = String(tom.getDate()).padStart(2, '0')
-            const mm = String(tom.getMonth() + 1).padStart(2, '0')
-            const yyyy = tom.getFullYear()
-            return `${dd}/${mm}/${yyyy}`
-          })())
-
-        const payload = prepareAIPayload(aiPromptText, systemPromptTemplate, ruleBasedResult, appStore.menuList)
-
-        if (payload.isLocalOnly) {
-          isBypassed = true
-          logStore.addLog(`Kích hoạt Token Guard: Dữ liệu đầu vào quá lớn, tự động kích hoạt chế độ tách tối giản cục bộ.`, 'warning')
-          const latency = ((performance.now() - startTime) / 1000).toFixed(2)
-          routingInfo = {
-            pipeline: 'text',
-            tier_used: 0,
-            model_used: 'Local Rule Engine V7.0 (Payload Compact)',
-            fallback_count: 0,
-            repair_applied: false,
-            latency,
-            mode: 'bypass-local'
-          }
-          finalParsedResult = repairAndNormalizeJSON({
-            customer: { name: contextResolved.customer_name || 'Khách hàng', phone: contextResolved.phone },
-            booking: {
-              event_date: contextResolved.event_date,
-              event_time: contextResolved.event_time,
-              guest_count: contextResolved.guest_count,
-              table_number: contextResolved.table_code,
-              need: contextResolved.booking_need
-            },
-            menu_items: resolveMenuItemsLocally(
-              contextResolved.menu_items || [], 
-              contextResolved.guest_count,
-              appStore.menuList,
-              appStore.menuAliases,
-              formStore.customer.pax ? parseInt(String(formStore.customer.pax)) : null
-            )
-          }, inputType)
+        let menuCandidates: any[] = []
+        if (flags.enableMenuCandidateRetrieval) {
+          const allMenus = await loadAllMenusData()
+          const menusForRetriever = Object.entries(allMenus).map(([sheetName, items]) => ({
+            menuId: sheetName,
+            menuName: sheetName,
+            items: items.map(item => ({
+              id: item.id || item.name,
+              name: item.name,
+              aliases: item.aliases || (item.acronym ? [item.acronym] : []),
+              category: item.category,
+              price: item.price
+            }))
+          }))
           
-          if (!finalParsedResult.warnings) finalParsedResult.warnings = []
-          finalParsedResult.warnings.push('Đoạn text đặt bàn quá dài, kích hoạt chế độ tự động tách thông tin tối giản.')
-        } else {
-          const optimizedImg = formStore.aiImage ? await resizeImage(formStore.aiImage, 1120) : null
-          if (optimizedImg) {
-            logStore.addLog(`Đang tối ưu hóa kích thước hình ảnh để gửi AI...`)
+          if (menusForRetriever.length === 0 && appStore.menuList && appStore.menuList.length > 0) {
+            menusForRetriever.push({
+              menuId: appStore.activeSheet || 'default',
+              menuName: appStore.activeSheet || 'default',
+              items: appStore.menuList.map(item => ({
+                id: item.id || item.name,
+                name: item.name,
+                aliases: item.aliases || (item.acronym ? [item.acronym] : []),
+                category: item.category,
+                price: item.price
+              }))
+            })
           }
 
-          const routerResponse = await smartRouter(type, payload.sysPrompt, payload.userPrompt, optimizedImg, inputType, activeController.signal)
-          routingInfo = routerResponse.routing
-
-          const rawJsonParsed = repairAndNormalizeJSON(routerResponse.parsed, inputType)
-          logStore.addLog(`Đã trích xuất và chuẩn hóa JSON đầu ra của AI.`)
-
-          Object.keys(appliedCorrections).forEach(field => {
-            const val = appliedCorrections[field]
-            if (field === 'name' || field === 'phone') {
-              rawJsonParsed.customer[field] = val
-            } else {
-              if (field === 'tables') rawJsonParsed.booking.table_number = val
-              else rawJsonParsed.booking[field] = val
-            }
+          menuCandidates = retrieveMenuCandidates({
+            text: promptText,
+            menus: menusForRetriever,
+            limit: 15
           })
-
-          if (rawJsonParsed.menu_items && rawJsonParsed.menu_items.length > 0) {
-            logStore.addLog(`Bắt đầu đối khớp ${rawJsonParsed.menu_items.length} món ăn trích xuất được với thực đơn nhà hàng...`)
-            rawJsonParsed.menu_items = matchMenuItems(
-              rawJsonParsed.menu_items, 
-              rawJsonParsed.booking?.guest_count,
-              appStore.menuList,
-              appStore.menuAliases,
-              appStore.menuDetails || {},
-              formStore.customer.pax ? parseInt(String(formStore.customer.pax)) : null,
-              (msg, level) => logStore.addLog(msg, level)
-            )
-          }
-
-          try {
-            const allMenus = await loadAllMenusData()
-            const { bestSheet, score, isBorderline } = resolveBestMenuSheet(promptText, rawJsonParsed.menu_items || [], allMenus, appStore.activeSheet)
-            
-            if (bestSheet && bestSheet !== appStore.activeSheet) {
-              logStore.addLog(`Phát hiện khả năng khớp thực đơn tốt hơn tại Sheet: "${bestSheet}" (Điểm: ${score}).`)
-              if (isBorderline) {
-                const confirmed = await uiStore.showConfirm(
-                  'Đổi thực đơn?',
-                  `Nhận diện thực đơn "${bestSheet}". Bạn có muốn chuyển sang thực đơn này không?`
-                )
-                if (confirmed) {
-                  logStore.addLog(`Người dùng đồng ý chuyển sang thực đơn: "${bestSheet}"`, 'info')
-                  await appStore.switchMenu(bestSheet)
-                } else {
-                  logStore.addLog(`Người dùng từ chối chuyển sang thực đơn: "${bestSheet}"`, 'warning')
-                }
-              } else {
-                logStore.addLog(`Tự động chuyển sang thực đơn phù hợp nhất: "${bestSheet}"`, 'success')
-                await appStore.switchMenu(bestSheet)
-                uiStore.showToast(`Đã tự động chuyển sang thực đơn: ${bestSheet}`, 'success')
-              }
-            }
-          } catch (errSheet) {
-            console.warn('Menu sheet routing error:', errSheet)
-          }
-
-          finalParsedResult = rawJsonParsed
-
-          const cacheKey = getSmartCacheKey(formStore.rawInput, inputType, appStore.activeSheet, formStore.customer.date)
-          setSmartCache(cacheKey, finalParsedResult, inputType)
+          logStore.addLog(`[Menu Retrieval] Đã lọc được ${menuCandidates.length} món ăn ứng viên phù hợp.`)
         }
+
+        let profile: PromptProfile = 'TEXT_SIMPLE'
+        if (classification.requiresOCR) {
+          profile = 'IMAGE_OCR'
+        } else if (classification.requiresConversationContext) {
+          profile = 'COMPLEX_CONVERSATION'
+        } else if (classification.requiresMenuContext || classification.detectedSignals.hasMenuKeyword) {
+          profile = 'TEXT_WITH_MENU'
+        } else if (classification.complexity === 'booking_with_missing_fields') {
+          profile = 'TEXT_WITH_MISSING_FIELDS'
+        }
+
+        const currentDateTimeStr = (() => {
+          const now = new Date()
+          const dayNames = ['Chủ Nhật', 'Thứ Hai', 'Thứ Ba', 'Thứ Tư', 'Thứ Năm', 'Thứ Sáu', 'Thứ Bảy']
+          const dd = String(now.getDate()).padStart(2, '0')
+          const mm = String(now.getMonth() + 1).padStart(2, '0')
+          const yyyy = now.getFullYear()
+          const hh = String(now.getHours()).padStart(2, '0')
+          const min = String(now.getMinutes()).padStart(2, '0')
+          return `${dayNames[now.getDay()]}, ${dd}/${mm}/${yyyy} ${hh}:${min}`
+        })()
+
+        const promptResult = buildDynamicPrompt({
+          profile,
+          userText: promptText,
+          classification,
+          menuCandidates,
+          conversationContext: '',
+          currentDateTime: currentDateTimeStr,
+          locale: 'vi-VN'
+        })
+
+        const optimizedImg = formStore.aiImage ? await resizeImage(formStore.aiImage, 1120) : null
+        
+        let routerResponse: any = null
+        try {
+          routerResponse = await smartRouter(
+            type,
+            promptResult.systemPrompt,
+            promptResult.userPrompt,
+            optimizedImg,
+            inputType,
+            activeController.signal
+          )
+        } catch (e: any) {
+          if (flags.enableLegacyFallback) {
+            logStore.addLog(`[AI Router] Lỗi trong pipeline tối ưu: ${e.message}. Đang chạy fallback sang prompt cũ...`, 'warning')
+            routerResponse = await runLegacyPipeline(promptText, type, inputType, ruleBasedResult, hardEntities, optimizedImg, activeController.signal)
+          } else {
+            throw e
+          }
+        }
+
+        routingInfo = routerResponse.routing
+        let rawJsonParsed = repairAndNormalizeJSON(routerResponse.parsed, inputType)
+
+        const validation = validateAIResult(rawJsonParsed)
+        if (!validation.accepted) {
+          logStore.addLog(`[Validation] Kết quả AI mới không đạt tiêu chuẩn: ${validation.reasons.join(', ')}`, 'warning')
+          if (flags.enableLegacyFallback) {
+            logStore.addLog(`Đang chạy fallback sang prompt cũ do kết quả không hợp lệ...`, 'warning')
+            routerResponse = await runLegacyPipeline(promptText, type, inputType, ruleBasedResult, hardEntities, optimizedImg, activeController.signal)
+            routingInfo = routerResponse.routing
+            rawJsonParsed = repairAndNormalizeJSON(routerResponse.parsed, inputType)
+          }
+        }
+
+        Object.keys(appliedCorrections).forEach(field => {
+          const val = appliedCorrections[field]
+          if (field === 'name' || field === 'phone') {
+            if (!rawJsonParsed.customer) rawJsonParsed.customer = {}
+            rawJsonParsed.customer[field] = val
+          } else {
+            if (!rawJsonParsed.booking) rawJsonParsed.booking = {}
+            if (field === 'tables') rawJsonParsed.booking.table_number = val
+            else rawJsonParsed.booking[field] = val
+          }
+        })
+
+        if (rawJsonParsed.menu_items && rawJsonParsed.menu_items.length > 0) {
+          logStore.addLog(`Bắt đầu đối khớp ${rawJsonParsed.menu_items.length} món ăn trích xuất được với thực đơn nhà hàng...`)
+          rawJsonParsed.menu_items = matchMenuItems(
+            rawJsonParsed.menu_items, 
+            rawJsonParsed.booking?.guest_count,
+            appStore.menuList,
+            appStore.menuAliases,
+            appStore.menuDetails || {},
+            formStore.customer.pax ? parseInt(String(formStore.customer.pax)) : null,
+            (msg, level) => logStore.addLog(msg, level)
+          )
+        }
+
+        try {
+          const allMenus = await loadAllMenusData()
+          const { bestSheet, score, isBorderline } = resolveBestMenuSheet(promptText, rawJsonParsed.menu_items || [], allMenus, appStore.activeSheet)
+          
+          if (bestSheet && bestSheet !== appStore.activeSheet) {
+            logStore.addLog(`Phát hiện khả năng khớp thực đơn tốt hơn tại Sheet: "${bestSheet}" (Điểm: ${score}).`)
+            if (isBorderline) {
+              const confirmed = await uiStore.showConfirm(
+                'Đổi thực đơn?',
+                `Nhận diện thực đơn "${bestSheet}". Bạn có muốn chuyển sang thực đơn này không?`
+              )
+              if (confirmed) {
+                logStore.addLog(`Người dùng đồng ý chuyển sang thực đơn: "${bestSheet}"`, 'info')
+                await appStore.switchMenu(bestSheet)
+              } else {
+                logStore.addLog(`Người dùng từ chối chuyển sang thực đơn: "${bestSheet}"`, 'warning')
+              }
+            } else {
+              logStore.addLog(`Tự động chuyển sang thực đơn phù hợp nhất: "${bestSheet}"`, 'success')
+              await appStore.switchMenu(bestSheet)
+              uiStore.showToast(`Đã tự động chuyển sang thực đơn: ${bestSheet}`, 'success')
+            }
+          }
+        } catch (errSheet) {
+          console.warn('Menu sheet routing error:', errSheet)
+        }
+
+        finalParsedResult = rawJsonParsed
+        const cacheKey = getSmartCacheKey(formStore.rawInput, inputType, appStore.activeSheet, formStore.customer.date)
+        setSmartCache(cacheKey, finalParsedResult, inputType)
       }
 
       logStore.addLog(`Áp dụng Luật khóa dữ liệu deterministic (Deterministic Rule Lock)...`)
@@ -678,7 +804,7 @@ export function useAI() {
       if (validatedResult.needs_review_fields.length > 0) {
         logStore.addLog(`Các trường cần duyệt lại: [${validatedResult.needs_review_fields.join(', ')}]`, 'warning')
       } else {
-        logStore.addLog(`Tất cả các trường đạt độ tin cậy an sau.`, 'success')
+        logStore.addLog(`Tất cả các trường đạt độ tin cậy an toàn.`, 'success')
       }
 
       const modeIcon = routingInfo.mode === 'bypass-local' ? '🚀' : routingInfo.mode === 'cache-hit' ? '💾' : '⚡'
@@ -690,11 +816,11 @@ export function useAI() {
       )
 
       formStore.parsedAiResult = validatedResult
-
       formStore.aiMetadata = {
         ...routingInfo,
         confidences: validatedResult.confidence
       }
+
       const warningMap: Record<string, string> = {
         phone: 'Số điện thoại không đúng định dạng VN hoặc thiếu số',
         event_date: 'Ngày đã qua hoặc sai định dạng DD/MM/YYYY',

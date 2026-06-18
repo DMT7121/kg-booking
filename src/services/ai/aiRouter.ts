@@ -3,6 +3,9 @@ import { safeParseJSON } from '@/domain/ai/jsonRepair'
 import { repairAndNormalizeJSON, validateParsedFields } from '@/domain/booking/bookingNormalizer'
 import { callAIModel } from './aiProviderClient'
 import type { AIModel } from '@/utils/constants'
+import { runAsymmetricRace } from './asymmetricRace'
+import { getModelPolicy } from './modelPolicy'
+import { BOOKING_EXTRACTION_SCHEMA } from '@/domain/ai/bookingExtractionSchema'
 
 export interface AIRoutingInfo {
   pipeline: 'text' | 'vision'
@@ -27,7 +30,7 @@ export async function repairBrokenJSONWithAI(
   logCallback?: (msg: string, type?: 'info' | 'warning' | 'error' | 'success') => void
 ): Promise<any> {
   if (logCallback) {
-    logCallback('Phát hiện dữ liệu JSON bị lỗi cấu trúc. Đang kích hoạt AI tự động sửa (repair)...', 'warning')
+    logCallback('Phat hien JSON loi cau truc. Dang kich hoat AI sua loi...', 'warning')
   }
   const repairPrompt = `Fix this broken JSON. Return ONLY valid JSON, nothing else:\n\n${badString.substring(0, 2000)}`
   const repairCandidates = candidates
@@ -35,7 +38,7 @@ export async function repairBrokenJSONWithAI(
     .sort((a, b) => a.tier - b.tier)
   
   if (repairCandidates.length === 0) {
-    if (logCallback) logCallback('Không tìm thấy model AI khả dụng để tự động sửa lỗi JSON.', 'error')
+    if (logCallback) logCallback('Khong tim thay model AI de sua JSON.', 'error')
     return null
   }
   
@@ -51,13 +54,13 @@ export async function repairBrokenJSONWithAI(
     
     const parsed = safeParseJSON(fixedStr || '')
     if (parsed) {
-      if (logCallback) logCallback('Tự động sửa lỗi JSON thành công!', 'success')
+      if (logCallback) logCallback('Tu dong sua JSON thanh cong!', 'success')
     } else {
-      if (logCallback) logCallback('Tự động sửa lỗi JSON thất bại. Kết quả trả về không phải JSON hợp lệ.', 'error')
+      if (logCallback) logCallback('Tu dong sua JSON that bai.', 'error')
     }
     return parsed
   } catch (e: any) {
-    if (logCallback) logCallback(`Tự động sửa lỗi JSON thất bại: ${e.message}`, 'error')
+    if (logCallback) logCallback(`Tu dong sua JSON that bai: ${e.message}`, 'error')
     return null
   }
 }
@@ -106,13 +109,13 @@ export async function runAIRouter(request: {
   })
   
   if (logCallback) {
-    logCallback(`[AI Router] Các model AI khả dụng: ${candidates.map(c => c.name).join(', ')}`)
+    logCallback(`[AI Router] Model kha dung: ${candidates.map(c => c.name).join(', ')}`)
   }
   if (candidates.length === 0) {
     if (logCallback) {
-      logCallback(`[AI Router] Lỗi: Chưa cấu hình API Key cho ${type === 'text' ? 'Text' : 'Vision'}`, 'error')
+      logCallback(`[AI Router] Loi: Chua cau hinh API Key cho ${type === 'text' ? 'Text' : 'Vision'}`, 'error')
     }
-    throw new Error(`Chưa cấu hình API Key cho ${type === 'text' ? 'Text' : 'Vision'}`)
+    throw new Error(`Chua cau hinh API Key cho ${type === 'text' ? 'Text' : 'Vision'}`)
   }
 
   let runRace = false
@@ -157,129 +160,63 @@ export async function runAIRouter(request: {
     }
   }
 
-  if (runRace) {
+  const raceEnabled = import.meta.env.VITE_AI_RACE_MODE !== 'false'
+
+  if (runRace && raceEnabled) {
     const [m1, m2] = candidates.slice(0, 2)
     if (loadingSubMsgCallback) {
-      loadingSubMsgCallback(`⚡ Race Mode: ${m1.name} vs ${m2.name}...`)
+      loadingSubMsgCallback(`⚡ Asymmetric Race: ${m1.name} vs ${m2.name}...`)
     }
-    if (logCallback) {
-      logCallback(`[AI Router] Kích hoạt Chế độ Chạy đua (Race Mode): [${m1.name}] song song với [${m2.name}]...`, 'info')
-    }
-    
     try {
-      const raceResult = await new Promise<{ raw: string | null; model: AIModel }>((resolve, reject) => {
-        let settled = false
-        let errors = 0
-        const controller1 = new AbortController()
-        const controller2 = new AbortController()
-        
-        if (signal) {
-          signal.addEventListener('abort', () => {
-            controller1.abort()
-            controller2.abort()
-          })
-        }
-        
-        const handleSuccess = (raw: string | null, model: AIModel, otherController: AbortController) => {
-          if (!settled && raw) {
-            settled = true
-            otherController.abort()
-            resolve({ raw, model })
-          } else {
-            errors++
-            if (errors >= 2 && !settled) reject(new Error('Both race models failed'))
-          }
-        }
-        
-        const handleFailure = (err: any) => {
-          errors++
-          if (errors >= 2 && !settled) reject(new Error('Both race models failed: ' + err.message))
-        }
-
-        callAIModel({
-          model: m1,
-          sysPrompt,
-          userPrompt,
-          image,
-          jsonMode: true,
-          localKeys: configKeys[m1.provider] || [],
-          signal: controller1.signal,
-          apiGatewayUrl,
-          aiMode
-        }, logCallback)
-          .then(r => handleSuccess(r, m1, controller2))
-          .catch(err => handleFailure(err))
-          
-        callAIModel({
-          model: m2,
-          sysPrompt,
-          userPrompt,
-          image,
-          jsonMode: true,
-          localKeys: configKeys[m2.provider] || [],
-          signal: controller2.signal,
-          apiGatewayUrl,
-          aiMode
-        }, logCallback)
-          .then(r => handleSuccess(r, m2, controller1))
-          .catch(err => handleFailure(err))
+      const raceRes = await runAsymmetricRace({
+        systemPrompt: sysPrompt,
+        userPrompt,
+        image,
+        fastModel: m1,
+        qualityModel: m2,
+        configKeys,
+        apiGatewayUrl,
+        aiMode,
+        signal,
+        logCallback
       })
-
-      if (raceResult.raw) {
-        if (logCallback) {
-          logCallback(`[AI Router] Model thắng cuộc đua: [${raceResult.model.name}]`, 'success')
-        }
-        let parsed = safeParseJSON(raceResult.raw)
-        let repairApplied = false
-        if (!parsed) {
-          parsed = await repairBrokenJSONWithAI(raceResult.raw, candidates, configKeys[raceResult.model.provider] || [], signal, logCallback)
-          repairApplied = true
-        }
-        if (parsed) {
-          return finalizeResult(parsed, raceResult.model, 'race', repairApplied)
-        }
+      return {
+        parsed: raceRes.parsed,
+        routing: raceRes.routing
       }
     } catch (e: any) {
       if (logCallback) {
-        logCallback(`[AI Router] Chế độ Race Mode thất bại (Lỗi: ${e.message}). Chuyển sang chế độ tuần tự (Waterfall)...`, 'warning')
+        logCallback(`[AI Router] Asymmetric Race that bai: ${e.message}. Chuyen sang Waterfall...`, 'warning')
       }
       fallbackCount += 2
       lastError = e
     }
   }
 
-  const waterfallStart = runRace ? 2 : 0
+  const waterfallStart = (runRace && raceEnabled) ? 2 : 0
+  const strictJsonEnabled = import.meta.env.VITE_AI_STRICT_JSON !== 'false'
+
   for (let i = waterfallStart; i < candidates.length; i++) {
     const model = candidates[i]
     try {
+      const policy = getModelPolicy(model)
       if (loadingSubMsgCallback) {
         loadingSubMsgCallback(`Waterfall (Tier ${model.tier}): ${model.name}...`)
       }
       if (logCallback) {
-        logCallback(`[AI Router] Waterfall (Tier ${model.tier}): Thử gọi model [${model.name}]...`)
+        logCallback(`[AI Router] Waterfall (Tier ${model.tier}): Thu goi model [${model.name}]...`)
       }
       const controller = new AbortController()
       if (signal) {
         signal.addEventListener('abort', () => controller.abort())
       }
       
-      const getTimeoutForModel = (m: AIModel): number => {
-        if (m.type === 'vision') return 20000
-        const p = m.provider.toLowerCase()
-        if (p === 'groq' || p === 'cerebras' || p === 'sambanova') {
-          return 6000
-        }
-        if (p === 'google' || p === 'mistral' || p === 'github') {
-          return 10000
-        }
-        return 15000
-      }
-
+      const timeoutMs = policy.defaultTimeoutMs
       const timeoutPromise = new Promise<null>((_, reject) => {
         setTimeout(() => {
           controller.abort()
           reject(new Error(`Timeout model ${model.name}`))
-        }, getTimeoutForModel(model))
+        }, timeoutMs)
       })
       
       const apiCallPromise = callAIModel({
@@ -291,7 +228,10 @@ export async function runAIRouter(request: {
         localKeys: configKeys[model.provider] || [],
         signal: controller.signal,
         apiGatewayUrl,
-        aiMode
+        aiMode,
+        responseSchema: (strictJsonEnabled && policy.supportsJsonSchema) ? BOOKING_EXTRACTION_SCHEMA : undefined,
+        maxOutputTokens: policy.maxOutputTokens,
+        temperature: policy.temperature
       }, logCallback)
       
       const rawResult = await Promise.race([apiCallPromise, timeoutPromise])
@@ -319,14 +259,14 @@ export async function runAIRouter(request: {
             if (overallConf < 0.75 || missingPhone || missingDate || missingTime) {
               needsFallback = true
               if (logCallback) {
-                logCallback(`[AI Router] Model [${model.name}] (Tier 0) không vượt qua kiểm định: độ tin cậy thấp (${overallConf}) hoặc thiếu thông tin cốt lõi (SĐT, ngày, giờ). Chuyển sang model tiếp theo.`, 'warning')
+                logCallback(`[AI Router] Model [${model.name}] (Tier 0) khong vuot qua kiem dinh: do tin cay thap (${overallConf}) hoac thieu thong tin cot loi (SDT, ngay, gio). Chuyen sang model tiep theo.`, 'warning')
               }
             }
           }
           
           if (!needsFallback) {
             if (logCallback) {
-              logCallback(`[AI Router] Model [${model.name}] trích xuất thành công!`, 'success')
+              logCallback(`[AI Router] Model [${model.name}] trich xuat thanh cong!`, 'success')
             }
             return finalizeResult(parsed, model, 'waterfall', repairApplied)
           }
@@ -336,7 +276,7 @@ export async function runAIRouter(request: {
       throw new Error(`Invalid output format or validation failed from ${model.name}`)
     } catch (e: any) {
       if (logCallback) {
-        logCallback(`[AI Router] Model [${model.name}] thất bại: ${e.message}`, 'warning')
+        logCallback(`[AI Router] Model [${model.name}] that bai: ${e.message}`, 'warning')
       }
       fallbackCount++
       lastError = e
@@ -344,7 +284,7 @@ export async function runAIRouter(request: {
   }
   
   if (logCallback) {
-    logCallback(`[AI Router] Tất cả các model AI đều thất bại. Lỗi cuối: ${lastError?.message || 'Không có model khả dụng'}`, 'error')
+    logCallback(`[AI Router] Tat ca cac model AI deu that bai. Loi cuoi: ${lastError?.message || 'Khong co model kha dung'}`, 'error')
   }
-  throw new Error('Tất cả các model AI đều thất bại. Lỗi cuối: ' + (lastError?.message || 'Không có model khả dụng'))
+  throw new Error('Tat ca cac model AI deu that bai. Loi cuoi: ' + (lastError?.message || 'Khong co model kha dung'))
 }

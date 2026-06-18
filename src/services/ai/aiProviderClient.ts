@@ -11,6 +11,9 @@ export interface AICompletionRequest {
   signal?: AbortSignal
   apiGatewayUrl?: string
   aiMode?: 'direct' | 'gateway'
+  responseSchema?: any
+  maxOutputTokens?: number
+  temperature?: number
 }
 
 export interface AICompletionResponse {
@@ -56,7 +59,10 @@ export async function callAIModel(
     localKeys = [],
     signal,
     apiGatewayUrl,
-    aiMode = 'direct'
+    aiMode = 'direct',
+    responseSchema,
+    maxOutputTokens,
+    temperature
   } = request
 
   if (logCallback) {
@@ -84,7 +90,10 @@ export async function callAIModel(
           sysPrompt,
           userPrompt,
           image,
-          jsonMode
+          jsonMode,
+          responseSchema,
+          maxOutputTokens,
+          temperature
         }),
         signal: controller.signal
       })
@@ -136,8 +145,13 @@ export async function callAIModel(
                 ...(image ? [{ inline_data: { mime_type: 'image/jpeg', data: image.split(',')[1] } }] : [])
               ]
             }],
-            generationConfig: { temperature: 0.1 },
-            ...(model.id.includes('2.5') ? { generationConfig: { temperature: 0.1, thinkingConfig: { thinkingBudget: 0 } } } : {})
+            generationConfig: { 
+              temperature: temperature ?? 0.1,
+              ...(maxOutputTokens ? { maxOutputTokens } : {}),
+              ...(jsonMode ? { responseMimeType: 'application/json' } : {}),
+              ...(responseSchema && jsonMode ? { responseSchema } : {})
+            },
+            ...(model.id.includes('2.5') ? { generationConfig: { temperature: temperature ?? 0.1, thinkingConfig: { thinkingBudget: 0 } } } : {})
           }
         } else {
           if (key !== 'free') headers['Authorization'] = `Bearer ${key}`
@@ -173,9 +187,15 @@ export async function callAIModel(
               { role: 'system', content: effectiveSys },
               { role: 'user', content: msgContent }
             ],
-            temperature: 0.1,
-            max_tokens: 4096,
-            ...(jsonMode && !noResponseFormat.includes(model.provider) ? { response_format: { type: 'json_object' } } : {})
+            temperature: temperature ?? 0.1,
+            max_tokens: maxOutputTokens ?? 4096,
+            ...(jsonMode && !noResponseFormat.includes(model.provider) 
+              ? (responseSchema 
+                  ? { response_format: { type: 'json_schema', json_schema: { name: 'booking_extraction', strict: true, schema: responseSchema } } }
+                  : { response_format: { type: 'json_object' } }
+                )
+              : {}
+            )
           }
         }
 
