@@ -14,8 +14,11 @@ export const loadLibrary = (src: string): Promise<void> => new Promise((resolve,
 })
 
 /** Remove Vietnamese diacritical marks */
-export const stripAccents = (s: string): string =>
-  s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/đ/g, 'd').replace(/Đ/g, 'D')
+export const stripAccents = (s: string | any): string => {
+  if (!s) return ''
+  return String(s).normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/đ/g, 'd').replace(/Đ/g, 'D')
+}
+
 
 /** Format number to VND currency string */
 export const formatVND = (v: number): string =>
