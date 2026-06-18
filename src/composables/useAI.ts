@@ -493,6 +493,80 @@ export function useAI() {
     return results
   }
 
+  function normalizeSynonyms(name: string): string {
+    const replacements = [
+      { pattern: /\bba\s+roi\b/gi, replacement: 'ba chỉ' },
+      { pattern: /\bsườn\s+non\b/gi, replacement: 'dẻ sườn' },
+      { pattern: /\bnậm(?:\s+heo)?\b/gi, replacement: 'nầm heo' },
+      { pattern: /\bnăm(?:\s+heo)?\b/gi, replacement: 'nầm heo' },
+      { pattern: /\bmực\s+sữa\b/gi, replacement: 'mực trứng' },
+      { pattern: /\blẩu\s+thái\s+hải\s+sản\b/gi, replacement: 'lẩu thái hs' },
+    ]
+    let normalized = name
+    for (const r of replacements) {
+      normalized = normalized.replace(r.pattern, r.replacement)
+    }
+    return normalized
+  }
+
+  function jaroWinklerDistance(s1: string, s2: string): number {
+    s1 = stripAccents(s1).toLowerCase().trim()
+    s2 = stripAccents(s2).toLowerCase().trim()
+    
+    if (s1 === s2) return 1.0
+    
+    const len1 = s1.length
+    const len2 = s2.length
+    
+    if (len1 === 0 || len2 === 0) return 0.0
+    
+    const matchWindow = Math.floor(Math.max(len1, len2) / 2) - 1
+    const matches1 = new Array(len1).fill(false)
+    const matches2 = new Array(len2).fill(false)
+    
+    let matches = 0
+    let transpositions = 0
+    
+    for (let i = 0; i < len1; i++) {
+      const start = Math.max(0, i - matchWindow)
+      const end = Math.min(len2 - 1, i + matchWindow)
+      for (let j = start; j <= end; j++) {
+        if (!matches2[j] && s1[i] === s2[j]) {
+          matches1[i] = true
+          matches2[j] = true
+          matches++
+          break
+        }
+      }
+    }
+    
+    if (matches === 0) return 0.0
+    
+    let k = 0
+    for (let i = 0; i < len1; i++) {
+      if (matches1[i]) {
+        while (!matches2[k]) k++
+        if (s1[i] !== s2[k]) transpositions++
+        k++
+      }
+    }
+    
+    const jaro = (matches / len1 + matches / len2 + (matches - transpositions / 2) / matches) / 3.0
+    
+    // Winkler modification
+    const prefixLimit = 4
+    let commonPrefix = 0
+    for (let i = 0; i < Math.min(prefixLimit, len1, len2); i++) {
+      if (s1[i] === s2[i]) {
+        commonPrefix++
+      } else {
+        break
+      }
+    }
+    
+    return jaro + commonPrefix * 0.1 * (1.0 - jaro)
+  }
+
   function parseDishItems(input: string): Array<{ name: string; qty: number }> {
     const results: Array<{ name: string; qty: number }> = []
     let cleanInput = input.trim()
@@ -669,7 +743,23 @@ export function useAI() {
     while ((rangeMatch = rangeTimeRegex.exec(clean)) !== null) {
       let h = parseInt(rangeMatch[1])
       const m = rangeMatch[2] ? parseInt(rangeMatch[2]) : 0
-      if (h < 12 && !/sang/i.test(clean)) h += 12
+      
+      const hasNoonOrNight = /toi|dem|chieu/i.test(clean)
+      const hasMorningOrLunch = /sang|trua/i.test(clean)
+      if (h >= 1 && h <= 9) {
+        if (!hasMorningOrLunch) {
+          h += 12 // e.g. 6h -> 18h
+        }
+      } else if (h >= 10 && h <= 14) {
+        if (hasNoonOrNight) {
+          h += 12 // e.g. 11h tối -> 23h
+        }
+      } else if (h >= 15 && h <= 23) {
+        // already PM
+      } else if (h === 24) {
+        h = 0
+      }
+
       times.push({ value: `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`, confidence: 0.95, raw: rangeMatch[0] })
       matchedTimeRanges.push([rangeMatch.index, rangeMatch.index + rangeMatch[0].length])
     }
@@ -685,10 +775,37 @@ export function useAI() {
       }
       let h = parseInt(timeMatchObj[1])
       const m = timeMatchObj[2] ? parseInt(timeMatchObj[2]) : 0
-      if (h < 12 && !/sang/i.test(clean)) h += 12
-      if (h >= 24) h -= 12
+      
+      const hasNoonOrNight = /toi|dem|chieu/i.test(clean)
+      const hasMorningOrLunch = /sang|trua/i.test(clean)
+      if (h >= 1 && h <= 9) {
+        if (!hasMorningOrLunch) {
+          h += 12 // e.g. 6h -> 18h
+        }
+      } else if (h >= 10 && h <= 14) {
+        if (hasNoonOrNight) {
+          h += 12 // e.g. 11h tối -> 23h
+        }
+      } else if (h >= 15 && h <= 23) {
+        // already PM
+      } else if (h === 24) {
+        h = 0
+      }
+
       times.push({ value: `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`, confidence: 0.95, raw: timeMatchObj[0] })
       matchedTimeRanges.push([start, end])
+    }
+
+    if (times.length === 0) {
+      if (/\b(toi nay|toi mai|toi kia|chieu toi)\b/i.test(clean)) {
+        times.push({ value: '19:00', confidence: 0.6, raw: 'tối' })
+      } else if (/\b(trua nay|trua mai|trua kia)\b/i.test(clean)) {
+        times.push({ value: '11:30', confidence: 0.6, raw: 'trưa' })
+      } else if (/\b(chieu nay|chieu mai|chieu kia)\b/i.test(clean)) {
+        times.push({ value: '17:30', confidence: 0.6, raw: 'chiều' })
+      } else if (/\b(sang nay|sang mai|sang kia)\b/i.test(clean)) {
+        times.push({ value: '09:00', confidence: 0.6, raw: 'sáng' })
+      }
     }
 
     const additionGuestRegex = /\b(\d+)\s*(?:nguoi lon|lon)\s*(?:\+|,|va)?\s*(\d+)\s*(?:nho|be|tre em)\b/gi
@@ -2577,6 +2694,9 @@ export function useAI() {
         rawName = rawName.replace(/(?:[x\*])\s*(\d+)\s*$/i, '').trim()
       }
 
+      // Normalize Vietnamese synonyms
+      rawName = normalizeSynonyms(rawName)
+
       const clean = stripAccents(rawName).toLowerCase().trim()
       
       let match: any = null
@@ -2712,7 +2832,8 @@ export function useAI() {
             }
           }
           
-          let score = 0.6 * overlapScore + 0.4 * levenshteinScore
+          const jaroWinklerScore = jaroWinklerDistance(clean, mClean)
+          let score = 0.5 * overlapScore + 0.5 * jaroWinklerScore
           if (attributeConflict) {
             score *= 0.2
           } else if (attributeMissingInUser) {

@@ -765,8 +765,46 @@ Output:
     "people_names": [],
     "phones": [],
     "dates": ["tối mai"],
-    "times": ["7h"],
-    "numbers": [15]
+  }
+}
+\`\`\`
+
+Input:
+Chị Hà đặt 2 bàn tối mai sinh nhật bé Gấu tròn 2 tuổi, làm bảng chúc mừng sinh nhật bé Gấu tròn 2 tuổi nha
+
+Output:
+\`\`\`json
+{
+  "customer": {
+    "name": "Chị Hà",
+    "phone": "",
+    "confidence": 0.95
+  },
+  "party": {
+    "type": "Sinh nhật",
+    "owner_name": "bé Gấu",
+    "display_board_text": "Chúc mừng sinh nhật bé Gấu tròn 2 tuổi",
+    "special_request": "Làm bảng chúc mừng sinh nhật bé Gấu tròn 2 tuổi",
+    "confidence": 0.95
+  },
+  "booking": {
+    "date": "{{TOMORROW_DD_MM_YYYY}}",
+    "time": "",
+    "guest_count": null,
+    "table_count": 2,
+    "tables": "",
+    "confidence": 0.9
+  },
+  "menu_items": [],
+  "note": "Chủ tiệc / người được tổ chức: bé Gấu\\nNhu cầu: Sinh nhật\\nNội dung bảng/trang trí: Chúc mừng sinh nhật bé Gấu tròn 2 tuổi\\nGhi chú thêm: Đặt 2 bàn. Làm bảng chúc mừng sinh nhật bé Gấu tròn 2 tuổi",
+  "needs_review": ["missing_phone", "missing_booking_time", "missing_guest_count"],
+  "warnings": [],
+  "raw_entities": {
+    "people_names": ["Chị Hà", "bé Gấu"],
+    "phones": [],
+    "dates": ["tối mai"],
+    "times": [],
+    "numbers": [2]
   }
 }
 \`\`\`
