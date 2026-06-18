@@ -8,6 +8,7 @@ import {
   cacheHistory, getCachedHistory,
   cacheMenu, getCachedMenu, deleteCachedMenu,
   cacheMenuSheets, getCachedMenuSheets,
+  cacheIsFresh,
   addToOfflineQueue, getOfflineQueue, removeFromQueue
 } from '@/services/cache'
 
@@ -244,23 +245,100 @@ export const useAppStore = defineStore('app', () => {
     }
   }
 
-  function preCacheAllMenus(sheets: string[]) {
-    if (!sheets || sheets.length === 0) return
-    sheets.forEach((sheet) => {
-      getCachedMenu(sheet).then((cached) => {
-        if (!cached || cached.length === 0) {
-          api.getMenu(sheet).then((res) => {
-            if (res.ok && res.data) {
-              cacheMenu(sheet, res.data)
-              console.log(`[Pre-cache] Successfully pre-cached menu sheet: ${sheet}`)
-            }
-          }).catch((err) => {
-            console.warn(`[Pre-cache] Failed to pre-cache menu sheet: ${sheet}`, err)
-          })
-        }
-      }).catch((e) => {
-        console.error(`[Pre-cache] Error checking cached menu for ${sheet}`, e)
+  function runInBackground(task: () => Promise<void>): Promise<void> {
+    const execute = async () => {
+      try {
+        await task()
+      } catch (error) {
+        console.error('[Background Task Error]', error)
+      }
+    }
+
+    if (typeof window !== 'undefined' && 'requestIdleCallback' in window) {
+      return new Promise((resolve) => {
+        (window as any).requestIdleCallback(
+          () => {
+            execute().finally(resolve)
+          },
+          { timeout: 3000 }
+        )
       })
+    }
+
+    return new Promise((resolve) => {
+      window.setTimeout(() => {
+        execute().finally(resolve)
+      }, 0)
+    })
+  }
+
+  async function runWithConcurrencyLimit<T>(
+    items: T[],
+    limit: number,
+    worker: (item: T) => Promise<void>
+  ): Promise<void> {
+    const queue = [...items]
+    const workers = Array.from({ length: Math.min(limit, queue.length) }, async () => {
+      while (queue.length > 0) {
+        const item = queue.shift()
+        if (item === undefined) continue
+        await worker(item)
+      }
+    })
+    await Promise.allSettled(workers)
+  }
+
+  const menuPrefetchInFlight = new Map<string, Promise<void>>()
+
+  function scheduleMenuPrefetch(
+    sheetName: string,
+    options?: { reason?: string; priority?: 'background' | 'high' }
+  ): Promise<void> {
+    const key = `kg_menu_${sheetName}`
+
+    if (menuPrefetchInFlight.has(key)) {
+      return menuPrefetchInFlight.get(key)!
+    }
+
+    const task = runInBackground(async () => {
+      try {
+        const cached = await getCachedMenu(sheetName)
+        const fresh = await cacheIsFresh(key, 3600000)
+
+        if (cached && cached.length > 0 && fresh) {
+          console.debug(`[Prefetch] Cache hit & fresh for: ${sheetName}`)
+          return
+        }
+
+        console.debug(`[Prefetch] Cache miss or stale for: ${sheetName}. Fetching from network...`)
+        const res = await api.getMenu(sheetName)
+        if (res.ok && res.data) {
+          await cacheMenu(sheetName, res.data)
+          console.debug(`[Prefetch] Success for: ${sheetName}. Items: ${res.data.length}`)
+        }
+      } catch (error) {
+        console.warn(`[Prefetch] Failed for: ${sheetName}`, error)
+      } finally {
+        menuPrefetchInFlight.delete(key)
+      }
+    })
+
+    menuPrefetchInFlight.set(key, task)
+    return task
+  }
+
+  function scheduleMenusPrecache(
+    sheets: string[],
+    options?: { reason?: string; priority?: 'background' | 'high' }
+  ) {
+    const start = performance.now()
+    console.debug(`[Pre-cache] Starting pre-cache for ${sheets.length} menus. Reason: ${options?.reason || 'unknown'}`)
+
+    runInBackground(async () => {
+      await runWithConcurrencyLimit(sheets, 3, async (sheet) => {
+        await scheduleMenuPrefetch(sheet, options)
+      })
+      console.debug(`[Pre-cache] Finished pre-cache for all menus in ${(performance.now() - start).toFixed(1)}ms`)
     })
   }
 
@@ -268,15 +346,15 @@ export const useAppStore = defineStore('app', () => {
     const cached = await getCachedMenuSheets()
     if (cached && cached.length > 0) {
       menuSheets.value = cached
-      preCacheAllMenus(cached)
+      scheduleMenusPrecache(cached, { reason: 'app-startup-cache' })
     }
 
     try {
       const data = await api.getMenuSheets()
       if (data.ok) {
         menuSheets.value = data.sheets || []
-        cacheMenuSheets(data.sheets || [])
-        preCacheAllMenus(data.sheets || [])
+        await cacheMenuSheets(data.sheets || [])
+        scheduleMenusPrecache(data.sheets || [], { reason: 'app-startup-network' })
       }
     } catch (e) {
       console.error('Fetch Sheets Error', e)
@@ -807,6 +885,7 @@ export const useAppStore = defineStore('app', () => {
     addStaff, removeStaff,
     fetchRemoteConfig, updateRemoteConfig, verifyAdminSession,
     logout,
-    offlineQueueCount, updateOfflineQueueCount
+    offlineQueueCount, updateOfflineQueueCount,
+    scheduleMenuPrefetch, scheduleMenusPrecache
   }
 })

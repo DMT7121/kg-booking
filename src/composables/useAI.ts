@@ -3146,44 +3146,57 @@ export function useAI() {
   }
 
   async function loadAllMenusData(): Promise<Record<string, any[]>> {
+    const start = performance.now()
     const allData: Record<string, any[]> = {}
+    
     let sheets = appStore.menuSheets
+    let sheetsSource = 'store'
+    
     if (!sheets || sheets.length === 0) {
       try {
         const cachedSheets = await getCachedMenuSheets()
         if (cachedSheets && cachedSheets.length > 0) {
           sheets = cachedSheets
           appStore.menuSheets = cachedSheets
-        } else {
-          const res = await api.getMenuSheets()
-          if (res.ok && res.sheets) {
-            sheets = res.sheets
-            appStore.menuSheets = sheets
-            await cacheMenuSheets(res.sheets)
-          }
+          sheetsSource = 'local-cache'
         }
       } catch (e) {
-        console.error('Failed to load menu sheets', e)
+        console.error('Failed to load menu sheets from local cache', e)
       }
     }
-    if (!sheets || sheets.length === 0) return allData
+    
+    if (!sheets || sheets.length === 0) {
+      logStore.addLog(`[loadAllMenusData] Không tìm thấy danh sách sheet thực đơn nào (trống). Thời gian: 0ms`, 'warning')
+      return allData
+    }
+
+    let cacheHits = 0
+    let cacheMisses = 0
+    const details: string[] = []
 
     await Promise.all(sheets.map(async (sheet) => {
       const menuItems = await getCachedMenu(sheet)
       if (menuItems && menuItems.length > 0) {
         allData[sheet] = menuItems
+        cacheHits++
+        details.push(`${sheet}: HIT (${menuItems.length} món)`)
       } else {
-        // Trigger background fetch, do NOT await it.
-        api.getMenu(sheet).then((res) => {
-          if (res.ok && res.data) {
-            cacheMenu(sheet, res.data)
-            console.log(`[Background Load] Cached menu sheet: ${sheet}`)
-          }
-        }).catch((e) => {
-          console.error(`[Background Load] Failed to load menu for sheet ${sheet}`, e)
-        })
+        cacheMisses++
+        details.push(`${sheet}: MISS (scheduled background prefetch)`)
+        // Trigger background prefetch via the store helper, do NOT await it.
+        appStore.scheduleMenuPrefetch(sheet, { reason: 'ai-cache-miss', priority: 'background' })
       }
     }))
+
+    const durationMs = (performance.now() - start).toFixed(1)
+    logStore.addLog(
+      `[AI Caching V2] Đọc cache thực đơn xong: ${durationMs}ms | ` +
+      `Nguồn sheets: ${sheetsSource} | Total: ${sheets.length} | ` +
+      `HIT: ${cacheHits} | MISS: ${cacheMisses}`,
+      'info'
+    )
+    console.debug(`[AI Caching V2] Details:`, details)
+    
     return allData
   }
 
