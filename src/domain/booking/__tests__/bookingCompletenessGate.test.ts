@@ -43,7 +43,7 @@ describe('Booking Completeness Gate Tests', () => {
   it('should not bypass LLM if customerName confidence is low', () => {
     const invalidResult = {
       ...mockValidResult,
-      customerName: { value: 'Chị Vy', confidence: 0.70, source: 'rule' }
+      customerName: { value: 'Chị Vy', confidence: 0.70, source: 'rule' as const }
     }
     const decision = evaluateBookingBypass(invalidResult, false, false, false)
     expect(decision.canBypassLLM).toBe(false)
@@ -53,7 +53,7 @@ describe('Booking Completeness Gate Tests', () => {
   it('should not bypass LLM if phone is invalid', () => {
     const invalidResult = {
       ...mockValidResult,
-      phone: { value: '012345', confidence: 0.98, source: 'rule' }
+      phone: { value: '012345', confidence: 0.98, source: 'rule' as const }
     }
     const decision = evaluateBookingBypass(invalidResult, false, false, false)
     expect(decision.canBypassLLM).toBe(false)
@@ -63,7 +63,7 @@ describe('Booking Completeness Gate Tests', () => {
   it('should not bypass LLM if time is out of operating hours', () => {
     const invalidResult = {
       ...mockValidResult,
-      bookingTime: { value: '05:00', confidence: 0.95, source: 'rule' }
+      bookingTime: { value: '05:00', confidence: 0.95, source: 'rule' as const }
     }
     const decision = evaluateBookingBypass(invalidResult, false, false, false)
     expect(decision.canBypassLLM).toBe(false)

@@ -639,7 +639,7 @@ export function useAI() {
           const menusForRetriever = Object.entries(allMenus).map(([sheetName, items]) => ({
             menuId: sheetName,
             menuName: sheetName,
-            items: items.map(item => ({
+            items: items.map((item: any) => ({
               id: item.id || item.name,
               name: item.name,
               aliases: item.aliases || (item.acronym ? [item.acronym] : []),
@@ -652,7 +652,7 @@ export function useAI() {
             menusForRetriever.push({
               menuId: appStore.activeSheet || 'default',
               menuName: appStore.activeSheet || 'default',
-              items: appStore.menuList.map(item => ({
+              items: appStore.menuList.map((item: any) => ({
                 id: item.id || item.name,
                 name: item.name,
                 aliases: item.aliases || (item.acronym ? [item.acronym] : []),
