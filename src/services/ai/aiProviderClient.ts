@@ -1,5 +1,6 @@
 import type { AIModel } from '@/utils/constants'
 import * as api from '@/services/api'
+import { handleModelFailure } from './circuitBreaker'
 
 export interface AICompletionRequest {
   model: AIModel
@@ -257,6 +258,7 @@ export async function callAIModel(
           logCallback(`[Model: ${model.name}] Lỗi khi gọi trực tiếp qua client (Key #${i + 1}): ${errMsg}`, 'warning')
         }
         if (isFatal) {
+          handleModelFailure(model.id, e)
           lastFatalError = e
           break // Exit key loop, do not try next key or fall back to GAS
         }
@@ -304,6 +306,7 @@ export async function callAIModel(
     if (logCallback) {
       logCallback(`[Model: ${model.name}] Lỗi khi gọi qua Server Proxy (GAS): ${e.message}`, 'error')
     }
+    handleModelFailure(model.id, e)
     throw e
   }
 }

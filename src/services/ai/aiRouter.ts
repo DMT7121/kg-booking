@@ -6,6 +6,8 @@ import type { AIModel } from '@/utils/constants'
 import { runAsymmetricRace } from './asymmetricRace'
 import { getModelPolicy } from './modelPolicy'
 import { BOOKING_EXTRACTION_SCHEMA } from '@/domain/ai/bookingExtractionSchema'
+import { isModelCooldown, getCooldownReason } from './circuitBreaker'
+
 
 export interface AIRoutingInfo {
   pipeline: 'text' | 'vision'
@@ -101,6 +103,19 @@ export async function runAIRouter(request: {
   let candidates = availableModels
     .filter(m => m.type === type)
     .filter(m => m.provider === 'pollinations' || keysStatus[m.provider]?.configured)
+    
+  const activeCandidates = candidates.filter(m => !isModelCooldown(m.id))
+  if (activeCandidates.length > 0) {
+    if (logCallback && activeCandidates.length < candidates.length) {
+      const cooldownList = candidates.filter(m => isModelCooldown(m.id))
+      logCallback(`[AI Router] Bo qua ${cooldownList.length} model dang trong thoi gian cooldown: ${cooldownList.map(m => `${m.name} (${getCooldownReason(m.id)})`).join(', ')}`, 'warning')
+    }
+    candidates = activeCandidates
+  } else if (candidates.length > 0) {
+    if (logCallback) {
+      logCallback(`[AI Router] Tat ca model deu dang cooldown. Kich hoat lai de thu phuc hoi.`, 'warning')
+    }
+  }
     
   candidates.sort((a, b) => {
     if (a.id === defaultModelId) return -1

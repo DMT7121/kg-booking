@@ -1,9 +1,10 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, onUnmounted, watch } from 'vue'
 import { useUIStore } from '@/stores/useUIStore'
 import { useConfigStore } from '@/stores/useConfigStore'
 import { useAppStore } from '@/stores/useAppStore'
-import { PLATFORMS } from '@/utils/constants'
+import { PLATFORMS, AI_MODELS } from '@/utils/constants'
+import { getActiveCooldowns, clearAllCooldowns } from '@/services/ai/circuitBreaker'
 
 const ui = useUIStore()
 const configStore = useConfigStore()
@@ -125,6 +126,42 @@ async function handleDeleteAlias(alias: string) {
     ui.loading.is = false
   }
 }
+
+const cooldownList = ref<any[]>([])
+
+function updateCooldowns() {
+  cooldownList.value = getActiveCooldowns()
+}
+
+let cooldownInterval: any = null
+watch(() => ui.activeSettingModal, (newVal) => {
+  if (newVal === 'ai') {
+    updateCooldowns()
+    if (!cooldownInterval) {
+      cooldownInterval = setInterval(updateCooldowns, 1000)
+    }
+  } else {
+    if (cooldownInterval) {
+      clearInterval(cooldownInterval)
+      cooldownInterval = null
+    }
+  }
+}, { immediate: true })
+
+onUnmounted(() => {
+  if (cooldownInterval) clearInterval(cooldownInterval)
+})
+
+function getModelName(modelId: string) {
+  const model = AI_MODELS.find(m => m.id === modelId)
+  return model ? model.name : modelId
+}
+
+function handleClearCooldowns() {
+  clearAllCooldowns()
+  updateCooldowns()
+  ui.showToast('Đã kích hoạt lại toàn bộ các mô hình!', 'success')
+}
 </script>
 
 <template>
@@ -202,6 +239,33 @@ async function handleDeleteAlias(alias: string) {
           </div>
           
           <p class="text-[10px] font-bold text-slate-400 flex items-center gap-1.5 pl-1"><i class="fa-solid fa-lock text-slate-300"></i> API Key được mã hóa và lưu trữ an toàn.</p>
+        </div>
+      </div>
+
+      <!-- Circuit Breaker / Cooldown Status -->
+      <div v-if="cooldownList.length > 0" class="space-y-3">
+        <h4 class="text-[11px] font-black text-slate-400 uppercase tracking-widest pl-2">Hệ thống tự động bỏ qua (Cooldown)</h4>
+        <div class="bg-white rounded-3xl shadow-sm border border-slate-100 p-4 space-y-3">
+          <p class="text-[10px] font-bold text-slate-500 leading-relaxed">
+            Các mô hình sau đây bị lỗi liên tục (Rate Limit / Lỗi cấu hình) và tạm thời bị hệ thống tự động bỏ qua để đảm bảo tốc độ phản hồi nhanh nhất:
+          </p>
+          <div class="space-y-2">
+            <div v-for="c in cooldownList" :key="c.modelId" class="flex items-center justify-between bg-rose-50 border border-rose-100 px-3 py-2 rounded-xl">
+              <div class="flex items-center gap-2">
+                <i class="fa-solid fa-triangle-exclamation text-rose-500 text-xs animate-pulse"></i>
+                <div>
+                  <div class="text-[11px] font-black text-slate-800">{{ getModelName(c.modelId) }}</div>
+                  <div class="text-[9px] font-bold text-rose-500">{{ c.reason }}</div>
+                </div>
+              </div>
+              <div class="flex items-center gap-2 shrink-0">
+                <span class="text-[9px] font-mono font-bold text-slate-600 bg-slate-100 border border-slate-200 px-1.5 py-0.5 rounded">Còn {{ c.remainingSeconds }}s</span>
+              </div>
+            </div>
+          </div>
+          <div class="flex justify-end pt-1">
+            <button @click="handleClearCooldowns" class="px-4 py-2 border border-slate-200 hover:bg-slate-50 text-slate-700 rounded-xl font-black text-[10px] active:scale-95 transition-all">Thử lại toàn bộ</button>
+          </div>
         </div>
       </div>
 
