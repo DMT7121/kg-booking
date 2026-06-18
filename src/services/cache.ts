@@ -79,6 +79,12 @@ export async function getCachedMenu(sheetName: string): Promise<any[] | null> {
   return cacheGet<any[]>(`${CK.MENU}_${sheetName}`)
 }
 
+/** Delete cached menu */
+export async function deleteCachedMenu(sheetName: string): Promise<void> {
+  await cacheDel(`${CK.MENU}_${sheetName}`)
+}
+
+
 /** Cache menu sheet names */
 export async function cacheMenuSheets(sheets: string[]): Promise<void> {
   await cacheSet(CK.MENU_SHEETS, sheets)

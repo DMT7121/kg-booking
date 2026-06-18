@@ -6,7 +6,7 @@ import * as api from '@/services/api'
 import { useUIStore } from './useUIStore'
 import {
   cacheHistory, getCachedHistory,
-  cacheMenu, getCachedMenu,
+  cacheMenu, getCachedMenu, deleteCachedMenu,
   cacheMenuSheets, getCachedMenuSheets,
   addToOfflineQueue, getOfflineQueue, removeFromQueue
 } from '@/services/cache'
@@ -198,15 +198,34 @@ export const useAppStore = defineStore('app', () => {
   async function fetchMenu(sheetName?: string) {
     const targetSheet = sheetName || activeSheet.value
 
-    // Cache-first
+    // Cache-first (SWR: Stale-While-Revalidate)
     const cached = await getCachedMenu(targetSheet)
-    if (cached && cached.length > 0 && menuList.value.length === 0) {
+    if (cached && cached.length > 0) {
       menuList.value = cached
       const ds: Record<string, string> = {}
       cached.forEach((i: any) => { if (i.desc) ds[i.name] = i.desc })
       menuDetails.value = ds
+      activeSheet.value = targetSheet
+
+      // Revalidate in the background
+      api.getMenu(targetSheet).then((data) => {
+        if (data.ok) {
+          menuList.value = data.data || []
+          const dsUpdate: Record<string, string> = {}
+          if (Array.isArray(data.data)) {
+            data.data.forEach((i: any) => { if (i.desc) dsUpdate[i.name] = i.desc })
+          }
+          menuDetails.value = dsUpdate
+          cacheMenu(targetSheet, data.data || [])
+        }
+      }).catch((e) => {
+        console.warn('[Menu Revalidation Failed]', e)
+      })
+      
+      return // Return early to prevent UI blocking
     }
 
+    // No cache case: Fetch from network and await
     try {
       const data = await api.getMenu(targetSheet)
       if (data.ok) {
@@ -217,11 +236,11 @@ export const useAppStore = defineStore('app', () => {
         }
         menuDetails.value = ds
         activeSheet.value = targetSheet
-        cacheMenu(targetSheet, data.data || [])
+        await cacheMenu(targetSheet, data.data || [])
       }
     } catch (e) {
       console.error(e)
-      if (!cached) uiStore.showToast('Không tải được menu', 'warning')
+      uiStore.showToast('Không tải được menu', 'warning')
     }
   }
 
@@ -254,6 +273,8 @@ export const useAppStore = defineStore('app', () => {
       uiStore.showMenuManager = false
     } catch (e: any) {
       console.error(e)
+    } finally {
+      uiStore.loading.is = false
     }
   }
 
@@ -268,6 +289,8 @@ export const useAppStore = defineStore('app', () => {
     try {
       const data = await api.createMenu(newMenuName.value, newMenuContent.value, undefined, adminToken.value)
       if (data.ok) {
+        // Clear cache for this menu first to ensure we reload fresh data
+        await deleteCachedMenu(newMenuName.value)
         uiStore.showToast(uiStore.isUpdateMode ? 'Cập nhật thực đơn thành công!' : 'Tạo menu thành công!', 'success')
         const wasUpdateMode = uiStore.isUpdateMode
         await fetchSheets()
@@ -303,6 +326,7 @@ export const useAppStore = defineStore('app', () => {
     try {
       const data = await api.deleteMenu(sheetName, undefined, adminToken.value)
       if (data.ok) {
+        await deleteCachedMenu(sheetName)
         uiStore.showToast(`Xóa menu "${sheetName}" thành công!`, 'success')
         await fetchSheets()
         if (activeSheet.value === sheetName) {
