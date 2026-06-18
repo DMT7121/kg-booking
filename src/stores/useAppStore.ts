@@ -2,15 +2,25 @@ import { defineStore } from 'pinia'
 import { ref, reactive, computed, shallowRef } from 'vue'
 import { stripAccents, formatVND, cleanPhoneNumber } from '@/utils'
 import { CACHE_KEYS, DEFAULTS } from '@/utils/constants'
-import * as api from '@/services/api'
 import { useUIStore } from './useUIStore'
 import {
   cacheHistory, getCachedHistory,
   cacheMenu, getCachedMenu, deleteCachedMenu,
   cacheMenuSheets, getCachedMenuSheets,
-  cacheIsFresh,
-  addToOfflineQueue, getOfflineQueue, removeFromQueue
+  cacheIsFresh, getOfflineQueue, removeFromQueue
 } from '@/services/cache'
+import { fetchWithRetry } from '@/infrastructure/gas/gasClient'
+import { 
+  GasOrderRepository, 
+  GasMenuRepository, 
+  GasSettingsRepository, 
+  GasCorrectionRepository 
+} from '@/infrastructure/gas/gasRepositories'
+
+const orderRepo = new GasOrderRepository()
+const menuRepo = new GasMenuRepository()
+const settingsRepo = new GasSettingsRepository()
+const correctionRepo = new GasCorrectionRepository()
 
 export interface HistoryOrder {
   id: string
@@ -173,18 +183,16 @@ export const useAppStore = defineStore('app', () => {
   async function loadHistory(silent: boolean) {
     uiStore.connectionStatus = 'syncing'
 
-    // Cache-first: Show cached data instantly
     const cached = await getCachedHistory()
     if (cached && cached.length > 0 && historyList.value.length === 0) {
       historyList.value = cached
     }
 
     try {
-      const data = await api.getHistory()
+      const data = await orderRepo.getHistory()
       if (data.ok) {
         historyList.value = data.data || []
         uiStore.connectionStatus = 'online'
-        // Update cache in background
         cacheHistory(data.data || [])
       } else {
         uiStore.connectionStatus = cached ? 'online' : 'error'
@@ -199,7 +207,6 @@ export const useAppStore = defineStore('app', () => {
   async function fetchMenu(sheetName?: string) {
     const targetSheet = sheetName || activeSheet.value
 
-    // Cache-first (SWR: Stale-While-Revalidate)
     const cached = await getCachedMenu(targetSheet)
     if (cached && cached.length > 0) {
       menuList.value = cached
@@ -209,7 +216,7 @@ export const useAppStore = defineStore('app', () => {
       activeSheet.value = targetSheet
 
       // Revalidate in the background
-      api.getMenu(targetSheet).then((data) => {
+      menuRepo.getMenu(targetSheet).then((data) => {
         if (data.ok) {
           menuList.value = data.data || []
           const dsUpdate: Record<string, string> = {}
@@ -223,12 +230,11 @@ export const useAppStore = defineStore('app', () => {
         console.warn('[Menu Revalidation Failed]', e)
       })
       
-      return // Return early to prevent UI blocking
+      return
     }
 
-    // No cache case: Fetch from network and await
     try {
-      const data = await api.getMenu(targetSheet)
+      const data = await menuRepo.getMenu(targetSheet)
       if (data.ok) {
         menuList.value = data.data || []
         const ds: Record<string, string> = {}
@@ -311,7 +317,7 @@ export const useAppStore = defineStore('app', () => {
         }
 
         console.debug(`[Prefetch] Cache miss or stale for: ${sheetName}. Fetching from network...`)
-        const res = await api.getMenu(sheetName)
+        const res = await menuRepo.getMenu(sheetName)
         if (res.ok && res.data) {
           await cacheMenu(sheetName, res.data)
           console.debug(`[Prefetch] Success for: ${sheetName}. Items: ${res.data.length}`)
@@ -350,7 +356,7 @@ export const useAppStore = defineStore('app', () => {
     }
 
     try {
-      const data = await api.getMenuSheets()
+      const data = await menuRepo.getMenuSheets()
       if (data.ok) {
         menuSheets.value = data.sheets || []
         await cacheMenuSheets(data.sheets || [])
@@ -360,7 +366,6 @@ export const useAppStore = defineStore('app', () => {
       console.error('Fetch Sheets Error', e)
     }
 
-    // Process offline queue if any
     processOfflineQueue()
   }
 
@@ -389,9 +394,8 @@ export const useAppStore = defineStore('app', () => {
     if (!isAuth) return
 
     try {
-      const data = await api.createMenu(newMenuName.value, newMenuContent.value, undefined, adminToken.value)
+      const data = await menuRepo.createMenu(newMenuName.value, newMenuContent.value, undefined, adminToken.value)
       if (data.ok) {
-        // Clear cache for this menu first to ensure we reload fresh data
         await deleteCachedMenu(newMenuName.value)
         uiStore.showToast(uiStore.isUpdateMode ? 'Cập nhật thực đơn thành công!' : 'Tạo menu thành công!', 'success')
         const wasUpdateMode = uiStore.isUpdateMode
@@ -401,7 +405,6 @@ export const useAppStore = defineStore('app', () => {
         newMenuContent.value = ''
         uiStore.isUpdateMode = false
 
-        // Display logs of changes if any
         if (data.logs && data.logs.length > 0) {
           const logText = data.logs.map((log: string) => `• ${log}`).join('\n')
           setTimeout(() => {
@@ -426,7 +429,7 @@ export const useAppStore = defineStore('app', () => {
     if (!isAuth) return
 
     try {
-      const data = await api.deleteMenu(sheetName, undefined, adminToken.value)
+      const data = await menuRepo.deleteMenu(sheetName, undefined, adminToken.value)
       if (data.ok) {
         await deleteCachedMenu(sheetName)
         uiStore.showToast(`Xóa menu "${sheetName}" thành công!`, 'success')
@@ -455,7 +458,7 @@ export const useAppStore = defineStore('app', () => {
     uiStore.loading.is = true
     uiStore.loading.msg = 'ĐANG TẢI ẢNH LÊN CLOUD...'
     try {
-      const data = await api.uploadMenuImage(activeSheet.value, base64, undefined, adminToken.value)
+      const data = await menuRepo.uploadMenuImage(activeSheet.value, base64, undefined, adminToken.value)
       if (data.ok && data.url) {
         uiStore.showToast('Tải ảnh thành công!', 'success')
         menuImages.value[activeSheet.value] = data.url
@@ -477,7 +480,7 @@ export const useAppStore = defineStore('app', () => {
     uiStore.loading.is = true
     uiStore.loading.msg = 'ĐANG TẢI ẢNH MÓN LÊN CLOUD...'
     try {
-      const data = await api.uploadDishImage(dishId, base64, undefined, adminToken.value)
+      const data = await menuRepo.uploadDishImage(dishId, base64, undefined, adminToken.value)
       if (data.ok && data.url) {
         uiStore.showToast('Tải ảnh món thành công!', 'success')
         dishImages.value[dishId] = data.url
@@ -539,7 +542,7 @@ export const useAppStore = defineStore('app', () => {
   async function fetchRemoteConfig() {
     uiStore.connectionStatus = 'syncing'
     try {
-      const result = await api.getConfig()
+      const result = await settingsRepo.getConfig()
       if (result.ok && result.data) {
         uiStore.connectionStatus = 'online'
         let hasChanges = false
@@ -563,7 +566,6 @@ export const useAppStore = defineStore('app', () => {
             }
           } catch { /* ignore */ }
         }
-        // --- Webhook config (borrow back from server) ---
         if (result.data.webhookUrl) {
           localStorage.setItem('kg_v400_webhookUrl', result.data.webhookUrl)
           hasChanges = true
@@ -573,7 +575,6 @@ export const useAppStore = defineStore('app', () => {
           hasChanges = true
         }
         
-        // --- Defaults handling ---
         if (result.data.default_bank_account_id) {
           const accountId = result.data.default_bank_account_id
           localStorage.setItem('default_bank_account_id', accountId)
@@ -593,7 +594,6 @@ export const useAppStore = defineStore('app', () => {
           }
         }
         
-        // Extract images
         Object.keys(result.data).forEach(k => {
           let url = result.data[k]
           if (typeof url === 'string' && url.includes('drive.google.com/uc?')) {
@@ -636,7 +636,7 @@ export const useAppStore = defineStore('app', () => {
   async function lockAdminSettings() {
     if (adminToken.value) {
       try {
-        await api.logoutAdminSettings(adminToken.value)
+        await settingsRepo.logoutAdminSettings(adminToken.value)
       } catch (e) {}
     }
     adminToken.value = ''
@@ -648,7 +648,7 @@ export const useAppStore = defineStore('app', () => {
 
   async function unlockAdminSettings(password: string): Promise<boolean> {
     try {
-      const res = await api.authAdminSettings(password)
+      const res = await settingsRepo.authAdminSettings(password)
       if (res.ok && res.token) {
         adminToken.value = res.token
         adminExpiresAt.value = res.expiresAt
@@ -705,14 +705,11 @@ export const useAppStore = defineStore('app', () => {
     const bList = (!onlyType || onlyType === 'bank') ? JSON.stringify(bankList.value) : undefined
     const sList = (!onlyType || onlyType === 'staff') ? JSON.stringify(staffList.value) : undefined
 
-    api.saveConfig(
-      bList,
-      sList,
-      undefined,
-      undefined,
-      undefined,
-      tokenVal
-    ).then((data: any) => {
+    settingsRepo.saveConfig({
+      bankList: bList,
+      staffList: sList,
+      token: tokenVal
+    }).then((data: any) => {
       if (data.ok) {
         uiStore.connectionStatus = 'online'
         uiStore.showToast('Đã lưu cấu hình thành công lên Server!', 'success')
@@ -739,7 +736,7 @@ export const useAppStore = defineStore('app', () => {
     
     uiStore.showToast('Đang đặt tài khoản ngân hàng mặc định...', 'info')
     try {
-      const res = await api.upsertSystemConfig('default_bank_account_id', accountId, {
+      const res = await settingsRepo.upsertSystemConfig('default_bank_account_id', accountId, {
         type: 'string', scope: 'global', isProtected: false, description: 'Default bank account index/ID'
       }, adminToken.value)
       if (res.ok) {
@@ -764,7 +761,7 @@ export const useAppStore = defineStore('app', () => {
     
     uiStore.showToast('Đang đặt thực đơn mặc định...', 'info')
     try {
-      const res = await api.upsertSystemConfig('default_menu_profile_id', menuId, {
+      const res = await settingsRepo.upsertSystemConfig('default_menu_profile_id', menuId, {
         type: 'string', scope: 'global', isProtected: false, description: 'Default menu profile ID/sheet name'
       }, adminToken.value)
       if (res.ok) {
@@ -780,7 +777,7 @@ export const useAppStore = defineStore('app', () => {
 
   async function loadMenuAliases() {
     try {
-      const res = await api.getMenuAliases()
+      const res = await menuRepo.getMenuAliases()
       if (res.ok && res.data) {
         menuAliases.value = res.data
         localStorage.setItem('menu_aliases', JSON.stringify(res.data))
@@ -791,7 +788,7 @@ export const useAppStore = defineStore('app', () => {
   }
 
   async function saveAlias(alias: string, dishName: string) {
-    const res = await api.saveMenuAlias(alias, dishName, adminToken.value)
+    const res = await menuRepo.saveMenuAlias(alias, dishName, adminToken.value)
     if (res.ok) {
       await loadMenuAliases()
       uiStore.showToast('Lưu từ viết tắt thành công!', 'success')
@@ -800,7 +797,7 @@ export const useAppStore = defineStore('app', () => {
   }
 
   async function deleteAlias(alias: string) {
-    const res = await api.deleteMenuAlias(alias, adminToken.value)
+    const res = await menuRepo.deleteMenuAlias(alias, adminToken.value)
     if (res.ok) {
       await loadMenuAliases()
       uiStore.showToast('Đã xóa từ viết tắt!', 'success')
@@ -810,7 +807,7 @@ export const useAppStore = defineStore('app', () => {
 
   async function loadAiCorrections() {
     try {
-      const res = await api.getAiCorrections()
+      const res = await correctionRepo.getAiCorrections()
       if (res.ok && res.data) {
         aiCorrections.value = res.data
         localStorage.setItem('ai_corrections', JSON.stringify(res.data))
@@ -835,10 +832,8 @@ export const useAppStore = defineStore('app', () => {
     updateOfflineQueueCount()
   }
 
-  // Auto trigger remote config fetch when app starts
   autoSyncIfReady()
 
-  // --- Offline Queue Processor ---
   async function processOfflineQueue() {
     const queue = await getOfflineQueue()
     offlineQueueCount.value = queue.length
@@ -846,17 +841,16 @@ export const useAppStore = defineStore('app', () => {
     uiStore.showToast(`Đang đồng bộ ${queue.length} đơn offline...`, 'info')
     for (const item of queue) {
       try {
-        await api.fetchWithRetry({ action: item.action, data: item.payload })
+        await fetchWithRetry({ action: item.action, data: item.payload })
         await removeFromQueue(item.id)
         await updateOfflineQueueCount()
       } catch (e) {
         console.warn('[OfflineQueue] Failed to sync item:', item.id, e)
-        break // Stop on first failure, retry next time
+        break
       }
     }
   }
 
-  // --- Auth Actions ---
   function logout() {
     uiStore.showToast('Đang đăng xuất và xóa phiên làm việc...', 'info')
     localStorage.removeItem(CACHE_KEYS.HISTORY)
@@ -865,7 +859,6 @@ export const useAppStore = defineStore('app', () => {
     }, 500)
   }
 
-  // --- Auto Background Sync ---
   window.addEventListener('online', () => {
     uiStore.showToast('Đã có mạng lại, đang đồng bộ dữ liệu...', 'info')
     processOfflineQueue()
