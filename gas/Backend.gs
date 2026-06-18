@@ -220,6 +220,28 @@ function createNewMenuSheet(name, rawText, password, token) {
   const ss = SpreadsheetApp.openById(CONFIG.SS_ID);
   const sheetName = name.toLowerCase().includes("menu") ? name : `Menu - ${name}`;
   let sheet = ss.getSheetByName(sheetName);
+  
+  // Read existing items to compute changes
+  const existingItems = [];
+  if (sheet) {
+    try {
+      const lastRow = sheet.getLastRow();
+      if (lastRow >= 2) {
+        const values = sheet.getRange(2, 1, lastRow - 1, 5).getValues();
+        for (let i = 0; i < values.length; i++) {
+          if (values[i][0]) {
+            existingItems.push({
+              name: values[i][0],
+              price: Number(values[i][1]) || 0
+            });
+          }
+        }
+      }
+    } catch (e) {
+      console.log("Error reading existing menu sheet: " + e.toString());
+    }
+  }
+
   if (sheet) { sheet.clear(); } else { sheet = ss.insertSheet(sheetName); }
   const menuHeaders = ["Name", "Price", "Acronym", "CleanName", "Description"];
   sheet.getRange(1, 1, 1, 5).setValues([menuHeaders]);
@@ -227,12 +249,48 @@ function createNewMenuSheet(name, rawText, password, token) {
   sheet.setFrozenRows(1);
   const rows = parseMenuRawData(rawText);
   if (rows.length > 0) { sheet.getRange(2, 1, rows.length, 5).setValues(rows); }
+
+  // Compare and generate logs
+  const logs = [];
+  const existingMap = {};
+  existingItems.forEach(item => {
+    existingMap[item.name.toLowerCase().trim()] = item.price;
+  });
+
+  const newItemsMap = {};
+  rows.forEach(r => {
+    const itemName = r[0];
+    const itemPrice = r[1];
+    newItemsMap[itemName.toLowerCase().trim()] = itemPrice;
+
+    const key = itemName.toLowerCase().trim();
+    if (existingMap.hasOwnProperty(key)) {
+      const oldPrice = existingMap[key];
+      if (oldPrice !== itemPrice) {
+        logs.push(`Cập nhật giá "${itemName}": ${formatVNDLocal_(oldPrice)} → ${formatVNDLocal_(itemPrice)}`);
+      }
+    } else {
+      logs.push(`Thêm món mới "${itemName}" với giá ${formatVNDLocal_(itemPrice)}`);
+    }
+  });
+
+  existingItems.forEach(item => {
+    const key = item.name.toLowerCase().trim();
+    if (!newItemsMap.hasOwnProperty(key)) {
+      logs.push(`Xóa món "${item.name}"`);
+    }
+  });
+
   try {
     const cache = CacheService.getScriptCache();
     cache.remove("menu_sheets");
     cache.remove("menu_data_" + sheetName.replace(/\s+/g, "_"));
   } catch(e) {}
-  return { ok: true, message: "Menu Updated Successfully", sheetName: sheetName };
+  return { ok: true, message: "Menu Updated Successfully", sheetName: sheetName, logs: logs };
+}
+
+function formatVNDLocal_(num) {
+  return Number(num).toLocaleString('vi-VN') + 'đ';
 }
 
 function deleteMenuSheet(name, password, token) {

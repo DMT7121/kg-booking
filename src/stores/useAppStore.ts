@@ -269,11 +269,22 @@ export const useAppStore = defineStore('app', () => {
       const data = await api.createMenu(newMenuName.value, newMenuContent.value, undefined, adminToken.value)
       if (data.ok) {
         uiStore.showToast(uiStore.isUpdateMode ? 'Cập nhật thực đơn thành công!' : 'Tạo menu thành công!', 'success')
+        const wasUpdateMode = uiStore.isUpdateMode
         await fetchSheets()
         await switchMenu(newMenuName.value)
         newMenuName.value = ''
         newMenuContent.value = ''
         uiStore.isUpdateMode = false
+
+        // Display logs of changes if any
+        if (data.logs && data.logs.length > 0) {
+          const logText = data.logs.map((log: string) => `• ${log}`).join('\n')
+          setTimeout(() => {
+            uiStore.showAlert('Báo cáo thay đổi thực đơn', logText)
+          }, 600)
+        } else if (wasUpdateMode) {
+          uiStore.showToast('Thực đơn không có thay đổi nào về món hoặc giá.', 'info')
+        }
       } else {
         throw new Error(data.message)
       }
