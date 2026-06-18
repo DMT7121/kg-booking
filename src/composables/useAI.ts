@@ -495,8 +495,18 @@ export function useAI() {
 
   function parseDishItems(input: string): Array<{ name: string; qty: number }> {
     const results: Array<{ name: string; qty: number }> = []
-    const cleanInput = input.trim()
+    let cleanInput = input.trim()
     if (!cleanInput) return []
+
+    // Pre-extract trailing quantity multiplier like "x2", "x 4", "*5", "(x3)"
+    let baseQty = 1
+    const qtyMatch = cleanInput.match(/(?:\((?:[x\*])\s*(\d+)\)|(?:[x\*])\s*(\d+))\s*$/i)
+    if (qtyMatch) {
+      const qtyStr = qtyMatch[1] || qtyMatch[2]
+      baseQty = parseInt(qtyStr, 10)
+      cleanInput = cleanInput.replace(/(?:\((?:[x\*])\s*(\d+)\)|(?:[x\*])\s*(\d+))\s*$/i, '').trim()
+    }
+
     const regex = /(\d+)\s*([\p{L}\s]+)(?=\s*\d|$)/gu
     let match
     while ((match = regex.exec(cleanInput)) !== null) {
@@ -512,14 +522,20 @@ export function useAI() {
         const name = match[1].trim()
         const qty = parseInt(match[2])
         if (name.length > 2) {
-          results.push({ name, qty })
+          const lowerName = stripAccents(name).toLowerCase()
+          const isSetOrCombo = /(?:^|\s)(set\s*menu|set|combo|thuc\s*don|thực\s*đơn)(?:\s+)?$/i.test(lowerName)
+          if (isSetOrCombo) {
+            // Keep the trailing number as part of the set/combo name, do not treat as quantity here
+          } else {
+            results.push({ name, qty })
+          }
         }
       }
     }
     if (results.length === 0 && cleanInput) {
       results.push({ name: cleanInput, qty: 1 })
     }
-    return results
+    return results.map(r => ({ name: r.name, qty: r.qty * baseQty }))
   }
 
   function extractHardEntities(normalizedText: string): HardEntities {
