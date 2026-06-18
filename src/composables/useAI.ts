@@ -7,7 +7,7 @@ import { parseJSON, resizeImage, stripAccents, formatVND, formatSetNote, cleanPh
 import { AI_MODELS, SETS, ADVANCED_AI_PROMPT, IMAGE_OCR_PROMPT } from '@/utils/constants'
 import type { AIModel } from '@/utils/constants'
 import * as api from '@/services/api'
-import { getCachedMenu, cacheMenu } from '@/services/cache'
+import { getCachedMenu, cacheMenu, getCachedMenuSheets, cacheMenuSheets } from '@/services/cache'
 
 /**
  * AI Core v6.0 APEX — Maximum Performance Engine
@@ -290,10 +290,9 @@ export function useAI() {
             }
           }
 
-          // Build abort signal combined with standard timeout (10s for vision, 6s for text)
+          // Build abort signal combined with standard 25s timeout
           const controller = new AbortController()
-          const timeoutMs = model.type === 'vision' ? 10000 : 6000
-          const timeoutId = setTimeout(() => controller.abort(), timeoutMs)
+          const timeoutId = setTimeout(() => controller.abort(), 25000)
           
           // Connect parent abort signal if provided
           if (signal) {
@@ -2960,213 +2959,190 @@ export function useAI() {
       throw new Error(`Chưa cấu hình API Key cho ${type === 'text' ? 'Text' : 'Vision'}`)
     }
 
-    const globalTimeoutMs = type === 'vision' ? 12000 : 7500
-    const innerController = new AbortController()
+    let runRace = false
+    if (candidates.length >= 2) {
+      const [m1, m2] = candidates.slice(0, 2)
+      if (m1.tier <= 2 && m2.tier <= 2) {
+        const hasImage = !!image
+        const isLongText = userPrompt.length > 150
+        const isMixedOrMenu = ['mixed_booking_menu', 'menu_order_text', 'chat_screenshot', 'deposit_bill_image'].includes(inputType)
+        const nameResults = classifyPeopleNames(userPrompt)
+        const hasMultipleNames = nameResults.peopleNames.length > 1
+        const timeRegex = /\b(\d{1,2})[h:](\d{2})?\b/gi
+        const timesCount = (userPrompt.match(timeRegex) || []).length
+        const hasMultipleTimes = timesCount > 1
+        const moneyRegex = /\b\d+\s*(?:k|vnd|trieu|cu|trn|tr)\b/gi
+        const moneyCount = (userPrompt.match(moneyRegex) || []).length
+        const hasMultipleAmounts = moneyCount > 1
 
-    if (signal) {
-      signal.addEventListener('abort', () => innerController.abort())
+        if (hasImage || isLongText || isMixedOrMenu || hasMultipleNames || hasMultipleTimes || hasMultipleAmounts) {
+          runRace = true
+        }
+      }
     }
 
-    const timeoutId = setTimeout(() => {
-      innerController.abort()
-      logStore.addLog(`[AI Router] Đạt giới hạn thời gian xử lý toàn hệ thống (${globalTimeoutMs/1000}s). Tự động kích hoạt Local Fallback.`, 'warning')
-    }, globalTimeoutMs)
+    const startTime = performance.now()
+    let fallbackCount = 0
+    let lastError: Error | null = null
 
-    try {
-      let runRace = false
-      if (candidates.length >= 2) {
-        const [m1, m2] = candidates.slice(0, 2)
-        if (m1.tier <= 2 && m2.tier <= 2) {
-          const hasImage = !!image
-          const isLongText = userPrompt.length > 150
-          const isMixedOrMenu = ['mixed_booking_menu', 'menu_order_text', 'chat_screenshot', 'deposit_bill_image'].includes(inputType)
-          const nameResults = classifyPeopleNames(userPrompt)
-          const hasMultipleNames = nameResults.peopleNames.length > 1
-          const timeRegex = /\b(\d{1,2})[h:](\d{2})?\b/gi
-          const timesCount = (userPrompt.match(timeRegex) || []).length
-          const hasMultipleTimes = timesCount > 1
-          const moneyRegex = /\b\d+\s*(?:k|vnd|trieu|cu|trn|tr)\b/gi
-          const moneyCount = (userPrompt.match(moneyRegex) || []).length
-          const hasMultipleAmounts = moneyCount > 1
-
-          if (hasImage || isLongText || isMixedOrMenu || hasMultipleNames || hasMultipleTimes || hasMultipleAmounts) {
-            runRace = true
-          }
+    const finalizeResult = (parsed: any, model: AIModel, mode: string, repairApplied = false) => {
+      const latency = ((performance.now() - startTime) / 1000).toFixed(1)
+      return {
+        parsed,
+        routing: {
+          pipeline: type,
+          tier_used: model.tier,
+          model_used: model.name,
+          fallback_count: fallbackCount,
+          repair_applied: repairApplied,
+          latency,
+          mode
         }
       }
+    }
 
-      const startTime = performance.now()
-      let fallbackCount = 0
-      let lastError: Error | null = null
-
-      const finalizeResult = (parsed: any, model: AIModel, mode: string, repairApplied = false) => {
-        const latency = ((performance.now() - startTime) / 1000).toFixed(1)
-        return {
-          parsed,
-          routing: {
-            pipeline: type,
-            tier_used: model.tier,
-            model_used: model.name,
-            fallback_count: fallbackCount,
-            repair_applied: repairApplied,
-            latency,
-            mode
-          }
-        }
-      }
-
-      if (runRace) {
-        const [m1, m2] = candidates.slice(0, 2)
-        uiStore.loading.subMsg = `⚡ Race Mode: ${m1.name} vs ${m2.name}...`
-        logStore.addLog(`[AI Router] Kích hoạt Chế độ Chạy đua (Race Mode): [${m1.name}] song song với [${m2.name}]...`, 'info')
-        
-        try {
-          const raceResult = await new Promise<{ raw: string | null; model: AIModel }>((resolve, reject) => {
-            let settled = false
-            let errors = 0
-            const controller1 = new AbortController()
-            const controller2 = new AbortController()
-            
-            innerController.signal.addEventListener('abort', () => {
+    if (runRace) {
+      const [m1, m2] = candidates.slice(0, 2)
+      uiStore.loading.subMsg = `⚡ Race Mode: ${m1.name} vs ${m2.name}...`
+      logStore.addLog(`[AI Router] Kích hoạt Chế độ Chạy đua (Race Mode): [${m1.name}] song song với [${m2.name}]...`, 'info')
+      
+      try {
+        const raceResult = await new Promise<{ raw: string | null; model: AIModel }>((resolve, reject) => {
+          let settled = false
+          let errors = 0
+          const controller1 = new AbortController()
+          const controller2 = new AbortController()
+          
+          if (signal) {
+            signal.addEventListener('abort', () => {
               controller1.abort()
               controller2.abort()
             })
-            
-            const handleSuccess = (raw: string | null, model: AIModel, otherController: AbortController) => {
-              if (!settled && raw) {
-                settled = true
-                otherController.abort()
-                resolve({ raw, model })
-              } else {
-                errors++
-                if (errors >= 2 && !settled) reject(new Error('Both race models failed'))
-              }
-            }
-            
-            const handleFailure = (err: any) => {
+          }
+          
+          const handleSuccess = (raw: string | null, model: AIModel, otherController: AbortController) => {
+            if (!settled && raw) {
+              settled = true
+              otherController.abort()
+              resolve({ raw, model })
+            } else {
               errors++
-              if (errors >= 2 && !settled) reject(new Error('Both race models failed: ' + err.message))
-            }
-
-            callAIModel(m1, sysPrompt, userPrompt, image, true, controller1.signal)
-              .then(r => handleSuccess(r, m1, controller2))
-              .catch(err => handleFailure(err))
-              
-            callAIModel(m2, sysPrompt, userPrompt, image, true, controller2.signal)
-              .then(r => handleSuccess(r, m2, controller1))
-              .catch(err => handleFailure(err))
-          })
-
-          if (raceResult.raw) {
-            logStore.addLog(`[AI Router] Model thắng cuộc đua: [${raceResult.model.name}]`, 'success')
-            let parsed = parseJSON(raceResult.raw)
-            let repairApplied = false
-            if (!parsed) {
-              parsed = await repairJSON(raceResult.raw)
-              repairApplied = true
-            }
-            if (parsed) {
-              return finalizeResult(parsed, raceResult.model, 'race', repairApplied)
+              if (errors >= 2 && !settled) reject(new Error('Both race models failed'))
             }
           }
-        } catch (e: any) {
-          if (innerController.signal.aborted && (!signal || !signal.aborted)) {
-            throw new Error(`Thời gian xử lý vượt quá giới hạn hệ thống (${globalTimeoutMs/1000}s). Chuyển sang chế độ dự phòng.`)
-          }
-          console.warn('[AI Router] Race mode failed, falling back to Waterfall...', e)
-          logStore.addLog(`[AI Router] Chế độ Race Mode thất bại (Lỗi: ${e.message}). Chuyển sang chế độ tuần tự (Waterfall)...`, 'warning')
-          fallbackCount += 2
-          lastError = e
-        }
-      }
-
-      const waterfallStart = runRace ? 2 : 0
-      for (let i = waterfallStart; i < candidates.length; i++) {
-        if (innerController.signal.aborted) break
-        const model = candidates[i]
-        try {
-          uiStore.loading.subMsg = `Waterfall (Tier ${model.tier}): ${model.name}...`
-          logStore.addLog(`[AI Router] Waterfall (Tier ${model.tier}): Thử gọi model [${model.name}]...`)
-          const controller = new AbortController()
-          innerController.signal.addEventListener('abort', () => controller.abort())
           
-          const getTimeoutForModel = (m: AIModel): number => {
-            if (m.type === 'vision') return 8000
-            const p = m.provider.toLowerCase()
-            if (p === 'groq' || p === 'cerebras' || p === 'sambanova') {
-              return 3000
-            }
-            if (p === 'google' || p === 'mistral' || p === 'github') {
-              return 4000
-            }
-            return 5000
+          const handleFailure = (err: any) => {
+            errors++
+            if (errors >= 2 && !settled) reject(new Error('Both race models failed: ' + err.message))
           }
 
-          const timeoutPromise = new Promise<null>((_, reject) => {
-            setTimeout(() => {
-              controller.abort()
-              reject(new Error(`Timeout model ${model.name}`))
-            }, getTimeoutForModel(model))
-          })
-          
-          const apiCallPromise = callAIModel(model, sysPrompt, userPrompt, image, true, controller.signal)
-          const rawResult = await Promise.race([apiCallPromise, timeoutPromise])
-          if (rawResult) {
-            let parsed = parseJSON(rawResult)
-            let repairApplied = false
-            if (!parsed) {
-              parsed = await repairJSON(rawResult)
-              repairApplied = true
-            }
-            if (parsed) {
-              const normalizedParsed = repairAndNormalizeJSON(parsed, inputType)
-              const validated = validateParsedFields(normalizedParsed)
-              const isTier0 = model.tier === 0
-              let needsFallback = false
-              
-              if (isTier0) {
-                const overallConf = validated.confidence?.overall || 0.8
-                const ruleBasedResult = extractByRules(userPrompt)
-                
-                const missingPhone = !validated.customer?.phone && !!ruleBasedResult.phone
-                const missingDate = !(validated.booking?.date || validated.booking?.event_date) && !!ruleBasedResult.event_date
-                const missingTime = !(validated.booking?.time || validated.booking?.event_time) && !!ruleBasedResult.event_time
-                
-                if (overallConf < 0.75 || missingPhone || missingDate || missingTime) {
-                  needsFallback = true
-                  console.warn(`[AI Router] Model Tier 0 (${model.name}) failed validation checks. Overall: ${overallConf}, missingPhone: ${missingPhone}, missingDate: ${missingDate}, missingTime: ${missingTime}. Falling back to next candidate...`)
-                  logStore.addLog(`[AI Router] Model [${model.name}] (Tier 0) không vượt qua kiểm định: độ tin cậy thấp (${overallConf}) hoặc thiếu thông tin cốt lõi (SĐT, ngày, giờ). Chuyển sang model tiếp theo.`, 'warning')
-                }
-              }
-              
-              if (!needsFallback) {
-                logStore.addLog(`[AI Router] Model [${model.name}] trích xuất thành công!`, 'success')
-                return finalizeResult(parsed, model, 'waterfall', repairApplied)
-              }
-              fallbackCount++
-            }
+          callAIModel(m1, sysPrompt, userPrompt, image, true, controller1.signal)
+            .then(r => handleSuccess(r, m1, controller2))
+            .catch(err => handleFailure(err))
+            
+          callAIModel(m2, sysPrompt, userPrompt, image, true, controller2.signal)
+            .then(r => handleSuccess(r, m2, controller1))
+            .catch(err => handleFailure(err))
+        })
+
+        if (raceResult.raw) {
+          logStore.addLog(`[AI Router] Model thắng cuộc đua: [${raceResult.model.name}]`, 'success')
+          let parsed = parseJSON(raceResult.raw)
+          let repairApplied = false
+          if (!parsed) {
+            parsed = await repairJSON(raceResult.raw)
+            repairApplied = true
           }
-          throw new Error(`Invalid output format or validation failed from ${model.name}`)
-        } catch (e: any) {
-          if (innerController.signal.aborted && (!signal || !signal.aborted)) {
-            throw new Error(`Thời gian xử lý vượt quá giới hạn hệ thống (${globalTimeoutMs/1000}s). Chuyển sang chế độ dự phòng.`)
+          if (parsed) {
+            return finalizeResult(parsed, raceResult.model, 'race', repairApplied)
           }
-          console.warn(`[AI Router] Model ${model.name} failed:`, e.message)
-          logStore.addLog(`[AI Router] Model [${model.name}] thất bại: ${e.message}`, 'warning')
-          fallbackCount++
-          lastError = e
         }
+      } catch (e: any) {
+        console.warn('[AI Router] Race mode failed, falling back to Waterfall...', e)
+        logStore.addLog(`[AI Router] Chế độ Race Mode thất bại (Lỗi: ${e.message}). Chuyển sang chế độ tuần tự (Waterfall)...`, 'warning')
+        fallbackCount += 2
+        lastError = e
       }
-      
-      if (innerController.signal.aborted && (!signal || !signal.aborted)) {
-        throw new Error(`Thời gian xử lý vượt quá giới hạn hệ thống (${globalTimeoutMs/1000}s). Chuyển sang chế độ dự phòng.`)
-      }
-      
-      logStore.addLog(`[AI Router] Tất cả các model AI đều thất bại. Lỗi cuối: ${lastError?.message || 'Không có model khả dụng'}`, 'error')
-      throw new Error('Tất cả các model AI đều thất bại. Lỗi cuối: ' + (lastError?.message || 'Không có model khả dụng'))
-    } finally {
-      clearTimeout(timeoutId)
     }
+
+    const waterfallStart = runRace ? 2 : 0
+    for (let i = waterfallStart; i < candidates.length; i++) {
+      const model = candidates[i]
+      try {
+        uiStore.loading.subMsg = `Waterfall (Tier ${model.tier}): ${model.name}...`
+        logStore.addLog(`[AI Router] Waterfall (Tier ${model.tier}): Thử gọi model [${model.name}]...`)
+        const controller = new AbortController()
+        if (signal) {
+          signal.addEventListener('abort', () => controller.abort())
+        }
+        
+        const getTimeoutForModel = (m: AIModel): number => {
+          if (m.type === 'vision') return 20000
+          const p = m.provider.toLowerCase()
+          if (p === 'groq' || p === 'cerebras' || p === 'sambanova') {
+            return 6000
+          }
+          if (p === 'google' || p === 'mistral' || p === 'github') {
+            return 10000
+          }
+          return 15000
+        }
+
+        const timeoutPromise = new Promise<null>((_, reject) => {
+          setTimeout(() => {
+            controller.abort()
+            reject(new Error(`Timeout model ${model.name}`))
+          }, getTimeoutForModel(model))
+        })
+        
+        const apiCallPromise = callAIModel(model, sysPrompt, userPrompt, image, true, controller.signal)
+        const rawResult = await Promise.race([apiCallPromise, timeoutPromise])
+        if (rawResult) {
+          let parsed = parseJSON(rawResult)
+          let repairApplied = false
+          if (!parsed) {
+            parsed = await repairJSON(rawResult)
+            repairApplied = true
+          }
+          if (parsed) {
+            const normalizedParsed = repairAndNormalizeJSON(parsed, inputType)
+            const validated = validateParsedFields(normalizedParsed)
+            const isTier0 = model.tier === 0
+            let needsFallback = false
+            
+            if (isTier0) {
+              const overallConf = validated.confidence?.overall || 0.8
+              const ruleBasedResult = extractByRules(userPrompt)
+              
+              const missingPhone = !validated.customer?.phone && !!ruleBasedResult.phone
+              const missingDate = !(validated.booking?.date || validated.booking?.event_date) && !!ruleBasedResult.event_date
+              const missingTime = !(validated.booking?.time || validated.booking?.event_time) && !!ruleBasedResult.event_time
+              
+              if (overallConf < 0.75 || missingPhone || missingDate || missingTime) {
+                needsFallback = true
+                console.warn(`[AI Router] Model Tier 0 (${model.name}) failed validation checks. Overall: ${overallConf}, missingPhone: ${missingPhone}, missingDate: ${missingDate}, missingTime: ${missingTime}. Falling back to next candidate...`)
+                logStore.addLog(`[AI Router] Model [${model.name}] (Tier 0) không vượt qua kiểm định: độ tin cậy thấp (${overallConf}) hoặc thiếu thông tin cốt lõi (SĐT, ngày, giờ). Chuyển sang model tiếp theo.`, 'warning')
+              }
+            }
+            
+            if (!needsFallback) {
+              logStore.addLog(`[AI Router] Model [${model.name}] trích xuất thành công!`, 'success')
+              return finalizeResult(parsed, model, 'waterfall', repairApplied)
+            }
+            fallbackCount++
+          }
+        }
+        throw new Error(`Invalid output format or validation failed from ${model.name}`)
+      } catch (e: any) {
+        console.warn(`[AI Router] Model ${model.name} failed:`, e.message)
+        logStore.addLog(`[AI Router] Model [${model.name}] thất bại: ${e.message}`, 'warning')
+        fallbackCount++
+        lastError = e
+      }
+    }
+    
+    logStore.addLog(`[AI Router] Tất cả các model AI đều thất bại. Lỗi cuối: ${lastError?.message || 'Không có model khả dụng'}`, 'error')
+    throw new Error('Tất cả các model AI đều thất bại. Lỗi cuối: ' + (lastError?.message || 'Không có model khả dụng'))
   }
 
   async function loadAllMenusData(): Promise<Record<string, any[]>> {
@@ -3174,10 +3150,17 @@ export function useAI() {
     let sheets = appStore.menuSheets
     if (!sheets || sheets.length === 0) {
       try {
-        const res = await api.getMenuSheets()
-        if (res.ok && res.sheets) {
-          sheets = res.sheets
-          appStore.menuSheets = sheets
+        const cachedSheets = await getCachedMenuSheets()
+        if (cachedSheets && cachedSheets.length > 0) {
+          sheets = cachedSheets
+          appStore.menuSheets = cachedSheets
+        } else {
+          const res = await api.getMenuSheets()
+          if (res.ok && res.sheets) {
+            sheets = res.sheets
+            appStore.menuSheets = sheets
+            await cacheMenuSheets(res.sheets)
+          }
         }
       } catch (e) {
         console.error('Failed to load menu sheets', e)
@@ -3186,20 +3169,19 @@ export function useAI() {
     if (!sheets || sheets.length === 0) return allData
 
     await Promise.all(sheets.map(async (sheet) => {
-      let menuItems = await getCachedMenu(sheet)
-      if (!menuItems || menuItems.length === 0) {
-        try {
-          const res = await api.getMenu(sheet)
-          if (res.ok && res.data) {
-            menuItems = res.data
-            cacheMenu(sheet, res.data)
-          }
-        } catch (e) {
-          console.error(`Failed to load menu for sheet ${sheet}`, e)
-        }
-      }
-      if (menuItems) {
+      const menuItems = await getCachedMenu(sheet)
+      if (menuItems && menuItems.length > 0) {
         allData[sheet] = menuItems
+      } else {
+        // Trigger background fetch, do NOT await it.
+        api.getMenu(sheet).then((res) => {
+          if (res.ok && res.data) {
+            cacheMenu(sheet, res.data)
+            console.log(`[Background Load] Cached menu sheet: ${sheet}`)
+          }
+        }).catch((e) => {
+          console.error(`[Background Load] Failed to load menu for sheet ${sheet}`, e)
+        })
       }
     }))
     return allData

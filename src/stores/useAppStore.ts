@@ -244,15 +244,39 @@ export const useAppStore = defineStore('app', () => {
     }
   }
 
+  function preCacheAllMenus(sheets: string[]) {
+    if (!sheets || sheets.length === 0) return
+    sheets.forEach((sheet) => {
+      getCachedMenu(sheet).then((cached) => {
+        if (!cached || cached.length === 0) {
+          api.getMenu(sheet).then((res) => {
+            if (res.ok && res.data) {
+              cacheMenu(sheet, res.data)
+              console.log(`[Pre-cache] Successfully pre-cached menu sheet: ${sheet}`)
+            }
+          }).catch((err) => {
+            console.warn(`[Pre-cache] Failed to pre-cache menu sheet: ${sheet}`, err)
+          })
+        }
+      }).catch((e) => {
+        console.error(`[Pre-cache] Error checking cached menu for ${sheet}`, e)
+      })
+    })
+  }
+
   async function fetchSheets() {
     const cached = await getCachedMenuSheets()
-    if (cached && cached.length > 0) menuSheets.value = cached
+    if (cached && cached.length > 0) {
+      menuSheets.value = cached
+      preCacheAllMenus(cached)
+    }
 
     try {
       const data = await api.getMenuSheets()
       if (data.ok) {
         menuSheets.value = data.sheets || []
         cacheMenuSheets(data.sheets || [])
+        preCacheAllMenus(data.sheets || [])
       }
     } catch (e) {
       console.error('Fetch Sheets Error', e)
