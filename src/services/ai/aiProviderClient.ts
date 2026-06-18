@@ -19,6 +19,30 @@ export interface AICompletionResponse {
   error?: string
 }
 
+class FatalAIError extends Error {
+  status?: number
+  constructor(message: string, status?: number) {
+    super(message)
+    this.name = 'FatalAIError'
+    this.status = status
+  }
+}
+
+export function getTimeoutForModel(model: AIModel): number {
+  if (model.type === 'vision') return 15000
+  const provider = model.provider.toLowerCase()
+  if (provider === 'groq' || provider === 'cerebras' || provider === 'sambanova') {
+    return 6000
+  }
+  if (provider === 'google' || provider === 'mistral' || provider === 'github' || provider === 'openai') {
+    return 10000
+  }
+  if (provider === 'pollinations') {
+    return 8000
+  }
+  return 12000
+}
+
 export async function callAIModel(
   request: AICompletionRequest,
   logCallback?: (msg: string, type?: 'info' | 'warning' | 'error' | 'success') => void
@@ -46,7 +70,7 @@ export async function callAIModel(
     }
     try {
       const controller = new AbortController()
-      const timeoutId = setTimeout(() => controller.abort(), 25000)
+      const timeoutId = setTimeout(() => controller.abort(), 8000) // 8s timeout for gateway
       if (signal) {
         signal.addEventListener('abort', () => controller.abort())
       }
@@ -78,7 +102,7 @@ export async function callAIModel(
       }
       throw new Error(json.error || 'AI Gateway failed')
     } catch (e: any) {
-      const errMsg = e.name === 'AbortError' ? 'Timeout (25s)' : e.message
+      const errMsg = e.name === 'AbortError' ? 'Timeout (8s)' : e.message
       if (logCallback) {
         logCallback(`[Model: ${model.name}] Gọi qua AI Gateway thất bại: ${errMsg}. Đang dùng chế độ dự phòng...`, 'warning')
       }
@@ -88,10 +112,15 @@ export async function callAIModel(
 
   // --- DIRECT MODE ---
   const canCallDirect = localKeys.length > 0 || model.provider === 'pollinations'
+  let lastFatalError: any = null
+  let hasKeyConfigured = localKeys.length > 0
   
   if (canCallDirect) {
     const keyList = model.provider === 'pollinations' ? ['free'] : localKeys
+    const modelTimeout = getTimeoutForModel(model)
+
     for (let i = 0; i < keyList.length; i++) {
+      if (signal?.aborted) break
       const key = keyList[i]
       try {
         let fetchUrl = model.url
@@ -151,7 +180,7 @@ export async function callAIModel(
         }
 
         const controller = new AbortController()
-        const timeoutId = setTimeout(() => controller.abort(), 25000)
+        const timeoutId = setTimeout(() => controller.abort(), modelTimeout)
         
         if (signal) {
           signal.addEventListener('abort', () => controller.abort())
@@ -165,9 +194,15 @@ export async function callAIModel(
         })
         clearTimeout(timeoutId)
 
-        if (res.status === 429) throw new Error('Rate limit exceeded (CORS/Client)')
-        if (res.status === 401) throw new Error('Invalid API Key')
-        if (res.status === 404) throw new Error('Model not found')
+        if (res.status === 401 || res.status === 403) {
+          throw new FatalAIError(`Invalid API Key / Unauthorized (HTTP ${res.status})`, res.status)
+        }
+        if (res.status === 429) {
+          throw new FatalAIError(`Rate limit / Quota exceeded (HTTP ${res.status})`, res.status)
+        }
+        if (res.status === 404) {
+          throw new FatalAIError(`Model not found (HTTP ${res.status})`, res.status)
+        }
         if (!res.ok) {
           const errText = await res.text().catch(() => `HTTP ${res.status}`)
           throw new Error(errText.substring(0, 200))
@@ -196,12 +231,31 @@ export async function callAIModel(
         }
         return content
       } catch (e: any) {
-        const errMsg = e.name === 'AbortError' ? 'Timeout (25s)' : e.message
+        const isFatal = e.name === 'FatalAIError' || e.message.includes('Unauthorized') || e.message.includes('Rate limit') || e.message.includes('Quota')
+        const errMsg = e.name === 'AbortError' ? `Timeout (${modelTimeout / 1000}s)` : e.message
         if (logCallback) {
           logCallback(`[Model: ${model.name}] Lỗi khi gọi trực tiếp qua client (Key #${i + 1}): ${errMsg}`, 'warning')
         }
+        if (isFatal) {
+          lastFatalError = e
+          break // Exit key loop, do not try next key or fall back to GAS
+        }
       }
     }
+  }
+
+  if (lastFatalError) {
+    throw lastFatalError
+  }
+
+  if (signal?.aborted) {
+    throw new Error('Request aborted by user or timeout')
+  }
+
+  // Nếu người dùng đã cấu hình key local và key đó bị lỗi kết nối mạng thông thường (không phải fatal)
+  // hoặc nếu không cấu hình key local nào (muốn dùng key trên server), ta mới chuyển tiếp qua GAS Proxy.
+  if (hasKeyConfigured && !canCallDirect) {
+    throw new Error(`Tất cả các local keys cấu hình cho provider ${model.provider} đều thất bại.`)
   }
 
   // --- SERVER FALLBACK (GAS PROXY) ---
