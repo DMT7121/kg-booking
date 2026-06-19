@@ -215,6 +215,12 @@ export function classifyPeopleNames(text: string) {
       if (/^(mai|nay|kia|truoc|sau|sang|chieu|toi|ngay|gio|pax|khach|nguoi|ban|dat|mon|set|combo|happy|birthday|hbd|hpbd|sinh|nhat|thoi|noi|giup|giom|cho|sdt|lien|he|table|pax)$/i.test(stripAccents(name))) {
         continue
       }
+      // Bộ lọc từ cấm cho tên khớp từ regex nameRegex:
+      const nameWords = stripAccents(name).toLowerCase().split(/\s+/)
+      const invalidNameWords = new Set(['dat', 'ban', 'giup', 'minh', 'toi', 'ngay', 'gio', 'pax', 'khach', 'nguoi', 'sdt', 'lien', 'he', 'cho'])
+      const hasInvalidWord = nameWords.some(w => invalidNameWords.has(w))
+      if (hasInvalidWord) continue
+
       if (!peopleNames.includes(name)) {
         peopleNames.push(name)
       }
@@ -264,10 +270,10 @@ export function classifyPeopleNames(text: string) {
   }
 
   const specialPatterns = [
-    { regex: /(?:sinh nhật|sinh nhat|hbd|hpbd|happy birthday|thôi nôi|thoi noi|đầy tháng|day thang|bé|be)\s+of\s+([\p{L}\s]+)/ugi, isPartyOwner: true },
-    { regex: /(?:sinh nhật|sinh nhat|hbd|hpbd|happy birthday|thôi nôi|thoi noi|đầy tháng|day thang|bé|be)\s+([\p{L}\s]+)/ugi, isPartyOwner: true },
-    { regex: /(?:bảng tên|bang ten|chữ|chu|tên|ten)\s+([\p{L}\s]+)/ugi, isPartyOwner: true },
-    { regex: /(?:người đặt|nguoi dat|liên hệ|lien he|anh|chị|chi|anh|sđt|sdt)\s+([\p{L}\s]+)/ugi, isBooker: true },
+    { regex: /(?:sinh nhật|sinh nhat|hbd|hpbd|happy birthday|thôi nôi|thoi noi|đầy tháng|day thang|bé|be)\s+of\s+(\p{L}+(?:\s+(?!cho\b|dat\b|dat\s+ban|xin\b|gui\b|nha\b|ngay\b|luc\b|vao\b|sdt\b|ban\b)\p{L}+){0,3})/ugi, isPartyOwner: true },
+    { regex: /(?:sinh nhật|sinh nhat|hbd|hpbd|happy birthday|thôi nôi|thoi noi|đầy tháng|day thang|bé|be)\s+(\p{L}+(?:\s+(?!cho\b|dat\b|dat\s+ban|xin\b|gui\b|nha\b|ngay\b|luc\b|vao\b|sdt\b|ban\b)\p{L}+){0,3})/ugi, isPartyOwner: true },
+    { regex: /(?:bảng tên|bang ten|chữ|chu)\s+(\p{L}+(?:\s+(?!cho\b|dat\b|dat\s+ban|xin\b|gui\b|nha\b|ngay\b|luc\b|vao\b|sdt\b|ban\b)\p{L}+){0,3})/ugi, isPartyOwner: true },
+    { regex: /(?:người đặt|nguoi dat|liên hệ|lien he|anh|chị|chi|anh|sđt|sdt|tên|ten)\s+(\p{L}+(?:\s+(?!cho\b|dat\b|dat\s+ban|xin\b|gui\b|nha\b|ngay\b|luc\b|vao\b|sdt\b|ban\b)\p{L}+){0,3})/ugi, isBooker: true },
     { regex: /\b((?:cty|công ty|đoàn|doan|team|group|phòng|phong)\s+\p{L}+(?:\s+(?!cho\b|dat\b|dat\s+ban|xin\b|gui\b|nha\b|ngay\b|luc\b|vao\b|sdt\b|ban\b)\p{L}+){0,4})\b/ugi, isBooker: true, isPartyOwner: true }
   ]
 
@@ -276,6 +282,12 @@ export function classifyPeopleNames(text: string) {
     while ((match = regex.exec(text)) !== null) {
       const name = match[1].trim()
       if (name.length > 1 && !/^(mai|nay|kia|truoc|sau|sang|chieu|toi|ngay|gio|pax|khach|nguoi|ban|dat|mon|set|combo|happy|birthday|hbd|hpbd|sinh|nhat|thoi|noi|giup|giom|cho|sdt|lien|he|table|pax)$/i.test(stripAccents(name))) {
+        // Bộ lọc từ cấm cho tên khớp từ specialPatterns:
+        const nameWords = stripAccents(name).toLowerCase().split(/\s+/)
+        const invalidNameWords = new Set(['dat', 'ban', 'giup', 'minh', 'toi', 'ngay', 'gio', 'pax', 'khach', 'nguoi', 'sdt', 'lien', 'he', 'cho'])
+        const hasInvalidWord = nameWords.some(w => invalidNameWords.has(w))
+        if (hasInvalidWord) continue
+
         if (!peopleNames.includes(name)) {
           peopleNames.push(name)
         }
@@ -353,13 +365,15 @@ export function preNormalizeInput(rawText: string): string {
     { pattern: /\b(tn)\b/gi, replacement: 'thôi nôi' },
     { pattern: /\b(thoi noi)\b/gi, replacement: 'thôi nôi' },
     { pattern: /\b(day thang)\b/gi, replacement: 'đầy tháng' },
-    { pattern: /\b(hn)\b/gi, replacement: 'hôm nay' },
-    { pattern: /\b(kh)\b/gi, replacement: 'khách' },
-    { pattern: /\b(ng)\b/gi, replacement: 'người' }
+    { pattern: /\b(hn)\b/gi, replacement: 'hôm nay' }
   ]
   abbreviations.forEach(({ pattern, replacement }) => {
     clean = clean.replace(pattern, replacement)
   })
+
+  // Safe replacement for Vietnamese short abbreviations to avoid breaking words like "người" and "khách"
+  clean = clean.replace(/(^|\s)(kh)(?=\s|$|[\.,\?!])/gi, '$1khách')
+  clean = clean.replace(/(^|\s)(ng)(?=\s|$|[\.,\?!])/gi, '$1người')
 
   const spellingAliases = [
     { pattern: /\b(dut lo|dut\s+lo)\b/gi, replacement: 'đốt lò' },
@@ -859,7 +873,7 @@ export function extractByRules(normalizedText: string) {
   }
 
   let guest_count: number | null = null
-  const paxMatch = clean.match(/(\d+)\s*(pax|nguoi|ng|khach|cho)/i)
+  const paxMatch = clean.match(/(\d+)\s*(?:pax|nguoi|người|khach|khách|cho|guest|\bng\b)\b/i)
   if (paxMatch) {
     guest_count = parseInt(paxMatch[1])
   }
