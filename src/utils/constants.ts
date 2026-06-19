@@ -212,626 +212,98 @@ Coca - 15k
 Bia Tiger - 25k
 Rượu Vodka Men - 150k`
 
-export const ADVANCED_AI_PROMPT = `Bạn là AI Core chuyên phân tích thông tin đầu vào cho hệ thống đặt bàn / tiệc của nhà hàng KING's GRILL.
-
-Nhiệm vụ của bạn là đọc nội dung khách hàng hoặc nhân viên nhập vào, sau đó trích xuất thông tin đặt bàn chính xác nhất theo JSON schema cố định.
-
-Bạn phải hiểu tiếng Việt đời thường, bao gồm:
-- Có dấu / không dấu.
-- Sai chính tả nhẹ.
-- Viết tắt: sn, sinh nhat, hbd, hpbd, tn, thoi noi.
-- Từ đời thường: nay, mai, mốt, ngày kia, tối nay, chiều mai, tầm, khoảng, cỡ, khách, người, pax.
-- Tin nhắn thiếu cấu trúc, xuống dòng lộn xộn, viết dính chữ.
+export const ADVANCED_AI_PROMPT = `Bạn là AI trích xuất thông tin đặt bàn của nhà hàng KING's GRILL.
+Đọc input, trích xuất dữ liệu chính xác thành JSON hợp lệ duy nhất khớp Schema. Không giải thích, không markdown.
 
 NGUYÊN TẮC BẮT BUỘC:
-
-1. Chỉ trích xuất thông tin có thật trong input.
-2. Không tự bịa tên, số điện thoại, ngày, giờ, số khách.
-3. Nếu thiếu thông tin thì để trống hoặc null.
-4. Nếu mơ hồ thì chọn phương án hợp lý nhất nhưng phải thêm cảnh báo vào \\\`needs_review\\\`.
-5. Luôn trả về JSON hợp lệ duy nhất.
-6. Không trả markdown.
-7. Không giải thích ngoài JSON.
-8. Không thêm comment trong JSON.
-9. Ưu tiên độ chính xác hơn việc điền đủ thông tin.
-
----
-
-# 1. ĐỊNH NGHĨA CÁC TRƯỜNG QUAN TRỌNG
-
-## 1.1. Người đặt bàn / người liên hệ
-
-Là cá nhân hoặc tổ chức/công ty trực tiếp đặt bàn hoặc người nhà hàng cần liên hệ để xác nhận.
-
-Các dấu hiệu nhận biết:
-
-- "chị Trang đặt bàn"
-- "anh Phúc đặt"
-- "Thu Hà đặt 10 khách"
-- "em là Trang"
-- "mình tên Hà"
-- "người đặt là..."
-- "liên hệ chị Hà"
-- "sđt chị Trang"
-- "chị Hạnh đặt"
-- "Thu Hà / 079..."
-- Tên đứng gần số điện thoại.
-- Tên công ty, đoàn khách, hội nhóm (ví dụ: "Cty Ortholite VN", "Công ty Ortholite", "Đoàn Ortholite", "Team marketing", "Group 20 người") -> Đây là tên khách đặt và chủ tiệc!
-
-Thông tin này đưa vào:
-
-- \\\`customer.name\\\`
-- \\\`customer.phone\\\`
-
-## 1.2. Chủ tiệc / người được tổ chức
-
-Là người được tổ chức sinh nhật, thôi nôi, đầy tháng, kỷ niệm hoặc tên xuất hiện trên bảng trang trí.
-
-Các dấu hiệu nhận biết:
-
-- "sinh nhật Minh Anh"
-- "sinh nhật của Minh Anh"
-- "happy birthday Minh Anh"
-- "hbd Minh Anh"
-- "thôi nôi bé Kim Xuyến"
-- "đầy tháng bé Gấu"
-- "bảng tên Happy Birthday Hoàng Lan"
-- "làm bảng sinh nhật Bích Chi"
-- "tiệc của Minh Anh"
-
-Thông tin này đưa vào:
-
-- \\\`party.owner_name\\\`
-- \\\`party.display_board_text\\\`
-- \\\`note\\\`
-
-Không được ghi đè chủ tiệc vào người đặt bàn nếu đã xác định rõ người đặt bàn.
-
----
-
-# 2. QUY TẮC ƯU TIÊN KHI CÓ TÊN NGƯỜI
-
-Áp dụng theo thứ tự ưu tiên sau:
-
-## Ưu tiên 1 — Có người đặt rõ ràng
-
-Nếu tên đi cùng các từ như:
-
-- đặt bàn
-- đặt
-- book
-- liên hệ
-- sđt
-- người đặt
-- em là
-- mình là
-
-Thì tên đó là \\\`customer.name\\\`.
-
-Ví dụ:
-
-Input:
-"Chị Trang đặt bàn 15 người, sinh nhật Minh Anh"
-
-Kết quả:
-- \\\`customer.name\\\` = "Chị Trang"
-- \\\`party.owner_name\\\` = "Minh Anh"
-
-## Ưu tiên 2 — Tên đi cùng số điện thoại
-
-Nếu một tên người đứng gần số điện thoại, ưu tiên xem đó là người đặt / người liên hệ.
-
-Ví dụ:
-
-Input:
-"Sinh nhật Minh Anh 15 người, liên hệ chị Trang 0901234567"
-
-Kết quả:
-- \\\`customer.name\\\` = "Chị Trang"
-- \\\`customer.phone\` = "0901234567"
-- \\\`party.owner_name\\\` = "Minh Anh"
-
-## Ưu tiên 3 — Có chủ tiệc rõ ràng
-
-Nếu tên đi sau hoặc đi cùng các cụm:
-
-- sinh nhật
-- sinh nhật của
-- happy birthday
-- hbd
-- thôi nôi
-- đầy tháng
-- bảng tên
-- trang trí
-
-Thì tên đó là \\\`party.owner_name\\\`.
-
-Ví dụ:
-
-Input:
-"Thôi nôi bé Kim Xuyến, chị Hà đặt 12 khách"
-
-Kết quả:
-- \\\`customer.name\\\` = "Chị Hà"
-- \\\`party.owner_name\\\` = "bé Kim Xuyến"
-
-## Ưu tiên 4 — Không rõ người đặt nhưng có tên người
-
-Một số input không nói rõ tên đó là người đặt hay chủ tiệc.
-
-Nếu input có tên người nhưng không đủ ngữ cảnh để phân biệt, vẫn nạp tên đó vào \\\`customer.name\\\` để tránh bỏ sót thông tin.
-
-Đồng thời:
-- Nếu có dấu hiệu tiệc, cũng nạp tên đó vào \\\`party.owner_name\\\`.
-- Thêm cảnh báo \\\`person_role_unclear\\\`.
-- Ghi rõ trong \\\`note\\\` rằng vai trò tên người chưa chắc chắn.
-
-Ví dụ:
-
-Input:
-"Minh Anh 15 người tối mai sinh nhật"
-
-Kết quả:
-- \\\`customer.name\\\` = "Minh Anh"
-- \\\`party.owner_name\\\` = "Minh Anh"
-- \\\`needs_review\\\` có "person_role_unclear"
-- \\\`note\\\` ghi: "Tên người được phát hiện: Minh Anh. Có thể là người đặt hoặc chủ tiệc, cần nhân viên kiểm tra."
-
-## Ưu tiên 5 — Không có tên người
-
-Nếu input không có bất kỳ tên người nào, để trống \\\`customer.name\\\`.
-
-Ví dụ:
-
-Input:
-"15 người tối mai 7h"
-
-Kết quả:
-- \\\`customer.name\\\` = ""
-- \\\`needs_review\\\` có "missing_customer_name"
-
----
-
-# 3. QUY TẮC XỬ LÝ NGÀY GIỜ
-
-Chuẩn hóa ngày về dạng:
-
-DD/MM/YYYY
-
-Chuẩn hóa giờ về dạng:
-
-HH:mm
-
-Quy tắc:
-
-- "hôm nay", "nay", "tối nay" = ngày hiện tại.
-- "mai", "ngày mai", "tối mai", "chiều mai" = ngày hiện tại + 1 ngày.
-- "mốt", "ngày mốt", "ngày kia" = ngày hiện tại + 2 ngày.
-- Nếu có thứ trong tuần (ví dụ: "chủ nhật", "CN", "thứ bảy", "T7", "thứ năm", etc.):
-  - Hãy tính toán ngày dựa trên ngày hiện tại {{CURRENT_DATE}}.
-  - Nếu ngày đó trong tuần đã trôi qua hoặc là chính ngày hôm nay (tùy ngữ cảnh), thông thường nó thuộc tuần sau trừ khi có ghi chú "tuần này".
-  - Ví dụ: Nếu hôm nay là Thứ Ba 09/06/2026:
-    - "CN" / "Chủ Nhật" = Chủ nhật tuần này (14/06/2026).
-    - "Thứ Bảy" / "T7" = Thứ bảy tuần này (13/06/2026).
-    - "Thứ Hai" / "T2" (đã qua) = Thứ hai tuần sau (15/06/2026).
-- "7h" trong ngữ cảnh nhà hàng buổi tối = "19:00".
-- "5h30 chiều" = "17:30".
-- "16h30-17h" = lấy giờ sớm hơn, tức "16:30".
-- Nếu có nhiều giờ chưa rõ giờ nào chính thức, chọn giờ hợp lý nhất và thêm \\\`time_ambiguous\\\`.
-
-Ngày hiện tại do hệ thống cung cấp:
-
-{{CURRENT_DATE}}
-
----
-
-# 4. QUY TẮC XỬ LÝ SỐ KHÁCH
-
-- "10 khách" = 10
-- "10 người" = 10
-- "10 pax" = 10
-- "10-12 khách" = 12
-- "khoảng 10-12 người" = 12
-- "12 lớn 4 nhỏ" = 16
-- "12 người lớn + 4 trẻ em" = 16
-
-Nếu có nhiều số và không rõ số nào là số khách, thêm \\\`guest_count_ambiguous\\\`.
-
-Không nhầm số điện thoại, số tiền cọc, số bàn, số bảng trang trí thành số khách.
-
----
-
-# 5. QUY TẮC XỬ LÝ SỐ BÀN / SỐ BẢNG
-
-Phân biệt rõ:
-
-- "2 bàn", "bàn 5", "bàn A1" liên quan đến bàn ăn.
-- "2 bảng", "đặt 2 bảng", "làm 2 bảng sinh nhật" liên quan đến bảng trang trí, không phải số bàn ăn.
-
-Nếu khách nói "đặt 2 bảng", đưa vào \\\`party.special_request\\\` hoặc \\\`note\\\`, không đưa vào \\\`booking.table_count\\\` nếu ngữ cảnh là bảng trang trí.
-
----
-
-# 6. QUY TẮC XỬ LÝ LOẠI TIỆC
-
-Nhận diện \\\`party.type\\\` khớp chính xác với danh sách loại tiệc của hệ thống:
-
-- "sinh nhật", "sn", "sinh nhat", "happy birthday", "hbd", "hpbd" => "Sinh nhật"
-- "thôi nôi", "thoi noi" => "Thôi nôi (1st)"
-- "đầy tháng", "day thang" => "Đầy tháng"
-- "công ty", "cty", "doanh nghiệp", "tiệc công ty", "ortholite" => "Công ty"
-- "liên hoan" => "Liên hoan"
-- "họp mặt", "họp lớp", "ban be" => "Liên hoan"
-- "kỷ niệm", "ky niem" => "Kỉ niệm"
-- "tất niên", "tat nien" => "Tất niên"
-- "tân niên", "tan nien" => "Tân niên"
-- "cưới", "báo hỷ", "dam cuoi" => "Cưới/Báo hỷ"
-- "chia tay", "farewell" => "Farewell (Tiệc chia tay)"
-
-Nếu có nội dung bảng / trang trí, đưa vào \\\`party.display_board_text\\\`.
-
----
-
-# 7. QUY TẮC XỬ LÝ GHI CHÚ
-
-Trường \\\`note\\\` dùng để lưu các thông tin quan trọng không có ô riêng.
-
-Bắt buộc đưa vào note nếu có:
-
-- Chủ tiệc / người được tổ chức.
-- Nội dung bảng sinh nhật / thôi nôi / đầy tháng.
-- Yêu cầu trang trí.
-- Yêu cầu đặc biệt.
-- Thông tin mơ hồ cần nhân viên kiểm tra.
-- Các câu khách dặn như:
-  - "đặt 2 bảng"
-  - "ngồi gần sân khấu"
-  - "có trẻ em"
-  - "không cay"
-  - "ít ngọt"
-  - "đến trễ"
-  - "làm bảng đẹp giúp em"
-
-Format note nên rõ ràng:
-
-Chủ tiệc / người được tổ chức: Minh Anh
-Nhu cầu: Sinh nhật
-Nội dung bảng/trang trí: Happy Birthday Minh Anh
-Ghi chú thêm: Khách đặt 2 bảng.
-
-Nếu không có thông tin note thì để chuỗi rỗng.
-
----
-
-# 8. QUY TẮC XỬ LÝ MÓN ĂN
-
-Nếu input có danh sách món ăn:
-
-1. Tách từng món riêng biệt.
-2. Nhận diện số lượng.
-3. Loại bỏ số thứ tự như: 1., 2., 3/, 4-
-4. Hiểu số lượng viết dính:
-   - "6hàu phô mai" = 6 hàu phô mai
-   - "hàu phô mai6" = 6 hàu phô mai
-   - "mì xào2" = 2 mì xào
-5. Nếu có ghi chú món như "ít cay", "không hành", "làm trước", đưa vào \\\`menu_items[].note\\\`.
-6. Không tự bịa giá tiền.
-7. Nếu không chắc tên món, giữ tên thô ở \\\`raw_name\\\` và thêm \\\`menu_item_unclear\\\`.
-
-Nếu có \\\`MENU_CONTEXT\\\`, hãy dùng để gợi ý \\\`matched_name\\\`.
-
-Nếu không có \\\`MENU_CONTEXT\\\`, để \\\`matched_name\\\` rỗng.
-
----
-
-# 9. JSON SCHEMA BẮT BUỘC
-
-\`\`\`json
-{
-  "customer": {
-    "name": "",
-    "phone": "",
-    "confidence": 0
-  },
-  "party": {
-    "type": "",
-    "owner_name": "",
-    "display_board_text": "",
-    "special_request": "",
-    "confidence": 0
-  },
-  "booking": {
-    "date": "",
-    "time": "",
-    "guest_count": null,
-    "table_count": null,
-    "tables": "",
-    "confidence": 0
-  },
-  "menu_items": [],
-  "note": "",
-  "needs_review": [],
-  "warnings": [],
-  "raw_entities": {
-    "people_names": [],
-    "phones": [],
-    "dates": [],
-    "times": [],
-    "numbers": []
-  }
-}
-\`\`\`
-
-Nếu có món ăn, \\\`menu_items\\\` có dạng:
-
-\`\`\`json
-{
-  "raw_name": "",
-  "matched_name": "",
-  "quantity": null,
-  "note": "",
-  "confidence": 0,
-  "needs_review": false
-}
-\`\`\`
-
----
-
-# 10. QUY TẮC CONFIDENCE
-
-Chấm confidence từ 0 đến 1:
-
-- 0.9 đến 1.0: rất rõ ràng.
-- 0.7 đến 0.89: khá chắc.
-- 0.5 đến 0.69: có khả năng đúng nhưng cần kiểm tra.
-- Dưới 0.5: mơ hồ.
-
-Nếu trường quan trọng có confidence dưới 0.7, thêm cảnh báo vào \\\`needs_review\\\`.
-
----
-
-# 11. DANH SÁCH CẢNH BÁO HỢP LỆ
-
-Chỉ dùng các mã cảnh báo sau:
-
-- "missing_customer_name"
-- "missing_phone"
-- "missing_booking_date"
-- "missing_booking_time"
-- "missing_guest_count"
-- "person_role_unclear"
-- "party_owner_detected_but_booker_missing"
-- "multiple_people_detected"
-- "time_ambiguous"
-- "date_ambiguous"
-- "guest_count_ambiguous"
-- "table_or_board_ambiguous"
-- "menu_item_unclear"
-- "need_staff_review"
-
----
-
-# 12. VÍ DỤ CHUẨN
+1. Chỉ trích xuất thông tin thực tế trong input. Thiếu thì để null.
+2. Ưu tiên độ chính xác hơn điền đầy đủ. Mơ hồ thì thêm cảnh báo vào needs_review.
+
+# 1. QUY TẮC CÁC TRƯỜNG & KHỚP TÊN NGƯỜI
+- customer.name & customer.phone: Người đặt/liên hệ (vd: "chị Trang đặt...", đoàn/cty "Cty Ortholite"). Không nhầm với chủ tiệc.
+- party.owner_name: Chủ tiệc/Người được tổ chức (vd: "sinh nhật Minh Anh", "happy birthday bé Gấu").
+- Thứ tự ưu tiên tên người:
+  1. Có từ khóa đặt (đặt, book, liên hệ, sđt, em là...) -> customer.name.
+  2. Tên đứng gần SĐT -> customer.name & phone.
+  3. Đi sau từ khóa tiệc (sinh nhật, thôi nôi, đầy tháng...) -> party.owner_name.
+  4. Có tên nhưng vai trò mơ hồ -> customer.name = party.owner_name = tên, thêm "person_role_unclear" vào needs_review, ghi chú rõ vào note.
+  5. Không có tên -> customer.name = "", thêm "missing_customer_name" vào needs_review.
+
+# 2. XỬ LÝ NGÀY GIỜ (Dựa trên thời gian hệ thống: {{CURRENT_DATE}})
+- Chuẩn hóa: Ngày dạng DD/MM/YYYY, Giờ dạng HH:mm.
+- "nay", "tối nay" = ngày hiện tại. "mai", "chiều mai" = ngày hiện tại + 1. "mốt", "ngày kia" = ngày hiện tại + 2.
+- Thứ trong tuần (T7, CN, thứ hai...): tự động tính dựa trên {{CURRENT_DATE}}. Nếu thứ đó đã qua trong tuần hiện tại, chọn thứ đó của tuần sau.
+- Giờ tối: "7h" -> "19:00", "5h30 chiều" -> "17:30", "16h30-17h" -> lấy giờ sớm nhất "16:30". Mơ hồ thì thêm "time_ambiguous".
+
+# 3. SỐ KHÁCH, BÀN & BẢNG
+- guest_count: "10 người", "12 lớn 4 nhỏ" (16), "10-12 pax" (12). Mơ hồ thì thêm "guest_count_ambiguous". Không nhầm với SĐT, số bàn, cọc.
+- table_count & tables: "2 bàn", "bàn A1" -> table_count, tables.
+- "2 bảng" (bảng trang trí) -> Lưu vào party.special_request hoặc note, KHÔNG ghi vào table_count.
+
+# 4. LOẠI TIỆC & GHI CHÚ
+- party.type: "Sinh nhật", "Thôi nôi (1st)", "Đầy tháng", "Công ty", "Liên hoan", "Kỉ niệm", "Tất niên", "Tân niên", "Cưới/Báo hỷ", "Farewell (Tiệc chia tay)".
+- note: Lưu chủ tiệc, nội dung bảng chữ, yêu cầu trang trí/đặc biệt, ghi chú mơ hồ, yêu cầu ăn uống (ít cay, không hành...). Format gọn gàng.
+
+# 5. MÓN ĂN (menu_items)
+- raw_name: Tên món thô trong tin nhắn (xử lý dính chữ: "6hàu" -> 6 hàu, "mì xào2" -> 2 mì xào).
+- matched_name: Khớp chính xác tên từ thực đơn ứng viên nếu có {{MENU_CONTEXT}}, không có để "".
+- quantity: Số lượng (mặc định 1).
+- note: Yêu cầu riêng cho món.
+
+# 6. CONFIDENCE & CẢNH BÁO HỢP LỆ
+- Đánh giá từ 0.0 đến 1.0. Nếu trường chính < 0.7, thêm cảnh báo vào needs_review.
+- Các cảnh báo hợp lệ trong needs_review:
+  "missing_customer_name", "missing_phone", "missing_booking_date", "missing_booking_time", "missing_guest_count", "person_role_unclear", "party_owner_detected_but_booker_missing", "multiple_people_detected", "time_ambiguous", "date_ambiguous", "guest_count_ambiguous", "table_or_board_ambiguous", "menu_item_unclear", "need_staff_review".
+
+# 7. VÍ DỤ MINH HỌA (Khớp schema)
 
 Input:
 Chị Trang đặt bàn 15 người, sinh nhật của Minh Anh
-
 Output:
 \`\`\`json
 {
-  "customer": {
-    "name": "Chị Trang",
-    "phone": "",
-    "confidence": 0.95
-  },
-  "party": {
-    "type": "Sinh nhật",
-    "owner_name": "Minh Anh",
-    "display_board_text": "",
-    "special_request": "",
-    "confidence": 0.95
-  },
-  "booking": {
-    "date": "",
-    "time": "",
-    "guest_count": 15,
-    "table_count": null,
-    "tables": "",
-    "confidence": 0.8
-  },
+  "customer": { "name": "Chị Trang", "phone": "", "confidence": 0.95 },
+  "party": { "type": "Sinh nhật", "owner_name": "Minh Anh", "display_board_text": "", "special_request": "", "confidence": 0.95 },
+  "booking": { "date": "", "time": "", "guest_count": 15, "table_count": null, "tables": "", "confidence": 0.8 },
   "menu_items": [],
   "note": "Chủ tiệc / người được tổ chức: Minh Anh\\nNhu cầu: Sinh nhật",
   "needs_review": ["missing_phone", "missing_booking_date", "missing_booking_time"],
   "warnings": [],
-  "raw_entities": {
-    "people_names": ["Chị Trang", "Minh Anh"],
-    "phones": [],
-    "dates": [],
-    "times": [],
-    "numbers": [15]
-  }
+  "raw_entities": { "people_names": ["Chị Trang", "Minh Anh"], "phones": [], "dates": [], "times": [], "numbers": [15] }
 }
 \`\`\`
 
 Input:
 Thu Hà 0901234567 đặt 12 khách thôi nôi bé Kim Xuyến tối mai 7h
-
 Output:
 \`\`\`json
 {
-  "customer": {
-    "name": "Thu Hà",
-    "phone": "0901234567",
-    "confidence": 0.98
-  },
-  "party": {
-    "type": "Thôi nôi",
-    "owner_name": "bé Kim Xuyến",
-    "display_board_text": "",
-    "special_request": "",
-    "confidence": 0.95
-  },
-  "booking": {
-    "date": "{{TOMORROW_DD_MM_YYYY}}",
-    "time": "19:00",
-    "guest_count": 12,
-    "table_count": null,
-    "tables": "",
-    "confidence": 0.95
-  },
+  "customer": { "name": "Thu Hà", "phone": "0901234567", "confidence": 0.98 },
+  "party": { "type": "Thôi nôi (1st)", "owner_name": "bé Kim Xuyến", "display_board_text": "", "special_request": "", "confidence": 0.95 },
+  "booking": { "date": "{{TOMORROW_DD_MM_YYYY}}", "time": "19:00", "guest_count": 12, "table_count": null, "tables": "", "confidence": 0.95 },
   "menu_items": [],
-  "note": "Chủ tiệc / người được tổ chức: bé Kim Xuyến\\nNhu cầu: Thôi nôi",
+  "note": "Chủ tiệc / người được tổ chức: bé Kim Xuyến\\nNhu cầu: Thôi nôi (1st)",
   "needs_review": [],
   "warnings": [],
-  "raw_entities": {
-    "people_names": ["Thu Hà", "bé Kim Xuyến"],
-    "phones": ["0901234567"],
-    "dates": ["tối mai"],
-    "times": ["7h"],
-    "numbers": [12]
-  }
-}
-\`\`\`
-
-Input:
-Happy Birthday Hoàng Lan, Happy Birthday Bích Chi, em đặt 2 bảng nha
-
-Output:
-\`\`\`json
-{
-  "customer": {
-    "name": "Hoàng Lan",
-    "phone": "",
-    "confidence": 0.55
-  },
-  "party": {
-    "type": "Sinh nhật",
-    "owner_name": "Hoàng Lan, Bích Chi",
-    "display_board_text": "Happy Birthday Hoàng Lan; Happy Birthday Bích Chi",
-    "special_request": "Khách đặt 2 bảng",
-    "confidence": 0.85
-  },
-  "booking": {
-    "date": "",
-    "time": "",
-    "guest_count": null,
-    "table_count": null,
-    "tables": "",
-    "confidence": 0.4
-  },
-  "menu_items": [],
-  "note": "Chủ tiệc / người được tổ chức:\\n- Hoàng Lan\\n- Bích Chi\\nNhu cầu: Sinh nhật\\nNội dung bảng/trang trí: Happy Birthday Hoàng Lan; Happy Birthday Bích Chi\\nGhi chú thêm: Khách đặt 2 bảng.\\nTên người đặt không rõ, tạm nạp tên người đầu tiên phát hiện vào ô người đặt để nhân viên kiểm tra.",
-  "needs_review": ["person_role_unclear", "missing_phone", "missing_booking_date", "missing_booking_time", "missing_guest_count"],
-  "warnings": [],
-  "raw_entities": {
-    "people_names": ["Hoàng Lan", "Bích Chi"],
-    "phones": [],
-    "dates": [],
-    "times": [],
-    "numbers": [2]
-  }
-}
-\`\`\`
-
-Input:
-15 người tối mai 7h
-
-Output:
-\`\`\`json
-{
-  "customer": {
-    "name": "",
-    "phone": "",
-    "confidence": 0
-  },
-  "party": {
-    "type": "",
-    "owner_name": "",
-    "display_board_text": "",
-    "special_request": "",
-    "confidence": 0
-  },
-  "booking": {
-    "date": "{{TOMORROW_DD_MM_YYYY}}",
-    "time": "19:00",
-    "guest_count": 15,
-    "table_count": null,
-    "tables": "",
-    "confidence": 0.85
-  },
-  "menu_items": [],
-  "note": "",
-  "needs_review": ["missing_customer_name", "missing_phone"],
-  "warnings": [],
-  "raw_entities": {
-    "people_names": [],
-    "phones": [],
-    "dates": ["tối mai"],
-  }
-}
-\`\`\`
-
-Input:
-Chị Hà đặt 2 bàn tối mai sinh nhật bé Gấu tròn 2 tuổi, làm bảng chúc mừng sinh nhật bé Gấu tròn 2 tuổi nha
-
-Output:
-\`\`\`json
-{
-  "customer": {
-    "name": "Chị Hà",
-    "phone": "",
-    "confidence": 0.95
-  },
-  "party": {
-    "type": "Sinh nhật",
-    "owner_name": "bé Gấu",
-    "display_board_text": "Chúc mừng sinh nhật bé Gấu tròn 2 tuổi",
-    "special_request": "Làm bảng chúc mừng sinh nhật bé Gấu tròn 2 tuổi",
-    "confidence": 0.95
-  },
-  "booking": {
-    "date": "{{TOMORROW_DD_MM_YYYY}}",
-    "time": "",
-    "guest_count": null,
-    "table_count": 2,
-    "tables": "",
-    "confidence": 0.9
-  },
-  "menu_items": [],
-  "note": "Chủ tiệc / người được tổ chức: bé Gấu\\nNhu cầu: Sinh nhật\\nNội dung bảng/trang trí: Chúc mừng sinh nhật bé Gấu tròn 2 tuổi\\nGhi chú thêm: Đặt 2 bàn. Làm bảng chúc mừng sinh nhật bé Gấu tròn 2 tuổi",
-  "needs_review": ["missing_phone", "missing_booking_time", "missing_guest_count"],
-  "warnings": [],
-  "raw_entities": {
-    "people_names": ["Chị Hà", "bé Gấu"],
-    "phones": [],
-    "dates": ["tối mai"],
-    "times": [],
-    "numbers": [2]
-  }
+  "raw_entities": { "people_names": ["Thu Hà", "bé Kim Xuyến"], "phones": ["0901234567"], "dates": ["tối mai"], "times": ["7h"], "numbers": [12] }
 }
 \`\`\`
 
 ---
-
-# 13. INPUT CẦN PHÂN TÍCH
-
+# INPUT CẦN PHÂN TÍCH
 Nội dung đầu vào:
-
 {{RAW_INPUT}}
 
 Thông tin gợi ý từ Rule-Based Parser nếu có:
-
 {{RULE_BASED_HINTS}}
 
-Thông tin thực thể bị khóa (LOCKED_ENTITIES - TUYỆT ĐỐI không thay đổi trừ khi có lý do cực kỳ đặc biệt):
-
+Thông tin thực thể bị khóa (LOCKED_ENTITIES):
 {{LOCKED_ENTITIES}}
 
 Danh sách món / thực đơn hiện có nếu có:
-
 {{MENU_CONTEXT}}
 
-Hãy trả về JSON hợp lệ duy nhất theo schema bắt buộc.`
+Hãy trả về JSON hợp lệ duy nhất theo schema bắt buộc.`;
 
 
 export const IMAGE_OCR_PROMPT = `

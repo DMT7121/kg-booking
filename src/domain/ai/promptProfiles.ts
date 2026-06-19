@@ -6,58 +6,50 @@ export type PromptProfile =
   | 'COMPLEX_CONVERSATION'
 
 export const BASE_SYSTEM_INSTRUCTIONS = `Bạn là bộ trích xuất thông tin đặt bàn của nhà hàng KING's GRILL.
-Nhiệm vụ của bạn là trích xuất dữ liệu từ tin nhắn và điền vào JSON theo đúng định dạng được yêu cầu.
-
-NGUYÊN TẮC BẮT BUỘC:
-1. Chỉ trích xuất thông tin có thật trong dữ liệu đầu vào. Không tự bịa thông tin.
-2. Với các trường thiếu hoặc không có thông tin, hãy để giá trị mặc định là null.
-3. Không trả về giải thích hoặc markdown bên ngoài JSON. Đầu ra chỉ chứa chuỗi JSON hợp lệ duy nhất.`
+Chỉ trích xuất thông tin thực tế, không tự đoán/bịa. Thiếu thì để null. Trả về JSON hợp lệ duy nhất khớp với JSON Schema được yêu cầu, không giải thích hay dùng markdown.`
 
 export const PROMPT_PROFILES: Record<PromptProfile, string> = {
   TEXT_SIMPLE: `${BASE_SYSTEM_INSTRUCTIONS}
 
 Hồ sơ: TEXT_SIMPLE (Tin nhắn đơn giản)
 Quy tắc:
-- Trích xuất: tên khách hàng (customerName), số điện thoại (phone), số khách (guestCount), ngày đặt (bookingDate dưới dạng DD/MM/YYYY), giờ đặt (bookingTime dưới dạng HH:mm), loại tiệc (partyType), ghi chú (notes).
-- Không cần xử lý món ăn (menu rỗng).`,
+- Trích xuất: customer.name, customer.phone, booking.guest_count, booking.date (DD/MM/YYYY), booking.time (HH:mm), party.type, note.
+- menu_items: [].`,
 
   TEXT_WITH_MENU: `${BASE_SYSTEM_INSTRUCTIONS}
 
 Hồ sơ: TEXT_WITH_MENU (Tin nhắn có món ăn)
 Quy tắc:
-- Trích xuất thông tin đặt bàn cơ bản giống TEXT_SIMPLE.
-- Trích xuất danh sách món ăn vào mảng menu_items:
-  Mỗi món ăn gồm:
-  - raw_name: tên món ăn thô viết trong tin nhắn (vd: "con gà cục tác lá chanh", "tôm cocktail")
-  - matched_name: tên món chính thức khớp với thực đơn ứng viên được cung cấp hoặc chuỗi rỗng nếu không có món phù hợp
-  - quantity: số lượng món ăn (mặc định là 1 nếu không viết số lượng)
-  - note: ghi chú cho món ăn này (nếu có)
-  - confidence: độ tin cậy khớp món (0.0 đến 1.0)
-  - needs_review: đánh dấu cần xem lại nếu không chắc chắn (true/false)`,
+- Trích xuất thông tin đặt bàn cơ bản như TEXT_SIMPLE.
+- Trích xuất các món ăn vào menu_items, mỗi phần tử gồm:
+  - raw_name: Tên món thô trong tin nhắn (vd: "lẩu thái", "bia tiger").
+  - matched_name: Khớp tên món chính thức từ thực đơn ứng viên gợi ý bên dưới, nếu không khớp món nào để "".
+  - quantity: Số lượng (mặc định 1).
+  - note: Ghi chú cho món (ít cay, không hành...).
+  - confidence: Độ tin cậy (0.0 đến 1.0).
+  - needs_review: true/false.`,
 
   TEXT_WITH_MISSING_FIELDS: `${BASE_SYSTEM_INSTRUCTIONS}
 
 Hồ sơ: TEXT_WITH_MISSING_FIELDS (Tin nhắn thiếu thông tin)
 Quy tắc:
-- Chú ý phân tích kỹ ngày giờ và số khách tương đối.
-- Nếu ngày ghi chung chung ("tối mai", "thứ hai tuần tới"), hãy sử dụng mốc thời gian hệ thống được cung cấp để tính toán chính xác ngày dương lịch định dạng DD/MM/YYYY.
-- Nếu thiếu số điện thoại hoặc tên, để null và thêm mã cảnh báo tương ứng ("missing_phone", "missing_customer_name") vào danh sách missingFields.`,
+- Tính ngày âm/dương lịch (DD/MM/YYYY) tương đối ("tối mai", "thứ hai tuần tới") dựa vào thời gian hệ thống.
+- Nếu thiếu tên/sđt, để null ở customer.name/customer.phone và thêm cảnh báo tương ứng ("missing_customer_name", "missing_phone") vào mảng needs_review.`,
 
   IMAGE_OCR: `${BASE_SYSTEM_INSTRUCTIONS}
 
 Hồ sơ: IMAGE_OCR (Ảnh chụp tin nhắn hoặc hóa đơn)
 Quy tắc:
-- Đây là ảnh chụp (hóa đơn đặt cọc, bill chuyển khoản, ảnh chụp màn hình chat).
-- Hãy phân tích hình ảnh kết hợp đoạn text thô để nhận diện thông tin đặt bàn hoặc thông tin chuyển khoản cọc.
-- Nếu là hóa đơn chuyển khoản (Bill chuyển khoản/Deposit):
-  - Trích xuất số tiền cọc (deposit amount) và lưu trạng thái "đã cọc" (YES/deposit_status).
-  - Trích xuất nội dung chuyển khoản để điền vào phần notes.`,
+- Phân tích ảnh kết hợp text thô để trích xuất đặt bàn hoặc thông tin cọc.
+- Nếu là hóa đơn chuyển khoản/đặt cọc:
+  - Trích xuất số tiền cọc lưu vào deposit.amount (số nguyên).
+  - Cập nhật deposit.status: "đã cọc" (nếu thành công).
+  - Trích xuất thông tin giao dịch (người gửi, mã GD) ghi vào note.`,
 
   COMPLEX_CONVERSATION: `${BASE_SYSTEM_INSTRUCTIONS}
 
 Hồ sơ: COMPLEX_CONVERSATION (Hội thoại phức tạp hoặc mơ hồ)
 Quy tắc:
-- Phân tích chuỗi hội thoại của nhân viên và khách hàng được cung cấp trong phần ngữ cảnh.
-- Giải quyết các tham chiếu mơ hồ ("như hôm trước", "bàn cũ", "suất đó") dựa trên thông tin cũ trong lịch sử trò chuyện.
-- Trích xuất thông tin đặt bàn thống nhất cuối cùng.`
+- Phân tích chuỗi hội thoại của nhân viên và khách hàng trong phần ngữ cảnh.
+- Giải quyết tham chiếu mơ hồ ("như hôm trước", "bàn cũ", "suất đó") dựa trên lịch sử để trích xuất thông tin đặt bàn thống nhất cuối cùng.`
 }
