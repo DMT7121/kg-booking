@@ -16,6 +16,7 @@ import {
   GasSettingsRepository, 
   GasCorrectionRepository 
 } from '@/infrastructure/gas/gasRepositories'
+import { clearAIResponseCache } from '@/services/ai/aiResponseCache'
 
 const orderRepo = new GasOrderRepository()
 const menuRepo = new GasMenuRepository()
@@ -205,6 +206,7 @@ export const useAppStore = defineStore('app', () => {
   }
 
   async function fetchMenu(sheetName?: string) {
+    await clearAIResponseCache('manual_menu_reload')
     const targetSheet = sheetName || activeSheet.value
 
     const cached = await getCachedMenu(targetSheet)
@@ -629,8 +631,26 @@ export const useAppStore = defineStore('app', () => {
     }
   }
 
+  function getJwtExpiry(token: string): number | null {
+    try {
+      const parts = token.split('.')
+      if (parts.length === 3) {
+        const payload = JSON.parse(atob(parts[1].replace(/-/g, '+').replace(/_/g, '/')))
+        if (payload && typeof payload.exp === 'number') {
+          return payload.exp * 1000
+        }
+      }
+    } catch (e) {}
+    return null
+  }
+
   const isAdminSettingsUnlocked = computed(() => {
-    return !!adminToken.value && adminExpiresAt.value > Date.now()
+    if (!adminToken.value) return false
+    const jwtExp = getJwtExpiry(adminToken.value)
+    if (jwtExp !== null && Date.now() >= jwtExp) {
+      return false
+    }
+    return adminExpiresAt.value > Date.now()
   })
 
   async function lockAdminSettings() {
@@ -651,9 +671,11 @@ export const useAppStore = defineStore('app', () => {
       const res = await settingsRepo.authAdminSettings(password)
       if (res.ok && res.token) {
         adminToken.value = res.token
-        adminExpiresAt.value = res.expiresAt
+        const jwtExp = getJwtExpiry(res.token)
+        const expiryTime = jwtExp !== null ? jwtExp : res.expiresAt
+        adminExpiresAt.value = expiryTime
         sessionStorage.setItem('kg_admin_token', res.token)
-        sessionStorage.setItem('kg_admin_expires_at', String(res.expiresAt))
+        sessionStorage.setItem('kg_admin_expires_at', String(expiryTime))
         uiStore.showToast('Xác thực Admin thành công!', 'success')
         return true
       } else {
@@ -853,6 +875,7 @@ export const useAppStore = defineStore('app', () => {
 
   function logout() {
     uiStore.showToast('Đang đăng xuất và xóa phiên làm việc...', 'info')
+    lockAdminSettings()
     localStorage.removeItem(CACHE_KEYS.HISTORY)
     setTimeout(() => {
       window.location.reload()

@@ -287,9 +287,18 @@ export async function callAIModel(
     throw new Error(`Tất cả các local keys cấu hình cho provider ${model.provider} đều thất bại.`)
   }
 
+  const isProduction = import.meta.env.PROD || false
   const aiGatewayUrl = apiGatewayUrl || import.meta.env.VITE_AI_GATEWAY_URL || import.meta.env.VITE_R2_URL || ''
-  const normalizedGatewayUrl = aiGatewayUrl ? aiGatewayUrl.replace(/\/+$/, '') : ''
+  let normalizedGatewayUrl = aiGatewayUrl ? aiGatewayUrl.replace(/\/+$/, '') : ''
   const sharedSecret = import.meta.env.VITE_APP_SHARED_SECRET || ''
+
+  if (isProduction && normalizedGatewayUrl && !normalizedGatewayUrl.startsWith('https://')) {
+    console.warn('[AI Gateway] invalid or non-HTTPS gateway URL in production');
+    if (logCallback) {
+      logCallback('[AI Gateway] invalid or non-HTTPS gateway URL in production. Skipping gateway proxy.', 'warning');
+    }
+    normalizedGatewayUrl = '';
+  }
 
   // --- SERVER FALLBACK 1: CLOUDFLARE EDGE PROXY ---
   if (normalizedGatewayUrl) {
@@ -347,7 +356,14 @@ export async function callAIModel(
     } catch (e: any) {
       const errorMsg = e.name === 'AbortError' ? 'Timeout (10s)' : (e.message || String(e))
       const latencyMs = Math.round(performance.now() - workerStartTime)
+      let kind = 'api_error'
+      if (e.name === 'AbortError') {
+        kind = 'timeout'
+      } else if (e instanceof TypeError) {
+        kind = 'cors_or_network_error'
+      }
       console.warn('[AI Proxy] Cloudflare Edge Proxy failed, falling back to GAS', { error: errorMsg, latencyMs })
+      console.warn('[AI Gateway] request failed, falling back', { kind, latencyMs });
       if (logCallback) {
         logCallback(`[Model: ${model.name}] Lỗi khi gọi qua Server Proxy (Cloudflare Edge): ${errorMsg}. Đang dùng chế độ dự phòng sang GAS...`, 'warning')
       }

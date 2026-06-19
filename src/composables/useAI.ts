@@ -44,8 +44,7 @@ import { retrieveMenuCandidates } from '@/domain/menu/menuCandidateRetriever'
 import { validateAIResult } from '@/domain/ai/aiResultValidator'
 
 
-// Shared cache Map across all useAI calls (Module Scope)
-const responseCache = new Map<string, { data: any; timestamp: number; ttl: number }>()
+import { getCachedAIResponse, setCachedAIResponse, hashString, stableStringify } from '@/services/ai/aiResponseCache'
 
 export function useAI() {
   const uiStore = useUIStore()
@@ -57,34 +56,28 @@ export function useAI() {
   const aiMode = (import.meta.env.VITE_AI_MODE || 'direct') as 'direct' | 'gateway'
   const apiGatewayUrl = import.meta.env.VITE_AI_GATEWAY_URL || ''
 
-  function getSmartCacheKey(rawText: string, inputType: string, selectedMenuSheet: string, dateContext: string): string {
-    const cleanRaw = (rawText || '').trim().toLowerCase()
-    const menuVer = appStore.menuList.length
-    const corrVer = appStore.aiCorrections?.length || 0
-    return `${cleanRaw}:${inputType}:${selectedMenuSheet}:${dateContext}:${menuVer}:${corrVer}`
+  function getMenuFingerprint(): string {
+    const normalizedMenu = [...appStore.menuList]
+      .sort((a, b) => a.name.localeCompare(b.name))
+      .map(item => ({
+        name: item.name,
+        price: item.price,
+        desc: item.desc,
+        acronym: item.acronym
+      }))
+    return hashString(stableStringify(normalizedMenu))
   }
 
-  function getCachedParseResult(key: string): any | null {
-    const entry = responseCache.get(key)
-    if (entry && Date.now() - entry.timestamp < entry.ttl) {
-      return entry.data
-    }
-    if (entry) responseCache.delete(key)
-    return null
-  }
-
-  function setSmartCache(key: string, data: any, inputType: string) {
-    let ttl = 5 * 60 * 1000 // default 5 min
-    if (inputType === 'booking_text') ttl = 10 * 60 * 1000
-    if (inputType === 'menu_order_text' || inputType === 'mixed_booking_menu') ttl = 5 * 60 * 1000
-    if (inputType === 'chat_screenshot') ttl = 30 * 60 * 1000
-    if (inputType === 'deposit_bill_image') ttl = 60 * 60 * 1000
-    
-    if (responseCache.size >= 30) {
-      const oldest = responseCache.keys().next().value
-      if (oldest) responseCache.delete(oldest)
-    }
-    responseCache.set(key, { data, timestamp: Date.now(), ttl })
+  function getCorrectionFingerprint(): string {
+    const normalizedCorrections = [...(appStore.aiCorrections || [])]
+      .sort((a, b) => `${a.field}:${a.inputText}`.localeCompare(`${b.field}:${b.inputText}`))
+      .map(c => ({
+        inputText: c.inputText,
+        wrongValue: c.wrongValue,
+        correctValue: c.correctValue,
+        field: c.field
+      }))
+    return hashString(stableStringify(normalizedCorrections))
   }
 
   function resolveContext(parsed: any) {
@@ -544,6 +537,30 @@ export function useAI() {
       const classification = classifyAIInput(classificationInput)
       inputType = classification.complexity === 'image_ocr' ? 'chat_screenshot' : 'booking_text'
       
+      let profile: PromptProfile = 'TEXT_SIMPLE'
+      if (classification.requiresOCR) {
+        profile = 'IMAGE_OCR'
+      } else if (classification.requiresConversationContext) {
+        profile = 'COMPLEX_CONVERSATION'
+      } else if (classification.requiresMenuContext || classification.detectedSignals.hasMenuKeyword) {
+        profile = 'TEXT_WITH_MENU'
+      } else if (classification.complexity === 'booking_with_missing_fields') {
+        profile = 'TEXT_WITH_MISSING_FIELDS'
+      }
+
+      const menuFingerprint = getMenuFingerprint()
+      const correctionFingerprint = getCorrectionFingerprint()
+
+      const cacheKey = hashString(stableStringify({
+        normalizedUserInput: (formStore.rawInput || '').trim().toLowerCase(),
+        providerOrMode: aiMode,
+        modelProfile: profile,
+        menuFingerprint,
+        correctionFingerprint,
+        promptSchemaVersion: 1,
+        normalizerSchemaVersion: 1
+      }))
+
       logStore.addLog(`[Classifier] Complexity: "${classification.complexity}", requiresLLM: ${classification.requiresLLM}, requiresMenuContext: ${classification.requiresMenuContext}`)
       
       let promptText = formStore.aiImage
@@ -597,8 +614,10 @@ export function useAI() {
       }
 
       if (!isBypassed) {
-        const cacheKey = getSmartCacheKey(formStore.rawInput, inputType, appStore.activeSheet, formStore.customer.date)
-        const cached = getCachedParseResult(cacheKey)
+        const cached = await getCachedAIResponse<any>(cacheKey, {
+          menuFingerprint,
+          correctionFingerprint
+        })
         
         if (cached) {
           finalParsedResult = cached
@@ -679,16 +698,7 @@ export function useAI() {
           logStore.addLog(`[Menu Retrieval] Đã lọc được ${menuCandidates.length} món ăn ứng viên phù hợp.`)
         }
 
-        let profile: PromptProfile = 'TEXT_SIMPLE'
-        if (classification.requiresOCR) {
-          profile = 'IMAGE_OCR'
-        } else if (classification.requiresConversationContext) {
-          profile = 'COMPLEX_CONVERSATION'
-        } else if (classification.requiresMenuContext || classification.detectedSignals.hasMenuKeyword) {
-          profile = 'TEXT_WITH_MENU'
-        } else if (classification.complexity === 'booking_with_missing_fields') {
-          profile = 'TEXT_WITH_MISSING_FIELDS'
-        }
+        // profile already determined at start for cache key stability
 
         const currentDateTimeStr = (() => {
           const now = new Date()
@@ -808,8 +818,21 @@ export function useAI() {
         }
 
         finalParsedResult = rawJsonParsed
-        const cacheKey = getSmartCacheKey(formStore.rawInput, inputType, appStore.activeSheet, formStore.customer.date)
-        setSmartCache(cacheKey, finalParsedResult, inputType)
+        let ttl = 5 * 60 * 1000 // default 5 min
+        if (inputType === 'booking_text') ttl = 10 * 60 * 1000
+        if (inputType === 'menu_order_text' || inputType === 'mixed_booking_menu') ttl = 5 * 60 * 1000
+        if (inputType === 'chat_screenshot') ttl = 30 * 60 * 1000
+        if (inputType === 'deposit_bill_image') ttl = 60 * 60 * 1000
+
+        const dataToCache = {
+          ...finalParsedResult,
+          routing: routingInfo
+        }
+        await setCachedAIResponse(cacheKey, dataToCache, {
+          ttl,
+          menuFingerprint,
+          correctionFingerprint
+        })
       }
 
       logStore.addLog(`Áp dụng Luật khóa dữ liệu deterministic (Deterministic Rule Lock)...`)

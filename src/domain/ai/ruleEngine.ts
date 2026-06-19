@@ -210,9 +210,9 @@ export function cleanHonorificPrefix(name: string): string {
 }
 
 export const AMBIGUOUS_VIETNAMESE_NAME_TOKENS = new Set([
-  'oanh', 'son', 'sơn', 'hanh', 'hạnh', 'thang', 'thắng', 'phuc', 'phúc',
-  'bang', 'bằng', 'hai', 'hải', 'vui', 'mai', 'duc', 'đức', 'tam', 'tâm',
-  'hien', 'hiền', 'huong', 'hương', 'dung', 'dũng', 'loan', 'lanh', 'lành'
+  'nam', 'mai', 'dat', 'đạt', 'son', 'sơn', 'hanh', 'hạnh', 'oanh', 'vui',
+  'bang', 'bằng', 'hai', 'hải', 'phuc', 'phúc', 'tam', 'tâm', 'hien', 'hiền',
+  'dung', 'dũng', 'loan', 'lanh', 'lành'
 ])
 
 export function evaluateNameConfidence(name: string, normalizedText: string): {
@@ -241,7 +241,7 @@ export function evaluateNameConfidence(name: string, normalizedText: string): {
   }
 
   const escapedName = nameClean.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&')
-  const honorificRegex = new RegExp(`\\b(anh|chi|chị|em|chu|chú|co|cô|ong|ông|ba|bà|be|bé|khach|khách)\\s+${escapedName}\\b`, 'i')
+  const honorificRegex = new RegExp(`\\b(anh|chi|chị|em|chu|chú|co|cô|ong|ông|ba|bà|be|bé|bac|bác|khach|khách)\\s+${escapedName}\\b`, 'i')
   if (honorificRegex.test(normalizedText)) {
     score += 0.20
     signals.push('honorific_before_name')
@@ -319,6 +319,31 @@ export function evaluateNameConfidence(name: string, normalizedText: string): {
     }
   }
 
+  if (nameCleanNoAccent === 'dat' || nameCleanNoAccent === 'đạt') {
+    const datVerbRegex = new RegExp(`\\b(dat|đặt)\\s+(ban|bàn|truoc|trước|mon|món|cho|viet|viết)\\b|\\b${escapedName}\\s+(chua|chưa)\\b`, 'i')
+    if (datVerbRegex.test(normalizedText)) {
+      score -= 0.40
+      risks.push('dat_verb_context')
+    }
+  }
+
+  if (nameCleanNoAccent === 'nam') {
+    const namGenderRegex = new RegExp(`\\b(?:nguoi|người|khach|khách|lon|lớn|pax|\\d+)\\s+${escapedName}\\b|\\b${escapedName}\\s+(lon|lớn|nu|nữ|nguoi|người|khach|khách)\\b`, 'i')
+    if (namGenderRegex.test(normalizedText)) {
+      score -= 0.40
+      risks.push('nam_noun_context')
+    }
+  }
+
+  // Check if message is too short and lacks booking context
+  const hasPhone = phoneRegex.test(normalizedText)
+  const hasDate = /\b\d{1,2}[\/\.\-]\d{1,2}\b/g.test(normalizedText) || /ngay|ngày/i.test(normalizedText)
+  const hasTime = /\b\d{1,2}[h:]/i.test(normalizedText)
+  if (normalizedText.length < 25 && !hasPhone && !hasDate && !hasTime) {
+    score -= 0.20
+    risks.push('short_message_no_context')
+  }
+
   const finalScore = parseFloat(Math.min(1.0, Math.max(0.0, score)).toFixed(2))
   return {
     confidence: finalScore,
@@ -332,7 +357,7 @@ export function classifyPeopleNames(text: string) {
   const bookerCandidates: string[] = []
   const partyOwnerCandidates: string[] = []
   
-  const invalidNameSet = new Set(['dat', 'ban', 'giup', 'minh', 'toi', 'ngay', 'gio', 'pax', 'khach', 'nguoi', 'sdt', 'lien', 'he', 'cho', 'duoc', 'khong', 'nhe', 'nha', 'ho', 'lam', 'sao', 'nao', 'chua', 'co', 'hoi', 'hỏi', 'xin', 'xem', 'gui', 'gửi', 'nhan', 'nhận', 'co', 'có', 'con', 'còn', 'la', 'là'])
+  const invalidNameSet = new Set(['ban', 'giup', 'minh', 'toi', 'ngay', 'gio', 'pax', 'khach', 'nguoi', 'sdt', 'lien', 'he', 'cho', 'duoc', 'khong', 'nhe', 'nha', 'ho', 'lam', 'sao', 'nao', 'chua', 'co', 'hoi', 'hỏi', 'xin', 'xem', 'gui', 'gửi', 'nhan', 'nhận', 'co', 'có', 'con', 'còn', 'la', 'là'])
 
   const lines = text.split('\n')
   for (const line of lines) {
@@ -352,7 +377,7 @@ export function classifyPeopleNames(text: string) {
       const lastWord = beforeWords[beforeWords.length - 1]
       if (lastWord && /^[A-Z\p{Lu}][\p{Ll}]+$/u.test(lastWord)) {
         const cleanName = cleanHonorificPrefix(lastWord)
-        if (cleanName && !/^(mai|nay|kia|truoc|sau|sang|chieu|toi|ngay|gio|pax|khach|nguoi|ban|dat|mon|set|combo|happy|birthday|hbd|hpbd|sinh|nhat|thoi|noi|giup|giom|cho|sdt|lien|he|table|pax|duoc|khong)$/i.test(stripAccents(cleanName))) {
+        if (cleanName && !/^(nay|kia|truoc|sau|sang|chieu|toi|ngay|gio|pax|khach|nguoi|ban|mon|set|combo|happy|birthday|hbd|hpbd|sinh|nhat|thoi|noi|giup|giom|cho|sdt|lien|he|table|pax|duoc|khong)$/i.test(stripAccents(cleanName))) {
           const nameWords = stripAccents(cleanName).toLowerCase().split(/\s+/)
           const hasInvalidWord = nameWords.some(w => invalidNameSet.has(w))
           if (!hasInvalidWord && !peopleNames.includes(cleanName)) {
@@ -366,7 +391,7 @@ export function classifyPeopleNames(text: string) {
       const firstWord = afterWords[0]
       if (firstWord && /^[A-Z\p{Lu}][\p{Ll}]+$/u.test(firstWord)) {
         const cleanName = cleanHonorificPrefix(firstWord)
-        if (cleanName && !/^(mai|nay|kia|truoc|sau|sang|chieu|toi|ngay|gio|pax|khach|nguoi|ban|dat|mon|set|combo|happy|birthday|hbd|hpbd|sinh|nhat|thoi|noi|giup|giom|cho|sdt|lien|he|table|pax|duoc|khong)$/i.test(stripAccents(cleanName))) {
+        if (cleanName && !/^(nay|kia|truoc|sau|sang|chieu|toi|ngay|gio|pax|khach|nguoi|ban|mon|set|combo|happy|birthday|hbd|hpbd|sinh|nhat|thoi|noi|giup|giom|cho|sdt|lien|he|table|pax|duoc|khong)$/i.test(stripAccents(cleanName))) {
           const nameWords = stripAccents(cleanName).toLowerCase().split(/\s+/)
           const hasInvalidWord = nameWords.some(w => invalidNameSet.has(w))
           if (!hasInvalidWord && !peopleNames.includes(cleanName)) {
@@ -382,7 +407,7 @@ export function classifyPeopleNames(text: string) {
       let name = match[1].trim()
       name = cleanHonorificPrefix(name)
       if (name.length <= 1) continue
-      if (/^(mai|nay|kia|truoc|sau|sang|chieu|toi|ngay|gio|pax|khach|nguoi|ban|dat|mon|set|combo|happy|birthday|hbd|hpbd|sinh|nhat|thoi|noi|giup|giom|cho|sdt|lien|he|table|pax|duoc|khong)$/i.test(stripAccents(name))) {
+      if (/^(nay|kia|truoc|sau|sang|chieu|toi|ngay|gio|pax|khach|nguoi|ban|mon|set|combo|happy|birthday|hbd|hpbd|sinh|nhat|thoi|noi|giup|giom|cho|sdt|lien|he|table|pax|duoc|khong)$/i.test(stripAccents(name))) {
         continue
       }
       // Bộ lọc từ cấm cho tên khớp từ regex nameRegex:
@@ -452,7 +477,7 @@ export function classifyPeopleNames(text: string) {
     while ((match = regex.exec(text)) !== null) {
       let name = match[1].trim()
       name = cleanHonorificPrefix(name)
-      if (name.length > 1 && !/^(mai|nay|kia|truoc|sau|sang|chieu|toi|ngay|gio|pax|khach|nguoi|ban|dat|mon|set|combo|happy|birthday|hbd|hpbd|sinh|nhat|thoi|noi|giup|giom|cho|sdt|lien|he|table|pax|duoc|khong)$/i.test(stripAccents(name))) {
+      if (name.length > 1 && !/^(nay|kia|truoc|sau|sang|chieu|toi|ngay|gio|pax|khach|nguoi|ban|mon|set|combo|happy|birthday|hbd|hpbd|sinh|nhat|thoi|noi|giup|giom|cho|sdt|lien|he|table|pax|duoc|khong)$/i.test(stripAccents(name))) {
         // Bộ lọc từ cấm cho tên khớp từ specialPatterns:
         const nameWords = stripAccents(name).toLowerCase().split(/\s+/)
         const hasInvalidWord = nameWords.some(w => invalidNameSet.has(w))

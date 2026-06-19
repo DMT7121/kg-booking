@@ -11,8 +11,30 @@ const MAX_SIZE = 10 * 1024 * 1024; // 10MB
 export default {
   async fetch(request, env) {
     // CORS Headers
+    const origin = request.headers.get('Origin');
+    let allowedOrigin = '*';
+    if (env.CORS_ORIGINS) {
+      const origins = env.CORS_ORIGINS.split(',').map(o => o.trim());
+      if (origin && origins.includes(origin)) {
+        allowedOrigin = origin;
+      } else {
+        allowedOrigin = origins[0];
+      }
+    } else if (env.CORS_ORIGIN) {
+      allowedOrigin = env.CORS_ORIGIN;
+    } else if (origin) {
+      const defaultAllowed = [
+        'https://kings-grill-booking.pages.dev',
+        'http://localhost:5173',
+        'http://localhost:3000'
+      ];
+      if (defaultAllowed.includes(origin) || origin.endsWith('.kingsgrill.vn') || origin.endsWith('.pages.dev')) {
+        allowedOrigin = origin;
+      }
+    }
+
     const corsHeaders = {
-      'Access-Control-Allow-Origin': env.CORS_ORIGIN || '*',
+      'Access-Control-Allow-Origin': allowedOrigin,
       'Access-Control-Allow-Methods': 'GET, POST, DELETE, OPTIONS',
       'Access-Control-Allow-Headers': 'Content-Type, X-Auth-Key, x-target-url, x-gemini-key, Authorization, X-Title, HTTP-Referer',
       'Access-Control-Max-Age': '86400',
@@ -151,7 +173,10 @@ export default {
       }
 
       // --- AI GATEWAY: POST /api/ai/analyze ---
-      if (request.method === 'POST' && path === '/api/ai/analyze') {
+      if (path === '/api/ai/analyze') {
+        if (request.method !== 'POST') {
+          return jsonResponse({ ok: false, error: `Method ${request.method} Not Allowed` }, 405, corsHeaders);
+        }
         // 1. Client Authorization
         const authHeader = request.headers.get('Authorization');
         if (env.APP_SHARED_SECRET) {
@@ -364,9 +389,9 @@ export default {
         }
       }
 
-      return jsonResponse({ ok: false, message: 'Not found' }, 404, corsHeaders);
+      return jsonResponse({ ok: false, error: 'Not found' }, 404, corsHeaders);
     } catch (err) {
-      return jsonResponse({ ok: false, message: err.message }, 500, corsHeaders);
+      return jsonResponse({ ok: false, error: err.message }, 500, corsHeaders);
     }
   },
 };
