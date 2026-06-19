@@ -498,6 +498,15 @@ export function useAI() {
 
     const startTime = performance.now()
     
+    let allMenus: Record<string, any[]> | null = null
+    const getOrLoadAllMenus = async () => {
+      if (!allMenus) {
+        allMenus = await loadAllMenusData()
+      }
+      return allMenus
+    }
+    let pendingMenuSwitchSheet: string | null = null
+
     const flags = {
       enableLocalFirstBypass: import.meta.env.VITE_AI_LOCAL_FIRST !== 'false',
       enableDynamicPrompt: import.meta.env.VITE_AI_DYNAMIC_PROMPT !== 'false',
@@ -635,8 +644,8 @@ export function useAI() {
 
         let menuCandidates: any[] = []
         if (flags.enableMenuCandidateRetrieval) {
-          const allMenus = await loadAllMenusData()
-          const menusForRetriever = Object.entries(allMenus).map(([sheetName, items]) => ({
+          const loadedMenus = await getOrLoadAllMenus()
+          const menusForRetriever = Object.entries(loadedMenus).map(([sheetName, items]) => ({
             menuId: sheetName,
             menuName: sheetName,
             items: items.map((item: any) => ({
@@ -763,26 +772,35 @@ export function useAI() {
         }
 
         try {
-          const allMenus = await loadAllMenusData()
-          const { bestSheet, score, isBorderline } = resolveBestMenuSheet(promptText, rawJsonParsed.menu_items || [], allMenus, appStore.activeSheet)
+          const loadedMenus = await getOrLoadAllMenus()
+          const { bestSheet, score, isBorderline } = resolveBestMenuSheet(promptText, rawJsonParsed.menu_items || [], loadedMenus, appStore.activeSheet)
           
           if (bestSheet && bestSheet !== appStore.activeSheet) {
             logStore.addLog(`Phát hiện khả năng khớp thực đơn tốt hơn tại Sheet: "${bestSheet}" (Điểm: ${score}).`)
             if (isBorderline) {
-              const confirmed = await uiStore.showConfirm(
-                'Đổi thực đơn?',
-                `Nhận diện thực đơn "${bestSheet}". Bạn có muốn chuyển sang thực đơn này không?`
-              )
-              if (confirmed) {
-                logStore.addLog(`Người dùng đồng ý chuyển sang thực đơn: "${bestSheet}"`, 'info')
-                await appStore.switchMenu(bestSheet)
-              } else {
-                logStore.addLog(`Người dùng từ chối chuyển sang thực đơn: "${bestSheet}"`, 'warning')
-              }
+              pendingMenuSwitchSheet = bestSheet
             } else {
               logStore.addLog(`Tự động chuyển sang thực đơn phù hợp nhất: "${bestSheet}"`, 'success')
               await appStore.switchMenu(bestSheet)
               uiStore.showToast(`Đã tự động chuyển sang thực đơn: ${bestSheet}`, 'success')
+              
+              if (rawJsonParsed.menu_items && rawJsonParsed.menu_items.length > 0) {
+                logStore.addLog(`Khớp lại món ăn theo thực đơn mới: "${bestSheet}"...`)
+                rawJsonParsed.menu_items = matchMenuItems(
+                  rawJsonParsed.menu_items.map((i: any) => ({
+                    name: i.raw_name || i.name,
+                    quantity: i.quantity || i.qty || 1,
+                    unit_price: i.unit_price || i.price || 0,
+                    note: i.note
+                  })),
+                  rawJsonParsed.booking?.guest_count,
+                  appStore.menuList,
+                  appStore.menuAliases,
+                  appStore.menuDetails || {},
+                  formStore.customer.pax ? parseInt(String(formStore.customer.pax)) : null,
+                  (msg, level) => logStore.addLog(msg, level)
+                )
+              }
             }
           }
         } catch (errSheet) {
@@ -896,6 +914,58 @@ export function useAI() {
       uiStore.loading.is = false
       api.clearAIAbortController()
       logStore.addLog(`=== KẾT THÚC PHIÊN PHÂN TÍCH (Tổng độ trễ: ${((performance.now() - startTime)/1000).toFixed(2)}s) ===`, 'info')
+      
+      if (pendingMenuSwitchSheet) {
+        const targetSheet = pendingMenuSwitchSheet
+        setTimeout(async () => {
+          try {
+            const confirmed = await uiStore.showConfirm(
+              'Đổi thực đơn?',
+              `Nhận diện thực đơn "${targetSheet}". Bạn có muốn chuyển sang thực đơn này không?`
+            )
+            if (confirmed) {
+              logStore.addLog(`Người dùng đồng ý chuyển sang thực đơn: "${targetSheet}"`, 'info')
+              await appStore.switchMenu(targetSheet)
+              
+              if (formStore.items && formStore.items.length > 0) {
+                logStore.addLog(`Đang khớp lại ${formStore.items.length} món ăn với thực đơn mới "${targetSheet}"...`)
+                const reMatched = matchMenuItems(
+                  formStore.items.map((i: any) => ({
+                    name: i.name,
+                    quantity: i.qty,
+                    unit_price: i.price,
+                    note: i.note
+                  })),
+                  formStore.customer.pax ? parseInt(String(formStore.customer.pax)) : null,
+                  appStore.menuList,
+                  appStore.menuAliases,
+                  appStore.menuDetails || {},
+                  formStore.customer.pax ? parseInt(String(formStore.customer.pax)) : null,
+                  (msg, level) => logStore.addLog(msg, level)
+                )
+                
+                formStore.items = reMatched.map((newItem: any) => ({
+                  name: newItem.matched_name || newItem.name,
+                  qty: newItem.quantity || newItem.qty || 1,
+                  price: newItem.unit_price || newItem.price || 0,
+                  note: newItem.note || newItem.notes || ""
+                }))
+                
+                if (formStore.originalAiValues) {
+                  formStore.originalAiValues.items = JSON.parse(JSON.stringify(formStore.items || []))
+                }
+                
+                logStore.addLog(`Đã khớp lại món ăn thành công theo thực đơn mới.`, 'success')
+                uiStore.showToast(`Đã cập nhật giá món ăn theo thực đơn: ${targetSheet}`, 'success')
+              }
+            } else {
+              logStore.addLog(`Người dùng từ chối chuyển sang thực đơn: "${targetSheet}"`, 'warning')
+            }
+          } catch (errConfirm) {
+            console.error('Switch menu confirm error:', errConfirm)
+          }
+        }, 300)
+      }
     }
   }
 
