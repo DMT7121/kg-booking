@@ -2,6 +2,12 @@ import { stripAccents, formatSetNote } from '@/utils'
 import { SETS } from '@/utils/constants'
 import { parseDishItems } from '@/domain/ai/ruleEngine'
 
+const PART_MODIFIERS = [
+  'chan', 'canh', 'sun', 'me', 'long', 'doi', 'nam', 'gan', 'duoi', 'luoi', 'tai', 'vu', 'ba chi',
+  'nầm', 'chân', 'cánh', 'sụn', 'mề', 'lòng', 'dồi', 'gân', 'đuôi', 'lưỡi', 'tai', 'vú', 'ba chỉ'
+]
+const PART_MODIFIER_REGEXES = PART_MODIFIERS.map(mod => new RegExp(`\\b${mod}\\b`, 'i'))
+
 export function extractPortionSize(rawName: string): number | null {
   const clean = stripAccents(rawName).toLowerCase()
   const match = clean.match(/\b(5|10)\s*(?:con|c)\b/i)
@@ -43,9 +49,11 @@ export function normalizeSynonyms(name: string): string {
   return normalized
 }
 
-export function jaroWinklerDistance(s1: string, s2: string): number {
-  s1 = stripAccents(s1).toLowerCase().trim()
-  s2 = stripAccents(s2).toLowerCase().trim()
+export function jaroWinklerDistance(s1: string, s2: string, isNormalized = false): number {
+  if (!isNormalized) {
+    s1 = stripAccents(s1).toLowerCase().trim()
+    s2 = stripAccents(s2).toLowerCase().trim()
+  }
   
   if (s1 === s2) return 1.0
   
@@ -246,6 +254,16 @@ export function matchMenuItems(
     aliasMap.set(cleanAlias, a)
   }
 
+  // Pre-normalize menuList for contains matching and fuzzy matching to avoid repeating it for each item
+  const preparedMenuList = menuList.map(item => {
+    const clean = item.cleanName || stripAccents(item.name).toLowerCase().trim()
+    return {
+      item,
+      clean,
+      tokens: clean.split(/\s+/).filter((t: string) => t.length > 0)
+    }
+  })
+
   const attributes = ['trung muoi', 'tieu', 'pho mai', 'mo hanh', 'cay', 'lau', 'nuong', 'xao', 'hap']
   const expandedItems: any[] = []
   
@@ -340,15 +358,15 @@ export function matchMenuItems(
     // Contains match
     if (!match) {
       const containsCandidates: { item: any; score: number }[] = []
-      const partModifiers = ['chan', 'canh', 'sun', 'me', 'long', 'doi', 'nam', 'gan', 'duoi', 'luoi', 'tai', 'vu', 'ba chi', 'nầm', 'chân', 'cánh', 'sụn', 'mề', 'lòng', 'dồi', 'gân', 'đuôi', 'lưỡi', 'tai', 'vú', 'ba chỉ']
       
-      for (const m of menuList) {
-        const mClean = stripAccents(m.name).toLowerCase().trim()
+      for (const prepared of preparedMenuList) {
+        const mClean = prepared.clean
+        const m = prepared.item
         if (mClean && clean && (mClean.includes(clean) || clean.includes(mClean))) {
           let modifierConflict = false
-          for (const mod of partModifiers) {
-            const mHasMod = new RegExp(`\\b${mod}\\b`, 'i').test(mClean)
-            const cleanHasMod = new RegExp(`\\b${mod}\\b`, 'i').test(clean)
+          for (const regex of PART_MODIFIER_REGEXES) {
+            const mHasMod = regex.test(mClean)
+            const cleanHasMod = regex.test(clean)
             if (mHasMod && !cleanHasMod) {
               modifierConflict = true
               break
@@ -383,11 +401,14 @@ export function matchMenuItems(
       const inputTokens = clean.split(/\s+/).filter(t => t.length > 1)
       const matchedCandidates: { item: any; score: number; confidence: number }[] = []
       
-      for (const m of menuList) {
-        const mClean = stripAccents(m.name).toLowerCase().trim()
-        const mTokens = mClean.split(/\s+/)
+      for (const prepared of preparedMenuList) {
+        const mClean = prepared.clean
+        const mTokens = prepared.tokens
+        const m = prepared.item
         
         const overlap = inputTokens.filter(t => mTokens.some(mt => mt.includes(t) || t.includes(mt))).length
+        if (overlap === 0) continue // Skip heavy calculations if there is no token overlap!
+        
         const overlapScore = (overlap / Math.max(inputTokens.length, 1)) * 0.7 + (overlap / Math.max(mTokens.length, 1)) * 0.3
         
         const dist = levenshteinDistance(clean, mClean)
@@ -405,7 +426,7 @@ export function matchMenuItems(
           }
         }
         
-        const jaroWinklerScore = jaroWinklerDistance(clean, mClean)
+        const jaroWinklerScore = jaroWinklerDistance(clean, mClean, true) // Pass true for isNormalized
         let score = 0.5 * overlapScore + 0.5 * jaroWinklerScore
         if (attributeConflict) {
           score *= 0.2
