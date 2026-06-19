@@ -281,12 +281,63 @@ export async function callAIModel(
   }
 
   // Nếu người dùng đã cấu hình key local và key đó bị lỗi kết nối mạng thông thường (không phải fatal)
-  // hoặc nếu không cấu hình key local nào (muốn dùng key trên server), ta mới chuyển tiếp qua GAS Proxy.
+  // hoặc nếu không cấu hình key local nào (muốn dùng key trên server), ta mới chuyển tiếp qua Edge/GAS Proxy.
   if (hasKeyConfigured && !canCallDirect) {
     throw new Error(`Tất cả các local keys cấu hình cho provider ${model.provider} đều thất bại.`)
   }
 
-  // --- SERVER FALLBACK (GAS PROXY) ---
+  const gatewayUrl = apiGatewayUrl || import.meta.env.VITE_AI_GATEWAY_URL || import.meta.env.VITE_R2_URL || ''
+  const sharedSecret = import.meta.env.VITE_APP_SHARED_SECRET || ''
+
+  // --- SERVER FALLBACK 1: CLOUDFLARE EDGE PROXY ---
+  if (gatewayUrl) {
+    if (logCallback) {
+      logCallback(`[Model: ${model.name}] Chuyển tiếp yêu cầu qua Server Proxy (Cloudflare Edge)...`, 'info')
+    }
+    try {
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+      if (sharedSecret) {
+        headers['Authorization'] = `Bearer ${sharedSecret}`
+      }
+      
+      const res = await fetch(`${gatewayUrl}/api/ai/analyze`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          model: model.id,
+          provider: model.provider,
+          sysPrompt,
+          userPrompt,
+          image,
+          jsonMode,
+          responseSchema,
+          maxOutputTokens,
+          temperature
+        }),
+        signal
+      })
+      
+      if (!res.ok) {
+        const errText = await res.text().catch(() => `HTTP ${res.status}`)
+        throw new Error(errText.substring(0, 150))
+      }
+      
+      const json = await res.json()
+      if (json.ok && json.content) {
+        if (logCallback) {
+          logCallback(`[Model: ${model.name}] Gọi qua Server Proxy (Cloudflare Edge) thành công!`, 'success')
+        }
+        return json.content
+      }
+      throw new Error(json.error || 'Gateway returned invalid response')
+    } catch (e: any) {
+      if (logCallback) {
+        logCallback(`[Model: ${model.name}] Lỗi khi gọi qua Server Proxy (Cloudflare Edge): ${e.message}. Đang dùng chế độ dự phòng sang GAS...`, 'warning')
+      }
+    }
+  }
+
+  // --- SERVER FALLBACK 2: GAS PROXY ---
   if (logCallback) {
     logCallback(`[Model: ${model.name}] Chuyển tiếp yêu cầu qua Server Proxy (GAS)...`, 'info')
   }

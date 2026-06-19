@@ -51,7 +51,7 @@ describe('Asymmetric Race Tests', () => {
   })
 
   it('should wait for quality model if fast model fails validation', async () => {
-    const invalidJsonResponse = JSON.stringify({ customer: { name: '' } }) // fails validation
+    const invalidJsonResponse = JSON.stringify({ customer: { name: 'Chị Vy', phone: 'invalid-phone' } }) // fails validation
 
     vi.mocked(callAIModel).mockImplementation((req) => {
       if (req.model.id === 'fast') {

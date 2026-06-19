@@ -2,6 +2,7 @@ import type { AIModel } from '@/utils/constants'
 import { callAIModel } from './aiProviderClient'
 import { safeParseJSON } from '@/domain/ai/jsonRepair'
 import { validateAIResult } from '@/domain/ai/aiResultValidator'
+import { repairAndNormalizeJSON } from '@/domain/booking/bookingNormalizer'
 import { repairBrokenJSONWithAI } from './aiRouter'
 import { getTimeoutForModel } from './aiProviderClient'
 
@@ -121,8 +122,9 @@ export async function runAsymmetricRace(request: RaceRequest): Promise<RaceResul
           repairApplied = true
         }
 
-        const validation = validateAIResult(parsed)
-        if (validation.accepted && parsed) {
+        const normalized = repairAndNormalizeJSON(parsed, image ? 'chat_screenshot' : 'booking_text')
+        const validation = validateAIResult(normalized)
+        if (validation.accepted && normalized) {
           // Fast model is valid, settle immediately and abort quality model!
           settled = true
           qualityAbort.abort()
@@ -135,7 +137,7 @@ export async function runAsymmetricRace(request: RaceRequest): Promise<RaceResul
           
           resolve({
             acceptedFrom: 'fast',
-            parsed: validation.normalized,
+            parsed: validation.normalized || normalized,
             routing: {
               pipeline: image ? 'vision' : 'text',
               tier_used: fastModel.tier,
@@ -189,9 +191,10 @@ export async function runAsymmetricRace(request: RaceRequest): Promise<RaceResul
           repairApplied = true
         }
 
-        const validation = validateAIResult(parsed)
+        const normalized = repairAndNormalizeJSON(parsed, image ? 'chat_screenshot' : 'booking_text')
+        const validation = validateAIResult(normalized)
         // For quality model, even if it has minor validation warnings, we accept it as fallback unless it's not JSON at all
-        if (parsed) {
+        if (normalized) {
           settled = true
           fastAbort.abort()
           cleanup()
@@ -203,7 +206,7 @@ export async function runAsymmetricRace(request: RaceRequest): Promise<RaceResul
           
           resolve({
             acceptedFrom: 'quality',
-            parsed: validation.normalized || parsed,
+            parsed: validation.normalized || normalized,
             routing: {
               pipeline: image ? 'vision' : 'text',
               tier_used: qualityModel.tier,
