@@ -66,9 +66,11 @@ export function classifyAIInput(input: AIInputClassificationInput): AIInputClass
   const nameKeywords = /\b(?:anh|chi|em|khanh|nguoi dat|lien he|sdt|ten la|em la|la)\b/i
   const hasNameSignal = nameKeywords.test(cleanTextLower)
 
-  // 6. Detect Menu Keywords
-  const menuKeywords = /\b(?:mon|menu|thuc don|set|combo|suat|lau|nuong|buffet|tiger|heineken|coca|sting|7up|saigon|bia|ruou|nuoc|mon an|khai vi|mon chinh|trang mieng|set menu|combo\s+\d)\b/i
-  const hasMenuKeyword = menuKeywords.test(cleanTextLower)
+  // 6. Detect Menu Keywords (expanded to detect quantity indicators, portion sizes, and common Vietnamese food keywords)
+  const menuKeywords = /\bmon|menu|thuc don|set|combo|suat|lau|nuong|buffet|tiger|heineken|coca|sting|7up|saigon|bia|ruou|nuoc|mon an|khai vi|mon chinh|trang mieng|set menu|combo\s+\d\b/i
+  const quantityPattern = /\bx\s*\d+\b|\b\d+\s*x\b|\*\s*\d+\b|\b\d+\s*\*/i
+  const foodKeywords = /\b(?:ga|tom|bo|heo|thit|ca|muc|ngheu|so|oc|rau|nam|dau|chao|mi|com|sup|canh|xoi|nom|salad|khoai|goi|sot|hap|nuong|xao|chien|luoc|kho|quay|xong khoi|suon|nam heo|tai|luoi|long|de suon|ba chi|heo nuong)\b/i
+  const hasMenuKeyword = menuKeywords.test(cleanTextLower) || quantityPattern.test(cleanTextLower) || foodKeywords.test(cleanTextLower)
 
   // 7. Detect Party Keywords
   const partyKeywords = /\b(?:sinh nhat|sn|thoi noi|day thang|cong ty|cty|doanh nghiep|tat nien|tan nien|lien hoan|hop lop|ky niem|sinh nhat cua|happy birthday|hbd|hpbd)\b/i

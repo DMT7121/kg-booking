@@ -26,13 +26,14 @@ Quy tắc:
 Hồ sơ: TEXT_WITH_MENU (Tin nhắn có món ăn)
 Quy tắc:
 - Trích xuất thông tin đặt bàn cơ bản giống TEXT_SIMPLE.
-- Trích xuất danh sách món ăn từ văn bản người dùng nhập vào mảng menu.requestedItems:
+- Trích xuất danh sách món ăn vào mảng menu_items:
   Mỗi món ăn gồm:
-  - rawText: tên món thô kèm số lượng do khách viết (vd: "3 bia tiger", "lẩu thái 2 nồi")
-  - matchedName: khớp gần nhất với danh sách món ăn ứng viên được cung cấp trong thẻ {{MENU_CANDIDATES}}
-  - quantity: số lượng của món đó (mặc định là 1 nếu không viết số lượng)
-  - confidence: độ tin cậy của khớp món (0.0 đến 1.0)
-- Nếu món ăn không có trong danh sách ứng viên, matchedName đặt là null.`,
+  - raw_name: tên món ăn thô viết trong tin nhắn (vd: "con gà cục tác lá chanh", "tôm cocktail")
+  - matched_name: tên món chính thức khớp với thực đơn ứng viên được cung cấp hoặc chuỗi rỗng nếu không có món phù hợp
+  - quantity: số lượng món ăn (mặc định là 1 nếu không viết số lượng)
+  - note: ghi chú cho món ăn này (nếu có)
+  - confidence: độ tin cậy khớp món (0.0 đến 1.0)
+  - needs_review: đánh dấu cần xem lại nếu không chắc chắn (true/false)`,
 
   TEXT_WITH_MISSING_FIELDS: `${BASE_SYSTEM_INSTRUCTIONS}
 
