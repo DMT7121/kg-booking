@@ -275,8 +275,35 @@ export function repairAndNormalizeJSON(raw: any, inputType = 'unknown'): any {
   let customerName = safeGet(parsed, 'customer.name', parsed.customer_name || parsed.name || "")
   const customerPhone = safeGet(parsed, 'customer.phone', parsed.customer_phone || parsed.phone || "")
 
-  const eventDate = safeGet(parsed, 'booking.event_date', safeGet(parsed, 'reservation.date', parsed.event_date || parsed.date || ""))
+  let eventDate = safeGet(parsed, 'booking.event_date', safeGet(parsed, 'reservation.date', parsed.event_date || parsed.date || ""))
   const eventTime = safeGet(parsed, 'booking.event_time', safeGet(parsed, 'reservation.time', parsed.event_time || parsed.time || ""))
+
+  if (!eventDate && eventTime) {
+    const timeMatch = eventTime.match(/^(\d{2}):(\d{2})$/)
+    if (timeMatch) {
+      const bookHour = parseInt(timeMatch[1], 10)
+      const bookMin = parseInt(timeMatch[2], 10)
+      
+      const now = new Date()
+      const currHour = now.getHours()
+      const currMin = now.getMinutes()
+      
+      const bookTotal = bookHour * 60 + bookMin
+      const currTotal = currHour * 60 + currMin
+      
+      const targetDate = new Date(now)
+      if (bookTotal > currTotal) {
+        // Today
+      } else {
+        // Tomorrow
+        targetDate.setDate(now.getDate() + 1)
+      }
+      const dd = String(targetDate.getDate()).padStart(2, '0')
+      const mm = String(targetDate.getMonth() + 1).padStart(2, '0')
+      const yyyy = targetDate.getFullYear()
+      eventDate = `${dd}/${mm}/${yyyy}`
+    }
+  }
   const guestCount = safeGet(parsed, 'booking.guest_count', safeGet(parsed, 'reservation.pax', parsed.guest_count || parsed.guestCount || parsed.pax || null))
   const tableCount = safeGet(parsed, 'booking.table_count', parsed.table_count || null)
   const tableNumber = safeGet(parsed, 'booking.table_number', safeGet(parsed, 'reservation.table_code', parsed.table_number || ""))

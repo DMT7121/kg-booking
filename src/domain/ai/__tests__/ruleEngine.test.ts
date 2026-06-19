@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 import { extractByRules, preNormalizeInput, prepareAIPayload } from '../ruleEngine'
 
 describe('Rule Engine Tests', () => {
@@ -49,6 +49,29 @@ describe('Rule Engine Tests', () => {
     expect(result.isLocalOnly).toBe(false)
     expect(result.sysPrompt).toContain('Sườn nướng')
     expect(result.sysPrompt).toContain('250.000')
+  })
+
+  it('should infer date as today or tomorrow based on time when date is missing', () => {
+    vi.useFakeTimers()
+    const mockNow = new Date()
+    mockNow.setHours(12, 0, 0, 0)
+    vi.setSystemTime(mockNow)
+
+    // Booking time 17:00 is greater than current time 12:00 -> Today
+    const inputToday = preNormalizeInput('Đặt bàn lúc 17:00')
+    const resultToday = extractByRules(inputToday)
+    const expectedTodayStr = `${String(mockNow.getDate()).padStart(2, '0')}/${String(mockNow.getMonth() + 1).padStart(2, '0')}/${mockNow.getFullYear()}`
+    expect(resultToday.event_date).toBe(expectedTodayStr)
+
+    // Booking time 09:00 sáng is less than current time 12:00 -> Tomorrow
+    const inputTomorrow = preNormalizeInput('Đặt bàn lúc 09:00 sáng')
+    const resultTomorrow = extractByRules(inputTomorrow)
+    const tomorrow = new Date(mockNow)
+    tomorrow.setDate(mockNow.getDate() + 1)
+    const expectedTomorrowStr = `${String(tomorrow.getDate()).padStart(2, '0')}/${String(tomorrow.getMonth() + 1).padStart(2, '0')}/${tomorrow.getFullYear()}`
+    expect(resultTomorrow.event_date).toBe(expectedTomorrowStr)
+
+    vi.useRealTimers()
   })
 })
 

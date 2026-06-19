@@ -849,13 +849,6 @@ export function extractByRules(normalizedText: string) {
     }
   }
 
-  let event_date: string | null = null
-  const dateRegex = /(\d{2})\/(\d{2})\/(\d{4})/g
-  const dateMatch = normalizedText.match(dateRegex)
-  if (dateMatch) {
-    event_date = dateMatch[0]
-  }
-  
   let event_time: string | null = null
   const colonTimeMatch = normalizedText.match(/\b(\d{1,2}):(\d{2})\b/)
   if (colonTimeMatch) {
@@ -869,6 +862,40 @@ export function extractByRules(normalizedText: string) {
       if (h < 12 && !/sang/i.test(clean)) h += 12
       if (h >= 24) h -= 12
       event_time = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`
+    }
+  }
+
+  let event_date: string | null = null
+  const dateRegex = /(\d{2})\/(\d{2})\/(\d{4})/g
+  const dateMatch = normalizedText.match(dateRegex)
+  if (dateMatch) {
+    event_date = dateMatch[0]
+  }
+
+  if (!event_date && event_time) {
+    const timeMatch = event_time.match(/^(\d{2}):(\d{2})$/)
+    if (timeMatch) {
+      const bookHour = parseInt(timeMatch[1], 10)
+      const bookMin = parseInt(timeMatch[2], 10)
+      
+      const todayDate = new Date()
+      const currHour = todayDate.getHours()
+      const currMin = todayDate.getMinutes()
+      
+      const bookTotal = bookHour * 60 + bookMin
+      const currTotal = currHour * 60 + currMin
+      
+      const targetDate = new Date(todayDate)
+      if (bookTotal > currTotal) {
+        // Today
+      } else {
+        // Tomorrow
+        targetDate.setDate(todayDate.getDate() + 1)
+      }
+      const dd = String(targetDate.getDate()).padStart(2, '0')
+      const mm = String(targetDate.getMonth() + 1).padStart(2, '0')
+      const yyyy = targetDate.getFullYear()
+      event_date = `${dd}/${mm}/${yyyy}`
     }
   }
 
