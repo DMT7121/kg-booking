@@ -123,7 +123,9 @@ export async function runAsymmetricRace(request: RaceRequest): Promise<RaceResul
         }
 
         const normalized = repairAndNormalizeJSON(parsed, image ? 'chat_screenshot' : 'booking_text')
+        console.debug('[AsymmetricRace] Normalized fast model result before validation')
         const validation = validateAIResult(normalized)
+        console.debug('[AsymmetricRace] Fast model validation result', { valid: validation.accepted, reason: validation.reasons.join(', ') })
         if (validation.accepted && normalized) {
           // Fast model is valid, settle immediately and abort quality model!
           settled = true
@@ -192,6 +194,7 @@ export async function runAsymmetricRace(request: RaceRequest): Promise<RaceResul
         }
 
         const normalized = repairAndNormalizeJSON(parsed, image ? 'chat_screenshot' : 'booking_text')
+        console.debug('[AsymmetricRace] Normalized quality model result before validation')
         const validation = validateAIResult(normalized)
         // For quality model, even if it has minor validation warnings, we accept it as fallback unless it's not JSON at all
         if (normalized) {

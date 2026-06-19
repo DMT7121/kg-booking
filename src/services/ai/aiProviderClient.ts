@@ -286,21 +286,32 @@ export async function callAIModel(
     throw new Error(`Tất cả các local keys cấu hình cho provider ${model.provider} đều thất bại.`)
   }
 
-  const gatewayUrl = apiGatewayUrl || import.meta.env.VITE_AI_GATEWAY_URL || import.meta.env.VITE_R2_URL || ''
+  const aiGatewayUrl = apiGatewayUrl || import.meta.env.VITE_AI_GATEWAY_URL || import.meta.env.VITE_R2_URL || ''
+  const normalizedGatewayUrl = aiGatewayUrl ? aiGatewayUrl.replace(/\/+$/, '') : ''
   const sharedSecret = import.meta.env.VITE_APP_SHARED_SECRET || ''
 
   // --- SERVER FALLBACK 1: CLOUDFLARE EDGE PROXY ---
-  if (gatewayUrl) {
+  if (normalizedGatewayUrl) {
+    console.info('[AI Proxy] Trying Cloudflare Edge Proxy...')
     if (logCallback) {
       logCallback(`[Model: ${model.name}] Chuyển tiếp yêu cầu qua Server Proxy (Cloudflare Edge)...`, 'info')
     }
+    const workerStartTime = performance.now()
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), 10000) // 10s timeout for Edge Proxy
+    
+    const onAbort = () => controller.abort()
+    if (signal) {
+      signal.addEventListener('abort', onAbort)
+    }
+
     try {
       const headers: Record<string, string> = { 'Content-Type': 'application/json' }
       if (sharedSecret) {
         headers['Authorization'] = `Bearer ${sharedSecret}`
       }
       
-      const res = await fetch(`${gatewayUrl}/api/ai/analyze`, {
+      const res = await fetch(`${normalizedGatewayUrl}/api/ai/analyze`, {
         method: 'POST',
         headers,
         body: JSON.stringify({
@@ -314,7 +325,7 @@ export async function callAIModel(
           maxOutputTokens,
           temperature
         }),
-        signal
+        signal: controller.signal
       })
       
       if (!res.ok) {
@@ -324,6 +335,8 @@ export async function callAIModel(
       
       const json = await res.json()
       if (json.ok && json.content) {
+        const latencyMs = Math.round(performance.now() - workerStartTime)
+        console.info('[AI Proxy] Cloudflare Edge Proxy success', { latencyMs })
         if (logCallback) {
           logCallback(`[Model: ${model.name}] Gọi qua Server Proxy (Cloudflare Edge) thành công!`, 'success')
         }
@@ -331,8 +344,16 @@ export async function callAIModel(
       }
       throw new Error(json.error || 'Gateway returned invalid response')
     } catch (e: any) {
+      const errorMsg = e.name === 'AbortError' ? 'Timeout (10s)' : (e.message || String(e))
+      const latencyMs = Math.round(performance.now() - workerStartTime)
+      console.warn('[AI Proxy] Cloudflare Edge Proxy failed, falling back to GAS', { error: errorMsg, latencyMs })
       if (logCallback) {
-        logCallback(`[Model: ${model.name}] Lỗi khi gọi qua Server Proxy (Cloudflare Edge): ${e.message}. Đang dùng chế độ dự phòng sang GAS...`, 'warning')
+        logCallback(`[Model: ${model.name}] Lỗi khi gọi qua Server Proxy (Cloudflare Edge): ${errorMsg}. Đang dùng chế độ dự phòng sang GAS...`, 'warning')
+      }
+    } finally {
+      clearTimeout(timeoutId)
+      if (signal) {
+        signal.removeEventListener('abort', onAbort)
       }
     }
   }
@@ -341,6 +362,7 @@ export async function callAIModel(
   if (logCallback) {
     logCallback(`[Model: ${model.name}] Chuyển tiếp yêu cầu qua Server Proxy (GAS)...`, 'info')
   }
+  const gasStartTime = performance.now()
   try {
     const res = await api.callAiProxy({
       provider: model.provider,
@@ -355,6 +377,8 @@ export async function callAIModel(
     if (!res.ok) {
       throw new Error(res.message || 'AI Proxy failed')
     }
+    const latencyMs = Math.round(performance.now() - gasStartTime)
+    console.info('[AI Proxy] GAS fallback success', { latencyMs })
     if (logCallback) {
       logCallback(`[Model: ${model.name}] Gọi qua Server Proxy (GAS) thành công!`, 'success')
     }

@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { validateAIResult } from '../aiResultValidator'
+import { repairAndNormalizeJSON } from '@/domain/booking/bookingNormalizer'
 
 describe('AI Result Validator Tests', () => {
   const mockValidResult = {
@@ -54,5 +55,23 @@ describe('AI Result Validator Tests', () => {
     const check = validateAIResult(invalid)
     expect(check.accepted).toBe(false)
     expect(check.reasons[0]).toContain('Giờ đặt bàn nằm ngoài khung hoạt động')
+  })
+
+  it('should normalize and validate flat/legacy JSON', () => {
+    const flatResult = {
+      name: 'Anh Nam',
+      phone: '0901234567',
+      date: '25/06/2026',
+      time: '19:00',
+      guestCount: 5
+    }
+    const normalized = repairAndNormalizeJSON(flatResult)
+    const check = validateAIResult(normalized)
+    expect(check.accepted).toBe(true)
+    expect(check.normalized.customer.name).toBe('Anh Nam')
+    expect(check.normalized.customer.phone).toBe('0901234567')
+    expect(check.normalized.booking.event_date).toBe('25/06/2026')
+    expect(check.normalized.booking.event_time).toBe('19:00')
+    expect(check.normalized.booking.guest_count).toBe(5)
   })
 })

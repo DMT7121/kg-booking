@@ -272,12 +272,12 @@ export function repairAndNormalizeJSON(raw: any, inputType = 'unknown'): any {
     return curr !== undefined ? curr : defVal
   }
 
-  let customerName = safeGet(parsed, 'customer.name', parsed.customer_name || "")
-  const customerPhone = safeGet(parsed, 'customer.phone', parsed.customer_phone || "")
+  let customerName = safeGet(parsed, 'customer.name', parsed.customer_name || parsed.name || "")
+  const customerPhone = safeGet(parsed, 'customer.phone', parsed.customer_phone || parsed.phone || "")
 
-  const eventDate = safeGet(parsed, 'booking.event_date', safeGet(parsed, 'reservation.date', parsed.event_date || ""))
-  const eventTime = safeGet(parsed, 'booking.event_time', safeGet(parsed, 'reservation.time', parsed.event_time || ""))
-  const guestCount = safeGet(parsed, 'booking.guest_count', safeGet(parsed, 'reservation.pax', parsed.guest_count || null))
+  const eventDate = safeGet(parsed, 'booking.event_date', safeGet(parsed, 'reservation.date', parsed.event_date || parsed.date || ""))
+  const eventTime = safeGet(parsed, 'booking.event_time', safeGet(parsed, 'reservation.time', parsed.event_time || parsed.time || ""))
+  const guestCount = safeGet(parsed, 'booking.guest_count', safeGet(parsed, 'reservation.pax', parsed.guest_count || parsed.guestCount || parsed.pax || null))
   const tableCount = safeGet(parsed, 'booking.table_count', parsed.table_count || null)
   const tableNumber = safeGet(parsed, 'booking.table_number', safeGet(parsed, 'reservation.table_code', parsed.table_number || ""))
   const needRaw = safeGet(parsed, 'booking.need', safeGet(parsed, 'reservation.type', parsed.booking_need || ""))

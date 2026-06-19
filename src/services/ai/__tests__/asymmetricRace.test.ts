@@ -74,4 +74,36 @@ describe('Asymmetric Race Tests', () => {
     expect(result.acceptedFrom).toBe('quality')
     expect(result.parsed.customer.name).toBe('Chị Vy')
   })
+
+  it('should allow fast model to win if it returns a flat JSON that is valid after normalization', async () => {
+    const flatJsonResponse = JSON.stringify({
+      name: 'Anh Nam',
+      phone: '0901234567',
+      date: '25/06/2026',
+      time: '19:00',
+      guestCount: 5
+    })
+
+    vi.mocked(callAIModel).mockImplementation((req) => {
+      if (req.model.id === 'fast') {
+        return Promise.resolve(flatJsonResponse)
+      }
+      return new Promise((resolve) => setTimeout(() => resolve(validJsonResponse), 1000))
+    })
+
+    const result = await runAsymmetricRace({
+      systemPrompt: 'sys',
+      userPrompt: 'user',
+      image: null,
+      fastModel: mockFastModel,
+      qualityModel: mockQualityModel,
+      configKeys: {},
+      apiGatewayUrl: '',
+      aiMode: 'direct'
+    })
+
+    expect(result.acceptedFrom).toBe('fast')
+    expect(result.parsed.customer.name).toBe('Anh Nam')
+    expect(result.parsed.booking.event_date).toBe('25/06/2026')
+  })
 })
