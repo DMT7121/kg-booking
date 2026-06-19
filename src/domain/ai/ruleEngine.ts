@@ -197,28 +197,197 @@ export function segmentInputBlocksCompat(text: string) {
   }
 }
 
+export function cleanHonorificPrefix(name: string): string {
+  let cleaned = name.trim()
+  const honorifics = ['anh', 'chi', 'chị', 'em', 'chu', 'chú', 'co', 'cô', 'ong', 'ông', 'ba', 'bà', 'be', 'bé', 'bac', 'bác', 'khach', 'khách', 'mr', 'ms', 'mrs', 'la', 'là']
+  for (const h of honorifics) {
+    const regex = new RegExp(`^(?:${h})\\s+`, 'i')
+    if (regex.test(cleaned)) {
+      cleaned = cleaned.replace(regex, '').trim()
+    }
+  }
+  return cleaned
+}
+
+export const AMBIGUOUS_VIETNAMESE_NAME_TOKENS = new Set([
+  'oanh', 'son', 'sơn', 'hanh', 'hạnh', 'thang', 'thắng', 'phuc', 'phúc',
+  'bang', 'bằng', 'hai', 'hải', 'vui', 'mai', 'duc', 'đức', 'tam', 'tâm',
+  'hien', 'hiền', 'huong', 'hương', 'dung', 'dũng', 'loan', 'lanh', 'lành'
+])
+
+export function evaluateNameConfidence(name: string, normalizedText: string): {
+  confidence: number
+  signals: string[]
+  risks: string[]
+} {
+  const nameClean = (name || '').trim()
+  const nameCleanLower = nameClean.toLowerCase()
+  const nameCleanNoAccent = stripAccents(nameCleanLower)
+  const words = nameCleanLower.split(/\s+/).filter(Boolean)
+  const isSingleToken = words.length === 1
+  
+  let score = 0.80 // base confidence
+  const signals: string[] = []
+  const risks: string[] = []
+
+  const hasAmbiguousToken = words.some(w => {
+    const noAccent = stripAccents(w)
+    return AMBIGUOUS_VIETNAMESE_NAME_TOKENS.has(w) || AMBIGUOUS_VIETNAMESE_NAME_TOKENS.has(noAccent)
+  })
+
+  if (isSingleToken && hasAmbiguousToken) {
+    score -= 0.35
+    risks.push('ambiguous_single_token_name')
+  }
+
+  const escapedName = nameClean.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&')
+  const honorificRegex = new RegExp(`\\b(anh|chi|chị|em|chu|chú|co|cô|ong|ông|ba|bà|be|bé|khach|khách)\\s+${escapedName}\\b`, 'i')
+  if (honorificRegex.test(normalizedText)) {
+    score += 0.20
+    signals.push('honorific_before_name')
+  }
+
+  const introRegex = new RegExp(`\\b(ten la|tên là|ten em la|tên em là|ten anh la|tên anh là|ten chi la|tên chị là|minh la|mình là|em la|em là|anh la|anh là|chi la|chị là)\\s+${escapedName}\\b`, 'i')
+  if (introRegex.test(normalizedText)) {
+    score += 0.35
+    signals.push('introduction_phrase')
+  }
+
+  const contactPrefixRegex = new RegExp(`\\b(lien he|liên hệ|sdt|sđt)\\s+(?:anh\\s+|chi\\s+|chị\\s+)?${escapedName}\\b`, 'i')
+  if (contactPrefixRegex.test(normalizedText)) {
+    score += 0.25
+    signals.push('contact_prefix')
+  }
+
+  const phoneRegex = /(0[35789]\d{7,9})/g
+  const matches = [...normalizedText.matchAll(phoneRegex)]
+  if (matches.length > 0) {
+    const nameIndex = normalizedText.toLowerCase().indexOf(nameCleanLower)
+    if (nameIndex !== -1) {
+      const nameEnd = nameIndex + nameClean.length
+      const hasPhoneNearby = matches.some(m => {
+        const phoneIdx = m.index!
+        const dist = phoneIdx < nameIndex ? (nameIndex - (phoneIdx + m[0].length)) : (phoneIdx - nameEnd)
+        return dist >= 0 && dist <= 35
+      })
+      if (hasPhoneNearby) {
+        score += 0.35
+        signals.push('phone_nearby')
+      }
+    }
+  }
+
+  if (words.length >= 2) {
+    score += 0.15
+    signals.push('multi_token_name')
+  }
+
+  if (nameCleanNoAccent === 'mai') {
+    const maiContextRegex = new RegExp(`\\b(ngay|ngày|toi|tối|chieu|chiều|trua|trưa|sang|sáng|den|đến|hen|hẹn|thoi|thôi)\\s+${escapedName}\\b`, 'i')
+    if (maiContextRegex.test(normalizedText)) {
+      score -= 0.40
+      risks.push('mai_time_context')
+    }
+    const maiAskRegex = new RegExp(`${escapedName}\\s+(?:dat\\s+)?(?:duoc|được)\\s+(?:khong|không)`, 'i')
+    if (maiAskRegex.test(normalizedText)) {
+      score -= 0.25
+      risks.push('ask_context')
+    }
+  }
+
+  if (nameCleanNoAccent === 'son' || nameCleanNoAccent === 'sơn') {
+    const sonVerbRegex = new RegExp(`\\b(nuoc|nước|son|sơn)\\s+${escapedName}\\b|\\b${escapedName}\\s+(lai|lại|tuong|tường)\\b`, 'i')
+    if (sonVerbRegex.test(normalizedText)) {
+      score -= 0.40
+      risks.push('son_verb_context')
+    }
+  }
+
+  if (nameCleanNoAccent === 'vui') {
+    const vuiPhraseRegex = new RegExp(`\\b${escapedName}\\s+(long|lòng|ve|vẻ)\\b`, 'i')
+    if (vuiPhraseRegex.test(normalizedText)) {
+      score -= 0.40
+      risks.push('vui_phrase_context')
+    }
+  }
+
+  if (nameCleanNoAccent === 'bang' || nameCleanNoAccent === 'bằng') {
+    const bangPhraseRegex = new RegExp(`\\b${escapedName}\\s+(momo|ck|chuyen|chuyển|tien|tiền|the|thẻ|mat|mặt|va|và)\\b|\\b(dat|đặt|thanh\\s+toan|thanh\\s+toán|tra|trả)\\s+${escapedName}\\b`, 'i')
+    if (bangPhraseRegex.test(normalizedText)) {
+      score -= 0.40
+      risks.push('bang_preposition_context')
+    }
+  }
+
+  const finalScore = parseFloat(Math.min(1.0, Math.max(0.0, score)).toFixed(2))
+  return {
+    confidence: finalScore,
+    signals,
+    risks
+  }
+}
+
 export function classifyPeopleNames(text: string) {
   const peopleNames: string[] = []
   const bookerCandidates: string[] = []
   const partyOwnerCandidates: string[] = []
   
+  const invalidNameSet = new Set(['dat', 'ban', 'giup', 'minh', 'toi', 'ngay', 'gio', 'pax', 'khach', 'nguoi', 'sdt', 'lien', 'he', 'cho', 'duoc', 'khong', 'nhe', 'nha', 'ho', 'lam', 'sao', 'nao', 'chua', 'co', 'hoi', 'hỏi', 'xin', 'xem', 'gui', 'gửi', 'nhan', 'nhận', 'co', 'có', 'con', 'còn', 'la', 'là'])
+
   const lines = text.split('\n')
   for (const line of lines) {
     const lineClean = line.trim()
     if (!lineClean) continue
     
-    const nameRegex = /(?:anh|chị|em|chú|cô|ông|bà|anh|chi|em|chu|co|ong|ba|bé|be|khách|khach|tên|ten|đặt|dat|cho|liên hệ|lien he)\s+(\p{L}+(?:\s+(?!cho\b|dat\b|dat\s+ban|xin\b|gui\b|nha\b|ngay\b|luc\b|vao\b|sdt\b|ban\b)\p{L}+){0,3})/gu
+    // Extract capitalized words next to phone numbers as candidates
+    const phoneRegex = /(0[35789]\d{7,9})/g
+    let phoneMatch
+    while ((phoneMatch = phoneRegex.exec(lineClean)) !== null) {
+      const phoneIndex = phoneMatch.index!
+      const beforeText = lineClean.slice(Math.max(0, phoneIndex - 20), phoneIndex).trim()
+      const afterText = lineClean.slice(phoneIndex + phoneMatch[0].length, phoneIndex + phoneMatch[0].length + 20).trim()
+      
+      // Look for a single word before the phone
+      const beforeWords = beforeText.split(/\s+/)
+      const lastWord = beforeWords[beforeWords.length - 1]
+      if (lastWord && /^[A-Z\p{Lu}][\p{Ll}]+$/u.test(lastWord)) {
+        const cleanName = cleanHonorificPrefix(lastWord)
+        if (cleanName && !/^(mai|nay|kia|truoc|sau|sang|chieu|toi|ngay|gio|pax|khach|nguoi|ban|dat|mon|set|combo|happy|birthday|hbd|hpbd|sinh|nhat|thoi|noi|giup|giom|cho|sdt|lien|he|table|pax|duoc|khong)$/i.test(stripAccents(cleanName))) {
+          const nameWords = stripAccents(cleanName).toLowerCase().split(/\s+/)
+          const hasInvalidWord = nameWords.some(w => invalidNameSet.has(w))
+          if (!hasInvalidWord && !peopleNames.includes(cleanName)) {
+            peopleNames.push(cleanName)
+          }
+        }
+      }
+      
+      // Look for a single word after the phone
+      const afterWords = afterText.split(/\s+/)
+      const firstWord = afterWords[0]
+      if (firstWord && /^[A-Z\p{Lu}][\p{Ll}]+$/u.test(firstWord)) {
+        const cleanName = cleanHonorificPrefix(firstWord)
+        if (cleanName && !/^(mai|nay|kia|truoc|sau|sang|chieu|toi|ngay|gio|pax|khach|nguoi|ban|dat|mon|set|combo|happy|birthday|hbd|hpbd|sinh|nhat|thoi|noi|giup|giom|cho|sdt|lien|he|table|pax|duoc|khong)$/i.test(stripAccents(cleanName))) {
+          const nameWords = stripAccents(cleanName).toLowerCase().split(/\s+/)
+          const hasInvalidWord = nameWords.some(w => invalidNameSet.has(w))
+          if (!hasInvalidWord && !peopleNames.includes(cleanName)) {
+            peopleNames.push(cleanName)
+          }
+        }
+      }
+    }
+
+    const nameRegex = /(?:anh|chị|em|chú|cô|ông|bà|anh|chi|em|chu|co|ong|ba|bé|be|khách|khach|tên|ten|đặt|dat|cho|liên hệ|lien he)\s+(\p{L}+(?:\s+(?!cho\b|dat\b|đặt\b|dat\s+ban|đặt\s+bàn|xin\b|gui\b|gửi\b|nha\b|nhà\b|ngay\b|ngày\b|luc\b|lúc\b|vao\b|vào\b|sdt\b|sđt\b|ban\b|bàn\b)\p{L}+){0,3})/gui
     let match
     while ((match = nameRegex.exec(lineClean)) !== null) {
-      const name = match[1].trim()
+      let name = match[1].trim()
+      name = cleanHonorificPrefix(name)
       if (name.length <= 1) continue
-      if (/^(mai|nay|kia|truoc|sau|sang|chieu|toi|ngay|gio|pax|khach|nguoi|ban|dat|mon|set|combo|happy|birthday|hbd|hpbd|sinh|nhat|thoi|noi|giup|giom|cho|sdt|lien|he|table|pax)$/i.test(stripAccents(name))) {
+      if (/^(mai|nay|kia|truoc|sau|sang|chieu|toi|ngay|gio|pax|khach|nguoi|ban|dat|mon|set|combo|happy|birthday|hbd|hpbd|sinh|nhat|thoi|noi|giup|giom|cho|sdt|lien|he|table|pax|duoc|khong)$/i.test(stripAccents(name))) {
         continue
       }
       // Bộ lọc từ cấm cho tên khớp từ regex nameRegex:
       const nameWords = stripAccents(name).toLowerCase().split(/\s+/)
-      const invalidNameWords = new Set(['dat', 'ban', 'giup', 'minh', 'toi', 'ngay', 'gio', 'pax', 'khach', 'nguoi', 'sdt', 'lien', 'he', 'cho'])
-      const hasInvalidWord = nameWords.some(w => invalidNameWords.has(w))
+      const hasInvalidWord = nameWords.some(w => invalidNameSet.has(w))
       if (hasInvalidWord) continue
 
       if (!peopleNames.includes(name)) {
@@ -262,30 +431,31 @@ export function classifyPeopleNames(text: string) {
 
       if (isPureLetters && !hasStopWord) {
         const candidateName = cleanWords.join(' ')
-        if (!peopleNames.includes(candidateName)) {
-          peopleNames.push(candidateName)
+        const cleanName = cleanHonorificPrefix(candidateName)
+        if (cleanName && !peopleNames.includes(cleanName)) {
+          peopleNames.push(cleanName)
         }
       }
     }
   }
 
   const specialPatterns = [
-    { regex: /(?:sinh nhật|sinh nhat|hbd|hpbd|happy birthday|thôi nôi|thoi noi|đầy tháng|day thang|bé|be)\s+of\s+(\p{L}+(?:\s+(?!cho\b|dat\b|dat\s+ban|xin\b|gui\b|nha\b|ngay\b|luc\b|vao\b|sdt\b|ban\b)\p{L}+){0,3})/ugi, isPartyOwner: true },
-    { regex: /(?:sinh nhật|sinh nhat|hbd|hpbd|happy birthday|thôi nôi|thoi noi|đầy tháng|day thang|bé|be)\s+(\p{L}+(?:\s+(?!cho\b|dat\b|dat\s+ban|xin\b|gui\b|nha\b|ngay\b|luc\b|vao\b|sdt\b|ban\b)\p{L}+){0,3})/ugi, isPartyOwner: true },
-    { regex: /(?:bảng tên|bang ten|chữ|chu)\s+(\p{L}+(?:\s+(?!cho\b|dat\b|dat\s+ban|xin\b|gui\b|nha\b|ngay\b|luc\b|vao\b|sdt\b|ban\b)\p{L}+){0,3})/ugi, isPartyOwner: true },
-    { regex: /(?:người đặt|nguoi dat|liên hệ|lien he|anh|chị|chi|anh|sđt|sdt|tên|ten)\s+(\p{L}+(?:\s+(?!cho\b|dat\b|dat\s+ban|xin\b|gui\b|nha\b|ngay\b|luc\b|vao\b|sdt\b|ban\b)\p{L}+){0,3})/ugi, isBooker: true },
-    { regex: /\b((?:cty|công ty|đoàn|doan|team|group|phòng|phong)\s+\p{L}+(?:\s+(?!cho\b|dat\b|dat\s+ban|xin\b|gui\b|nha\b|ngay\b|luc\b|vao\b|sdt\b|ban\b)\p{L}+){0,4})\b/ugi, isBooker: true, isPartyOwner: true }
+    { regex: /(?:sinh nhật|sinh nhat|hbd|hpbd|happy birthday|thôi nôi|thoi noi|đầy tháng|day thang|bé|be)\s+of\s+(\p{L}+(?:\s+(?!cho\b|dat\b|đặt\b|dat\s+ban|đặt\s+bàn|xin\b|gui\b|gửi\b|nha\b|nhà\b|ngay\b|ngày\b|luc\b|lúc\b|vao\b|vào\b|sdt\b|sđt\b|ban\b|bàn\b)\p{L}+){0,3})/ugi, isPartyOwner: true },
+    { regex: /(?:sinh nhật|sinh nhat|hbd|hpbd|happy birthday|thôi nôi|thoi noi|đầy tháng|day thang|bé|be)\s+(\p{L}+(?:\s+(?!cho\b|dat\b|đặt\b|dat\s+ban|đặt\s+bàn|xin\b|gui\b|gửi\b|nha\b|nhà\b|ngay\b|ngày\b|luc\b|lúc\b|vao\b|vào\b|sdt\b|sđt\b|ban\b|bàn\b)\p{L}+){0,3})/ugi, isPartyOwner: true },
+    { regex: /(?:bảng tên|bang ten|chữ|chu)\s+(\p{L}+(?:\s+(?!cho\b|dat\b|đặt\b|dat\s+ban|đặt\s+bàn|xin\b|gui\b|gửi\b|nha\b|nhà\b|ngay\b|ngày\b|luc\b|lúc\b|vao\b|vào\b|sdt\b|sđt\b|ban\b|bàn\b)\p{L}+){0,3})/ugi, isPartyOwner: true },
+    { regex: /(?:người đặt|nguoi dat|liên hệ|lien he|anh|chị|chi|anh|sđt|sdt|tên|ten)\s+(\p{L}+(?:\s+(?!cho\b|dat\b|đặt\b|dat\s+ban|đặt\s+bàn|xin\b|gui\b|gửi\b|nha\b|nhà\b|ngay\b|ngày\b|luc\b|lúc\b|vao\b|vào\b|sdt\b|sđt\b|ban\b|bàn\b)\p{L}+){0,3})/ugi, isBooker: true },
+    { regex: /\b((?:cty|công ty|đoàn|doan|team|group|phòng|phong)\s+\p{L}+(?:\s+(?!cho\b|dat\b|đặt\b|dat\s+ban|đặt\s+bàn|xin\b|gui\b|gửi\b|nha\b|nhà\b|ngay\b|ngày\b|luc\b|lúc\b|vao\b|vào\b|sdt\b|sđt\b|ban\b|bàn\b)\p{L}+){0,4})\b/ugi, isBooker: true, isPartyOwner: true }
   ]
 
   specialPatterns.forEach(({ regex, isPartyOwner, isBooker }) => {
     let match
     while ((match = regex.exec(text)) !== null) {
-      const name = match[1].trim()
-      if (name.length > 1 && !/^(mai|nay|kia|truoc|sau|sang|chieu|toi|ngay|gio|pax|khach|nguoi|ban|dat|mon|set|combo|happy|birthday|hbd|hpbd|sinh|nhat|thoi|noi|giup|giom|cho|sdt|lien|he|table|pax)$/i.test(stripAccents(name))) {
+      let name = match[1].trim()
+      name = cleanHonorificPrefix(name)
+      if (name.length > 1 && !/^(mai|nay|kia|truoc|sau|sang|chieu|toi|ngay|gio|pax|khach|nguoi|ban|dat|mon|set|combo|happy|birthday|hbd|hpbd|sinh|nhat|thoi|noi|giup|giom|cho|sdt|lien|he|table|pax|duoc|khong)$/i.test(stripAccents(name))) {
         // Bộ lọc từ cấm cho tên khớp từ specialPatterns:
         const nameWords = stripAccents(name).toLowerCase().split(/\s+/)
-        const invalidNameWords = new Set(['dat', 'ban', 'giup', 'minh', 'toi', 'ngay', 'gio', 'pax', 'khach', 'nguoi', 'sdt', 'lien', 'he', 'cho'])
-        const hasInvalidWord = nameWords.some(w => invalidNameWords.has(w))
+        const hasInvalidWord = nameWords.some(w => invalidNameSet.has(w))
         if (hasInvalidWord) continue
 
         if (!peopleNames.includes(name)) {
@@ -835,17 +1005,66 @@ export function extractByRules(normalizedText: string) {
   if (phone) phone = cleanPhoneNumber(phone)
   
   let customer_name: string | null = null
+  let customer_name_confidence = 1.0
+  let customer_name_metadata: any = null
+
   const nameResults = classifyPeopleNames(normalizedText)
   const requestKeywords = /\byeu\s+cau\b|\bphong\s+lanh\b|\btrang\s+tri\b|\bbong\s+bong\b|\bbong\s+bay\b|\bcom\s+chien\b|\bthuc\s+don\b|\bmon\s+an\b|\bcoc\b|\bchuyen\s+khoan\b|\bset\s+menu\b|\bcombo\b|\bbao\s+gia\b|\bbia\b|\bnuoc\s+ngot\b/i
   const filterValidNames = (names: string[]) => names.filter(n => !requestKeywords.test(stripAccents(n).toLowerCase()))
-  
-  const validBookers = filterValidNames(nameResults.bookerCandidates)
-  if (validBookers.length > 0) {
-    customer_name = validBookers[0]
+
+  const candidatesList = filterValidNames(nameResults.peopleNames)
+  const confidentCandidates = candidatesList.filter(c => evaluateNameConfidence(c, normalizedText).confidence >= 0.55)
+
+  if (confidentCandidates.length > 1) {
+    customer_name = null
+    customer_name_confidence = 0.0
+    customer_name_metadata = { confidence: 0.0, signals: [], risks: ['conflicting_multiple_names'] }
+  } else if (candidatesList.length > 1) {
+    let bestName: string | null = null
+    let bestScore = -1
+    let bestEval: any = null
+    let hasTie = false
+
+    for (const nameCandidate of candidatesList) {
+      const evalRes = evaluateNameConfidence(nameCandidate, normalizedText)
+      if (evalRes.confidence > bestScore) {
+        bestScore = evalRes.confidence
+        bestName = nameCandidate
+        bestEval = evalRes
+        hasTie = false
+      } else if (evalRes.confidence === bestScore) {
+        hasTie = true
+      }
+    }
+
+    if (bestName && !hasTie && bestScore >= 0.80) {
+      customer_name = bestName
+      customer_name_confidence = bestScore
+      customer_name_metadata = bestEval
+    } else {
+      customer_name = null
+      customer_name_confidence = 0.0
+      customer_name_metadata = { confidence: 0.0, signals: [], risks: ['conflicting_multiple_names'] }
+    }
   } else {
-    const potentialBookers = filterValidNames(nameResults.peopleNames).filter(name => !nameResults.partyOwnerCandidates.includes(name))
-    if (potentialBookers.length > 0) {
-      customer_name = potentialBookers[0]
+    const validBookers = filterValidNames(nameResults.bookerCandidates)
+    if (validBookers.length > 0) {
+      customer_name = validBookers[0]
+    } else {
+      const potentialBookers = filterValidNames(nameResults.peopleNames).filter(name => !nameResults.partyOwnerCandidates.includes(name))
+      if (potentialBookers.length > 0) {
+        customer_name = potentialBookers[0]
+      }
+    }
+
+    if (customer_name) {
+      const evalRes = evaluateNameConfidence(customer_name, normalizedText)
+      customer_name_confidence = evalRes.confidence
+      customer_name_metadata = evalRes
+      if (customer_name_confidence < 0.55) {
+        customer_name = null
+        customer_name_confidence = 0.0
+      }
     }
   }
 
@@ -1043,6 +1262,8 @@ export function extractByRules(normalizedText: string) {
 
   return {
     customer_name,
+    customer_name_confidence,
+    customer_name_metadata,
     phone,
     event_date,
     event_time,

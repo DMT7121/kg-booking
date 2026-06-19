@@ -3,6 +3,13 @@
  * Migrated from King's Grill Manager AI v1.8.6
  */
 
+export const AI_TIMEOUTS = {
+  fastModelMs: 1200,
+  qualityModelMs: 4500,
+  proxyMs: 10000,
+  totalBudgetMs: 12000
+}
+
 // --- PLATFORM-CENTRIC AI PROVIDERS ---
 export interface PlatformConfig {
   name: string

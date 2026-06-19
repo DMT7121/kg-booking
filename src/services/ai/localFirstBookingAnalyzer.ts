@@ -14,6 +14,7 @@ export function analyzeBookingLocally(text: string): LocalBookingExtractionResul
   let nameVal = ruleResult.customer_name || ''
   let nameConf = 0
   if (nameVal) {
+    nameConf = (ruleResult as any).customer_name_confidence ?? 0.95
     const cleanNameVal = stripAccents(nameVal).toLowerCase().trim()
     const filteredNames = nameResults.peopleNames.filter((n: string) => {
       const cleanN = stripAccents(n).toLowerCase().trim()
@@ -23,10 +24,8 @@ export function analyzeBookingLocally(text: string): LocalBookingExtractionResul
       return cleanN !== cleanNameVal
     })
     
-    if (filteredNames.length === 0) {
-      nameConf = 0.98
-    } else {
-      nameConf = 0.95
+    if (filteredNames.length > 0 && nameConf > 0.80) {
+      nameConf = 0.78
     }
   }
 

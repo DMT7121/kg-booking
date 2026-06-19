@@ -73,5 +73,67 @@ describe('Rule Engine Tests', () => {
 
     vi.useRealTimers()
   })
+
+  describe('Vietnamese Name Ambiguity Guard', () => {
+    it('should accept ambiguous names with strong context (honorific, phone nearby, intro phrases)', () => {
+      const inputs = [
+        'Anh Sơn 0901234567 đặt bàn 5 người tối nay 7h',
+        'Chị Hạnh đặt bàn 6 người lúc 19h, SĐT 0987654321',
+        'Tên em là Oanh, đặt bàn 4 người tối mai',
+        'Liên hệ anh Phúc 0987654321'
+      ]
+
+      const expectedNames = ['Sơn', 'Hạnh', 'Oanh', 'Phúc']
+
+      inputs.forEach((input, index) => {
+        const normalized = preNormalizeInput(input)
+        const result = extractByRules(normalized)
+        expect(result.customer_name).toBe(expectedNames[index])
+        expect(result.customer_name_confidence).toBeGreaterThanOrEqual(0.80)
+      })
+    })
+
+    it('should reject or ignore ambiguous names with weak or negative context', () => {
+      const negativeInputs = [
+        'Sơn lại bàn này giúp em',
+        'Mai đặt được không?',
+        'Hạnh phúc quá',
+        'Vui lòng đặt bàn 5 người',
+        'Cho em hỏi tối mai còn bàn không?'
+      ]
+
+      negativeInputs.forEach(input => {
+        const normalized = preNormalizeInput(input)
+        const result = extractByRules(normalized)
+        // Ambiguous name without context should either not be extracted at all (null),
+        // or have confidence less than 0.55 (which makes extractByRules nullify it).
+        expect(result.customer_name).toBeNull()
+      })
+    })
+
+    it('should accept ambiguous name with phone nearby as a strong signal', () => {
+      const inputs = [
+        'Sơn 0901234567 đặt bàn 5 người tối nay',
+        'Oanh 0987654321 bàn 4 người 7h'
+      ]
+      const expectedNames = ['Sơn', 'Oanh']
+
+      inputs.forEach((input, index) => {
+        const normalized = preNormalizeInput(input)
+        const result = extractByRules(normalized)
+        expect(result.customer_name).toBe(expectedNames[index])
+        expect(result.customer_name_confidence).toBeGreaterThanOrEqual(0.80)
+      })
+    })
+
+    it('should reject or flag when there are multiple conflicting name candidates', () => {
+      const input = 'Anh Sơn đặt bàn cho chị Hạnh 5 người tối nay, liên hệ 0901234567'
+      const normalized = preNormalizeInput(input)
+      const result = extractByRules(normalized)
+      // Since there is a tie / conflict and no single best candidate with confidence >= 0.80
+      expect(result.customer_name).toBeNull()
+      expect(result.customer_name_confidence).toBe(0.0)
+    })
+  })
 })
 

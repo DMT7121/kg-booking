@@ -6,7 +6,11 @@ import {
   getCooldownReason, 
   getActiveCooldowns, 
   clearAllCooldowns,
-  handleModelFailure
+  handleModelFailure,
+  isProviderCircuitOpen,
+  reportProviderSuccess,
+  reportProviderFailure,
+  getProviderHealth
 } from '../circuitBreaker'
 
 describe('Circuit Breaker (Model Cooldown) Service', () => {
@@ -99,5 +103,71 @@ describe('Circuit Breaker (Model Cooldown) Service', () => {
     const remaining = getRemainingCooldown(modelId)
     expect(remaining).toBeGreaterThan(50)
     expect(remaining).toBeLessThanOrEqual(60)
+  })
+
+  describe('Provider Circuit Breaker tests', () => {
+    it('should open provider circuit immediately on rate limit (HTTP 429)', () => {
+      const provider = 'groq'
+      expect(isProviderCircuitOpen(provider)).toBe(false)
+
+      reportProviderFailure(provider, 'rate_limited', 'HTTP 429 Rate Limit')
+
+      expect(isProviderCircuitOpen(provider)).toBe(true)
+      const health = getProviderHealth(provider)
+      expect(health.status).toBe('open')
+      expect(health.lastFailureKind).toBe('rate_limited')
+    })
+
+    it('should open provider circuit after 3 consecutive failures', () => {
+      const provider = 'google'
+      expect(isProviderCircuitOpen(provider)).toBe(false)
+
+      reportProviderFailure(provider, 'server_error', 'HTTP 500 Server Error')
+      expect(isProviderCircuitOpen(provider)).toBe(false)
+
+      reportProviderFailure(provider, 'timeout', 'Request Timeout')
+      expect(isProviderCircuitOpen(provider)).toBe(false)
+
+      reportProviderFailure(provider, 'network_error', 'Network Connection Error')
+      expect(isProviderCircuitOpen(provider)).toBe(true)
+
+      const health = getProviderHealth(provider)
+      expect(health.status).toBe('open')
+      expect(health.consecutiveFailures).toBe(3)
+    })
+
+    it('should close provider circuit on success', () => {
+      const provider = 'cerebras'
+      reportProviderFailure(provider, 'rate_limited', 'HTTP 429 Rate Limit')
+      expect(isProviderCircuitOpen(provider)).toBe(true)
+
+      reportProviderSuccess(provider)
+      expect(isProviderCircuitOpen(provider)).toBe(false)
+      expect(getProviderHealth(provider).consecutiveFailures).toBe(0)
+    })
+
+    it('should transition provider status to half-open when cooldown expires', async () => {
+      const provider = 'sambanova'
+      const health = getProviderHealth(provider)
+      
+      // Simulate rate limit to open circuit
+      reportProviderFailure(provider, 'rate_limited', 'HTTP 429 Rate Limit')
+      expect(health.status).toBe('open')
+
+      // Manually set cooldown to the past to simulate expiry
+      health.cooldownUntil = Date.now() - 1000
+
+      // Accessing health triggers transition
+      const activeHealth = getProviderHealth(provider)
+      expect(activeHealth.status).toBe('half_open')
+    })
+
+    it('should classify invalid output validation as invalid_payload kind', () => {
+      const modelId = 'llama-3.3-70b-versatile' // maps to groq
+      handleModelFailure(modelId, new Error('invalid output format or validation failed'))
+
+      const health = getProviderHealth('groq')
+      expect(health.lastFailureKind).toBe('invalid_payload')
+    })
   })
 })

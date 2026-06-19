@@ -59,7 +59,7 @@ export function evaluateBookingBypass(
   if (!extracted.customerName.value || extracted.customerName.value.trim() === '') {
     canBypassLLM = false
     reasons.push('Thiếu tên khách đặt bàn.')
-  } else if (extracted.customerName.confidence < minConfidence) {
+  } else if (extracted.customerName.confidence < 0.80) {
     canBypassLLM = false
     reasons.push(`Độ tin cậy tên khách đặt quá thấp (${extracted.customerName.confidence}).`)
   }

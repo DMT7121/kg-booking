@@ -6,7 +6,7 @@ import type { AIModel } from '@/utils/constants'
 import { runAsymmetricRace } from './asymmetricRace'
 import { getModelPolicy } from './modelPolicy'
 import { BOOKING_EXTRACTION_SCHEMA } from '@/domain/ai/bookingExtractionSchema'
-import { isModelCooldown, getCooldownReason } from './circuitBreaker'
+import { isModelCooldown, getCooldownReason, isProviderCircuitOpen, reportProviderSuccess, handleModelFailure } from './circuitBreaker'
 
 
 export interface AIRoutingInfo {
@@ -104,16 +104,16 @@ export async function runAIRouter(request: {
     .filter(m => m.type === type)
     .filter(m => m.provider === 'pollinations' || keysStatus[m.provider]?.configured)
     
-  const activeCandidates = candidates.filter(m => !isModelCooldown(m.id))
+  const activeCandidates = candidates.filter(m => !isModelCooldown(m.id) && !isProviderCircuitOpen(m.provider))
   if (activeCandidates.length > 0) {
     if (logCallback && activeCandidates.length < candidates.length) {
-      const cooldownList = candidates.filter(m => isModelCooldown(m.id))
-      logCallback(`[AI Router] Bo qua ${cooldownList.length} model dang trong thoi gian cooldown: ${cooldownList.map(m => `${m.name} (${getCooldownReason(m.id)})`).join(', ')}`, 'warning')
+      const cooldownList = candidates.filter(m => isModelCooldown(m.id) || isProviderCircuitOpen(m.provider))
+      logCallback(`[AI Router] Bo qua ${cooldownList.length} model dang trong thoi gian cooldown hoac provider circuit open: ${cooldownList.map(m => `${m.name} (${isModelCooldown(m.id) ? getCooldownReason(m.id) : 'Provider Circuit Open'})`).join(', ')}`, 'warning')
     }
     candidates = activeCandidates
   } else if (candidates.length > 0) {
     if (logCallback) {
-      logCallback(`[AI Router] Tat ca model deu dang cooldown. Kich hoat lai de thu phuc hoi.`, 'warning')
+      logCallback(`[AI Router] Tat ca model/provider deu dang cooldown hoac open circuit. Kich hoat lai de thu phuc hoi.`, 'warning')
     }
   }
     
@@ -283,6 +283,7 @@ export async function runAIRouter(request: {
             if (logCallback) {
               logCallback(`[AI Router] Model [${model.name}] trich xuat thanh cong!`, 'success')
             }
+            reportProviderSuccess(model.provider, performance.now() - startTime)
             return finalizeResult(parsed, model, 'waterfall', repairApplied)
           }
           fallbackCount++
@@ -293,6 +294,7 @@ export async function runAIRouter(request: {
       if (logCallback) {
         logCallback(`[AI Router] Model [${model.name}] that bai: ${e.message}`, 'warning')
       }
+      handleModelFailure(model.id, e)
       fallbackCount++
       lastError = e
     }

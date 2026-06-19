@@ -1,3 +1,4 @@
+import { AI_TIMEOUTS } from '@/utils/constants'
 import type { AIModel } from '@/utils/constants'
 import * as api from '@/services/api'
 import { handleModelFailure } from './circuitBreaker'
@@ -33,18 +34,18 @@ class FatalAIError extends Error {
 }
 
 export function getTimeoutForModel(model: AIModel): number {
-  if (model.type === 'vision') return 15000
+  if (model.type === 'vision') return AI_TIMEOUTS.proxyMs
   const provider = model.provider.toLowerCase()
   if (provider === 'groq' || provider === 'cerebras' || provider === 'sambanova') {
-    return 6000
+    return AI_TIMEOUTS.fastModelMs
   }
   if (provider === 'google' || provider === 'mistral' || provider === 'github' || provider === 'openai') {
-    return 10000
+    return AI_TIMEOUTS.qualityModelMs
   }
   if (provider === 'pollinations') {
-    return 8000
+    return AI_TIMEOUTS.qualityModelMs
   }
-  return 12000
+  return AI_TIMEOUTS.qualityModelMs
 }
 
 export async function callAIModel(
@@ -77,7 +78,7 @@ export async function callAIModel(
     }
     try {
       const controller = new AbortController()
-      const timeoutId = setTimeout(() => controller.abort(), 8000) // 8s timeout for gateway
+      const timeoutId = setTimeout(() => controller.abort(), AI_TIMEOUTS.proxyMs) // timeout from config
       if (signal) {
         signal.addEventListener('abort', () => controller.abort())
       }
@@ -298,7 +299,7 @@ export async function callAIModel(
     }
     const workerStartTime = performance.now()
     const controller = new AbortController()
-    const timeoutId = setTimeout(() => controller.abort(), 10000) // 10s timeout for Edge Proxy
+    const timeoutId = setTimeout(() => controller.abort(), AI_TIMEOUTS.proxyMs) // timeout from config
     
     const onAbort = () => controller.abort()
     if (signal) {
