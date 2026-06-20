@@ -119,11 +119,39 @@ interface QueueItem {
   timestamp: number
 }
 
+export function getOrCreateDeviceId(): string {
+  let devId = localStorage.getItem('kg_device_id')
+  if (!devId) {
+    devId = crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).substring(2) + Date.now().toString(36)
+    localStorage.setItem('kg_device_id', devId)
+  }
+  return devId
+}
+
+function simpleHash(str: string): string {
+  let h = 0x811c9dc5
+  for (let i = 0; i < str.length; i++) {
+    h ^= str.charCodeAt(i)
+    h += (h << 1) + (h << 4) + (h << 7) + (h << 8) + (h << 24)
+  }
+  return (h >>> 0).toString(16)
+}
+
 /** Add operation to offline queue */
 export async function addToOfflineQueue(action: string, payload: any): Promise<void> {
   const queue = (await cacheGet<QueueItem[]>(CK.OFFLINE_QUEUE)) || []
+  
+  const deviceId = getOrCreateDeviceId()
+  payload.deviceId = payload.deviceId || deviceId
+  payload.clientCreatedAt = payload.clientCreatedAt || new Date().toISOString()
+  payload.clientUpdatedAt = new Date().toISOString()
+  payload.syncStatus = 'pending'
+  
+  const keySource = `${payload.deviceId}_${payload.id}_${payload.clientCreatedAt}`
+  payload.idempotencyKey = payload.idempotencyKey || simpleHash(keySource)
+  
   queue.push({
-    id: crypto.randomUUID(),
+    id: crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).substring(2),
     action,
     payload,
     timestamp: Date.now()

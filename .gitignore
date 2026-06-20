@@ -10,6 +10,7 @@ node_modules
 
 # Build
 dist
+dist_deploy
 dist-ssr
 *.local
 *.timestamp-*

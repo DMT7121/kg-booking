@@ -321,20 +321,44 @@ export async function callAIModel(
         headers['Authorization'] = `Bearer ${sharedSecret}`
       }
       
+      const ephemeralKey = sessionStorage.getItem('kg_ephemeral_signing_key')
+      const adminTokenVal = sessionStorage.getItem('kg_admin_token') || ''
+      
+      const bodyPayload = JSON.stringify({
+        model: model.id,
+        provider: model.provider,
+        sysPrompt,
+        userPrompt,
+        image,
+        jsonMode,
+        responseSchema,
+        maxOutputTokens,
+        temperature
+      })
+
+      if (ephemeralKey && adminTokenVal) {
+        try {
+          const { signRequest } = await import('@/utils/security')
+          const signingPath = '/api/ai/analyze'
+          const signed = await signRequest('POST', signingPath, bodyPayload, ephemeralKey, adminTokenVal)
+          
+          headers['X-KG-Timestamp'] = String(signed.timestamp)
+          headers['X-KG-Nonce'] = signed.nonce
+          headers['X-KG-Key-Id'] = signed.keyId
+          headers['X-KG-Signature'] = signed.signature
+          
+          if (logCallback) {
+            logCallback('[Security] Request signature headers added successfully.', 'info')
+          }
+        } catch (signErr: any) {
+          console.warn('[Security] Failed to sign request:', signErr.message)
+        }
+      }
+      
       const res = await fetch(`${normalizedGatewayUrl}/api/ai/analyze`, {
         method: 'POST',
         headers,
-        body: JSON.stringify({
-          model: model.id,
-          provider: model.provider,
-          sysPrompt,
-          userPrompt,
-          image,
-          jsonMode,
-          responseSchema,
-          maxOutputTokens,
-          temperature
-        }),
+        body: bodyPayload,
         signal: controller.signal
       })
       

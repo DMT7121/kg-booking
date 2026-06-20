@@ -3,6 +3,7 @@ import { defineConfig } from 'vite'
 import vue from '@vitejs/plugin-vue'
 import { VitePWA } from 'vite-plugin-pwa'
 import { fileURLToPath, URL } from 'node:url'
+import { handleLocalApi } from './src/infrastructure/local/localApiServer'
 
 export default defineConfig({
   plugins: [
@@ -51,7 +52,22 @@ export default defineConfig({
           }
         ]
       }
-    })
+    }),
+    {
+      name: 'local-api-middleware',
+      configureServer(server) {
+        server.middlewares.use(async (req, res, next) => {
+          try {
+            const handled = await handleLocalApi(req, res)
+            if (!handled) {
+              next()
+            }
+          } catch (e) {
+            next(e)
+          }
+        })
+      }
+    }
   ],
   resolve: {
     alias: {

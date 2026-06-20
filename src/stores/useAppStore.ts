@@ -51,12 +51,53 @@ export interface HistoryOrder {
   isCared?: boolean
 }
 
+export interface BookingConflict {
+  localBookingId: string
+  serverBookingId?: string
+  type: 'table_time_overlap' | 'version_mismatch' | 'duplicate_customer_phone' | 'capacity_mismatch' | 'unknown'
+  severity: 'warning' | 'blocking'
+  localSnapshot: any
+  serverSnapshot?: any
+  detectedAt: string
+  resolution?: 'keep_server' | 'keep_local' | 'merge' | 'change_table_time' | 'cancel_local'
+}
+
 export interface MenuListItem {
   name: string
   price: number
   desc?: string
   cleanName: string
   acronym: string
+}
+
+export function hasTimeConflict(
+  a: { date: string; time: string; tables: string },
+  b: { date: string; time: string; tables: string },
+  options?: { bufferMinutes?: number }
+): boolean {
+  if (a.date !== b.date) return false
+  
+  const tablesA = a.tables.split(/[\s,]+/).map(t => t.trim().toUpperCase()).filter(Boolean)
+  const tablesB = b.tables.split(/[\s,]+/).map(t => t.trim().toUpperCase()).filter(Boolean)
+  const hasCommonTable = tablesA.some(t => tablesB.includes(t))
+  if (!hasCommonTable) return false
+  
+  const parseTimeToMinutes = (tStr: string) => {
+    const m = tStr.match(/^(\d{2}):(\d{2})$/)
+    if (!m) return 0
+    return parseInt(m[1]) * 60 + parseInt(m[2])
+  }
+  
+  const timeA = parseTimeToMinutes(a.time)
+  const timeB = parseTimeToMinutes(b.time)
+  const buffer = options?.bufferMinutes ?? 120
+  
+  const startA = timeA
+  const endA = timeA + buffer
+  const startB = timeB
+  const endB = timeB + buffer
+  
+  return Math.max(startA, startB) < Math.min(endA, endB)
 }
 
 export const useAppStore = defineStore('app', () => {
@@ -856,16 +897,142 @@ export const useAppStore = defineStore('app', () => {
 
   autoSyncIfReady()
 
+  const activeConflicts = ref<BookingConflict[]>(JSON.parse(localStorage.getItem('kg_sync_conflicts') || '[]'))
+
+  function saveConflicts() {
+    localStorage.setItem('kg_sync_conflicts', JSON.stringify(activeConflicts.value))
+  }
+
+  async function resolveConflict(localId: string, resolution: BookingConflict['resolution']) {
+    if (resolution === 'keep_local') {
+      const conflict = activeConflicts.value.find(c => c.localBookingId === localId)
+      if (conflict) {
+        const targetVersion = (conflict.serverSnapshot?.version ?? 0) + 1
+        const payload = conflict.localSnapshot
+        payload.version = targetVersion
+        
+        uiStore.loading.is = true
+        uiStore.loading.msg = 'ĐANG ĐỒNG BỘ ĐÈ...'
+        try {
+          const res = await fetchWithRetry({ action: 'saveOrder', data: payload })
+          if (res?.ok) {
+            const queue = await getOfflineQueue()
+            const queueItem = queue.find(q => q.payload.id === localId)
+            if (queueItem) {
+              await removeFromQueue(queueItem.id)
+            }
+            activeConflicts.value = activeConflicts.value.filter(c => c.localBookingId !== localId)
+            saveConflicts()
+            await updateOfflineQueueCount()
+            await loadHistory(true)
+            uiStore.showToast('Ghi đè cloud thành công!', 'success')
+          }
+        } catch (e: any) {
+          uiStore.showToast('Lỗi ghi đè: ' + e.message, 'error')
+        } finally {
+          uiStore.loading.is = false
+        }
+      }
+    } else if (resolution === 'keep_server' || resolution === 'cancel_local') {
+      const queue = await getOfflineQueue()
+      const queueItem = queue.find(q => q.payload.id === localId)
+      if (queueItem) {
+        await removeFromQueue(queueItem.id)
+      }
+      activeConflicts.value = activeConflicts.value.filter(c => c.localBookingId !== localId)
+      saveConflicts()
+      await updateOfflineQueueCount()
+      uiStore.showToast('Đã loại bỏ đơn offline.', 'info')
+    }
+  }
+
   async function processOfflineQueue() {
     const queue = await getOfflineQueue()
     offlineQueueCount.value = queue.length
     if (queue.length === 0) return
     uiStore.showToast(`Đang đồng bộ ${queue.length} đơn offline...`, 'info')
+    
+    await loadHistory(true)
+
     for (const item of queue) {
       try {
-        await fetchWithRetry({ action: item.action, data: item.payload })
-        await removeFromQueue(item.id)
-        await updateOfflineQueueCount()
+        const payload = item.payload
+        const localId = payload.id
+        
+        if (item.action !== 'saveOrder') {
+          await fetchWithRetry({ action: item.action, data: payload })
+          await removeFromQueue(item.id)
+          await updateOfflineQueueCount()
+          continue
+        }
+
+        let conflictType: BookingConflict['type'] | null = null
+        let serverSnapshot: any = null
+        
+        const existingServerBooking = historyList.value.find(h => h.id === localId)
+        
+        if (existingServerBooking) {
+          serverSnapshot = existingServerBooking
+          const baseVersion = payload.baseServerVersion ?? payload.version ?? 1
+          const serverVersion = existingServerBooking.version ?? 1
+          if (serverVersion > baseVersion) {
+            conflictType = 'version_mismatch'
+          }
+        }
+        
+        if (!conflictType) {
+          const date = payload.customer.date
+          const time = payload.customer.time
+          const tables = payload.customer.tables || ''
+          
+          for (const other of historyList.value) {
+            if (other.id === localId) continue
+            
+            const otherDate = other.parsedCustomer.date
+            const otherTime = other.parsedCustomer.time || ''
+            const otherTables = other.parsedCustomer.tables || ''
+            
+            const hasConflict = hasTimeConflict(
+              { date, time, tables },
+              { date: otherDate, time: otherTime, tables: otherTables }
+            )
+            
+            if (hasConflict) {
+              conflictType = 'table_time_overlap'
+              serverSnapshot = other
+              break
+            }
+          }
+        }
+        
+        if (conflictType) {
+          const newConflict: BookingConflict = {
+            localBookingId: localId,
+            serverBookingId: serverSnapshot?.id,
+            type: conflictType,
+            severity: 'blocking',
+            localSnapshot: payload,
+            serverSnapshot,
+            detectedAt: new Date().toISOString()
+          }
+          
+          if (!activeConflicts.value.some(c => c.localBookingId === localId)) {
+            activeConflicts.value.push(newConflict)
+            saveConflicts()
+          }
+          
+          uiStore.showToast(`Phát hiện xung đột đồng bộ cho đơn của ${payload.customer.name}!`, 'warning', 6000)
+          continue
+        }
+        
+        const res = await fetchWithRetry({ action: item.action, data: payload })
+        if (res?.ok) {
+          await removeFromQueue(item.id)
+          await updateOfflineQueueCount()
+        } else {
+          console.warn('[OfflineQueue] Server sync rejected item:', item.id, res)
+          break
+        }
       } catch (e) {
         console.warn('[OfflineQueue] Failed to sync item:', item.id, e)
         break
@@ -902,6 +1069,7 @@ export const useAppStore = defineStore('app', () => {
     fetchRemoteConfig, updateRemoteConfig, verifyAdminSession,
     logout,
     offlineQueueCount, updateOfflineQueueCount,
-    scheduleMenuPrefetch, scheduleMenusPrecache
+    scheduleMenuPrefetch, scheduleMenusPrecache,
+    activeConflicts, resolveConflict
   }
 })

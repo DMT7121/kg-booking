@@ -1,4 +1,5 @@
 import { get, set, del, clear } from 'idb-keyval'
+import { clearSemanticCache } from './semanticCache'
 
 export interface AIResponseCacheEntry<T = unknown> {
   value: T
@@ -144,6 +145,7 @@ export async function clearAIResponseCache(reason?: string): Promise<void> {
   l1Cache.clear()
   try {
     await clear()
+    await clearSemanticCache()
   } catch (e) {}
   console.info('[AI Cache] cleared', { reason })
 }

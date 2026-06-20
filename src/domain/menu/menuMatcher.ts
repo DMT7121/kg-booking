@@ -119,24 +119,35 @@ export function levenshteinDistance(a: string, b: string): number {
   return matrix[b.length][a.length]
 }
 
-export function fuzzyMatchMenu(
+export function scoreAndMatchMenu(
   inputName: string,
   guestCount?: number | null,
   menuList: any[] = [],
-  aliases: any[] = [],
+  menuAliases: any[] = [],
   fallbackGuestCount?: number | null
-): any | null {
-  if (!menuList || menuList.length === 0) return null
+): {
+  match: any | null
+  confidence: number
+  needsReview: boolean
+  matchType: 'exact' | 'alias' | 'acronym' | 'fuzzy' | 'none'
+} {
+  if (!menuList || menuList.length === 0) {
+    return { match: null, confidence: 0, needsReview: true, matchType: 'none' }
+  }
   
   let rawName = inputName.trim()
   const qtyMatch = rawName.match(/(?:[x\*])\s*(\d+)\s*$/i)
   if (qtyMatch) {
     rawName = rawName.replace(/(?:[x\*])\s*(\d+)\s*$/i, '').trim()
   }
+  
+  rawName = normalizeSynonyms(rawName)
   const clean = stripAccents(rawName).toLowerCase().trim()
-  if (!clean || clean.length < 2) return null
+  if (!clean || clean.length < 2) {
+    return { match: null, confidence: 0, needsReview: true, matchType: 'none' }
+  }
 
-  // Portion resolution logic check
+  // Portion matching override
   const baseRaw = getBaseDishName(rawName)
   const portionCandidates = menuList.filter((m: any) => getBaseDishName(m.name) === baseRaw)
   const hasPortions = portionCandidates.some((m: any) => getMenuPortionSize(m.name) !== null)
@@ -152,53 +163,144 @@ export function fuzzyMatchMenu(
         targetPortion = 10
       }
     }
+    
     const portionMatch = portionCandidates.find((m: any) => getMenuPortionSize(m.name) === targetPortion)
     if (portionMatch) {
-      return portionMatch
-    }
-  }
-
-  // 1. Exact match
-  const exact = menuList.find((m: any) => m.cleanName === clean || m.acronym === clean)
-  if (exact) return exact
-
-  // 2. Alias match
-  const aliasMatch = aliases.find((a: any) => stripAccents(a.alias).toLowerCase().trim() === clean)
-  if (aliasMatch) {
-    const dish = menuList.find((m: any) => m.name === aliasMatch.dishName)
-    if (dish) return dish
-  }
-
-  // 3. Contains match
-  const containsCandidates: { item: any; score: number }[] = []
-  for (const m of menuList) {
-    if (m.cleanName && (clean.includes(m.cleanName) || m.cleanName.includes(clean))) {
-      const lenDiff = Math.abs(clean.length - m.cleanName.length)
-      containsCandidates.push({ item: m, score: 1 / (1 + lenDiff) })
-    }
-  }
-  if (containsCandidates.length > 0) {
-    containsCandidates.sort((a, b) => b.score - a.score)
-    return containsCandidates[0].item
-  }
-
-  // 4. Word overlap match
-  const inputWords = clean.split(/\s+/).filter((w: string) => w.length > 1)
-  if (inputWords.length > 0) {
-    let bestMatch: any = null
-    let bestScore = 0
-    for (const m of menuList) {
-      const menuWords = (m.cleanName || '').split(/\s+/)
-      const overlap = inputWords.filter((w: string) => menuWords.some((mw: string) => mw.includes(w) || w.includes(mw))).length
-      const score = overlap / Math.max(inputWords.length, 1)
-      if (score > bestScore && score >= 0.5) {
-        bestScore = score
-        bestMatch = m
+      return {
+        match: portionMatch,
+        confidence: 0.98,
+        needsReview: false,
+        matchType: 'fuzzy'
       }
     }
-    if (bestMatch) return bestMatch
   }
-  return null
+
+  const inputTokens = clean.split(/\s+/).filter(t => t.length > 1)
+  const candidates: { item: any; score: number; reasons: string[]; risks: string[] }[] = []
+
+  for (const m of menuList) {
+    let score = 0.0
+    const reasons: string[] = []
+    const risks: string[] = []
+    
+    const mClean = stripAccents(m.name).toLowerCase().trim()
+    const mTokens = mClean.split(/\s+/)
+    
+    // 1. Exact match
+    if (clean === mClean || m.acronym === clean) {
+      score = Math.max(score, 1.0)
+      reasons.push('exact_match')
+    }
+    
+    // 2. Alias match
+    const aliasMatch = menuAliases.find((a: any) => stripAccents(a.alias).toLowerCase().trim() === clean)
+    if (aliasMatch && aliasMatch.dishName === m.name) {
+      score = Math.max(score, 0.95)
+      reasons.push('alias_match')
+    }
+    
+    // 3. Synonym matching
+    const dynamicSynonymMatch = menuAliases.find((a: any) => a.dishName === m.name && stripAccents(a.alias).toLowerCase().trim() === clean)
+    if (dynamicSynonymMatch) {
+      score = Math.max(score, 0.90)
+      reasons.push('synonym_match')
+    }
+    
+    // 4. Prefix match
+    if (mClean.startsWith(clean) || clean.startsWith(mClean)) {
+      const prefixScore = 0.80
+      if (prefixScore > score) {
+        score = prefixScore
+        reasons.push('prefix_match')
+      }
+    }
+    
+    // 5. Word / Token overlap
+    const overlap = inputTokens.filter(t => mTokens.some(mt => mt.includes(t) || t.includes(mt))).length
+    if (overlap > 0) {
+      const overlapScore = (overlap / Math.max(inputTokens.length, 1)) * 0.7
+      if (overlapScore > score) {
+        score = Math.max(score, overlapScore)
+        reasons.push('token_overlap')
+      }
+    }
+    
+    // 6. Levenshtein / Jaro-Winkler
+    const dist = levenshteinDistance(clean, mClean)
+    const maxLen = Math.max(clean.length, mClean.length, 1)
+    const levenshteinScore = 1 - (dist / maxLen)
+    const jaroWinklerScore = jaroWinklerDistance(clean, mClean)
+    const fuzzyScore = 0.5 * levenshteinScore + 0.5 * jaroWinklerScore
+    
+    if (fuzzyScore > score && fuzzyScore >= 0.4) {
+      score = Math.max(score, fuzzyScore)
+      reasons.push('fuzzy_match')
+    }
+    
+    // 7. Category/context boost
+    if (m.category && clean.includes(stripAccents(m.category).toLowerCase())) {
+      score += 0.10
+      reasons.push('category_boost')
+    }
+    
+    // 8. Unavailable/disabled penalty
+    if (m.status === 'unavailable' || m.available === false) {
+      score -= 1.0
+      risks.push('item_unavailable')
+    }
+
+    if (clean.length <= 3 && score < 1.0) {
+      score *= 0.5
+    }
+
+    if (score >= 0.4) {
+      candidates.push({ item: m, score, reasons, risks })
+    }
+  }
+
+  candidates.sort((a, b) => b.score - a.score)
+
+  if (candidates.length > 0 && candidates[0].score >= 0.5) {
+    const best = candidates[0]
+    let needsReview = false
+    
+    if (candidates.length > 1) {
+      const runnerUp = candidates[1]
+      if (best.score - runnerUp.score < 0.08) {
+        needsReview = true
+      }
+    }
+    if (best.score < 0.78) {
+      needsReview = true
+    }
+
+    let matchType: 'exact' | 'alias' | 'acronym' | 'fuzzy' | 'none' = 'fuzzy'
+    if (best.score >= 0.95) {
+      matchType = 'exact'
+    } else if (best.reasons.includes('alias_match') || best.reasons.includes('synonym_match')) {
+      matchType = 'alias'
+    }
+
+    return {
+      match: best.item,
+      confidence: best.score,
+      needsReview,
+      matchType
+    }
+  }
+
+  return { match: null, confidence: 0, needsReview: true, matchType: 'none' }
+}
+
+export function fuzzyMatchMenu(
+  inputName: string,
+  guestCount?: number | null,
+  menuList: any[] = [],
+  aliases: any[] = [],
+  fallbackGuestCount?: number | null
+): any | null {
+  const result = scoreAndMatchMenu(inputName, guestCount, menuList, aliases, fallbackGuestCount)
+  return result.match
 }
 
 export function resolveMenuItemsLocally(
@@ -231,22 +333,6 @@ export function matchMenuItems(
   fallbackGuestCount?: number | null,
   logCallback?: (msg: string, type?: 'info' | 'warning' | 'error' | 'success') => void
 ): any[] {
-  const exactMap = new Map<string, any>()
-  const aliasMap = new Map<string, any>()
-  const acronymMap = new Map<string, any>()
-  
-  for (const item of menuList) {
-    const clean = stripAccents(item.name).toLowerCase().trim()
-    exactMap.set(clean, item)
-    if (item.cleanName) exactMap.set(item.cleanName, item)
-    if (item.acronym) acronymMap.set(String(item.acronym).toLowerCase().trim(), item)
-  }
-  for (const a of menuAliases) {
-    const cleanAlias = stripAccents(a.alias).toLowerCase().trim()
-    aliasMap.set(cleanAlias, a)
-  }
-
-  const attributes = ['trung muoi', 'tieu', 'pho mai', 'mo hanh', 'cay', 'lau', 'nuong', 'xao', 'hap']
   const expandedItems: any[] = []
   
   for (const item of rawItems) {
@@ -271,6 +357,11 @@ export function matchMenuItems(
     }
   }
 
+  const attributes = ['trung muoi', 'tieu', 'pho mai', 'mo hanh', 'cay', 'lau', 'nuong', 'xao', 'hap']
+  const SETS: Record<string, string> = {
+    'SUM VAY 1': 'Set sum vầy [1]'
+  }
+
   return expandedItems.map((item) => {
     let rawName = (item.raw_name || item.name || '').trim()
     const qtyMatch = rawName.match(/(?:[x\*])\s*(\d+)\s*$/i)
@@ -279,172 +370,18 @@ export function matchMenuItems(
       rawName = rawName.replace(/(?:[x\*])\s*(\d+)\s*$/i, '').trim()
     }
 
-    rawName = normalizeSynonyms(rawName)
-    const clean = stripAccents(rawName).toLowerCase().trim()
-    
-    let match: any = null
-    let confidence = 0.0
-    let needsReview = false
-    let matchType: 'exact' | 'alias' | 'acronym' | 'fuzzy' | 'none' = 'none'
+    const { match, confidence, needsReview, matchType } = scoreAndMatchMenu(
+      rawName,
+      guestCount,
+      menuList,
+      menuAliases,
+      fallbackGuestCount
+    )
 
-    // Portion matching override
-    const baseRaw = getBaseDishName(rawName)
-    const portionCandidates = menuList.filter((m: any) => getBaseDishName(m.name) === baseRaw)
-    const hasPortions = portionCandidates.some((m: any) => getMenuPortionSize(m.name) !== null)
-    
-    if (portionCandidates.length > 0 && hasPortions) {
-      let targetPortion = extractPortionSize(rawName)
-      if (targetPortion === null) {
-        if (guestCount !== undefined && guestCount !== null) {
-          targetPortion = guestCount < 5 ? 5 : 10
-        } else if (fallbackGuestCount !== undefined && fallbackGuestCount !== null) {
-          targetPortion = fallbackGuestCount < 5 ? 5 : 10
-        } else {
-          targetPortion = 10
-        }
-      }
-      
-      const portionMatch = portionCandidates.find((m: any) => getMenuPortionSize(m.name) === targetPortion)
-      if (portionMatch) {
-        match = portionMatch
-        confidence = 0.98
-        matchType = 'fuzzy'
-        if (logCallback) {
-          logCallback(`[Khớp phần ăn] Trích xuất "${rawName}" (Khách: ${guestCount || fallbackGuestCount || 'chưa rõ'}) -> Khớp "${match.name}" (Phần ${targetPortion} con, Độ tin cậy: 98%)`, 'success')
-        }
-      }
-    }
-    
-    if (!match) {
-      if (exactMap.has(clean)) {
-        match = exactMap.get(clean)
-        confidence = 1.0
-        matchType = 'exact'
-        if (logCallback) logCallback(`[Khớp món] "${rawName}" -> "${match.name}" (Khớp chính xác, Độ tin cậy: 100%)`, 'success')
-      } else if (aliasMap.has(clean)) {
-        const aliasObj = aliasMap.get(clean)
-        match = menuList.find((m: any) => m.name === aliasObj.dishName)
-        if (match) {
-          confidence = 1.0
-          matchType = 'alias'
-          if (logCallback) logCallback(`[Khớp món] "${rawName}" -> "${match.name}" (Khớp alias, Độ tin cậy: 100%)`, 'success')
-        }
-      } else if (acronymMap.has(clean)) {
-        match = acronymMap.get(clean)
-        confidence = 0.95
-        matchType = 'acronym'
-        if (logCallback) logCallback(`[Khớp món] "${rawName}" -> "${match.name}" (Khớp viết tắt, Độ tin cậy: 95%)`, 'success')
-      }
-    }
-    
-    // Contains match
-    if (!match) {
-      const containsCandidates: { item: any; score: number }[] = []
-      const partModifiers = ['chan', 'canh', 'sun', 'me', 'long', 'doi', 'nam', 'gan', 'duoi', 'luoi', 'tai', 'vu', 'ba chi', 'nầm', 'chân', 'cánh', 'sụn', 'mề', 'lòng', 'dồi', 'gân', 'đuôi', 'lưỡi', 'tai', 'vú', 'ba chỉ']
-      
-      for (const m of menuList) {
-        const mClean = stripAccents(m.name).toLowerCase().trim()
-        if (mClean && clean && (mClean.includes(clean) || clean.includes(mClean))) {
-          let modifierConflict = false
-          for (const mod of partModifiers) {
-            const mHasMod = new RegExp(`\\b${mod}\\b`, 'i').test(mClean)
-            const cleanHasMod = new RegExp(`\\b${mod}\\b`, 'i').test(clean)
-            if (mHasMod && !cleanHasMod) {
-              modifierConflict = true
-              break
-            }
-          }
-          
-          const lenDiff = Math.abs(clean.length - mClean.length)
-          let score = 1 / (1 + lenDiff)
-          
-          if (mClean.startsWith(clean)) score += 2.0
-          const cleanWords = clean.split(/\s+/)
-          const mWords = mClean.split(/\s+/)
-          if (mWords.slice(0, cleanWords.length).join(' ') === clean) score += 1.0
-          if (modifierConflict) score -= 5.0
-          
-          containsCandidates.push({ item: m, score })
-        }
-      }
-      
-      const validCandidates = containsCandidates.filter(c => c.score > -2.0)
-      if (validCandidates.length > 0) {
-        validCandidates.sort((a, b) => b.score - a.score)
-        match = validCandidates[0].item
-        confidence = 0.95
-        matchType = 'fuzzy'
-        if (logCallback) logCallback(`[Khớp món] "${rawName}" -> "${match.name}" (Khớp chứa, Điểm: ${validCandidates[0].score.toFixed(2)})`, 'success')
-      }
-    }
-    
-    // Fuzzy search with distance
-    if (!match) {
-      const inputTokens = clean.split(/\s+/).filter(t => t.length > 1)
-      const matchedCandidates: { item: any; score: number; confidence: number }[] = []
-      
-      for (const m of menuList) {
-        const mClean = stripAccents(m.name).toLowerCase().trim()
-        const mTokens = mClean.split(/\s+/)
-        
-        const overlap = inputTokens.filter(t => mTokens.some(mt => mt.includes(t) || t.includes(mt))).length
-        const overlapScore = (overlap / Math.max(inputTokens.length, 1)) * 0.7 + (overlap / Math.max(mTokens.length, 1)) * 0.3
-        
-        const dist = levenshteinDistance(clean, mClean)
-        const levenshteinScore = 1 - (dist / Math.max(clean.length, mClean.length, 1))
-        
-        let attributeConflict = false
-        let attributeMissingInUser = false
-        for (const attr of attributes) {
-          const cleanHasAttr = clean.includes(attr)
-          const mCleanHasAttr = mClean.includes(attr)
-          if (cleanHasAttr && !mCleanHasAttr) {
-            attributeConflict = true
-          } else if (!cleanHasAttr && mCleanHasAttr) {
-            attributeMissingInUser = true
-          }
-        }
-        
-        const jaroWinklerScore = jaroWinklerDistance(clean, mClean)
-        let score = 0.5 * overlapScore + 0.5 * jaroWinklerScore
-        if (attributeConflict) {
-          score *= 0.2
-        } else if (attributeMissingInUser) {
-          score *= 0.8
-        }
-        
-        if (score >= 0.4) {
-          matchedCandidates.push({ item: m, score, confidence: Math.max(0.1, score) })
-        }
-      }
-      
-      matchedCandidates.sort((a, b) => b.score - a.score)
-      
-      if (matchedCandidates.length > 0) {
-        const best = matchedCandidates[0]
-        match = best.item
-        confidence = best.confidence
-        matchType = 'fuzzy'
-        
-        if (matchedCandidates.length > 1) {
-          const runnerUp = matchedCandidates[1]
-          if (best.score - runnerUp.score < 0.15) {
-            needsReview = true
-          }
-        }
-        if (logCallback) {
-          logCallback(`[Khớp món] "${rawName}" -> "${match.name}" (Khớp mờ, Độ tin cậy: ${Math.round(confidence * 100)}%), Cần duyệt lại: ${needsReview}`, confidence < 0.75 ? 'warning' : 'info')
-        }
-      }
-    }
-    
     if (match) {
       let note = item.note || item.notes || ''
       const isSet = /set|combo|goi|phan/i.test(match.name)
       let description = match.desc || menuDetails[match.name] || ''
-      if (!description && isSet && SETS[match.name.toUpperCase()]) {
-        description = SETS[match.name.toUpperCase()]
-      }
       if (description) {
         if (isSet) {
           const formattedNote = formatSetNote(description)
@@ -454,6 +391,11 @@ export function matchMenuItems(
         }
       }
       
+      if (logCallback) {
+        const reviewText = needsReview ? ' (Cần duyệt lại)' : ''
+        logCallback(`[Khớp món] "${rawName}" -> "${match.name}" (Độ tin cậy: ${Math.round(confidence * 100)}%${reviewText})`, confidence < 0.75 ? 'warning' : 'success')
+      }
+
       return {
         raw_name: rawName,
         inputName: rawName,
@@ -467,7 +409,7 @@ export function matchMenuItems(
         note: note.trim(),
         match_confidence: confidence,
         confidence,
-        needs_review: needsReview || (confidence < 0.75),
+        needs_review: needsReview,
         matchType,
         match_type: matchType,
         warning: confidence < 0.75 ? 'dish_fuzzy_match_low_confidence' : undefined

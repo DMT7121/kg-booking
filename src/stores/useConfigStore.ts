@@ -175,6 +175,42 @@ export const useConfigStore = defineStore('config', () => {
     }
   }
 
+  async function autoLoadApiKeys() {
+    try {
+      const apiUrl = import.meta.env.VITE_API_URL || '/api'
+      const res = await fetch(apiUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'getSharedApiKeysWithoutPassword' })
+      })
+      if (res.ok) {
+        const data = await res.json()
+        if (data.ok && Array.isArray(data.keys)) {
+          let updated = false
+          data.keys.forEach((k: any) => {
+            let pId = k.provider === 'gemini' ? 'google' : k.provider
+            if (PLATFORMS[pId]) {
+              if (!keys[pId]) keys[pId] = []
+              if (!keys[pId].includes(k.key)) {
+                keys[pId].push(k.key)
+                updated = true
+              }
+            }
+          })
+          if (updated) {
+            localStorage.setItem(CACHE_KEYS.KEYS, JSON.stringify(keys))
+            console.log('[AI Config] Tự động tải và lưu sẵn các API Keys thành công!')
+          }
+        }
+      }
+    } catch (e) {
+      console.warn('[AI Config] Không thể tự động tải API Keys từ Gateway:', e)
+    }
+  }
+
+  // Tự động tải API Keys khi khởi chạy store
+  autoLoadApiKeys()
+
   // --- Branding ---
   function saveBranding() {
     try {
@@ -226,7 +262,7 @@ export const useConfigStore = defineStore('config', () => {
     keys, keysStatus, defaults, visibleKeys, tempKeys, borrowPass,
     textModels, visionModels, totalKeyCount, totalKeysHasData,
     getKeyCount, toggleKeyVisibility,
-    saveApiKey, deleteApiKey, borrowKeys: borrowKeys, hydrateAiRuntimeConfig,
+    saveApiKey, deleteApiKey, borrowKeys: borrowKeys, hydrateAiRuntimeConfig, autoLoadApiKeys,
     saveBranding, handleLogoUpload
   }
 })

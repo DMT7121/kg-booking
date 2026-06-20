@@ -9,7 +9,7 @@
 const MAX_SIZE = 10 * 1024 * 1024; // 10MB
 
 export default {
-  async fetch(request, env) {
+  async fetch(request, env, ctx) {
     // CORS Headers
     const origin = request.headers.get('Origin');
     let allowedOrigin = '*';
@@ -172,21 +172,250 @@ export default {
         }, 200, corsHeaders);
       }
 
+      // --- UNIFIED API GATEWAY: POST /api ---
+      if (path === '/api') {
+        if (request.method !== 'POST' && request.method !== 'GET') {
+          return jsonResponse({ ok: false, error: `Method ${request.method} Not Allowed` }, 405, corsHeaders);
+        }
+
+        const rawBodyText = await request.text();
+        let payload;
+        try {
+          payload = JSON.parse(rawBodyText || '{}');
+        } catch (jsonErr) {
+          return jsonResponse({ ok: false, error: 'Malformed JSON payload' }, 400, corsHeaders);
+        }
+
+        const action = payload.action || url.searchParams.get('action');
+        const gasUrl = env.GAS_URL || env.VITE_GAS_URL || 'https://script.google.com/macros/s/AKfycbxzjio4sat5fWoUncPgp8SfjoGqfGxW5vFoDgkHvBI3OKVWIaszsAaUt0LE2fCHtkCFsA/exec';
+
+        // Xử lý các nghiệp vụ ghi (write) bất đồng bộ
+        const asyncActions = ['saveOrder', 'deleteOrder', 'saveConfig', 'saveMenuAlias', 'deleteMenuAlias', 'logAiCorrection'];
+        const isAsync = asyncActions.includes(action);
+
+        if (isAsync) {
+          // Trả về OK ngay lập tức cho client
+          const mockId = payload.data?.id || payload.id || (crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).substring(2));
+          const responsePayload = {
+            ok: true,
+            message: `Action ${action} accepted on Edge Gateway. Syncing in background...`,
+            id: mockId,
+            billUrl: payload.data?.billUrl || ''
+          };
+
+          // Chạy đồng bộ ngầm bằng ctx.waitUntil()
+          if (ctx && ctx.waitUntil) {
+            ctx.waitUntil(
+              fetch(gasUrl, {
+                method: 'POST',
+                headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                body: JSON.stringify(payload)
+              })
+              .then(async (gasRes) => {
+                if (gasRes.ok) {
+                  const data = await gasRes.json();
+                  console.log(`[Edge Gateway] Background sync success for ${action}:`, data);
+                  if (env.KV_STORE) {
+                    if (action === 'saveOrder' || action === 'deleteOrder') {
+                      await env.KV_STORE.delete('bookings_history');
+                    } else if (action === 'saveConfig') {
+                      await env.KV_STORE.delete('system_config');
+                    }
+                  }
+                } else {
+                  console.error(`[Edge Gateway] Background sync failed for ${action}: HTTP ${gasRes.status}`);
+                }
+              })
+              .catch(err => {
+                console.error(`[Edge Gateway] Background sync network error for ${action}:`, err.message);
+              })
+            );
+          } else {
+            // Fallback nếu không có ctx (chạy dev hoặc local)
+            console.warn('[Edge Gateway] ctx.waitUntil không khả dụng. Đang đồng bộ đồng thời...');
+            fetch(gasUrl, {
+              method: 'POST',
+              headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+              body: JSON.stringify(payload)
+            }).catch(e => console.error(e));
+          }
+
+          return jsonResponse(responsePayload, 200, corsHeaders);
+        } else {
+          if (action === 'getSharedApiKeysWithoutPassword') {
+            const workerKeys = [];
+            if (env.GEMINI_API_KEY) workerKeys.push({ provider: 'google', key: env.GEMINI_API_KEY });
+            if (env.GROQ_API_KEY) workerKeys.push({ provider: 'groq', key: env.GROQ_API_KEY });
+            if (env.CEREBRAS_API_KEY) workerKeys.push({ provider: 'cerebras', key: env.CEREBRAS_API_KEY });
+            if (env.SAMBANOVA_API_KEY) workerKeys.push({ provider: 'sambanova', key: env.SAMBANOVA_API_KEY });
+            if (env.OPENROUTER_API_KEY) workerKeys.push({ provider: 'openrouter', key: env.OPENROUTER_API_KEY });
+            
+            if (workerKeys.length === 0) {
+              // Fallback gọi sang GAS bằng mật khẩu Admin dùng chung hoặc từ env
+              const adminPass = env.ADMIN_PASS || 'ADMINDMT';
+              const gasRes = await fetch(gasUrl, {
+                method: 'POST',
+                headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                body: JSON.stringify({ action: 'borrowApiKeys', password: adminPass })
+              });
+              if (gasRes.ok) {
+                const data = await gasRes.json();
+                return jsonResponse(data, 200, corsHeaders);
+              }
+            }
+            return jsonResponse({ ok: true, keys: workerKeys }, 200, corsHeaders);
+          }
+
+          // Các nghiệp vụ đọc (read) hoặc AI -> Đồng bộ trực tiếp hoặc qua cache KV
+          if (env.KV_STORE) {
+            if (action === 'getHistory') {
+              const cached = await env.KV_STORE.get('bookings_history');
+              if (cached) {
+                return jsonResponse(JSON.parse(cached), 200, corsHeaders);
+              }
+              const gasRes = await fetch(gasUrl, {
+                method: 'POST',
+                headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                body: JSON.stringify(payload)
+              });
+              if (gasRes.ok) {
+                const data = await gasRes.json();
+                if (data.ok) {
+                  await env.KV_STORE.put('bookings_history', JSON.stringify(data), { expirationTtl: 300 }); // cache 5 mins
+                }
+                return jsonResponse(data, 200, corsHeaders);
+              }
+            } else if (action === 'getConfig') {
+              const cached = await env.KV_STORE.get('system_config');
+              if (cached) {
+                return jsonResponse(JSON.parse(cached), 200, corsHeaders);
+              }
+              const gasRes = await fetch(gasUrl, {
+                method: 'POST',
+                headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                body: JSON.stringify(payload)
+              });
+              if (gasRes.ok) {
+                const data = await gasRes.json();
+                if (data.ok) {
+                  await env.KV_STORE.put('system_config', JSON.stringify(data), { expirationTtl: 1800 }); // cache 30 mins
+                }
+                return jsonResponse(data, 200, corsHeaders);
+              }
+            }
+          }
+
+          // Fallback mặc định: Forward trực tiếp sang GAS và trả về kết quả
+          const gasRes = await fetch(gasUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+            body: JSON.stringify(payload)
+          });
+          if (gasRes.ok) {
+            const data = await gasRes.json();
+            return jsonResponse(data, 200, corsHeaders);
+          } else {
+            return jsonResponse({ ok: false, error: `GAS returned HTTP ${gasRes.status}` }, 500, corsHeaders);
+          }
+        }
+      }
+
       // --- AI GATEWAY: POST /api/ai/analyze ---
       if (path === '/api/ai/analyze') {
         if (request.method !== 'POST') {
           return jsonResponse({ ok: false, error: `Method ${request.method} Not Allowed` }, 405, corsHeaders);
         }
-        // 1. Client Authorization
-        const authHeader = request.headers.get('Authorization');
-        if (env.APP_SHARED_SECRET) {
-          if (!authHeader || !authHeader.startsWith('Bearer ') || authHeader.split(' ')[1] !== env.APP_SHARED_SECRET) {
-            return jsonResponse({ ok: false, error: 'Unauthorized: Invalid App Secret Token' }, 401, corsHeaders);
+        
+        const rawBodyText = await request.text();
+        
+        const signature = request.headers.get('X-KG-Signature');
+        const timestamp = request.headers.get('X-KG-Timestamp');
+        const nonce = request.headers.get('X-KG-Nonce');
+        const keyId = request.headers.get('X-KG-Key-Id');
+        
+        if (signature) {
+          const timestampMs = parseInt(timestamp || '', 10);
+          const now = Date.now();
+          if (isNaN(timestampMs) || Math.abs(now - timestampMs) > 120000) {
+            return jsonResponse({ ok: false, error: { code: 'EXPIRED_REQUEST', message: 'Request timestamp has expired' } }, 401, corsHeaders);
+          }
+          
+          if (!globalThis.seenNonces) {
+            globalThis.seenNonces = new Set();
+          }
+          if (globalThis.seenNonces.has(nonce)) {
+            return jsonResponse({ ok: false, error: { code: 'REPLAY_ATTACK', message: 'Replay attack detected' } }, 401, corsHeaders);
+          }
+          globalThis.seenNonces.add(nonce);
+          setTimeout(() => {
+            if (globalThis.seenNonces) {
+              globalThis.seenNonces.delete(nonce);
+            }
+          }, 120000);
+          
+          try {
+            const encoder = new TextEncoder();
+            const hashBuffer = await crypto.subtle.digest('SHA-256', encoder.encode(rawBodyText));
+            const bodyHash = Array.from(new Uint8Array(hashBuffer))
+              .map(b => b.toString(16).padStart(2, '0'))
+              .join('');
+            
+            const canonicalString = `POST\n/api/ai/analyze\n${timestamp}\n${nonce}\n${bodyHash}`;
+            
+            const secretData = encoder.encode(env.EPHEMERAL_KEY_SECRET || 'fallback_secret');
+            const hmacKey = await crypto.subtle.importKey(
+              'raw',
+              secretData,
+              { name: 'HMAC', hash: 'SHA-256' },
+              false,
+              ['sign']
+            );
+            const keyDerivationBuffer = await crypto.subtle.sign(
+              'HMAC',
+              hmacKey,
+              encoder.encode(keyId)
+            );
+            const derivedKeySig = btoa(String.fromCharCode.apply(null, Array.from(new Uint8Array(keyDerivationBuffer))));
+            
+            const verifyHmacKey = await crypto.subtle.importKey(
+              'raw',
+              encoder.encode(derivedKeySig),
+              { name: 'HMAC', hash: 'SHA-256' },
+              false,
+              ['sign']
+            );
+            const verifyBuffer = await crypto.subtle.sign(
+              'HMAC',
+              verifyHmacKey,
+              encoder.encode(canonicalString)
+            );
+            
+            const expectedSig = btoa(String.fromCharCode.apply(null, Array.from(new Uint8Array(verifyBuffer))))
+              .replace(/\+/g, '-')
+              .replace(/\//g, '_')
+              .replace(/=+$/, '');
+              
+            if (signature !== expectedSig) {
+              return jsonResponse({ ok: false, error: { code: 'INVALID_SIGNATURE', message: 'Request signature is invalid' } }, 401, corsHeaders);
+            }
+          } catch (e) {
+            return jsonResponse({ ok: false, error: { code: 'SIGNATURE_VERIFICATION_ERROR', message: e.message } }, 401, corsHeaders);
+          }
+        } else {
+          const authHeader = request.headers.get('Authorization');
+          if (env.APP_SHARED_SECRET) {
+            if (!authHeader || !authHeader.startsWith('Bearer ') || authHeader.split(' ')[1] !== env.APP_SHARED_SECRET) {
+              return jsonResponse({ ok: false, error: 'Unauthorized: Invalid App Secret Token' }, 401, corsHeaders);
+            }
           }
         }
-
-        // 2. Parse payload
-        const payload = await request.json();
+        
+        let payload;
+        try {
+          payload = JSON.parse(rawBodyText);
+        } catch (jsonErr) {
+          return jsonResponse({ ok: false, error: 'Malformed JSON payload' }, 400, corsHeaders);
+        }
         const {
           model,
           provider,

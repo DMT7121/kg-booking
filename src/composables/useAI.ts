@@ -3,7 +3,7 @@ import { useFormStore } from '@/stores/useFormStore'
 import { useConfigStore } from '@/stores/useConfigStore'
 import { useAppStore } from '@/stores/useAppStore'
 import { useLogStore } from '@/stores/useLogStore'
-import { resizeImage, cleanPhoneNumber, formatDateStr, formatVND } from '@/utils'
+import { resizeImage, cleanPhoneNumber, formatDateStr, formatVND, stripAccents } from '@/utils'
 import { AI_MODELS, ADVANCED_AI_PROMPT, IMAGE_OCR_PROMPT } from '@/utils/constants'
 import type { AIModel } from '@/utils/constants'
 import * as api from '@/services/api'
@@ -632,6 +632,30 @@ export function useAI() {
         }
       }
 
+      if (!finalParsedResult && type === 'text') {
+        const { extractEntitiesFromInput, querySemanticCache } = await import('@/services/ai/semanticCache')
+        const newEntities = extractEntitiesFromInput(ruleBasedResult, hardEntities)
+        
+        const semanticCached = await querySemanticCache(formStore.rawInput || '', newEntities, {
+          menuFingerprint,
+          correctionFingerprint,
+          promptSchemaVersion: 1,
+          normalizerSchemaVersion: 1
+        })
+        
+        if (semanticCached) {
+          finalParsedResult = semanticCached.value
+          isBypassed = true
+          logStore.addLog(`Semantic Cache Hit: Tìm thấy kết quả tương đồng. Bỏ qua gọi AI.`, 'success')
+          const latency = ((performance.now() - startTime) / 1000).toFixed(2)
+          routingInfo = {
+            ...(finalParsedResult.routing || {}),
+            latency,
+            mode: 'cache-hit'
+          }
+        }
+      }
+
       if (!finalParsedResult) {
         logStore.addLog(`Bắt đầu chạy pipeline gọi AI...`)
         
@@ -833,6 +857,25 @@ export function useAI() {
           menuFingerprint,
           correctionFingerprint
         })
+
+        if (type === 'text') {
+          const { extractEntitiesFromInput, buildEntitySignature, saveToSemanticCache } = await import('@/services/ai/semanticCache')
+          const entities = extractEntitiesFromInput(ruleBasedResult, hardEntities)
+          const entitySignature = buildEntitySignature(entities)
+          
+          await saveToSemanticCache({
+            normalizedText: stripAccents(formStore.rawInput || '').toLowerCase().trim(),
+            entitySignature,
+            value: dataToCache,
+            createdAt: Date.now(),
+            expiresAt: Date.now() + ttl,
+            menuFingerprint,
+            correctionFingerprint,
+            promptSchemaVersion: 1,
+            normalizerSchemaVersion: 1,
+            modelProfile: profile
+          })
+        }
       }
 
       logStore.addLog(`Áp dụng Luật khóa dữ liệu deterministic (Deterministic Rule Lock)...`)
@@ -1190,6 +1233,32 @@ Salad bò - 120000
           )
         } catch (e) {
           console.warn('[AI Auto-Learn] Failed to log correction:', e)
+        }
+      }
+    }
+
+    if (original.items && formStore.items && formStore.parsedAiResult?.menu_items) {
+      const origItems = original.items as any[]
+      const currItems = formStore.items as any[]
+      const parsedMenuItems = formStore.parsedAiResult.menu_items as any[]
+      
+      for (let i = 0; i < currItems.length; i++) {
+        const curr = currItems[i]
+        const orig = origItems[i]
+        if (orig && curr.name !== orig.name) {
+          const parsedItem = parsedMenuItems.find(p => p.matched_name === orig.name || p.name === orig.name)
+          if (parsedItem && parsedItem.raw_name) {
+            const rawInputName = parsedItem.raw_name.trim()
+            const correctedName = curr.name.trim()
+            if (rawInputName && correctedName && rawInputName.toLowerCase() !== correctedName.toLowerCase()) {
+              try {
+                console.log(`[AI Auto-Learn] Learning menu alias: "${rawInputName}" -> "${correctedName}"`)
+                await appStore.saveAlias(rawInputName, correctedName)
+              } catch (e) {
+                console.warn('[AI Auto-Learn] Failed to save menu alias:', e)
+              }
+            }
+          }
         }
       }
     }

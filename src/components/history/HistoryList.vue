@@ -158,6 +158,36 @@ function isOrderCared(id: string) {
     <!-- LIST VIEW -->
     <div class="flex-grow flex flex-col overflow-hidden bg-slate-50 min-h-0">
       
+      <!-- Sync Conflicts Section -->
+      <div v-if="appStore.activeConflicts && appStore.activeConflicts.length > 0" class="p-4 bg-orange-50 border-b border-orange-100 space-y-3 shrink-0">
+        <h3 class="font-black text-orange-800 flex items-center gap-2">
+          <i class="fa-solid fa-triangle-exclamation"></i> Phát hiện xung đột đồng bộ ({{ appStore.activeConflicts.length }})
+        </h3>
+        <div class="space-y-3 max-h-48 overflow-y-auto pr-1">
+          <div v-for="conflict in appStore.activeConflicts" :key="conflict.localBookingId" class="p-3 bg-white rounded-xl border border-orange-200 text-xs space-y-2">
+            <div class="flex justify-between font-bold text-slate-700">
+              <span>Đơn: {{ conflict.localSnapshot?.customer?.name }} ({{ conflict.localSnapshot?.customer?.phone }})</span>
+              <span class="text-orange-600 bg-orange-50 px-2 py-0.5 rounded text-[10px]">
+                {{ conflict.type === 'table_time_overlap' ? 'Trùng bàn/giờ' : 'Xung đột phiên bản' }}
+              </span>
+            </div>
+            
+            <div class="text-[11px] text-slate-500">
+              <div><strong>Cục bộ (Chờ sync):</strong> Bàn {{ conflict.localSnapshot?.customer?.tables }}, {{ conflict.localSnapshot?.customer?.date }} lúc {{ conflict.localSnapshot?.customer?.time }} ({{ conflict.localSnapshot?.customer?.pax }} khách)</div>
+              <div v-if="conflict.serverSnapshot">
+                <strong>Online (Server):</strong> Bàn {{ conflict.serverSnapshot?.parsedCustomer?.tables || conflict.serverSnapshot?.customer?.tables || '---' }}, {{ conflict.serverSnapshot?.parsedCustomer?.date || conflict.serverSnapshot?.customer?.date || '---' }} lúc {{ conflict.serverSnapshot?.parsedCustomer?.time || conflict.serverSnapshot?.customer?.time || '---' }} ({{ conflict.serverSnapshot?.parsedCustomer?.pax || conflict.serverSnapshot?.customer?.pax || '---' }} khách)
+              </div>
+            </div>
+            
+            <div class="flex flex-wrap gap-1.5 pt-1">
+              <button @click="appStore.resolveConflict(conflict.localBookingId, 'keep_server')" class="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg font-bold text-[10px] active:scale-95 transition-all">Giữ Online</button>
+              <button @click="appStore.resolveConflict(conflict.localBookingId, 'keep_local')" class="px-2.5 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-bold text-[10px] active:scale-95 transition-all">Ghi đè Lên Server</button>
+              <button @click="appStore.resolveConflict(conflict.localBookingId, 'cancel_local')" class="px-2.5 py-1 bg-red-100 hover:bg-red-200 text-red-700 rounded-lg font-bold text-[10px] active:scale-95 transition-all">Hủy đơn offline</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <!-- Search & Filters -->
       <div class="p-4 bg-slate-50 space-y-3 z-10 shrink-0">
         <div class="flex gap-2">
