@@ -36,6 +36,7 @@ export interface SemanticCacheEntry<T = unknown> {
   promptSchemaVersion: number
   normalizerSchemaVersion: number
   modelProfile?: string
+  lastUsedAt?: number
 }
 
 const SEMANTIC_CACHE_DB_KEY = 'kg_semantic_cache_entries'
@@ -215,9 +216,15 @@ export async function querySemanticCache(
     normalizerSchemaVersion: number
   }
 ): Promise<SemanticCacheEntry | null> {
-  await hydrateSemanticCache()
-  
   const normText = stripAccents(inputText).toLowerCase().trim()
+  
+  // Fast query length check
+  if (normText.length < 8) {
+    console.info('[SemanticCache] query too short, skipping')
+    return null
+  }
+
+  await hydrateSemanticCache()
   const keyHash = hashString(normText).slice(0, 8)
   
   const ms = getMiniSearch()
@@ -239,8 +246,11 @@ export async function querySemanticCache(
     return null
   }
   
+  // Limit candidates to top 20 to avoid main thread jank in similarity loop
+  const candidates = results.slice(0, 20)
+  
   // Find the best match
-  for (const match of results) {
+  for (const match of candidates) {
     const entry = memoryEntries.find(e => e.id === match.id)
     if (!entry) continue
     
@@ -252,6 +262,11 @@ export async function querySemanticCache(
     
     if (safetyCheck.allowed && textSim >= 0.60) {
       console.info('[SemanticCache] hit', { keyHash: entry.id.slice(0, 8), similarity: textSim })
+      
+      // Update LRU recency
+      entry.lastUsedAt = Date.now()
+      saveToSemanticCache(entry).catch(() => {})
+      
       return entry
     } else {
       const reason = !safetyCheck.allowed ? safetyCheck.reason : 'low_similarity'
@@ -266,20 +281,28 @@ export async function querySemanticCache(
   return null
 }
 
-export async function saveToSemanticCache(entry: Omit<SemanticCacheEntry, 'id'>) {
+export async function saveToSemanticCache(entry: Omit<SemanticCacheEntry, 'id'> | SemanticCacheEntry) {
   await hydrateSemanticCache()
   
-  const id = hashString(entry.normalizedText)
+  const id = 'id' in entry ? entry.id : hashString(entry.normalizedText)
   const fullEntry: SemanticCacheEntry = {
     ...entry,
-    id
+    id,
+    lastUsedAt: entry.lastUsedAt || Date.now()
   }
   
   memoryEntries = memoryEntries.filter(e => e.id !== id)
   memoryEntries.push(fullEntry)
   
+  // LRU Eviction: cap at 300 entries, evicting the least recently used/created
   if (memoryEntries.length > 300) {
-    memoryEntries.shift()
+    memoryEntries.sort((a, b) => (a.lastUsedAt || a.createdAt) - (b.lastUsedAt || b.createdAt))
+    while (memoryEntries.length > 300) {
+      const evicted = memoryEntries.shift()
+      if (evicted) {
+        console.debug('[SemanticCache] Evicted old cache entry:', evicted.id)
+      }
+    }
   }
   
   const ms = getMiniSearch()

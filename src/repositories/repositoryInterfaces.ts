@@ -17,14 +17,14 @@ export interface Order {
 }
 
 export interface OrderRepository {
-  getHistory(): Promise<any>
+  getHistory(onBgUpdate?: (data: any) => void): Promise<any>
   getOrderById(id: string): Promise<any>
   saveOrder(data: any): Promise<any>
   deleteOrder(id: string, password?: string, token?: string): Promise<any>
 }
 
 export interface MenuRepository {
-  getMenu(sheetName: string): Promise<any>
+  getMenu(sheetName: string, onBgUpdate?: (data: any) => void): Promise<any>
   getMenuSheets(): Promise<any>
   createMenu(name: string, rawText: string, password?: string, token?: string): Promise<any>
   deleteMenu(name: string, password?: string, token?: string): Promise<any>
@@ -36,7 +36,7 @@ export interface MenuRepository {
 }
 
 export interface SettingsRepository {
-  getConfig(): Promise<any>
+  getConfig(onBgUpdate?: (data: any) => void): Promise<any>
   saveConfig(payload: {
     bankList?: string
     staffList?: string

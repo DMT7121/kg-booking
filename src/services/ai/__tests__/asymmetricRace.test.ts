@@ -37,7 +37,7 @@ describe('Asymmetric Race Tests', () => {
 
     const result = await runAsymmetricRace({
       systemPrompt: 'sys',
-      userPrompt: 'user',
+      userPrompt: 'Tôi muốn đặt bàn cho 5 người vào lúc 19:00 ngày 25/06/2026. Tên tôi là Chị Vy. Chúng tôi muốn ăn các món sườn nướng, ba chỉ và lẩu hải sản, kèm nước ngọt.',
       image: null,
       fastModel: mockFastModel,
       qualityModel: mockQualityModel,
@@ -62,7 +62,7 @@ describe('Asymmetric Race Tests', () => {
 
     const result = await runAsymmetricRace({
       systemPrompt: 'sys',
-      userPrompt: 'user',
+      userPrompt: 'Tôi muốn đặt bàn cho 5 người vào lúc 19:00 ngày 25/06/2026. Tên tôi là Chị Vy. Chúng tôi muốn ăn các món sườn nướng, ba chỉ và lẩu hải sản, kèm nước ngọt.',
       image: null,
       fastModel: mockFastModel,
       qualityModel: mockQualityModel,
@@ -93,7 +93,7 @@ describe('Asymmetric Race Tests', () => {
 
     const result = await runAsymmetricRace({
       systemPrompt: 'sys',
-      userPrompt: 'user',
+      userPrompt: 'Tôi muốn đặt bàn cho 5 người vào lúc 19:00 ngày 25/06/2026. Tên tôi là Chị Vy. Chúng tôi muốn ăn các món sườn nướng, ba chỉ và lẩu hải sản, kèm nước ngọt.',
       image: null,
       fastModel: mockFastModel,
       qualityModel: mockQualityModel,

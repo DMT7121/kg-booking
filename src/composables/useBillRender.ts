@@ -280,11 +280,38 @@ function _createBillRender() {
         // Run AI corrections auto-learning
         checkAndLogAiCorrections()
 
+        const optimisticOrder = {
+          id: payload.id,
+          version: payload.version,
+          timestamp: new Date().toISOString(),
+          parsedCustomer: {
+            name: payload.customer.name,
+            phone: payload.customer.phone,
+            date: payload.customer.date,
+            time: payload.customer.time || '',
+            pax: String(payload.customer.pax || ''),
+            tables: payload.customer.tables || '',
+            type: payload.customer.type || 'Ăn thường',
+            note: payload.customer.note || ''
+          },
+          menuItems: payload.items,
+          totalAmount: payload.total,
+          depositAmount: payload.deposit.amount || 0,
+          isDeposited: payload.deposit.isPaid,
+          transferImage: payload.deposit.image || '',
+          staff: payload.staff,
+          isSyncing: true
+        }
+
         if (!navigator.onLine) {
           uiStore.connectionStatus = 'error'
           uiStore.showToast('⚠️ Lưu cục bộ OK — Thiết bị ngoại tuyến', 'warning', 5000)
           await addToOfflineQueue('saveOrder', payload)
           appStore.updateOfflineQueueCount()
+          
+          // Save optimistically too!
+          appStore.setOptimisticOrder({ ...optimisticOrder, isSyncing: false })
+          
           formStore.originalState = formStore.getDataSnapshot()
           appStore.loadHistory(true)
           if (formStore.saveType === 'save') {
@@ -292,8 +319,9 @@ function _createBillRender() {
             uiStore.loading.is = false
           }
         } else {
-          // Mark syncing indicator (non-blocking)
+          // Mark syncing indicator (non-blocking) and save optimistic order
           uiStore.connectionStatus = 'syncing'
+          appStore.setOptimisticOrder(optimisticOrder)
 
           // Fire-and-forget cloud sync
           const syncPromise = fetchWithRetry({ action: 'saveOrder', data: payload })
@@ -303,6 +331,9 @@ function _createBillRender() {
                 uiStore.connectionStatus = 'online'
                 formStore.oldBillFileId = null
                 formStore.aiMetadata = null
+
+                // Mark synced in local store
+                appStore.markOrderSynced(payload.id, result.data || {})
 
                 // Display detailed calendar sync status to user
                 let calendarMsg = ''
@@ -355,6 +386,9 @@ function _createBillRender() {
               uiStore.connectionStatus = 'error'
               uiStore.showToast('⚠️ Lưu cục bộ OK — Chờ mạng để đồng bộ', 'warning', 5000)
               
+              // Mark failed/not syncing locally
+              appStore.markOrderFailed(payload.id)
+
               // Add to offline queue for later sync
               await addToOfflineQueue('saveOrder', payload)
               appStore.updateOfflineQueueCount()

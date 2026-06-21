@@ -7,8 +7,8 @@ import type {
 } from '@/repositories/repositoryInterfaces'
 
 export class GasOrderRepository implements OrderRepository {
-  async getHistory(): Promise<any> {
-    return postGAS({ action: 'getHistory' })
+  async getHistory(onBgUpdate?: (data: any) => void): Promise<any> {
+    return postGAS({ action: 'getHistory' }, undefined, onBgUpdate)
   }
   
   async getOrderById(id: string): Promise<any> {
@@ -29,8 +29,8 @@ export class GasOrderRepository implements OrderRepository {
 }
 
 export class GasMenuRepository implements MenuRepository {
-  async getMenu(sheetName: string): Promise<any> {
-    return postGAS({ action: 'getMenu', sheetName })
+  async getMenu(sheetName: string, onBgUpdate?: (data: any) => void): Promise<any> {
+    return postGAS({ action: 'getMenu', sheetName }, undefined, onBgUpdate)
   }
 
   async getMenuSheets(): Promise<any> {
@@ -67,8 +67,8 @@ export class GasMenuRepository implements MenuRepository {
 }
 
 export class GasSettingsRepository implements SettingsRepository {
-  async getConfig(): Promise<any> {
-    return postGAS({ action: 'getConfig' })
+  async getConfig(onBgUpdate?: (data: any) => void): Promise<any> {
+    return postGAS({ action: 'getConfig' }, undefined, onBgUpdate)
   }
 
   async saveConfig(payload: {

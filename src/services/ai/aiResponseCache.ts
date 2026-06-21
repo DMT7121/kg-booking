@@ -1,5 +1,6 @@
 import { get, set, del, clear } from 'idb-keyval'
 import { clearSemanticCache } from './semanticCache'
+import { clearL1ApiCache } from '@/infrastructure/gas/gasClient'
 
 export interface AIResponseCacheEntry<T = unknown> {
   value: T
@@ -47,6 +48,75 @@ export function stableStringify(val: any): string {
     return '{' + keys.map(k => `${k}:${stableStringify(val[k])}`).join(',') + '}'
   }
   return String(val)
+}
+
+// --- WORKER OFFLOADING FOR LARGE OBJECTS ---
+
+const workerCode = `
+  function stableStringify(val) {
+    if (val === null || val === undefined) return '';
+    if (Array.isArray(val)) {
+      return '[' + val.map(stableStringify).join(',') + ']';
+    }
+    if (typeof val === 'object') {
+      const keys = Object.sort ? Object.keys(val).sort() : Object.keys(val);
+      return '{' + keys.map(k => k + ':' + stableStringify(val[k])).join(',') + '}';
+    }
+    return String(val);
+  }
+
+  function hashString(str) {
+    let h = 0x811c9dc5;
+    for (let i = 0; i < str.length; i++) {
+      h ^= str.charCodeAt(i);
+      h += (h << 1) + (h << 4) + (h << 7) + (h << 8) + (h << 24);
+    }
+    return (h >>> 0).toString(16);
+  }
+
+  self.onmessage = function(e) {
+    const { action, payload } = e.data;
+    if (action === 'hash_and_stringify') {
+      const str = stableStringify(payload);
+      const hash = hashString(str);
+      self.postMessage({ action, hash, str });
+    }
+  };
+`;
+
+let workerInstance: Worker | null = null
+
+function getWorker(): Worker | null {
+  if (typeof window === 'undefined' || !window.Worker) return null
+  if (!workerInstance) {
+    try {
+      const blob = new Blob([workerCode], { type: 'application/javascript' })
+      workerInstance = new Worker(URL.createObjectURL(blob))
+    } catch (e) {
+      console.warn('[Worker] Failed to create inline worker:', e)
+    }
+  }
+  return workerInstance
+}
+
+export function hashAndStringifyLargeObject(obj: any): Promise<{ hash: string; str: string }> {
+  return new Promise((resolve) => {
+    const w = getWorker()
+    if (!w) {
+      const str = stableStringify(obj)
+      const hash = hashString(str)
+      resolve({ hash, str })
+      return
+    }
+    const onMsg = (e: MessageEvent) => {
+      if (e.data.action === 'hash_and_stringify') {
+        w.removeEventListener('message', onMsg)
+        resolve({ hash: e.data.hash, str: e.data.str })
+      }
+    }
+    w.addEventListener('message', onMsg)
+    w.postMessage({ action: 'hash_and_stringify', payload: obj })
+  })
 }
 
 /**
@@ -143,6 +213,7 @@ export async function deleteCachedAIResponse(key: string): Promise<void> {
  */
 export async function clearAIResponseCache(reason?: string): Promise<void> {
   l1Cache.clear()
+  clearL1ApiCache()
   try {
     await clear()
     await clearSemanticCache()

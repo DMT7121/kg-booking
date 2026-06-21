@@ -1,7 +1,7 @@
 import { AI_TIMEOUTS } from '@/utils/constants'
 import type { AIModel } from '@/utils/constants'
 import * as api from '@/services/api'
-import { handleModelFailure } from './circuitBreaker'
+import { handleModelFailure, isGatewayCircuitOpen, reportGatewaySuccess, reportGatewayFailure } from './circuitBreaker'
 
 export interface AICompletionRequest {
   model: AIModel
@@ -32,6 +32,16 @@ class FatalAIError extends Error {
     this.status = status
   }
 }
+
+export const AI_TRANSPORT_TIMEOUTS = {
+  directMs: 3000,
+  edgeMs: 2500,
+  gasMs: 6000,
+  totalModelCallMs: 8000,
+  totalPipelineMs: 12000
+};
+
+const MIN_STAGE_BUDGET_MS = 1500;
 
 export function getTimeoutForModel(model: AIModel): number {
   if (model.type === 'vision') return AI_TIMEOUTS.proxyMs
@@ -66,6 +76,8 @@ export async function callAIModel(
     maxOutputTokens,
     temperature
   } = request
+
+  const overallStartTime = performance.now()
 
   if (logCallback) {
     logCallback(`[Model: ${model.name}] Bắt đầu gọi model. Provider: ${model.provider}, Chế độ JSON: ${jsonMode}`)
@@ -138,7 +150,18 @@ export async function callAIModel(
 
     for (let i = 0; i < keyList.length; i++) {
       if (signal?.aborted) break
+      
+      const elapsedOverall = performance.now() - overallStartTime
+      const remainingMs = AI_TRANSPORT_TIMEOUTS.totalModelCallMs - elapsedOverall
+      if (remainingMs < MIN_STAGE_BUDGET_MS) {
+        if (logCallback) {
+          logCallback(`[Model: ${model.name}] Quá hạn budget gọi Direct (${remainingMs.toFixed(0)}ms remaining). Bỏ qua stage này.`, 'warning')
+        }
+        break
+      }
+
       const key = keyList[i]
+      const effectiveTimeout = Math.min(modelTimeout, remainingMs, AI_TRANSPORT_TIMEOUTS.directMs)
       try {
         let fetchUrl = model.url
         const headers: Record<string, string> = { 'Content-Type': 'application/json' }
@@ -208,59 +231,73 @@ export async function callAIModel(
         }
 
         const controller = new AbortController()
-        const timeoutId = setTimeout(() => controller.abort(), modelTimeout)
+        const timeoutId = setTimeout(() => controller.abort(), effectiveTimeout)
         
+        const onAbort = () => controller.abort()
         if (signal) {
-          signal.addEventListener('abort', () => controller.abort())
+          signal.addEventListener('abort', onAbort)
         }
 
-        const res = await fetch(fetchUrl, {
-          method: 'POST',
-          headers,
-          body: JSON.stringify(body),
-          signal: controller.signal
-        })
-        clearTimeout(timeoutId)
+        try {
+          const res = await fetch(fetchUrl, {
+            method: 'POST',
+            headers,
+            body: JSON.stringify(body),
+            signal: controller.signal
+          })
+          clearTimeout(timeoutId)
 
-        if (res.status === 401 || res.status === 403) {
-          throw new FatalAIError(`Invalid API Key / Unauthorized (HTTP ${res.status})`, res.status)
-        }
-        if (res.status === 429) {
-          throw new FatalAIError(`Rate limit / Quota exceeded (HTTP ${res.status})`, res.status)
-        }
-        if (res.status === 404) {
-          throw new FatalAIError(`Model not found (HTTP ${res.status})`, res.status)
-        }
-        if (!res.ok) {
-          const errText = await res.text().catch(() => `HTTP ${res.status}`)
-          throw new Error(errText.substring(0, 200))
-        }
-
-        const json = await res.json()
-        let content: string | null = null
-
-        if (model.format === 'gemini') {
-          const parts = json.candidates?.[0]?.content?.parts || []
-          for (let p = parts.length - 1; p >= 0; p--) {
-            if (parts[p].text && !parts[p].thought) {
-              content = parts[p].text
-              break
-            }
+          if (res.status === 401 || res.status === 403) {
+            throw new FatalAIError(`Invalid API Key / Unauthorized (HTTP ${res.status})`, res.status)
           }
-          if (!content) content = parts.find((p: any) => p.text)?.text || null
-        } else {
-          content = json.choices?.[0]?.message?.content
-        }
+          if (res.status === 429) {
+            throw new FatalAIError(`Rate limit / Quota exceeded (HTTP ${res.status})`, res.status)
+          }
+          if (res.status === 404) {
+            throw new FatalAIError(`Model not found (HTTP ${res.status})`, res.status)
+          }
+          if (res.status === 402) {
+            throw new FatalAIError(`Billing / Payment Required (HTTP ${res.status})`, res.status)
+          }
+          if (res.status === 400) {
+            throw new FatalAIError(`Invalid request / model format (HTTP ${res.status})`, res.status)
+          }
+          if (!res.ok) {
+            const errText = await res.text().catch(() => `HTTP ${res.status}`)
+            throw new Error(errText.substring(0, 200))
+          }
 
-        if (!content) throw new Error('Empty response from model')
-        
-        if (logCallback) {
-          logCallback(`[Model: ${model.name}] Gọi API trực tiếp qua client thành công!`, 'success')
+          const json = await res.json()
+          let content: string | null = null
+
+          if (model.format === 'gemini') {
+            const parts = json.candidates?.[0]?.content?.parts || []
+            for (let p = parts.length - 1; p >= 0; p--) {
+              if (parts[p].text && !parts[p].thought) {
+                content = parts[p].text
+                break
+              }
+            }
+            if (!content) content = parts.find((p: any) => p.text)?.text || null
+          } else {
+            content = json.choices?.[0]?.message?.content
+          }
+
+          if (!content) throw new Error('Empty response from model')
+          
+          if (logCallback) {
+            logCallback(`[Model: ${model.name}] Gọi API trực tiếp qua client thành công!`, 'success')
+          }
+          return content
+        } finally {
+          clearTimeout(timeoutId)
+          if (signal) {
+            signal.removeEventListener('abort', onAbort)
+          }
         }
-        return content
       } catch (e: any) {
-        const isFatal = e.name === 'FatalAIError' || e.message.includes('Unauthorized') || e.message.includes('Rate limit') || e.message.includes('Quota')
-        const errMsg = e.name === 'AbortError' ? `Timeout (${modelTimeout / 1000}s)` : e.message
+        const isFatal = e instanceof FatalAIError || e.name === 'FatalAIError' || e.message.includes('Unauthorized') || e.message.includes('Rate limit') || e.message.includes('Quota') || e.message.includes('not found') || e.message.includes('payment')
+        const errMsg = e.name === 'AbortError' ? `Timeout (${effectiveTimeout / 1000}s)` : e.message
         if (logCallback) {
           logCallback(`[Model: ${model.name}] Lỗi khi gọi trực tiếp qua client (Key #${i + 1}): ${errMsg}`, 'warning')
         }
@@ -281,8 +318,6 @@ export async function callAIModel(
     throw new Error('Request aborted by user or timeout')
   }
 
-  // Nếu người dùng đã cấu hình key local và key đó bị lỗi kết nối mạng thông thường (không phải fatal)
-  // hoặc nếu không cấu hình key local nào (muốn dùng key trên server), ta mới chuyển tiếp qua Edge/GAS Proxy.
   if (hasKeyConfigured && !canCallDirect) {
     throw new Error(`Tất cả các local keys cấu hình cho provider ${model.provider} đều thất bại.`)
   }
@@ -300,110 +335,162 @@ export async function callAIModel(
     normalizedGatewayUrl = '';
   }
 
+  const isEdgeCircuitOpen = isGatewayCircuitOpen('cloudflare_edge')
+
   // --- SERVER FALLBACK 1: CLOUDFLARE EDGE PROXY ---
-  if (normalizedGatewayUrl) {
-    console.info('[AI Proxy] Trying Cloudflare Edge Proxy...')
-    if (logCallback) {
-      logCallback(`[Model: ${model.name}] Chuyển tiếp yêu cầu qua Server Proxy (Cloudflare Edge)...`, 'info')
-    }
-    const workerStartTime = performance.now()
-    const controller = new AbortController()
-    const timeoutId = setTimeout(() => controller.abort(), AI_TIMEOUTS.proxyMs) // timeout from config
-    
-    const onAbort = () => controller.abort()
-    if (signal) {
-      signal.addEventListener('abort', onAbort)
-    }
+  if (normalizedGatewayUrl && !isEdgeCircuitOpen) {
+    const elapsedOverall = performance.now() - overallStartTime
+    const remainingMs = AI_TRANSPORT_TIMEOUTS.totalModelCallMs - elapsedOverall
 
-    try {
-      const headers: Record<string, string> = { 'Content-Type': 'application/json' }
-      if (sharedSecret) {
-        headers['Authorization'] = `Bearer ${sharedSecret}`
-      }
-      
-      const ephemeralKey = sessionStorage.getItem('kg_ephemeral_signing_key')
-      const adminTokenVal = sessionStorage.getItem('kg_admin_token') || ''
-      
-      const bodyPayload = JSON.stringify({
-        model: model.id,
-        provider: model.provider,
-        sysPrompt,
-        userPrompt,
-        image,
-        jsonMode,
-        responseSchema,
-        maxOutputTokens,
-        temperature
-      })
-
-      if (ephemeralKey && adminTokenVal) {
-        try {
-          const { signRequest } = await import('@/utils/security')
-          const signingPath = '/api/ai/analyze'
-          const signed = await signRequest('POST', signingPath, bodyPayload, ephemeralKey, adminTokenVal)
-          
-          headers['X-KG-Timestamp'] = String(signed.timestamp)
-          headers['X-KG-Nonce'] = signed.nonce
-          headers['X-KG-Key-Id'] = signed.keyId
-          headers['X-KG-Signature'] = signed.signature
-          
-          if (logCallback) {
-            logCallback('[Security] Request signature headers added successfully.', 'info')
-          }
-        } catch (signErr: any) {
-          console.warn('[Security] Failed to sign request:', signErr.message)
-        }
-      }
-      
-      const res = await fetch(`${normalizedGatewayUrl}/api/ai/analyze`, {
-        method: 'POST',
-        headers,
-        body: bodyPayload,
-        signal: controller.signal
-      })
-      
-      if (!res.ok) {
-        const errText = await res.text().catch(() => `HTTP ${res.status}`)
-        throw new Error(errText.substring(0, 150))
-      }
-      
-      const json = await res.json()
-      if (json.ok && json.content) {
-        const latencyMs = Math.round(performance.now() - workerStartTime)
-        console.info('[AI Proxy] Cloudflare Edge Proxy success', { latencyMs })
-        if (logCallback) {
-          logCallback(`[Model: ${model.name}] Gọi qua Server Proxy (Cloudflare Edge) thành công!`, 'success')
-        }
-        return json.content
-      }
-      throw new Error(json.error || 'Gateway returned invalid response')
-    } catch (e: any) {
-      const errorMsg = e.name === 'AbortError' ? 'Timeout (10s)' : (e.message || String(e))
-      const latencyMs = Math.round(performance.now() - workerStartTime)
-      let kind = 'api_error'
-      if (e.name === 'AbortError') {
-        kind = 'timeout'
-      } else if (e instanceof TypeError) {
-        kind = 'cors_or_network_error'
-      }
-      console.warn('[AI Proxy] Cloudflare Edge Proxy failed, falling back to GAS', { error: errorMsg, latencyMs })
-      console.warn('[AI Gateway] request failed, falling back', { kind, latencyMs });
+    if (remainingMs >= MIN_STAGE_BUDGET_MS) {
+      console.info('[AI Proxy] Trying Cloudflare Edge Proxy...')
       if (logCallback) {
-        logCallback(`[Model: ${model.name}] Lỗi khi gọi qua Server Proxy (Cloudflare Edge): ${errorMsg}. Đang dùng chế độ dự phòng sang GAS...`, 'warning')
+        logCallback(`[Model: ${model.name}] Chuyển tiếp yêu cầu qua Server Proxy (Cloudflare Edge)...`, 'info')
       }
-    } finally {
-      clearTimeout(timeoutId)
+      const workerStartTime = performance.now()
+      
+      const effectiveTimeout = Math.min(AI_TRANSPORT_TIMEOUTS.edgeMs, remainingMs)
+      const controller = new AbortController()
+      const timeoutId = setTimeout(() => controller.abort(), effectiveTimeout)
+      
+      const onAbort = () => controller.abort()
       if (signal) {
-        signal.removeEventListener('abort', onAbort)
+        signal.addEventListener('abort', onAbort)
       }
+
+      try {
+        const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+        if (sharedSecret) {
+          headers['Authorization'] = `Bearer ${sharedSecret}`
+        }
+        
+        const ephemeralKey = sessionStorage.getItem('kg_ephemeral_signing_key')
+        const adminTokenVal = sessionStorage.getItem('kg_admin_token') || ''
+        
+        const bodyPayload = JSON.stringify({
+          model: model.id,
+          provider: model.provider,
+          sysPrompt,
+          userPrompt,
+          image,
+          jsonMode,
+          responseSchema,
+          maxOutputTokens,
+          temperature
+        })
+
+        if (ephemeralKey && adminTokenVal) {
+          try {
+            const { signRequest } = await import('@/utils/security')
+            const signingPath = '/api/ai/analyze'
+            const signed = await signRequest('POST', signingPath, bodyPayload, ephemeralKey, adminTokenVal)
+            
+            headers['X-KG-Timestamp'] = String(signed.timestamp)
+            headers['X-KG-Nonce'] = signed.nonce
+            headers['X-KG-Key-Id'] = signed.keyId
+            headers['X-KG-Signature'] = signed.signature
+            
+            if (logCallback) {
+              logCallback('[Security] Request signature headers added successfully.', 'info')
+            }
+          } catch (signErr: any) {
+            console.warn('[Security] Failed to sign request:', signErr.message)
+          }
+        }
+        
+        const res = await fetch(`${normalizedGatewayUrl}/api/ai/analyze`, {
+          method: 'POST',
+          headers,
+          body: bodyPayload,
+          signal: controller.signal
+        })
+        
+        if (res.status === 401 || res.status === 403) {
+          throw new FatalAIError(`Edge proxy unauthorized (HTTP ${res.status})`, res.status)
+        }
+        if (res.status === 404) {
+          throw new FatalAIError(`Model not found on Edge (HTTP ${res.status})`, res.status)
+        }
+        if (res.status === 402) {
+          throw new FatalAIError(`Edge billing / payment required (HTTP ${res.status})`, res.status)
+        }
+        if (res.status === 400) {
+          throw new FatalAIError(`Edge invalid format/payload (HTTP ${res.status})`, res.status)
+        }
+        if (!res.ok) {
+          const errText = await res.text().catch(() => `HTTP ${res.status}`)
+          throw new Error(errText.substring(0, 150))
+        }
+        
+        const json = await res.json()
+        if (json.ok && json.content) {
+          const latencyMs = Math.round(performance.now() - workerStartTime)
+          console.info('[AI Proxy] Cloudflare Edge Proxy success', { latencyMs })
+          if (logCallback) {
+            logCallback(`[Model: ${model.name}] Gọi qua Server Proxy (Cloudflare Edge) thành công!`, 'success')
+          }
+          reportGatewaySuccess('cloudflare_edge')
+          return json.content
+        }
+        throw new Error(json.error || 'Gateway returned invalid response')
+      } catch (e: any) {
+        const errorMsg = e.name === 'AbortError' ? `Timeout (${effectiveTimeout / 1000}s)` : (e.message || String(e))
+        const latencyMs = Math.round(performance.now() - workerStartTime)
+        
+        const isFatal = e instanceof FatalAIError || e.name === 'FatalAIError'
+        
+        if (!isFatal && (e instanceof TypeError || e.name === 'AbortError' || e.message?.includes('fetch') || e.message?.includes('network'))) {
+          reportGatewayFailure('cloudflare_edge', 'edge_cors_or_network', errorMsg)
+        }
+        
+        console.warn('[AI Proxy] Cloudflare Edge Proxy failed, falling back to GAS', { error: errorMsg, latencyMs })
+        if (logCallback) {
+          logCallback(`[Model: ${model.name}] Lỗi khi gọi qua Server Proxy (Cloudflare Edge): ${errorMsg}. Đang dùng chế độ dự phòng sang GAS...`, 'warning')
+        }
+        
+        if (isFatal) {
+          handleModelFailure(model.id, e)
+          throw e // Do not fallback to GAS for permanent credential/access errors
+        }
+      } finally {
+        clearTimeout(timeoutId)
+        if (signal) {
+          signal.removeEventListener('abort', onAbort)
+        }
+      }
+    } else {
+      if (logCallback) {
+        logCallback(`[Model: ${model.name}] Quá hạn budget gọi Edge Proxy (${remainingMs.toFixed(0)}ms remaining).`, 'warning')
+      }
+    }
+  } else if (isEdgeCircuitOpen) {
+    if (logCallback) {
+      logCallback(`[Model: ${model.name}] Bỏ qua Cloudflare Edge Proxy do Circuit đang mở (cooldown).`, 'warning')
     }
   }
 
   // --- SERVER FALLBACK 2: GAS PROXY ---
+  const elapsedOverall = performance.now() - overallStartTime
+  const remainingMs = AI_TRANSPORT_TIMEOUTS.totalModelCallMs - elapsedOverall
+  if (remainingMs < MIN_STAGE_BUDGET_MS) {
+    throw new Error('AI_MODEL_CALL_BUDGET_EXHAUSTED')
+  }
+
   if (logCallback) {
     logCallback(`[Model: ${model.name}] Chuyển tiếp yêu cầu qua Server Proxy (GAS)...`, 'info')
   }
+  
   const gasStartTime = performance.now()
+  const gasController = new AbortController()
+  
+  const effectiveGasTimeout = Math.min(AI_TRANSPORT_TIMEOUTS.gasMs, remainingMs)
+  const gasTimeoutId = setTimeout(() => gasController.abort(), effectiveGasTimeout)
+  
+  const onGasAbort = () => gasController.abort()
+  if (signal) {
+    signal.addEventListener('abort', onGasAbort)
+  }
+
   try {
     const res = await api.callAiProxy({
       provider: model.provider,
@@ -414,7 +501,8 @@ export async function callAIModel(
       jsonMode,
       format: model.format as any,
       url: model.url
-    }, signal)
+    }, gasController.signal)
+    
     if (!res.ok) {
       throw new Error(res.message || 'AI Proxy failed')
     }
@@ -425,10 +513,16 @@ export async function callAIModel(
     }
     return res.content
   } catch (e: any) {
+    const errMsg = e.name === 'AbortError' ? `Timeout (${effectiveGasTimeout / 1000}s)` : e.message
     if (logCallback) {
-      logCallback(`[Model: ${model.name}] Lỗi khi gọi qua Server Proxy (GAS): ${e.message}`, 'error')
+      logCallback(`[Model: ${model.name}] Lỗi khi gọi qua Server Proxy (GAS): ${errMsg}`, 'error')
     }
     handleModelFailure(model.id, e)
     throw e
+  } finally {
+    clearTimeout(gasTimeoutId)
+    if (signal) {
+      signal.removeEventListener('abort', onGasAbort)
+    }
   }
 }

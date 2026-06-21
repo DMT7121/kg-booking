@@ -1,4 +1,5 @@
 import { AI_MODELS } from '@/utils/constants'
+import { get as idbGet, set as idbSet } from 'idb-keyval'
 
 interface CooldownInfo {
   expiry: number
@@ -29,6 +30,111 @@ export interface ProviderHealthState {
 
 // In-memory provider health state
 const providerHealthMap: Record<string, ProviderHealthState> = {}
+
+export interface GatewayHealthState {
+  gateway: string
+  status: 'closed' | 'open' | 'half_open'
+  consecutiveFailures: number
+  cooldownUntil?: number
+  lastFailureKind?: string
+}
+
+// In-memory gateway health state
+const gatewayHealthMap: Record<string, GatewayHealthState> = {}
+
+export type PersistedCircuitState = {
+  schemaVersion: number
+  updatedAt: number
+  providers: Record<string, {
+    status: 'closed' | 'open' | 'half_open'
+    cooldownUntil?: number
+    lastFailureKind?: ProviderFailureKind
+    consecutiveFailures: number
+  }>
+  models: Record<string, {
+    expiry: number
+    reason: string
+  }>
+  gateways: Record<string, {
+    status: 'closed' | 'open' | 'half_open'
+    cooldownUntil?: number
+    lastFailureKind?: string
+  }>
+}
+
+const CIRCUIT_STATE_DB_KEY = 'kg_circuit_breaker_state'
+
+function saveStateToDB() {
+  if (typeof indexedDB === 'undefined') return
+  const state: PersistedCircuitState = {
+    schemaVersion: 1,
+    updatedAt: Date.now(),
+    providers: { ...providerHealthMap } as any,
+    models: { ...cooldownMap },
+    gateways: { ...gatewayHealthMap } as any
+  }
+  idbSet(CIRCUIT_STATE_DB_KEY, state).catch(err => {
+    console.warn('[CircuitBreaker] DB write failed:', err)
+  })
+}
+
+export async function hydrateCircuitState(): Promise<void> {
+  if (typeof indexedDB === 'undefined') {
+    return
+  }
+  try {
+    const state = await idbGet<PersistedCircuitState>(CIRCUIT_STATE_DB_KEY)
+    if (state && state.schemaVersion === 1) {
+      const now = Date.now()
+      // Hydrate models
+      if (state.models) {
+        Object.entries(state.models).forEach(([modelId, info]) => {
+          if (info.expiry > now) {
+            cooldownMap[modelId] = info
+          }
+        })
+      }
+      // Hydrate providers
+      if (state.providers) {
+        Object.entries(state.providers).forEach(([provider, pState]) => {
+          if (pState.cooldownUntil && pState.cooldownUntil > now) {
+            providerHealthMap[provider] = pState as any
+          } else if (pState.status === 'open') {
+            providerHealthMap[provider] = {
+              ...pState,
+              status: 'half_open',
+              cooldownUntil: undefined
+            } as any
+          } else {
+            providerHealthMap[provider] = pState as any
+          }
+        })
+      }
+      // Hydrate gateways
+      if (state.gateways) {
+        Object.entries(state.gateways).forEach(([gateway, gState]) => {
+          if (gState.cooldownUntil && gState.cooldownUntil > now) {
+            gatewayHealthMap[gateway] = gState as any
+          } else if (gState.status === 'open') {
+            gatewayHealthMap[gateway] = {
+              ...gState,
+              status: 'half_open',
+              cooldownUntil: undefined
+            } as any
+          } else {
+            gatewayHealthMap[gateway] = gState as any
+          }
+        })
+      }
+      console.info(`[Circuit Breaker] Hydrated: ${Object.keys(cooldownMap).length} models, ${Object.keys(providerHealthMap).length} providers active.`)
+    }
+  } catch (err) {
+    console.warn('[CircuitBreaker] Hydration failed, using memory only:', err)
+  }
+}
+
+// Auto-hydrate on load
+hydrateCircuitState()
 
 /**
  * Gets or initializes the health state for a provider
@@ -71,6 +177,7 @@ export function reportProviderSuccess(provider: string, latencyMs?: number): voi
     state.cooldownUntil = undefined
     console.info(`[Circuit Breaker] Provider [${provider}] circuit CLOSED (Success!).`)
   }
+  saveStateToDB()
 }
 
 /**
@@ -113,6 +220,7 @@ export function reportProviderFailure(provider: string, kind: ProviderFailureKin
     state.cooldownUntil = Date.now() + cooldownDuration
     console.warn(`[Circuit Breaker] Provider [${provider}] circuit OPEN. Cooldown for ${Math.round(cooldownDuration / 1000)}s. Reason: ${errorMsg}`)
   }
+  saveStateToDB()
 }
 
 /**
@@ -125,6 +233,7 @@ export function cooldownModel(modelId: string, durationMs: number, reason: strin
   const expiry = Date.now() + durationMs
   cooldownMap[modelId] = { expiry, reason }
   console.warn(`[Circuit Breaker] Model [${modelId}] has been put in cooldown for ${Math.round(durationMs / 1000)}s. Reason: ${reason}`)
+  saveStateToDB()
 }
 
 /**
@@ -138,6 +247,7 @@ export function isModelCooldown(modelId: string): boolean {
   
   if (Date.now() > info.expiry) {
     delete cooldownMap[modelId]
+    saveStateToDB()
     return false
   }
   return true
@@ -155,6 +265,7 @@ export function getRemainingCooldown(modelId: string): number {
   const remainingMs = info.expiry - Date.now()
   if (remainingMs <= 0) {
     delete cooldownMap[modelId]
+    saveStateToDB()
     return 0
   }
   return Math.ceil(remainingMs / 1000)
@@ -198,7 +309,11 @@ export function clearAllCooldowns(): void {
   for (const key in providerHealthMap) {
     delete providerHealthMap[key]
   }
-  console.log('[Circuit Breaker] All model and provider cooldowns cleared.')
+  for (const key in gatewayHealthMap) {
+    delete gatewayHealthMap[key]
+  }
+  console.log('[Circuit Breaker] All model, provider, and gateway cooldowns cleared.')
+  saveStateToDB()
 }
 
 /**
@@ -286,3 +401,48 @@ export function handleModelFailure(modelId: string, error: any): void {
   }
 }
 
+// --- GATEWAY CIRCUIT BREAKER ---
+
+export function getGatewayHealth(gateway: string): GatewayHealthState {
+  if (!gatewayHealthMap[gateway]) {
+    gatewayHealthMap[gateway] = {
+      gateway,
+      status: 'closed',
+      consecutiveFailures: 0
+    }
+  }
+  const state = gatewayHealthMap[gateway]
+  if (state.status === 'open' && state.cooldownUntil && Date.now() > state.cooldownUntil) {
+    state.status = 'half_open'
+    console.info(`[Circuit Breaker] Gateway [${gateway}] transitioned to HALF_OPEN. Cooldown expired.`)
+  }
+  return state
+}
+
+export function isGatewayCircuitOpen(gateway: string): boolean {
+  const state = getGatewayHealth(gateway)
+  return state.status === 'open'
+}
+
+export function reportGatewaySuccess(gateway: string): void {
+  const state = getGatewayHealth(gateway)
+  state.consecutiveFailures = 0
+  if (state.status === 'half_open' || state.status === 'open') {
+    state.status = 'closed'
+    state.cooldownUntil = undefined
+    console.info(`[Circuit Breaker] Gateway [${gateway}] circuit CLOSED (Success!).`)
+  }
+  saveStateToDB()
+}
+
+export function reportGatewayFailure(gateway: string, kind: string, errorMsg: string): void {
+  const state = getGatewayHealth(gateway)
+  state.consecutiveFailures++
+  state.lastFailureKind = kind
+  
+  const cooldownDuration = 30 * 1000 // 30s cooldown
+  state.status = 'open'
+  state.cooldownUntil = Date.now() + cooldownDuration
+  console.warn(`[Circuit Breaker] Gateway [${gateway}] circuit OPEN. Cooldown for 30s. Reason: ${errorMsg}`)
+  saveStateToDB()
+}

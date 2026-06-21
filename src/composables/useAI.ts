@@ -57,27 +57,11 @@ export function useAI() {
   const apiGatewayUrl = import.meta.env.VITE_AI_GATEWAY_URL || ''
 
   function getMenuFingerprint(): string {
-    const normalizedMenu = [...appStore.menuList]
-      .sort((a, b) => a.name.localeCompare(b.name))
-      .map(item => ({
-        name: item.name,
-        price: item.price,
-        desc: item.desc,
-        acronym: item.acronym
-      }))
-    return hashString(stableStringify(normalizedMenu))
+    return appStore.menuFingerprint
   }
 
   function getCorrectionFingerprint(): string {
-    const normalizedCorrections = [...(appStore.aiCorrections || [])]
-      .sort((a, b) => `${a.field}:${a.inputText}`.localeCompare(`${b.field}:${b.inputText}`))
-      .map(c => ({
-        inputText: c.inputText,
-        wrongValue: c.wrongValue,
-        correctValue: c.correctValue,
-        field: c.field
-      }))
-    return hashString(stableStringify(normalizedCorrections))
+    return appStore.correctionFingerprint
   }
 
   function resolveContext(parsed: any) {

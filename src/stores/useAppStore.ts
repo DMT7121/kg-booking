@@ -16,7 +16,7 @@ import {
   GasSettingsRepository, 
   GasCorrectionRepository 
 } from '@/infrastructure/gas/gasRepositories'
-import { clearAIResponseCache } from '@/services/ai/aiResponseCache'
+import { clearAIResponseCache, hashAndStringifyLargeObject } from '@/services/ai/aiResponseCache'
 
 const orderRepo = new GasOrderRepository()
 const menuRepo = new GasMenuRepository()
@@ -70,12 +70,115 @@ export interface MenuListItem {
   acronym: string
 }
 
+export interface NormalizedBookingTime {
+  bookingId: string;
+  dateKey: string;
+  tables: string[];
+  startMinutes: number;
+  endMinutes: number;
+  status: string;
+}
+
+const bookingTimeIndex = new Map<string, NormalizedBookingTime[]>()
+
+function rebuildBookingTimeIndex(history: HistoryOrder[]) {
+  bookingTimeIndex.clear()
+  
+  const parseTimeToMinutes = (tStr: string) => {
+    if (!tStr) return 0
+    if (tStr.length === 5 && tStr[2] === ':') {
+      const h = (tStr.charCodeAt(0) - 48) * 10 + (tStr.charCodeAt(1) - 48)
+      const m = (tStr.charCodeAt(3) - 48) * 10 + (tStr.charCodeAt(4) - 48)
+      if (h >= 0 && h < 24 && m >= 0 && m < 60) return h * 60 + m
+    }
+    const m = tStr.match(/^(\d{2}):(\d{2})$/)
+    if (!m) return 0
+    return parseInt(m[1]) * 60 + parseInt(m[2])
+  }
+  
+  history.forEach(order => {
+    if (!order.parsedCustomer) return
+    const customer = order.parsedCustomer
+    const dateKey = (customer.date || '').trim()
+    if (!dateKey) return
+    
+    const timeStr = customer.time || ''
+    const tablesStr = customer.tables || ''
+    const tables = tablesStr.split(/[\s,]+/).map(t => t.trim().toUpperCase()).filter(Boolean)
+    
+    const startMinutes = parseTimeToMinutes(timeStr)
+    const endMinutes = startMinutes + 120
+    
+    const normalized: NormalizedBookingTime = {
+      bookingId: order.id,
+      dateKey,
+      tables,
+      startMinutes,
+      endMinutes,
+      status: customer.type || ''
+    }
+    
+    let dateList = bookingTimeIndex.get(dateKey)
+    if (!dateList) {
+      dateList = []
+      bookingTimeIndex.set(dateKey, dateList)
+    }
+    dateList.push(normalized)
+  })
+}
+
+export function hasTimeConflictIndexed(
+  a: { id?: string; date: string; time: string; tables: string },
+  bufferMinutes = 120
+): boolean {
+  const dateKey = (a.date || '').trim()
+  if (!dateKey) return false
+  
+  const candidates = bookingTimeIndex.get(dateKey)
+  if (!candidates || candidates.length === 0) return false
+  
+  const tablesA = a.tables.split(/[\s,]+/).map(t => t.trim().toUpperCase()).filter(Boolean)
+  if (tablesA.length === 0) return false
+  
+  const parseTimeToMinutes = (tStr: string) => {
+    if (!tStr) return 0
+    if (tStr.length === 5 && tStr[2] === ':') {
+      const h = (tStr.charCodeAt(0) - 48) * 10 + (tStr.charCodeAt(1) - 48)
+      const m = (tStr.charCodeAt(3) - 48) * 10 + (tStr.charCodeAt(4) - 48)
+      if (h >= 0 && h < 24 && m >= 0 && m < 60) return h * 60 + m
+    }
+    const m = tStr.match(/^(\d{2}):(\d{2})$/)
+    if (!m) return 0
+    return parseInt(m[1]) * 60 + parseInt(m[2])
+  }
+  
+  const timeA = parseTimeToMinutes(a.time)
+  const startA = timeA
+  const endA = timeA + bufferMinutes
+  
+  for (const other of candidates) {
+    if (a.id && other.bookingId === a.id) continue
+    
+    // Check table overlap
+    const hasCommonTable = tablesA.some(t => other.tables.includes(t))
+    if (!hasCommonTable) continue
+    
+    // Check time overlap
+    const overlap = startA < other.endMinutes && other.startMinutes < endA
+    if (overlap) {
+      return true
+    }
+  }
+  return false
+}
+
 export function hasTimeConflict(
   a: { date: string; time: string; tables: string },
   b: { date: string; time: string; tables: string },
   options?: { bufferMinutes?: number }
 ): boolean {
   if (a.date !== b.date) return false
+  if (!a.tables || !b.tables) return false
   
   const tablesA = a.tables.split(/[\s,]+/).map(t => t.trim().toUpperCase()).filter(Boolean)
   const tablesB = b.tables.split(/[\s,]+/).map(t => t.trim().toUpperCase()).filter(Boolean)
@@ -83,6 +186,13 @@ export function hasTimeConflict(
   if (!hasCommonTable) return false
   
   const parseTimeToMinutes = (tStr: string) => {
+    if (tStr.length === 5 && tStr[2] === ':') {
+      const h = (tStr.charCodeAt(0) - 48) * 10 + (tStr.charCodeAt(1) - 48)
+      const m = (tStr.charCodeAt(3) - 48) * 10 + (tStr.charCodeAt(4) - 48)
+      if (h >= 0 && h < 24 && m >= 0 && m < 60) {
+        return h * 60 + m
+      }
+    }
     const m = tStr.match(/^(\d{2}):(\d{2})$/)
     if (!m) return 0
     return parseInt(m[1]) * 60 + parseInt(m[2])
@@ -92,13 +202,16 @@ export function hasTimeConflict(
   const timeB = parseTimeToMinutes(b.time)
   const buffer = options?.bufferMinutes ?? 120
   
-  const startA = timeA
-  const endA = timeA + buffer
-  const startB = timeB
-  const endB = timeB + buffer
-  
-  return Math.max(startA, startB) < Math.min(endA, endB)
+  return timeA < timeB + buffer && timeB < timeA + buffer
 }
+
+export type OfflineQueueItemStatus =
+  | 'pending'
+  | 'syncing'
+  | 'synced'
+  | 'failed'
+  | 'conflict'
+  | 'deferred';
 
 export const useAppStore = defineStore('app', () => {
   const uiStore = useUIStore()
@@ -121,6 +234,44 @@ export const useAppStore = defineStore('app', () => {
   const defaultBankAccountIndex = ref(parseInt(localStorage.getItem('default_bank_account_index') || '-1'))
   const menuAliases = ref<{ alias: string; dishName: string }[]>(JSON.parse(localStorage.getItem('menu_aliases') || '[]'))
   const aiCorrections = ref<any[]>(JSON.parse(localStorage.getItem('ai_corrections') || '[]'))
+
+  // --- Cached Fingerprints ---
+  const menuFingerprint = ref('')
+  const correctionFingerprint = ref('')
+
+  async function computeMenuFingerprint() {
+    if (menuList.value.length === 0) {
+      menuFingerprint.value = ''
+      return
+    }
+    const normalizedMenu = [...menuList.value]
+      .sort((a, b) => a.name.localeCompare(b.name))
+      .map(item => ({
+        name: item.name,
+        price: item.price,
+        desc: item.desc,
+        acronym: item.acronym
+      }))
+    const { hash } = await hashAndStringifyLargeObject(normalizedMenu)
+    menuFingerprint.value = hash
+  }
+
+  async function computeCorrectionFingerprint() {
+    if (!aiCorrections.value || aiCorrections.value.length === 0) {
+      correctionFingerprint.value = ''
+      return
+    }
+    const normalizedCorrections = [...aiCorrections.value]
+      .sort((a, b) => `${a.field}:${a.inputText}`.localeCompare(`${b.field}:${b.inputText}`))
+      .map(c => ({
+        inputText: c.inputText,
+        wrongValue: c.wrongValue,
+        correctValue: c.correctValue,
+        field: c.field
+      }))
+    const { hash } = await hashAndStringifyLargeObject(normalizedCorrections)
+    correctionFingerprint.value = hash
+  }
 
   // --- Bank ---
   const bankList = ref<any[]>(JSON.parse(localStorage.getItem(CACHE_KEYS.BANK) || DEFAULTS.BANKS))
@@ -221,6 +372,49 @@ export const useAppStore = defineStore('app', () => {
     return html || '<span class="text-gray-400 italic">Cập nhật thông tin chi tiết</span>'
   }
 
+  // --- Optimistic UI Save Hooks ---
+  function setOptimisticOrder(order: HistoryOrder) {
+    const list = [...historyList.value]
+    const idx = list.findIndex(h => h.id === order.id)
+    if (idx !== -1) {
+      list[idx] = order
+    } else {
+      list.push(order)
+    }
+    historyList.value = list
+    rebuildBookingTimeIndex(list)
+    cacheHistory(list)
+  }
+
+  function markOrderSynced(orderId: string, serverData?: any) {
+    const list = [...historyList.value]
+    const idx = list.findIndex(h => h.id === orderId)
+    if (idx !== -1) {
+      list[idx] = {
+        ...list[idx],
+        ...serverData,
+        isSyncing: false
+      }
+      historyList.value = list
+      rebuildBookingTimeIndex(list)
+      cacheHistory(list)
+    }
+  }
+
+  function markOrderFailed(orderId: string) {
+    const list = [...historyList.value]
+    const idx = list.findIndex(h => h.id === orderId)
+    if (idx !== -1) {
+      list[idx] = {
+        ...list[idx],
+        isSyncing: false
+      }
+      historyList.value = list
+      rebuildBookingTimeIndex(list)
+      cacheHistory(list)
+    }
+  }
+
   // --- API Actions ---
   async function loadHistory(silent: boolean) {
     uiStore.connectionStatus = 'syncing'
@@ -228,12 +422,21 @@ export const useAppStore = defineStore('app', () => {
     const cached = await getCachedHistory()
     if (cached && cached.length > 0 && historyList.value.length === 0) {
       historyList.value = cached
+      rebuildBookingTimeIndex(cached)
     }
 
     try {
-      const data = await orderRepo.getHistory()
+      const data = await orderRepo.getHistory((freshData) => {
+        if (freshData && freshData.ok) {
+          historyList.value = freshData.data || []
+          rebuildBookingTimeIndex(freshData.data || [])
+          uiStore.connectionStatus = 'online'
+          cacheHistory(freshData.data || [])
+        }
+      })
       if (data.ok) {
         historyList.value = data.data || []
+        rebuildBookingTimeIndex(data.data || [])
         uiStore.connectionStatus = 'online'
         cacheHistory(data.data || [])
       } else {
@@ -242,7 +445,7 @@ export const useAppStore = defineStore('app', () => {
     } catch (e) {
       console.error(e)
       uiStore.connectionStatus = cached ? 'online' : 'error'
-      if (cached) uiStore.showToast('Đang dùng dữ liệu offline', 'info')
+      if (cached && !silent) uiStore.showToast('Đang dùng dữ liệu offline', 'info')
     }
   }
 
@@ -253,6 +456,7 @@ export const useAppStore = defineStore('app', () => {
     const cached = await getCachedMenu(targetSheet)
     if (cached && cached.length > 0) {
       menuList.value = cached
+      computeMenuFingerprint()
       const ds: Record<string, string> = {}
       cached.forEach((i: any) => { if (i.desc) ds[i.name] = i.desc })
       menuDetails.value = ds
@@ -262,6 +466,7 @@ export const useAppStore = defineStore('app', () => {
       menuRepo.getMenu(targetSheet).then((data) => {
         if (data.ok) {
           menuList.value = data.data || []
+          computeMenuFingerprint()
           const dsUpdate: Record<string, string> = {}
           if (Array.isArray(data.data)) {
             data.data.forEach((i: any) => { if (i.desc) dsUpdate[i.name] = i.desc })
@@ -280,6 +485,7 @@ export const useAppStore = defineStore('app', () => {
       const data = await menuRepo.getMenu(targetSheet)
       if (data.ok) {
         menuList.value = data.data || []
+        computeMenuFingerprint()
         const ds: Record<string, string> = {}
         if (Array.isArray(data.data)) {
           data.data.forEach((i: any) => { if (i.desc) ds[i.name] = i.desc })
@@ -585,90 +791,113 @@ export const useAppStore = defineStore('app', () => {
   async function fetchRemoteConfig() {
     uiStore.connectionStatus = 'syncing'
     try {
-      const result = await settingsRepo.getConfig()
+      const result = await settingsRepo.getConfig((freshConfig) => {
+        if (freshConfig && freshConfig.ok && freshConfig.data) {
+          processRemoteConfigPayload(freshConfig.data)
+        }
+      })
       if (result.ok && result.data) {
         uiStore.connectionStatus = 'online'
-        let hasChanges = false
-        if (result.data.bankList) {
-          try {
-            const sBanks = JSON.parse(result.data.bankList)
-            if (Array.isArray(sBanks) && sBanks.length > 0) {
-              bankList.value = sBanks
-              localStorage.setItem(CACHE_KEYS.BANK, result.data.bankList)
-              hasChanges = true
-            }
-          } catch { /* ignore */ }
-        }
-        if (result.data.staffList) {
-          try {
-            const sStaff = JSON.parse(result.data.staffList)
-            if (Array.isArray(sStaff) && sStaff.length > 0) {
-              staffList.value = sStaff
-              localStorage.setItem(CACHE_KEYS.STAFF, result.data.staffList)
-              hasChanges = true
-            }
-          } catch { /* ignore */ }
-        }
-        if (result.data.webhookUrl) {
-          localStorage.setItem('kg_v400_webhookUrl', result.data.webhookUrl)
-          hasChanges = true
-        }
-        if (result.data.telegramChatId) {
-          localStorage.setItem('kg_v400_telegramChatId', result.data.telegramChatId)
-          hasChanges = true
-        }
-        
-        if (result.data.default_bank_account_id) {
-          const accountId = result.data.default_bank_account_id
-          localStorage.setItem('default_bank_account_id', accountId)
-          const index = bankList.value.findIndex((b: any) => b.bankId === accountId || b.number === accountId)
-          if (index !== -1) {
-            defaultBankAccountIndex.value = index
-            selectedBankIndex.value = index
-            localStorage.setItem(CACHE_KEYS.SELECTED_BANK, String(index))
-          }
-        }
-        if (result.data.default_menu_profile_id) {
-          defaultMenuProfileId.value = result.data.default_menu_profile_id
-          localStorage.setItem('default_menu_profile_id', result.data.default_menu_profile_id)
-          if (!localStorage.getItem(CACHE_KEYS.MENU_SHEET)) {
-            activeSheet.value = result.data.default_menu_profile_id
-            localStorage.setItem(CACHE_KEYS.MENU_SHEET, result.data.default_menu_profile_id)
-          }
-        }
-        
-        Object.keys(result.data).forEach(k => {
-          let url = result.data[k]
-          if (typeof url === 'string' && url.includes('drive.google.com/uc?')) {
-            const match = url.match(/id=([^&]+)/)
-            if (match) url = `https://drive.google.com/thumbnail?id=${match[1]}&sz=w1200`
-          }
-          if (k.startsWith('dishImage_')) {
-            dishImages.value[k.replace('dishImage_', '')] = url
-          }
-          if (k.startsWith('menuImage_')) {
-            menuImages.value[k.replace('menuImage_', '')] = url
-          }
-        })
-        
-        try {
-          await loadMenuAliases()
-        } catch (errAliases) {
-          console.warn('Aliases sync error:', errAliases)
-        }
-        try {
-          await loadAiCorrections()
-        } catch (errCorrections) {
-          console.warn('Corrections sync error:', errCorrections)
-        }
-
-        if (hasChanges) {
-          uiStore.showToast('Đã đồng bộ cấu hình từ Server', 'info')
-        }
+        processRemoteConfigPayload(result.data)
       }
     } catch (e) {
       console.warn('Config Sync Failed (Offline Mode)', e)
       uiStore.connectionStatus = 'error'
+    }
+  }
+
+  function processRemoteConfigPayload(data: Record<string, any>) {
+    const startParse = performance.now()
+    let hasChanges = false
+    if (data.bankList) {
+      try {
+        const sBanks = JSON.parse(data.bankList)
+        if (Array.isArray(sBanks) && sBanks.length > 0) {
+          bankList.value = sBanks
+          localStorage.setItem(CACHE_KEYS.BANK, data.bankList)
+          hasChanges = true
+        }
+      } catch { /* ignore */ }
+    }
+    if (data.staffList) {
+      try {
+        const sStaff = JSON.parse(data.staffList)
+        if (Array.isArray(sStaff) && sStaff.length > 0) {
+          staffList.value = sStaff
+          localStorage.setItem(CACHE_KEYS.STAFF, data.staffList)
+          hasChanges = true
+        }
+      } catch { /* ignore */ }
+    }
+    if (data.webhookUrl) {
+      localStorage.setItem('kg_v400_webhookUrl', data.webhookUrl)
+      hasChanges = true
+    }
+    if (data.telegramChatId) {
+      localStorage.setItem('kg_v400_telegramChatId', data.telegramChatId)
+      hasChanges = true
+    }
+    
+    if (data.default_bank_account_id) {
+      const accountId = data.default_bank_account_id
+      localStorage.setItem('default_bank_account_id', accountId)
+      const index = bankList.value.findIndex((b: any) => b.bankId === accountId || b.number === accountId)
+      if (index !== -1) {
+        defaultBankAccountIndex.value = index
+        selectedBankIndex.value = index
+        localStorage.setItem(CACHE_KEYS.SELECTED_BANK, String(index))
+      }
+    }
+    if (data.default_menu_profile_id) {
+      defaultMenuProfileId.value = data.default_menu_profile_id
+      localStorage.setItem('default_menu_profile_id', data.default_menu_profile_id)
+      if (!localStorage.getItem(CACHE_KEYS.MENU_SHEET)) {
+        activeSheet.value = data.default_menu_profile_id
+        localStorage.setItem(CACHE_KEYS.MENU_SHEET, data.default_menu_profile_id)
+      }
+    }
+    
+    // --- OPTIMIZED IMAGE RESOLVING ---
+    const IMAGE_CONFIG_KEY_PATTERN = /(image|img|photo|avatar|logo|banner|drive|thumbnail|background|qr)/i
+    const GOOGLE_DRIVE_URL_PATTERN = /drive\.google\.com|docs\.google\.com/i
+
+    Object.keys(data).forEach(k => {
+      // Fast selective key filter
+      if (!k.startsWith('dishImage_') && !k.startsWith('menuImage_') && !IMAGE_CONFIG_KEY_PATTERN.test(k)) {
+        return
+      }
+      
+      let url = data[k]
+      if (typeof url === 'string') {
+        const hasDriveUrl = GOOGLE_DRIVE_URL_PATTERN.test(url)
+        if (hasDriveUrl) {
+          const match = url.match(/id=([^&]+)/)
+          if (match) url = `https://drive.google.com/thumbnail?id=${match[1]}&sz=w1200`
+        }
+        if (k.startsWith('dishImage_')) {
+          dishImages.value[k.replace('dishImage_', '')] = url
+        } else if (k.startsWith('menuImage_')) {
+          menuImages.value[k.replace('menuImage_', '')] = url
+        }
+      }
+    })
+    
+    try {
+      loadMenuAliases()
+    } catch (errAliases) {
+      console.warn('Aliases sync error:', errAliases)
+    }
+    try {
+      loadAiCorrections()
+    } catch (errCorrections) {
+      console.warn('Corrections sync error:', errCorrections)
+    }
+
+    const durationMs = (performance.now() - startParse).toFixed(1)
+    console.info(`[Perf Instrumentation] remoteConfig.parse: ${durationMs}ms`)
+
+    if (hasChanges) {
+      uiStore.showToast('Đã đồng bộ cấu hình từ Server', 'info')
     }
   }
 
@@ -873,6 +1102,7 @@ export const useAppStore = defineStore('app', () => {
       const res = await correctionRepo.getAiCorrections()
       if (res.ok && res.data) {
         aiCorrections.value = res.data
+        computeCorrectionFingerprint()
         localStorage.setItem('ai_corrections', JSON.stringify(res.data))
       }
     } catch (e) {
@@ -893,6 +1123,8 @@ export const useAppStore = defineStore('app', () => {
   function autoSyncIfReady() {
     fetchRemoteConfig()
     updateOfflineQueueCount()
+    computeMenuFingerprint()
+    computeCorrectionFingerprint()
   }
 
   autoSyncIfReady()
@@ -946,97 +1178,140 @@ export const useAppStore = defineStore('app', () => {
     }
   }
 
+  const offlineItemStatuses = ref<Record<string, { status: OfflineQueueItemStatus; retries: number; lastAttempt?: number }>>({})
+  let isProcessingOfflineQueue = false
+
   async function processOfflineQueue() {
-    const queue = await getOfflineQueue()
-    offlineQueueCount.value = queue.length
-    if (queue.length === 0) return
-    uiStore.showToast(`Đang đồng bộ ${queue.length} đơn offline...`, 'info')
-    
-    await loadHistory(true)
+    if (isProcessingOfflineQueue) return
+    isProcessingOfflineQueue = true
 
-    for (const item of queue) {
-      try {
-        const payload = item.payload
-        const localId = payload.id
-        
-        if (item.action !== 'saveOrder') {
-          await fetchWithRetry({ action: item.action, data: payload })
-          await removeFromQueue(item.id)
-          await updateOfflineQueueCount()
-          continue
+    try {
+      const queue = await getOfflineQueue()
+      offlineQueueCount.value = queue.length
+      if (queue.length === 0) return
+
+      queue.forEach(item => {
+        if (!offlineItemStatuses.value[item.id]) {
+          offlineItemStatuses.value[item.id] = { status: 'pending', retries: 0 }
         }
+      })
 
-        let conflictType: BookingConflict['type'] | null = null
-        let serverSnapshot: any = null
+      const pendingItems = queue.filter(item => {
+        const state = offlineItemStatuses.value[item.id]
+        if (state.status === 'synced' || state.status === 'conflict' || state.status === 'failed') return false
         
-        const existingServerBooking = historyList.value.find(h => h.id === localId)
-        
-        if (existingServerBooking) {
-          serverSnapshot = existingServerBooking
-          const baseVersion = payload.baseServerVersion ?? payload.version ?? 1
-          const serverVersion = existingServerBooking.version ?? 1
-          if (serverVersion > baseVersion) {
-            conflictType = 'version_mismatch'
+        if (state.status === 'deferred') {
+          const backoff = Math.min(30000, 1000 * Math.pow(2, state.retries))
+          if (Date.now() - (state.lastAttempt || 0) < backoff) {
+            return false
           }
         }
-        
-        if (!conflictType) {
-          const date = payload.customer.date
-          const time = payload.customer.time
-          const tables = payload.customer.tables || ''
-          
-          for (const other of historyList.value) {
-            if (other.id === localId) continue
-            
-            const otherDate = other.parsedCustomer.date
-            const otherTime = other.parsedCustomer.time || ''
-            const otherTables = other.parsedCustomer.tables || ''
-            
-            const hasConflict = hasTimeConflict(
-              { date, time, tables },
-              { date: otherDate, time: otherTime, tables: otherTables }
-            )
-            
-            if (hasConflict) {
-              conflictType = 'table_time_overlap'
-              serverSnapshot = other
-              break
+        return true
+      })
+
+      if (pendingItems.length === 0) return
+
+      uiStore.showToast(`Đang đồng bộ ${pendingItems.length} đơn offline...`, 'info')
+      await loadHistory(true)
+
+      await runWithConcurrencyLimit(pendingItems, 2, async (item) => {
+        const state = offlineItemStatuses.value[item.id]
+        state.status = 'syncing'
+        state.lastAttempt = Date.now()
+
+        try {
+          const payload = item.payload
+          const localId = payload.id
+
+          if (item.action !== 'saveOrder') {
+            const res = await fetchWithRetry({ action: item.action, data: payload }, 1)
+            if (res?.ok) {
+              state.status = 'synced'
+              await removeFromQueue(item.id)
+              await updateOfflineQueueCount()
+            } else {
+              state.status = 'failed'
+            }
+            return
+          }
+
+          let conflictType: BookingConflict['type'] | null = null
+          let serverSnapshot: any = null
+
+          const existingServerBooking = historyList.value.find(h => h.id === localId)
+          if (existingServerBooking) {
+            const baseVersion = payload.baseServerVersion ?? payload.version ?? 1
+            const serverVersion = existingServerBooking.version ?? 1
+            if (serverVersion > baseVersion) {
+              conflictType = 'version_mismatch'
             }
           }
-        }
-        
-        if (conflictType) {
-          const newConflict: BookingConflict = {
-            localBookingId: localId,
-            serverBookingId: serverSnapshot?.id,
-            type: conflictType,
-            severity: 'blocking',
-            localSnapshot: payload,
-            serverSnapshot,
-            detectedAt: new Date().toISOString()
+
+          if (!conflictType) {
+            const date = payload.customer.date
+            const time = payload.customer.time
+            const tables = payload.customer.tables || ''
+
+            const hasConflict = hasTimeConflictIndexed({ id: localId, date, time, tables })
+            if (hasConflict) {
+              conflictType = 'table_time_overlap'
+              serverSnapshot = historyList.value.find(h => {
+                if (h.id === localId) return false
+                return hasTimeConflict(
+                  { date, time, tables },
+                  { date: h.parsedCustomer.date, time: h.parsedCustomer.time || '', tables: h.parsedCustomer.tables || '' }
+                )
+              })
+            }
           }
-          
-          if (!activeConflicts.value.some(c => c.localBookingId === localId)) {
-            activeConflicts.value.push(newConflict)
-            saveConflicts()
+
+          if (conflictType) {
+            state.status = 'conflict'
+            const newConflict: BookingConflict = {
+              localBookingId: localId,
+              serverBookingId: serverSnapshot?.id,
+              type: conflictType,
+              severity: 'blocking',
+              localSnapshot: payload,
+              serverSnapshot,
+              detectedAt: new Date().toISOString()
+            }
+
+            if (!activeConflicts.value.some(c => c.localBookingId === localId)) {
+              activeConflicts.value.push(newConflict)
+              saveConflicts()
+            }
+            uiStore.showToast(`Phát hiện xung đột đồng bộ cho đơn của ${payload.customer.name}!`, 'warning', 6000)
+            return
           }
-          
-          uiStore.showToast(`Phát hiện xung đột đồng bộ cho đơn của ${payload.customer.name}!`, 'warning', 6000)
-          continue
+
+          const controller = new AbortController()
+          const tId = setTimeout(() => controller.abort(), 8000)
+
+          const res = await fetchWithRetry({ action: item.action, data: payload }, 1, controller.signal)
+          clearTimeout(tId)
+
+          if (res?.ok) {
+            state.status = 'synced'
+            await removeFromQueue(item.id)
+            await updateOfflineQueueCount()
+          } else {
+            state.status = 'failed'
+            console.warn('[OfflineQueue] Server sync rejected item:', item.id, res)
+          }
+        } catch (e: any) {
+          const isNetworkOrTimeout = e.name === 'AbortError' || e.message?.includes('fetch') || e.message?.includes('network')
+          if (isNetworkOrTimeout && state.retries < 3) {
+            state.status = 'deferred'
+            state.retries++
+          } else {
+            state.status = 'failed'
+          }
+          console.warn('[OfflineQueue] Exception processing item:', item.id, e)
         }
-        
-        const res = await fetchWithRetry({ action: item.action, data: payload })
-        if (res?.ok) {
-          await removeFromQueue(item.id)
-          await updateOfflineQueueCount()
-        } else {
-          console.warn('[OfflineQueue] Server sync rejected item:', item.id, res)
-          break
-        }
-      } catch (e) {
-        console.warn('[OfflineQueue] Failed to sync item:', item.id, e)
-        break
-      }
+      })
+    } finally {
+      isProcessingOfflineQueue = false
     }
   }
 
@@ -1059,10 +1334,12 @@ export const useAppStore = defineStore('app', () => {
     historyList, menuList, menuDetails, menuImages, dishImages, menuSheets, activeSheet, newMenuName, newMenuContent,
     menuAliases, loadMenuAliases, saveAlias, deleteAlias,
     aiCorrections, loadAiCorrections,
+    menuFingerprint, correctionFingerprint,
     bankList, selectedBankIndex, newBank,
     staffList, newStaff,
     currentBank, groupedHistory, filteredHistory,
     getCrmStatus, computeDiff,
+    setOptimisticOrder, markOrderSynced, markOrderFailed,
     loadHistory, fetchMenu, fetchSheets, switchMenu, uploadNewMenu, deleteMenu, uploadMenuImageStore, uploadDishImageStore,
     selectBank, addBank, removeBank,
     addStaff, removeStaff,
