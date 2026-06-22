@@ -5,6 +5,7 @@ compatibility_date = "2024-01-01"
 
 [vars]
 CORS_ORIGIN = "*"
+GOOGLE_SPREADSHEET_ID = "1TCVdHWwve9xHmBC89QYZnbrmhrhDsqin9S9jtZRj-r8"
 
 # If KV is available, bind it for persistent Rate Limiting
 # [[kv_namespaces]]

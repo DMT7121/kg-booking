@@ -47,6 +47,18 @@ if ($openrouter) {
     $openrouter | npx wrangler secret put OPENROUTER_API_KEY
 }
 
+Write-Host "Nhap Email cua Google Service Account (de trong de bo qua):"
+$gEmail = Read-Host
+if ($gEmail) {
+    $gEmail | npx wrangler secret put GOOGLE_CLIENT_EMAIL
+}
+
+Write-Host "Nhap Private Key (PEM) cua Google Service Account (de trong de bo qua):"
+$gKey = Read-Host
+if ($gKey) {
+    $gKey | npx wrangler secret put GOOGLE_PRIVATE_KEY
+}
+
 Write-Host ""
 Write-Host "=== THIET LAP HOAN TAT! ===" -ForegroundColor Green
 Write-Host "Vui long thuc hien nap SQL Schema database tu file:" -ForegroundColor Cyan

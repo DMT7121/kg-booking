@@ -7,6 +7,9 @@ export interface Env {
   CEREBRAS_API_KEY?: string;
   MISTRAL_API_KEY?: string;
   APP_SHARED_SECRET: string;
+  GOOGLE_CLIENT_EMAIL?: string;
+  GOOGLE_PRIVATE_KEY?: string;
+  GOOGLE_SPREADSHEET_ID: string;
 }
 
 // In-Memory Rate Limiter (Local to isolate, upgradeable to KV)
@@ -338,12 +341,200 @@ export default {
       }
     }
 
+    // 4. POST /api/sheets/upsert (Google Sheets API V4 Direct Fast Write)
+    if (url.pathname === "/api/sheets/upsert" && request.method === "POST") {
+      try {
+        // Authenticate request
+        const authHeader = request.headers.get("Authorization");
+        if (!authHeader || !authHeader.startsWith("Bearer ") || authHeader.split(" ")[1] !== env.APP_SHARED_SECRET) {
+          return new Response(JSON.stringify({ ok: false, error: "Unauthorized: Invalid App Shared Secret" }), {
+            status: 401,
+            headers: { ...corsHeaders, "Content-Type": "application/json" }
+          });
+        }
+
+        const payload = await request.json() as any;
+        const { range, bookingId, row } = payload;
+        const spreadsheetId = payload.spreadsheetId || env.GOOGLE_SPREADSHEET_ID;
+
+        if (!spreadsheetId || !range || !bookingId || !row) {
+          return new Response(JSON.stringify({ ok: false, error: "Missing required parameters" }), {
+            status: 400,
+            headers: { ...corsHeaders, "Content-Type": "application/json" }
+          });
+        }
+
+        // Get Service Account credentials from environment variables
+        const clientEmail = env.GOOGLE_CLIENT_EMAIL;
+        const privateKey = env.GOOGLE_PRIVATE_KEY;
+
+        if (!clientEmail || !privateKey) {
+          return new Response(JSON.stringify({ ok: false, error: "Google Service Account credentials are not configured on Worker" }), {
+            status: 500,
+            headers: { ...corsHeaders, "Content-Type": "application/json" }
+          });
+        }
+
+        const accessToken = await getGoogleAccessToken(clientEmail, privateKey);
+
+        // Fetch current values in range to find if bookingId already exists
+        const fetchUrl = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${encodeURIComponent(range)}`;
+        const fetchResponse = await fetch(fetchUrl, {
+          headers: {
+            "Authorization": `Bearer ${accessToken}`
+          }
+        });
+
+        let values: string[][] = [];
+        if (fetchResponse.ok) {
+          const fetchJson = await fetchResponse.json() as any;
+          values = fetchJson.values || [];
+        }
+
+        // Find existing booking row by ID (assume ID is in the first column, index 0)
+        let foundRowIndex = -1;
+        for (let i = 0; i < values.length; i++) {
+          if (values[i] && values[i][0] === bookingId) {
+            foundRowIndex = i + 1; // 1-indexed for Sheets API
+            break;
+          }
+        }
+
+        const sheetName = range.split("!")[0] || "Orders";
+        let sheetsUrl = "";
+        let method = "POST";
+        let body: any = {};
+
+        if (foundRowIndex === -1) {
+          // Append (New booking)
+          sheetsUrl = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${encodeURIComponent(sheetName + "!A:J")}:append?valueInputOption=USER_ENTERED`;
+          method = "POST";
+          body = { values: [row] };
+        } else {
+          // Update (Existing booking)
+          sheetsUrl = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${encodeURIComponent(sheetName + "!A" + foundRowIndex + ":J" + foundRowIndex)}?valueInputOption=USER_ENTERED`;
+          method = "PUT";
+          body = { values: [row] };
+        }
+
+        const writeResponse = await fetch(sheetsUrl, {
+          method: method,
+          headers: {
+            "Authorization": `Bearer ${accessToken}`,
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify(body)
+        });
+
+        if (!writeResponse.ok) {
+          const errText = await writeResponse.text();
+          return new Response(JSON.stringify({ ok: false, error: `Google Sheets API Write Error: ${errText}` }), {
+            status: writeResponse.status,
+            headers: { ...corsHeaders, "Content-Type": "application/json" }
+          });
+        }
+
+        const writeJson = await writeResponse.json() as any;
+        return new Response(JSON.stringify({ ok: true, data: writeJson }), {
+          status: 200,
+          headers: { ...corsHeaders, "Content-Type": "application/json" }
+        });
+
+      } catch (err: any) {
+        return new Response(JSON.stringify({ ok: false, error: err.message }), {
+          status: 500,
+          headers: { ...corsHeaders, "Content-Type": "application/json" }
+        });
+      }
+    }
+
     return new Response(JSON.stringify({ ok: false, error: "Endpoint not found" }), {
       status: 404,
       headers: { ...corsHeaders, "Content-Type": "application/json" }
     });
   }
 };
+
+async function getGoogleAccessToken(clientEmail: string, privateKey: string): Promise<string> {
+  const pemHeader = "-----BEGIN PRIVATE KEY-----";
+  const pemFooter = "-----END PRIVATE KEY-----";
+  const pemContents = privateKey
+    .replace(pemHeader, "")
+    .replace(pemFooter, "")
+    .replace(/\s+/g, "");
+  
+  const binaryDerString = atob(pemContents);
+  const binaryDer = new Uint8Array(binaryDerString.length);
+  for (let i = 0; i < binaryDerString.length; i++) {
+    binaryDer[i] = binaryDerString.charCodeAt(i);
+  }
+
+  const cryptoKey = await crypto.subtle.importKey(
+    "pkcs8",
+    binaryDer.buffer,
+    {
+      name: "RSASSA-PKCS1-v1_5",
+      hash: { name: "SHA-256" }
+    },
+    false,
+    ["sign"]
+  );
+
+  const header = {
+    alg: "RS256",
+    typ: "JWT"
+  };
+  
+  const now = Math.floor(Date.now() / 1000);
+  const claimSet = {
+    iss: clientEmail,
+    scope: "https://www.googleapis.com/auth/spreadsheets",
+    aud: "https://oauth2.googleapis.com/token",
+    exp: now + 3600,
+    iat: now
+  };
+
+  const base64UrlEncode = (obj: any) => {
+    const str = JSON.stringify(obj);
+    const base64 = btoa(unescape(encodeURIComponent(str)));
+    return base64.replace(/=/g, "").replace(/\+/g, "-").replace(/\//g, "_");
+  };
+
+  const tokenInput = `${base64UrlEncode(header)}.${base64UrlEncode(claimSet)}`;
+  
+  const encoder = new TextEncoder();
+  const signatureBuffer = await crypto.subtle.sign(
+    "RSASSA-PKCS1-v1_5",
+    cryptoKey,
+    encoder.encode(tokenInput)
+  );
+
+  const signatureArray = new Uint8Array(signatureBuffer);
+  let signatureString = "";
+  for (let i = 0; i < signatureArray.length; i++) {
+    signatureString += String.fromCharCode(signatureArray[i]);
+  }
+  const signatureBase64 = btoa(signatureString);
+  const signatureBase64Url = signatureBase64.replace(/=/g, "").replace(/\+/g, "-").replace(/\//g, "_");
+
+  const assertion = `${tokenInput}.${signatureBase64Url}`;
+
+  const tokenResponse = await fetch("https://oauth2.googleapis.com/token", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/x-www-form-urlencoded"
+    },
+    body: `grant_type=urn:ietf:params:oauth:grant-type:jwt-bearer&assertion=${assertion}`
+  });
+
+  if (!tokenResponse.ok) {
+    const errText = await tokenResponse.text();
+    throw new Error(`Google OAuth2 Token Request failed: ${errText}`);
+  }
+
+  const tokenData = await tokenResponse.json() as any;
+  return tokenData.access_token;
+}
 
 const HTML_PAGE = `<!DOCTYPE html>
 <html lang="en">

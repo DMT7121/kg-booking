@@ -59,55 +59,141 @@ export class DualWriteOrderRepository implements OrderRepository {
     if (mode === 'postgres') return this.pg.saveOrder(data)
 
     // Dual-Write Mode
-    const orderId = data.id || data.data?.id || crypto.randomUUID()
+    const orderData = data.id ? data : data.data
+    const orderId = orderData.id || crypto.randomUUID()
     if (data.customer) {
       data.id = orderId
     } else if (data.data) {
       data.data.id = orderId
     }
 
-    const [pgRes, gasRes] = await Promise.allSettled([
-      this.pg.saveOrder(data),
-      this.gas.saveOrder(data)
-    ])
+    // 1. Save to Postgres (always immediate & synchronous)
+    const pgRes = await this.pg.saveOrder(data)
+    const pgSuccess = pgRes && pgRes.ok
 
-    const pgVal = pgRes.status === 'fulfilled' ? (pgRes as PromiseFulfilledResult<any>).value : null
-    const gasVal = gasRes.status === 'fulfilled' ? (gasRes as PromiseFulfilledResult<any>).value : null
-    const pgSuccess = pgVal && pgVal.ok
-    const gasSuccess = gasVal && gasVal.ok
+    // Build Sheet Row Data
+    const createdAt = orderData.createdAt || orderData.meta?.createdAt || new Date().toISOString()
+    const customerName = orderData.customer?.name || orderData.customer_name || 'Khách hàng'
+    const customerPhone = orderData.customer?.phone || orderData.phone || ''
+    const totalAmount = Number(orderData.total || orderData.totalAmount) || 0
+    const depositAmount = Number(orderData.deposit?.amount || orderData.depositAmount) || 0
+    const isPaid = !!(orderData.deposit?.isPaid || orderData.isDeposited)
+    const transferUrl = orderData.deposit?.image || orderData.transferImage || ''
+    const billUrl = orderData.billUrl || ''
 
-    if (pgSuccess && gasSuccess) {
-      return pgVal
+    const unifiedData = {
+      customer: orderData.customer || { name: customerName, phone: customerPhone },
+      items: orderData.items || orderData.menuItems || [],
+      staff: orderData.staff || { name: 'Admin', phone: '' },
+      deposit: orderData.deposit || { amount: depositAmount, isPaid },
+      activeMenuSheet: orderData.activeMenuSheet || "",
+      aiMetadata: orderData.aiMetadata || null,
+      warnings: orderData.warnings || [],
+      unresolvedItems: orderData.unresolvedItems || [],
+      meta: { createdAt, updatedAt: new Date().toISOString() }
     }
 
-    if (pgSuccess && !gasSuccess) {
-      console.warn('[DualWrite] Booking saved in Postgres but failed on GAS (Google Sheets). Marking sync pending.')
-      // Update postgres record to indicate sheet synchronization is pending
-      try {
-        await this.pg.saveOrder({
-          ...(data.customer ? data : data.data),
-          sheet_sync_pending: true
+    const row = [
+      orderId,
+      createdAt,
+      customerName,
+      "'" + customerPhone,
+      JSON.stringify(unifiedData),
+      totalAmount,
+      depositAmount,
+      isPaid ? "YES" : "NO",
+      transferUrl,
+      billUrl
+    ]
+
+    // 2. Save to Google Sheets via direct fast Sheets API V4 worker proxy
+    let sheetSuccess = false
+    try {
+      const gatewayUrl = import.meta.env.VITE_AI_GATEWAY_URL || ''
+      const secret = import.meta.env.VITE_APP_SHARED_SECRET || ''
+      if (gatewayUrl) {
+        const sheetsRes = await fetch(`${gatewayUrl}/api/sheets/upsert`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${secret}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            range: 'Orders!A:J',
+            bookingId: orderId,
+            row: row
+          })
         })
-      } catch (err: any) {
-        console.error('[DualWrite] Failed to set sheet_sync_pending status in Postgres:', err.message)
+        if (sheetsRes.ok) {
+          const resJson = await sheetsRes.json() as any
+          if (resJson.ok) {
+            sheetSuccess = true
+          } else {
+            console.warn('[DualWrite] Sheets API V4 worker proxy returned error:', resJson.error)
+          }
+        } else {
+          console.warn('[DualWrite] Sheets API V4 worker proxy returned HTTP status:', sheetsRes.status)
+        }
       }
-      return pgVal
+    } catch (e: any) {
+      console.warn('[DualWrite] Direct Sheets API V4 write failed:', e.message)
     }
 
-    if (!pgSuccess && gasSuccess) {
-      console.error('[DualWrite] Booking saved on Sheets but failed in Postgres. Queueing PG reconciliation.')
-      // Return GAS result but mark in log that PG sync failed
-      return {
-        ...gasVal,
-        pg_sync_failed: true,
-        warning: 'PostgreSQL save failed, synchronizing in background.'
+    // 3. Handle synchronizations & fallbacks
+    if (pgSuccess) {
+      if (sheetSuccess) {
+        // Fire and forget background GAS save (PDF render, notifications, calendar sync, location block)
+        this.gas.saveOrder(data).catch(err => {
+          console.warn('[DualWrite] Background GAS sync failed:', err.message)
+        })
+        return pgRes
+      } else {
+        console.info('[DualWrite] Direct Sheets API write failed or not configured. Falling back to synchronous GAS write...')
+        const gasRes = await this.gas.saveOrder(data)
+        if (gasRes.ok) {
+          return pgRes
+        } else {
+          console.warn('[DualWrite] GAS fallback save failed:', gasRes.message)
+          // Update Postgres record to mark sheet sync as pending
+          try {
+            await this.pg.saveOrder({
+              ...(data.customer ? data : data.data),
+              sheet_sync_pending: true
+            })
+          } catch (err: any) {
+            console.error('[DualWrite] Failed to set sheet_sync_pending status in Postgres:', err.message)
+          }
+          return pgRes
+        }
+      }
+    } else {
+      // Postgres failed
+      if (sheetSuccess) {
+        console.error('[DualWrite] Booking saved on Sheets via direct API but failed in Postgres. Queueing PG reconciliation.')
+        // Asynchronously try to reconcile Postgres
+        this.pg.saveOrder(data).catch(err => {
+          console.warn('[DualWrite] Background Postgres reconciliation failed:', err.message)
+        })
+        return {
+          ok: true,
+          id: orderId,
+          pg_sync_failed: true,
+          warning: 'PostgreSQL save failed, synchronizing in background.'
+        }
+      } else {
+        // Direct sheets API also failed, fall back to synchronous GAS write
+        console.warn('[DualWrite] Postgres & Direct Sheets API failed. Trying synchronous GAS write as final fallback...')
+        const gasRes = await this.gas.saveOrder(data)
+        if (gasRes.ok) {
+          return {
+            ...gasRes,
+            pg_sync_failed: true,
+            warning: 'PostgreSQL save failed, saved via GAS.'
+          }
+        }
+        throw new Error(`DualWrite save failed! Postgres and GAS are both unreachable.`)
       }
     }
-
-    // Both failed
-    const pgError = pgRes.status === 'rejected' ? pgRes.reason.message : (pgVal?.message || 'Postgres failed')
-    const gasError = gasRes.status === 'rejected' ? gasRes.reason.message : (gasVal?.message || 'GAS failed')
-    throw new Error(`DualWrite write failure! PG: ${pgError} | GAS: ${gasError}`)
   }
 
   async deleteOrder(id: string, password?: string, token?: string): Promise<any> {
