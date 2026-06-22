@@ -125,6 +125,7 @@ function doPost(e) {
         case "deleteApiKey": result = deleteApiKey(data.provider, data.index, data.token); break;
         case "saveApiKeys": result = saveApiKeys(data.keys, data.password, data.token); break;
         case "borrowApiKeys": result = getSharedApiKeys(data.password, data.token); break;
+        case "getSharedApiKeysWithoutPassword": result = getSharedApiKeysWithoutPassword(); break;
         
         // NEW ENDPOINTS
         case "authAdminSettings": result = authAdminSettings(data.password); break;
@@ -1352,6 +1353,22 @@ function getSharedApiKeys(password) {
     }
   }
   return { ok: true, keys: keys };
+}
+
+function getSharedApiKeysWithoutPassword() {
+  const apiKeys = getApiKeysFromConfig_();
+  const keysList = [];
+  for (const provider in apiKeys) {
+    const list = apiKeys[provider];
+    if (Array.isArray(list)) {
+      list.forEach(key => {
+        let prov = String(provider).toLowerCase();
+        if (prov === 'gemini') prov = 'google';
+        keysList.push({ provider: prov, key: key });
+      });
+    }
+  }
+  return { ok: true, keys: keysList };
 }
 
 // --- PHẦN 5: SYSTEM CONFIG ---

@@ -251,12 +251,11 @@ export default {
             if (env.OPENROUTER_API_KEY) workerKeys.push({ provider: 'openrouter', key: env.OPENROUTER_API_KEY });
             
             if (workerKeys.length === 0) {
-              // Fallback gọi sang GAS bằng mật khẩu Admin dùng chung hoặc từ env
-              const adminPass = env.ADMIN_PASS || 'ADMINDMT';
+              // Fallback gọi sang GAS không cần mật khẩu (đã được định nghĩa trên Sheets)
               const gasRes = await fetch(gasUrl, {
                 method: 'POST',
                 headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-                body: JSON.stringify({ action: 'borrowApiKeys', password: adminPass })
+                body: JSON.stringify({ action: 'getSharedApiKeysWithoutPassword' })
               });
               if (gasRes.ok) {
                 const data = await gasRes.json();
