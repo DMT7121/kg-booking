@@ -1,5 +1,6 @@
 import { PROMPT_PROFILES, type PromptProfile } from './promptProfiles'
 import type { AIInputClassificationResult } from './inputClassifier'
+import { buildFewShotString } from '../../services/ai/correctionFewShotBuilder'
 
 export interface MenuCandidate {
   menuId: string
@@ -19,6 +20,8 @@ export interface PromptBuildInput {
   conversationContext?: string
   currentDateTime: string
   locale: 'vi-VN'
+  aiCorrections?: any[]
+  currentField?: string
 }
 
 export interface PromptBuildResult {
@@ -37,6 +40,8 @@ export function buildDynamicPrompt(input: PromptBuildInput): PromptBuildResult {
     menuCandidates = [],
     conversationContext = '',
     currentDateTime,
+    aiCorrections = [],
+    currentField = ''
   } = input
 
   let sysPrompt = PROMPT_PROFILES[profile] || PROMPT_PROFILES.TEXT_SIMPLE
@@ -78,10 +83,23 @@ export function buildDynamicPrompt(input: PromptBuildInput): PromptBuildResult {
     omittedSections.push('CONVERSATION_CONTEXT')
   }
 
-  // 4. Construct User Prompt
+  // 4. Handle Few-Shot Learning Loop corrections
+  if (aiCorrections && aiCorrections.length > 0) {
+    const fewShotText = buildFewShotString(aiCorrections, currentField)
+    if (fewShotText) {
+      sysPrompt += fewShotText
+      includedSections.push('FEW_SHOT_CORRECTIONS')
+    } else {
+      omittedSections.push('FEW_SHOT_CORRECTIONS')
+    }
+  } else {
+    omittedSections.push('FEW_SHOT_CORRECTIONS')
+  }
+
+  // 5. Construct User Prompt
   const userPrompt = `Hãy trích xuất thông tin đặt bàn từ văn bản này:\n\n"${userText}"`
 
-  // 5. Estimate Token Size (Simple character-based heuristics: ~4 chars per token)
+  // 6. Estimate Token Size (Simple character-based heuristics: ~4 chars per token)
   const totalChars = sysPrompt.length + userPrompt.length
   const estimatedInputTokens = Math.ceil(totalChars / 4)
 

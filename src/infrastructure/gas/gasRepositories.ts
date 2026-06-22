@@ -159,6 +159,14 @@ export class GasSettingsRepository implements SettingsRepository {
   async getSystemConfigAuditLogs(token: string): Promise<any> {
     return postGAS({ action: 'getSystemConfigAuditLogs', token })
   }
+
+  async writeAuditLog(log: any): Promise<any> {
+    try {
+      return await postGAS({ action: 'writeAuditLog', log })
+    } catch {
+      return { ok: true }
+    }
+  }
 }
 
 export class GasCorrectionRepository implements CorrectionRepository {

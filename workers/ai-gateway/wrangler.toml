@@ -1,0 +1,13 @@
+# wrangler.toml for Cloudflare AI Gateway
+name = "kg-ai-gateway"
+main = "src/index.ts"
+compatibility_date = "2024-01-01"
+
+[vars]
+CORS_ORIGIN = "*"
+APP_SHARED_SECRET = "change-this-in-production"
+
+# If KV is available, bind it for persistent Rate Limiting
+# [[kv_namespaces]]
+# binding = "RATE_LIMIT_KV"
+# id = "xxxx"

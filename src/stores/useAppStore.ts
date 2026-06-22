@@ -11,12 +11,14 @@ import {
 } from '@/services/cache'
 import { fetchWithRetry } from '@/infrastructure/gas/gasClient'
 import { 
-  GasOrderRepository, 
-  GasMenuRepository, 
-  GasSettingsRepository, 
-  GasCorrectionRepository 
-} from '@/infrastructure/gas/gasRepositories'
+  DualWriteOrderRepository as GasOrderRepository, 
+  DualWriteMenuRepository as GasMenuRepository, 
+  DualWriteSettingsRepository as GasSettingsRepository, 
+  DualWriteCorrectionRepository as GasCorrectionRepository 
+} from '@/infrastructure/dual/dualWriteRepository'
 import { clearAIResponseCache, hashAndStringifyLargeObject } from '@/services/ai/aiResponseCache'
+import { can, UserRole, Permission } from '@/auth/permissions'
+import { sha256 } from '@/utils/security'
 
 const orderRepo = new GasOrderRepository()
 const menuRepo = new GasMenuRepository()
@@ -914,6 +916,55 @@ export const useAppStore = defineStore('app', () => {
     return null
   }
 
+  function getRoleFromToken(token: string): UserRole {
+    try {
+      const parts = token.split('.')
+      if (parts.length === 3) {
+        const payload = JSON.parse(atob(parts[1].replace(/-/g, '+').replace(/_/g, '/')))
+        if (payload && typeof payload.role === 'string') {
+          return payload.role as UserRole
+        }
+      }
+      if (token === 'mock-jwt-admin-token') return 'admin'
+      if (token === 'mock-jwt-manager-token') return 'manager'
+    } catch (e) {}
+    return 'staff'
+  }
+
+  const currentUserRole = computed<UserRole>(() => {
+    if (!adminToken.value) return 'staff'
+    const jwtExp = getJwtExpiry(adminToken.value)
+    if (jwtExp !== null && Date.now() >= jwtExp) {
+      return 'staff'
+    }
+    if (adminExpiresAt.value <= Date.now()) {
+      return 'staff'
+    }
+    return getRoleFromToken(adminToken.value)
+  })
+
+  async function triggerAuditLog(action: string, targetType?: string, targetId?: string, before?: any, after?: any) {
+    try {
+      const userAgent = navigator.userAgent
+      const uaHash = await sha256(userAgent)
+      const ipHash = await sha256('local-client-ip')
+      const payload = {
+        actor_id: adminToken.value ? 'session-user' : undefined,
+        actor_role: currentUserRole.value,
+        action,
+        target_type: targetType,
+        target_id: targetId,
+        before_json: before ? JSON.parse(JSON.stringify(before)) : null,
+        after_json: after ? JSON.parse(JSON.stringify(after)) : null,
+        ip_hash: ipHash,
+        user_agent_hash: uaHash
+      }
+      await settingsRepo.writeAuditLog(payload)
+    } catch (e) {
+      console.warn('[AuditLog] Failed to write audit log:', e)
+    }
+  }
+
   const isAdminSettingsUnlocked = computed(() => {
     if (!adminToken.value) return false
     const jwtExp = getJwtExpiry(adminToken.value)
@@ -924,6 +975,8 @@ export const useAppStore = defineStore('app', () => {
   })
 
   async function lockAdminSettings() {
+    const roleBefore = currentUserRole.value
+    const tokenBefore = adminToken.value
     if (adminToken.value) {
       try {
         await settingsRepo.logoutAdminSettings(adminToken.value)
@@ -934,6 +987,7 @@ export const useAppStore = defineStore('app', () => {
     sessionStorage.removeItem('kg_admin_token')
     sessionStorage.removeItem('kg_admin_expires_at')
     uiStore.showToast('Đã khóa cấu hình Admin', 'info')
+    await triggerAuditLog('logout', 'auth', tokenBefore, { role: roleBefore }, null)
   }
 
   async function unlockAdminSettings(password: string): Promise<boolean> {
@@ -946,10 +1000,14 @@ export const useAppStore = defineStore('app', () => {
         adminExpiresAt.value = expiryTime
         sessionStorage.setItem('kg_admin_token', res.token)
         sessionStorage.setItem('kg_admin_expires_at', String(expiryTime))
-        uiStore.showToast('Xác thực Admin thành công!', 'success')
+        
+        const role = getRoleFromToken(res.token)
+        const roleLabel = role === 'admin' ? 'Admin' : role === 'manager' ? 'Manager' : 'Staff'
+        uiStore.showToast(`Xác thực ${roleLabel} thành công!`, 'success')
+        await triggerAuditLog('login', 'auth', res.token, null, { role })
         return true
       } else {
-        uiStore.showToast(res.message || 'Mật khẩu Admin không chính xác!', 'error')
+        uiStore.showToast(res.message || 'Mật khẩu không chính xác!', 'error')
         return false
       }
     } catch (e: any) {
@@ -958,26 +1016,73 @@ export const useAppStore = defineStore('app', () => {
     }
   }
 
-  async function verifyAdminSession(): Promise<boolean> {
-    if (isAdminSettingsUnlocked.value) {
-      const newExpiresAt = Date.now() + 30 * 60 * 1000
-      adminExpiresAt.value = newExpiresAt
-      sessionStorage.setItem('kg_admin_expires_at', String(newExpiresAt))
-      return true
+  async function verifySession(permission: Permission): Promise<boolean> {
+    if (adminToken.value && adminExpiresAt.value > Date.now()) {
+      const jwtExp = getJwtExpiry(adminToken.value)
+      if (jwtExp === null || Date.now() < jwtExp) {
+        const role = getRoleFromToken(adminToken.value)
+        if (can(role, permission)) {
+          const newExpiresAt = Date.now() + 30 * 60 * 1000
+          adminExpiresAt.value = newExpiresAt
+          sessionStorage.setItem('kg_admin_expires_at', String(newExpiresAt))
+          return true
+        }
+      }
     }
-    
-    adminToken.value = ''
-    adminExpiresAt.value = 0
-    sessionStorage.removeItem('kg_admin_token')
-    sessionStorage.removeItem('kg_admin_expires_at')
 
-    const pass = await uiStore.showPrompt('Xác thực Admin', 'Vui lòng nhập mật khẩu cấu hình:')
+    const pass = await uiStore.showPrompt(
+      'Xác thực quyền truy cập',
+      `Thao tác yêu cầu quyền [${permission}]. Vui lòng nhập mật khẩu:`
+    )
     if (pass) {
-      return await unlockAdminSettings(pass)
+      const success = await unlockAdminSettings(pass)
+      if (success) {
+        const role = getRoleFromToken(adminToken.value)
+        if (can(role, permission)) {
+          return true
+        } else {
+          uiStore.showToast(`Tài khoản của bạn (${role}) không có quyền [${permission}]!`, 'warning')
+          return false
+        }
+      }
     } else if (pass !== null) {
       uiStore.showToast('Vui lòng nhập mật khẩu!', 'warning')
     }
     return false
+  }
+
+  async function verifyAdminSession(): Promise<boolean> {
+    return verifySession('settings:update')
+  }
+
+  async function saveOrder(data: any): Promise<any> {
+    const beforeOrder = data.id ? historyList.value.find(h => h.id === data.id) : null
+    const result = await orderRepo.saveOrder(data)
+    if (result.ok) {
+      await triggerAuditLog(
+        beforeOrder ? 'booking:update' : 'booking:create',
+        'booking',
+        result.id || data.id,
+        beforeOrder ? beforeOrder.parsedCustomer : null,
+        data.customer || data.data?.customer || data
+      )
+    }
+    return result
+  }
+
+  async function deleteOrder(id: string, password?: string, token?: string): Promise<any> {
+    const beforeOrder = historyList.value.find(h => h.id === id)
+    const result = await orderRepo.deleteOrder(id, password, token)
+    if (result.ok) {
+      await triggerAuditLog(
+        'booking:delete',
+        'booking',
+        id,
+        beforeOrder ? beforeOrder.parsedCustomer : null,
+        null
+      )
+    }
+    return result
   }
 
   async function updateRemoteConfig(onlyType?: 'staff' | 'bank') {
@@ -1080,19 +1185,27 @@ export const useAppStore = defineStore('app', () => {
   }
 
   async function saveAlias(alias: string, dishName: string) {
+    const isAuth = await verifySession('corrections:approve')
+    if (!isAuth) return { ok: false, message: 'Permission Denied' }
+
     const res = await menuRepo.saveMenuAlias(alias, dishName, adminToken.value)
     if (res.ok) {
       await loadMenuAliases()
       uiStore.showToast('Lưu từ viết tắt thành công!', 'success')
+      await triggerAuditLog('alias:create', 'menu', alias, null, { dishName })
     }
     return res
   }
 
   async function deleteAlias(alias: string) {
+    const isAuth = await verifySession('corrections:approve')
+    if (!isAuth) return { ok: false, message: 'Permission Denied' }
+
     const res = await menuRepo.deleteMenuAlias(alias, adminToken.value)
     if (res.ok) {
       await loadMenuAliases()
       uiStore.showToast('Đã xóa từ viết tắt!', 'success')
+      await triggerAuditLog('alias:delete', 'menu', alias, null, null)
     }
     return res
   }
@@ -1146,7 +1259,10 @@ export const useAppStore = defineStore('app', () => {
         uiStore.loading.is = true
         uiStore.loading.msg = 'ĐANG ĐỒNG BỘ ĐÈ...'
         try {
-          const res = await fetchWithRetry({ action: 'saveOrder', data: payload })
+          const res = await orderRepo.saveOrder(payload)
+          if (res?.ok) {
+            await triggerAuditLog('booking:resolve_conflict', 'conflict', localId, conflict, { resolution })
+          }
           if (res?.ok) {
             const queue = await getOfflineQueue()
             const queueItem = queue.find(q => q.payload.id === localId)
@@ -1324,6 +1440,11 @@ export const useAppStore = defineStore('app', () => {
     }, 500)
   }
 
+  function handleInactivityTimeout() {
+    sessionStorage.setItem('kg_logout_reason', 'inactivity')
+    logout()
+  }
+
   window.addEventListener('online', () => {
     uiStore.showToast('Đã có mạng lại, đang đồng bộ dữ liệu...', 'info')
     processOfflineQueue()
@@ -1344,7 +1465,8 @@ export const useAppStore = defineStore('app', () => {
     selectBank, addBank, removeBank,
     addStaff, removeStaff,
     fetchRemoteConfig, updateRemoteConfig, verifyAdminSession,
-    logout,
+    currentUserRole, verifySession, saveOrder, deleteOrder, triggerAuditLog,
+    logout, handleInactivityTimeout,
     offlineQueueCount, updateOfflineQueueCount,
     scheduleMenuPrefetch, scheduleMenusPrecache,
     activeConflicts, resolveConflict

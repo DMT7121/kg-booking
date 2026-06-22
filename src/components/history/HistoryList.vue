@@ -76,15 +76,15 @@ async function deleteHistoricOrder(id: string) {
   const confirmed = await ui.showConfirm('Xác Nhận Xóa', 'Bạn có chắc chắn muốn xóa bản ghi này?')
   if (!confirmed) return
   
-  const isAdmin = await appStore.verifyAdminSession()
-  if (!isAdmin) return
+  const canDelete = await appStore.verifySession('booking:delete')
+  if (!canDelete) return
   const token = appStore.adminToken
 
   ui.loading.is = true
   ui.loading.msg = 'ĐANG XÓA...'
   haptic('medium')
   try {
-    const res = await api.deleteOrder(id, undefined, token)
+    const res = await appStore.deleteOrder(id, undefined, token)
     if (res.ok) {
       appStore.historyList = appStore.historyList.filter((i: any) => i.id !== id)
       expandedKey.value = null
@@ -101,8 +101,8 @@ async function deleteBatchOrders() {
   const confirmed = await ui.showConfirm('Xóa Nhiều Đơn', `Bạn có chắc chắn muốn xóa vĩnh viễn ${ui.selectedIds.length} phiếu đã chọn?\nHành động này không thể hoàn tác.`)
   if (!confirmed) return
 
-  const isAdmin = await appStore.verifyAdminSession()
-  if (!isAdmin) return
+  const canDelete = await appStore.verifySession('booking:delete')
+  if (!canDelete) return
   const token = appStore.adminToken
 
   ui.loading.is = true
@@ -121,7 +121,7 @@ async function deleteBatchOrders() {
   let processed = 0
   for (let i = 0; i < idsToDelete.length; i += CHUNK_SIZE) {
     const chunk = idsToDelete.slice(i, i + CHUNK_SIZE)
-    await Promise.all(chunk.map(id => api.deleteOrder(id, undefined, token).catch(() => false)))
+    await Promise.all(chunk.map(id => appStore.deleteOrder(id, undefined, token).catch(() => false)))
     processed += chunk.length
     ui.loading.subMsg = `Processing ${processed}/${idsToDelete.length}`
   }

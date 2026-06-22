@@ -726,7 +726,8 @@ export function useAI() {
           menuCandidates,
           conversationContext: '',
           currentDateTime: currentDateTimeStr,
-          locale: 'vi-VN'
+          locale: 'vi-VN',
+          aiCorrections: appStore.aiCorrections
         })
 
         const optimizedImg = formStore.aiImage ? await resizeImage(formStore.aiImage, 1120) : null
@@ -1208,7 +1209,7 @@ Salad bò - 120000
       if (origVal && currVal && origVal !== currVal) {
         try {
           console.log(`[AI Auto-Learn] Logging correction for field ${f.key}: "${original[f.key]}" -> "${(current as any)[f.key]}"`)
-          await api.logAiCorrection(
+          await appStore.logAiCorrection(
             formStore.rawInput,
             original[f.key],
             (current as any)[f.key],

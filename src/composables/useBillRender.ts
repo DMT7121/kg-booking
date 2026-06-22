@@ -324,7 +324,7 @@ function _createBillRender() {
           appStore.setOptimisticOrder(optimisticOrder)
 
           // Fire-and-forget cloud sync
-          const syncPromise = fetchWithRetry({ action: 'saveOrder', data: payload })
+          const syncPromise = appStore.saveOrder(payload)
             .then(async (result: any) => {
               if (result?.ok) {
                 formStore.originalState = formStore.getDataSnapshot()

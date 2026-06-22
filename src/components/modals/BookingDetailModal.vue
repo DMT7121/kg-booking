@@ -26,15 +26,15 @@ async function handleDelete() {
   const confirmed = await ui.showConfirm('Xác Nhận Xóa', 'Bạn có chắc chắn muốn xóa bản ghi này?')
   if (!confirmed) return
   
-  const isAdmin = await appStore.verifyAdminSession()
-  if (!isAdmin) return
+  const canDelete = await appStore.verifySession('booking:delete')
+  if (!canDelete) return
   const token = appStore.adminToken
 
   ui.loading.is = true
   ui.loading.msg = 'ĐANG XÓA...'
   haptic('medium')
   try {
-    const res = await api.deleteOrder(ui.selectedBooking.id, undefined, token)
+    const res = await appStore.deleteOrder(ui.selectedBooking.id, undefined, token)
     if (res.ok) {
       appStore.historyList = appStore.historyList.filter((i: any) => i.id !== ui.selectedBooking.id)
       ui.showToast('Đã xóa!', 'success')
@@ -69,7 +69,7 @@ async function handlePending() {
       customerTable: 'Tạm hoãn'
     }
 
-    const res = await api.saveOrder(payload)
+    const res = await appStore.saveOrder(payload)
     if (res.ok) {
       ui.showToast('Đã chuyển sang hàng chờ!', 'success')
       // Update local state without reloading everything

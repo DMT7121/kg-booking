@@ -30,10 +30,25 @@ const configStore = useConfigStore()
 const { updatePreviewScale, confirmStaffAndSave, triggerSave } = useBillRender()
 const { handleInputFocus, handleInputBlur, copyToClipboard, copyBookingConfirmation } = useForm()
 
+// --- Inactivity Session Timeout ---
+let inactivityTimer: any = null
+const INACTIVITY_TIMEOUT_MS = 30 * 60 * 1000 // 30 minutes
+const activityEvents = ['mousemove', 'mousedown', 'keydown', 'touchstart', 'scroll', 'visibilitychange']
+
+function resetInactivityTimer() {
+  if (inactivityTimer) clearTimeout(inactivityTimer)
+  inactivityTimer = setTimeout(() => {
+    appStore.handleInactivityTimeout()
+  }, INACTIVITY_TIMEOUT_MS)
+}
+
 async function handleOpenConfig(type: string) {
-  if (type === 'ai' || type === 'webhook') {
-    const isAdmin = await appStore.verifyAdminSession()
-    if (!isAdmin) return
+  if (type === 'ai') {
+    const hasPerm = await appStore.verifySession('ai:configure')
+    if (!hasPerm) return
+  } else if (type === 'webhook') {
+    const hasPerm = await appStore.verifySession('settings:update')
+    if (!hasPerm) return
   }
   ui.openConfig(type)
 }
@@ -103,6 +118,19 @@ onMounted(() => {
   }, 500)
 
   window.addEventListener('keydown', handleGlobalKeydown)
+
+  // Inactivity listeners
+  activityEvents.forEach(evt => {
+    window.addEventListener(evt, resetInactivityTimer, { passive: true })
+  })
+  resetInactivityTimer()
+
+  // Check if session was logged out due to inactivity
+  const logoutReason = sessionStorage.getItem('kg_logout_reason')
+  if (logoutReason === 'inactivity') {
+    sessionStorage.removeItem('kg_logout_reason')
+    ui.showToast('Phiên làm việc đã hết hạn do không hoạt động. Vui lòng đăng nhập lại.', 'info', 6000)
+  }
 })
 
 onUnmounted(() => {
@@ -110,6 +138,12 @@ onUnmounted(() => {
   window.visualViewport?.removeEventListener('resize', setAppHeight)
   window.visualViewport?.removeEventListener('scroll', setAppHeight)
   window.removeEventListener('resize', setAppHeight)
+
+  // Remove inactivity listeners
+  activityEvents.forEach(evt => {
+    window.removeEventListener(evt, resetInactivityTimer)
+  })
+  if (inactivityTimer) clearTimeout(inactivityTimer)
 })
 
 const searchQuery = ref('')

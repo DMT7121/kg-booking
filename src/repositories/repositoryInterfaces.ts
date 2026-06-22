@@ -62,6 +62,7 @@ export interface SettingsRepository {
   restoreSystemConfigBackup(backupId: string, token?: string): Promise<any>
   getSystemConfigBackups(token: string): Promise<any>
   getSystemConfigAuditLogs(token: string): Promise<any>
+  writeAuditLog(log: any): Promise<any>
 }
 
 export interface CorrectionRepository {
