@@ -406,16 +406,16 @@ export async function callAIModel(
         })
         
         if (res.status === 401 || res.status === 403) {
-          throw new FatalAIError(`Edge proxy unauthorized (HTTP ${res.status})`, res.status)
+          throw new Error(`Edge proxy unauthorized (HTTP ${res.status})`)
         }
         if (res.status === 404) {
-          throw new FatalAIError(`Model not found on Edge (HTTP ${res.status})`, res.status)
+          throw new Error(`Model not found on Edge (HTTP ${res.status})`)
         }
         if (res.status === 402) {
-          throw new FatalAIError(`Edge billing / payment required (HTTP ${res.status})`, res.status)
+          throw new Error(`Edge billing / payment required (HTTP ${res.status})`)
         }
         if (res.status === 400) {
-          throw new FatalAIError(`Edge invalid format/payload (HTTP ${res.status})`, res.status)
+          throw new Error(`Edge invalid format/payload (HTTP ${res.status})`)
         }
         if (!res.ok) {
           const errText = await res.text().catch(() => `HTTP ${res.status}`)
