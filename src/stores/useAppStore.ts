@@ -1223,6 +1223,12 @@ export const useAppStore = defineStore('app', () => {
     }
   }
 
+  async function logAiCorrection(inputText: string, wrongValue: any, correctValue: any, field: string, token?: string) {
+    const res = await correctionRepo.logAiCorrection(inputText, wrongValue, correctValue, field, token)
+    await loadAiCorrections()
+    return res
+  }
+
   const offlineQueueCount = ref(0)
   async function updateOfflineQueueCount() {
     try {
@@ -1454,7 +1460,7 @@ export const useAppStore = defineStore('app', () => {
     adminToken, adminExpiresAt, isAdminSettingsUnlocked, lockAdminSettings, unlockAdminSettings, defaultMenuProfileId, defaultBankAccountIndex, setDefaultBankAccount, setDefaultMenuProfile, autoSyncIfReady,
     historyList, menuList, menuDetails, menuImages, dishImages, menuSheets, activeSheet, newMenuName, newMenuContent,
     menuAliases, loadMenuAliases, saveAlias, deleteAlias,
-    aiCorrections, loadAiCorrections,
+    aiCorrections, loadAiCorrections, logAiCorrection,
     menuFingerprint, correctionFingerprint,
     bankList, selectedBankIndex, newBank,
     staffList, newStaff,

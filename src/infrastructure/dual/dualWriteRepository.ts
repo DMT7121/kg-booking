@@ -71,11 +71,13 @@ export class DualWriteOrderRepository implements OrderRepository {
       this.gas.saveOrder(data)
     ])
 
-    const pgSuccess = pgRes.status === 'fulfilled' && pgRes.value.ok
-    const gasSuccess = gasRes.status === 'fulfilled' && gasRes.value.ok
+    const pgVal = pgRes.status === 'fulfilled' ? (pgRes as PromiseFulfilledResult<any>).value : null
+    const gasVal = gasRes.status === 'fulfilled' ? (gasRes as PromiseFulfilledResult<any>).value : null
+    const pgSuccess = pgVal && pgVal.ok
+    const gasSuccess = gasVal && gasVal.ok
 
     if (pgSuccess && gasSuccess) {
-      return pgRes.value
+      return pgVal
     }
 
     if (pgSuccess && !gasSuccess) {
@@ -89,22 +91,22 @@ export class DualWriteOrderRepository implements OrderRepository {
       } catch (err: any) {
         console.error('[DualWrite] Failed to set sheet_sync_pending status in Postgres:', err.message)
       }
-      return pgRes.value
+      return pgVal
     }
 
     if (!pgSuccess && gasSuccess) {
       console.error('[DualWrite] Booking saved on Sheets but failed in Postgres. Queueing PG reconciliation.')
       // Return GAS result but mark in log that PG sync failed
       return {
-        ...gasRes.value,
+        ...gasVal,
         pg_sync_failed: true,
         warning: 'PostgreSQL save failed, synchronizing in background.'
       }
     }
 
     // Both failed
-    const pgError = pgRes.status === 'rejected' ? pgRes.reason.message : (pgRes.value?.message || 'Postgres failed')
-    const gasError = gasRes.status === 'rejected' ? gasRes.reason.message : (gasRes.value?.message || 'GAS failed')
+    const pgError = pgRes.status === 'rejected' ? pgRes.reason.message : (pgVal?.message || 'Postgres failed')
+    const gasError = gasRes.status === 'rejected' ? gasRes.reason.message : (gasVal?.message || 'GAS failed')
     throw new Error(`DualWrite write failure! PG: ${pgError} | GAS: ${gasError}`)
   }
 
@@ -119,13 +121,15 @@ export class DualWriteOrderRepository implements OrderRepository {
       this.gas.deleteOrder(id, password, token)
     ])
 
-    const pgSuccess = pgRes.status === 'fulfilled' && pgRes.value.ok
-    const gasSuccess = gasRes.status === 'fulfilled' && gasRes.value.ok
+    const pgVal = pgRes.status === 'fulfilled' ? (pgRes as PromiseFulfilledResult<any>).value : null
+    const gasVal = gasRes.status === 'fulfilled' ? (gasRes as PromiseFulfilledResult<any>).value : null
+    const pgSuccess = pgVal && pgVal.ok
+    const gasSuccess = gasVal && gasVal.ok
 
     if (!pgSuccess && !gasSuccess) {
       throw new Error('Failed to delete booking in both databases')
     }
-    return pgSuccess ? pgRes.value : gasRes.value
+    return pgSuccess ? pgVal : gasVal
   }
 }
 
@@ -170,7 +174,9 @@ export class DualWriteMenuRepository implements MenuRepository {
       this.pg.createMenu(name, rawText, password, token),
       this.gas.createMenu(name, rawText, password, token)
     ])
-    return pgRes.status === 'fulfilled' && pgRes.value.ok ? pgRes.value : gasRes.status === 'fulfilled' ? gasRes.value : { ok: false }
+    const pgVal = pgRes.status === 'fulfilled' ? (pgRes as PromiseFulfilledResult<any>).value : null
+    const gasVal = gasRes.status === 'fulfilled' ? (gasRes as PromiseFulfilledResult<any>).value : null
+    return pgVal && pgVal.ok ? pgVal : gasVal ? gasVal : { ok: false }
   }
 
   async deleteMenu(name: string, password?: string, token?: string): Promise<any> {
