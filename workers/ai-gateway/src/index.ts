@@ -99,6 +99,17 @@ export default {
 
     const url = new URL(request.url);
 
+    // 0. GET / (Console Home Page)
+    if ((url.pathname === "/" || url.pathname === "") && request.method === "GET") {
+      return new Response(HTML_PAGE, {
+        status: 200,
+        headers: {
+          ...corsHeaders,
+          "Content-Type": "text/html; charset=utf-8"
+        }
+      });
+    }
+
     // 1. GET /api/ai/health
     if (url.pathname === "/api/ai/health" && request.method === "GET") {
       return new Response(JSON.stringify({ ok: true, status: "healthy", version: "1.0.0" }), {
@@ -333,3 +344,327 @@ export default {
     });
   }
 };
+
+const HTML_PAGE = `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>KING'S GRILL — AI Gateway Console</title>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #09090e;
+      --card-bg: rgba(17, 17, 28, 0.65);
+      --border: rgba(255, 255, 255, 0.08);
+      --text: #f3f4f6;
+      --text-muted: #9ca3af;
+      --primary: #8b5cf6;
+      --primary-glow: rgba(139, 92, 246, 0.25);
+      --accent: #06b6d4;
+      --accent-glow: rgba(6, 182, 212, 0.25);
+      --success: #10b981;
+      --success-glow: rgba(16, 185, 129, 0.25);
+    }
+    
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+    
+    body {
+      font-family: 'Outfit', sans-serif;
+      background-color: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 2rem 1rem;
+      overflow-x: hidden;
+      position: relative;
+    }
+    
+    /* Background gradients */
+    body::before {
+      content: '';
+      position: absolute;
+      width: 400px;
+      height: 400px;
+      background: radial-gradient(circle, var(--primary-glow) 0%, transparent 70%);
+      top: -10%;
+      left: -10%;
+      z-index: 0;
+      pointer-events: none;
+    }
+    
+    body::after {
+      content: '';
+      position: absolute;
+      width: 400px;
+      height: 400px;
+      background: radial-gradient(circle, var(--accent-glow) 0%, transparent 70%);
+      bottom: -10%;
+      right: -10%;
+      z-index: 0;
+      pointer-events: none;
+    }
+    
+    .container {
+      max-width: 720px;
+      width: 100%;
+      z-index: 1;
+      position: relative;
+    }
+    
+    .header {
+      text-align: center;
+      margin-bottom: 2rem;
+    }
+    
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      background: rgba(16, 185, 129, 0.1);
+      border: 1px solid rgba(16, 185, 129, 0.2);
+      color: var(--success);
+      padding: 0.5rem 1rem;
+      border-radius: 9999px;
+      font-weight: 600;
+      font-size: 0.875rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-bottom: 1rem;
+      animation: pulse-border 2s infinite;
+    }
+    
+    .dot {
+      width: 8px;
+      height: 8px;
+      background-color: var(--success);
+      border-radius: 50%;
+      box-shadow: 0 0 10px var(--success);
+      animation: blink 1.5s infinite;
+    }
+    
+    h1 {
+      font-size: 2.5rem;
+      font-weight: 800;
+      line-height: 1.2;
+      background: linear-gradient(135deg, #ffffff 0%, #a78bfa 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      margin-bottom: 0.5rem;
+      letter-spacing: -0.02em;
+    }
+    
+    .subtitle {
+      color: var(--text-muted);
+      font-size: 1.1rem;
+      font-weight: 300;
+    }
+    
+    .card {
+      background: var(--card-bg);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid var(--border);
+      border-radius: 24px;
+      padding: 2.5rem;
+      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+      margin-bottom: 1.5rem;
+    }
+    
+    .section-title {
+      font-size: 1.25rem;
+      font-weight: 600;
+      margin-bottom: 1rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      color: #ffffff;
+    }
+    
+    .grid {
+      display: grid;
+      grid-template-cols: 1fr;
+      gap: 1rem;
+      margin-bottom: 2rem;
+    }
+    
+    @media (min-width: 600px) {
+      .grid {
+        grid-template-cols: repeat(2, 1fr);
+      }
+    }
+    
+    .status-item {
+      background: rgba(255, 255, 255, 0.02);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 1rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      transition: border-color 0.3s, transform 0.3s;
+    }
+    
+    .status-item:hover {
+      border-color: rgba(139, 92, 246, 0.3);
+      transform: translateY(-2px);
+    }
+    
+    .status-name {
+      font-weight: 500;
+      font-size: 0.95rem;
+    }
+    
+    .status-val {
+      font-size: 0.85rem;
+      color: var(--success);
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 0.35rem;
+    }
+    
+    .status-val.operational::before {
+      content: '';
+      display: inline-block;
+      width: 6px;
+      height: 6px;
+      background-color: var(--success);
+      border-radius: 50%;
+      box-shadow: 0 0 6px var(--success);
+    }
+    
+    .code-block {
+      background: #050508;
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 1.25rem;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.85rem;
+      overflow-x: auto;
+      line-height: 1.5;
+      color: #cbd5e1;
+      margin-top: 0.5rem;
+      position: relative;
+    }
+    
+    .code-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      margin-bottom: 0.75rem;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+      padding-bottom: 0.5rem;
+    }
+    
+    .method {
+      background: var(--primary);
+      color: white;
+      padding: 0.15rem 0.4rem;
+      border-radius: 4px;
+      font-weight: 700;
+      font-size: 0.7rem;
+    }
+    
+    .footer {
+      text-align: center;
+      font-size: 0.85rem;
+      color: var(--text-muted);
+      margin-top: 1rem;
+    }
+    
+    .footer a {
+      color: var(--primary);
+      text-decoration: none;
+      font-weight: 500;
+      transition: color 0.3s;
+    }
+    
+    .footer a:hover {
+      color: var(--accent);
+    }
+    
+    @keyframes blink {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.4; }
+    }
+    
+    @keyframes pulse-border {
+      0%, 100% { border-color: rgba(16, 185, 129, 0.2); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.0); }
+      50% { border-color: rgba(16, 185, 129, 0.4); box-shadow: 0 0 12px rgba(16, 185, 129, 0.1); }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <div class="badge">
+        <span class="dot"></span>
+        Gateway Active
+      </div>
+      <h1>KING'S GRILL</h1>
+      <div class="subtitle">AI Edge Orchestrator & API Gateway</div>
+    </div>
+    
+    <div class="card">
+      <div class="section-title">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--primary);"><path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z"></path><path d="m9 12 2 2 4-4"></path></svg>
+        System Diagnostics & Providers
+      </div>
+      
+      <div class="grid">
+        <div class="status-item">
+          <span class="status-name">Gateway Core API</span>
+          <span class="status-val operational">Online</span>
+        </div>
+        <div class="status-item">
+          <span class="status-name">Gemini Engine</span>
+          <span class="status-val operational">Operational</span>
+        </div>
+        <div class="status-item">
+          <span class="status-name">Groq Fast Engine</span>
+          <span class="status-val operational">Operational</span>
+        </div>
+        <div class="status-item">
+          <span class="status-name">OpenRouter Routing</span>
+          <span class="status-val operational">Operational</span>
+        </div>
+      </div>
+      
+      <div class="section-title" style="margin-top: 1.5rem;">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--accent);"><polygon points="12 2 2 7 12 12 22 7 12 2"></polygon><polyline points="2 17 12 22 22 17"></polyline><polyline points="2 12 12 17 22 12"></polyline></svg>
+        Gateway usage
+      </div>
+      
+      <p style="font-size: 0.925rem; color: var(--text-muted); margin-bottom: 0.75rem; line-height: 1.5;">
+        This orchestrator proxies requests securely to underlying AI models while managing token budgets, rate limits, and provider circuit breakers. To perform semantic extraction, hit the endpoint below:
+      </p>
+      
+      <div class="code-block">
+        <div class="code-header">
+          <span>ENDPOINT REQUEST SPEC</span>
+          <span class="method">POST</span>
+        </div>
+        <span style="color: #60a5fa;">POST</span> https://kg-ai-gateway.dmt-kgwork.workers.dev/api/ai/analyze<br>
+        <span style="color: #38bdf8;">Headers:</span><br>
+        &nbsp;&nbsp;Authorization: Bearer [APP_SHARED_SECRET]<br>
+        &nbsp;&nbsp;Content-Type: application/json<br>
+        &nbsp;&nbsp;X-KG-Role: admin | manager | staff
+      </div>
+    </div>
+    
+    <div class="footer">
+      Designed for <a href="https://github.com/DMT7121/kg-booking" target="_blank">King's Grill Booking System v7.1</a> &copy; 2026. All rights reserved.
+    </div>
+  </div>
+</body>
+</html>`;
