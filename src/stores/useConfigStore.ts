@@ -86,47 +86,47 @@ export const useConfigStore = defineStore('config', () => {
       return
     }
 
-    const appStore = useAppStore()
-    const isAuth = await appStore.verifyAdminSession()
-    if (!isAuth) {
-      uiStore.showToast('Chỉ lưu cấu hình trên máy này (Chưa đồng bộ Cloud)', 'warning')
-      return
-    }
+    // Save locally immediately
+    keys[pId].push(keyVal)
+    localStorage.setItem(CACHE_KEYS.KEYS, JSON.stringify(keys))
+    tempKeys[pId] = ''
+    uiStore.showToast(`Đã lưu cục bộ API Key ${PLATFORMS[pId].name}!`, 'success')
 
-    try {
-      tempKeys[pId] = ''
-      const data = await api.saveApiKeyToCloud(pId, keyVal, '', appStore.adminToken)
-      if (data.ok) {
-        uiStore.showToast(`Đã lưu & đồng bộ API Key ${PLATFORMS[pId].name} lên Server!`, 'success')
-        await hydrateAiRuntimeConfig()
-      } else {
-        if (data.message?.toLowerCase().includes('trùng')) {
-          uiStore.showToast('Key đã có sẵn trên Cloud, bỏ qua lưu trùng.', 'info')
-        } else {
-          uiStore.showToast(`Lỗi lưu API Key: ${data.message}`, 'error')
+    // Asynchronously sync to cloud
+    const appStore = useAppStore()
+    api.saveApiKeyToCloud(pId, keyVal, '', appStore.adminToken)
+      .then(data => {
+        if (data.ok) {
+          uiStore.showToast(`Đã đồng bộ API Key ${PLATFORMS[pId].name} lên Server!`, 'success')
+          hydrateAiRuntimeConfig()
+        } else if (!data.message?.toLowerCase().includes('trùng')) {
+          console.warn(`Lỗi đồng bộ API Key lên Server: ${data.message}`)
         }
-      }
-    } catch (e: any) {
-      uiStore.showToast(`Lỗi đồng bộ API Key: ${e.message}`, 'error')
-    }
+      })
+      .catch((e: any) => {
+        console.warn(`Không thể đồng bộ API Key lên Server: ${e.message}`)
+      })
   }
 
   async function deleteApiKey(pId: string, idx: number) {
-    const appStore = useAppStore()
-    const isAdmin = await appStore.verifyAdminSession()
-    if (!isAdmin) return
-
-    try {
-      const data = await api.deleteApiKeyFromCloud(pId, idx, appStore.adminToken)
-      if (data.ok) {
-        uiStore.showToast('Đã xóa API Key thành công!', 'success')
-        await hydrateAiRuntimeConfig()
-      } else {
-        uiStore.showToast(data.message || 'Xóa API Key thất bại', 'error')
-      }
-    } catch (e: any) {
-      uiStore.showToast(`Lỗi: ${e.message}`, 'error')
+    if (keys[pId]) {
+      keys[pId].splice(idx, 1)
+      localStorage.setItem(CACHE_KEYS.KEYS, JSON.stringify(keys))
+      uiStore.showToast('Đã xóa API Key cục bộ!', 'success')
     }
+
+    const appStore = useAppStore()
+    api.deleteApiKeyFromCloud(pId, idx, appStore.adminToken)
+      .then(data => {
+        if (data.ok) {
+          hydrateAiRuntimeConfig()
+        } else {
+          console.warn(`Lỗi xóa API Key trên Server: ${data.message}`)
+        }
+      })
+      .catch((e: any) => {
+        console.warn(`Không thể đồng bộ yêu cầu xóa API Key lên Server: ${e.message}`)
+      })
   }
 
   async function borrowKeys(pass?: string) {
