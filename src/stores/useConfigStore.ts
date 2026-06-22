@@ -178,9 +178,14 @@ export const useConfigStore = defineStore('config', () => {
   async function autoLoadApiKeys() {
     try {
       const apiUrl = import.meta.env.VITE_API_URL || '/api'
+      const sharedSecret = import.meta.env.VITE_APP_SHARED_SECRET || ''
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+      if (sharedSecret) {
+        headers['Authorization'] = `Bearer ${sharedSecret}`
+      }
       const res = await fetch(apiUrl, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify({ action: 'getSharedApiKeysWithoutPassword' })
       })
       if (res.ok) {

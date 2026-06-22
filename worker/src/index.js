@@ -243,6 +243,13 @@ export default {
           return jsonResponse(responsePayload, 200, corsHeaders);
         } else {
           if (action === 'getSharedApiKeysWithoutPassword') {
+            // Verify Client Authorization Secret
+            const authHeader = request.headers.get('Authorization');
+            const expectedSecret = env.APP_SHARED_SECRET || 'kg_booking_secret_token_2026';
+            if (!authHeader || !authHeader.startsWith('Bearer ') || authHeader.split(' ')[1] !== expectedSecret) {
+              return jsonResponse({ ok: false, error: 'Unauthorized: Invalid App Shared Secret' }, 401, corsHeaders);
+            }
+
             const workerKeys = [];
             if (env.GEMINI_API_KEY) workerKeys.push({ provider: 'google', key: env.GEMINI_API_KEY });
             if (env.GROQ_API_KEY) workerKeys.push({ provider: 'groq', key: env.GROQ_API_KEY });
