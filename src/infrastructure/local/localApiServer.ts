@@ -294,15 +294,51 @@ export async function handleLocalApi(req: http.IncomingMessage, res: http.Server
       }
 
       case 'getAiRuntimeConfig': {
-        // Trả về mock config rỗng của AI
+        const status: Record<string, { configured: boolean, count: number, maskedList: string[] }> = {
+          pollinations: { configured: true, count: 1, maskedList: ['free'] }
+        }
+        
+        const providers = ['google', 'groq', 'cerebras', 'sambanova', 'openrouter', 'mistral', 'github']
+        providers.forEach(p => {
+          status[p] = { configured: false, count: 0, maskedList: [] }
+        })
+        
+        if (process.env.VITE_GEMINI_API_KEY) {
+          status.google = { configured: true, count: 1, maskedList: ['••••••••'] }
+        }
+        if (process.env.VITE_GROQ_API_KEY) {
+          status.groq = { configured: true, count: 1, maskedList: ['••••••••'] }
+        }
+        if (process.env.VITE_OPENROUTER_API_KEY) {
+          status.openrouter = { configured: true, count: 1, maskedList: ['••••••••'] }
+        }
+        
+        const config = await readJsonFile<any>(CONFIG_FILE, null)
+        if (config && config.api_keys) {
+          try {
+            const parsed = JSON.parse(config.api_keys)
+            for (const provider in parsed) {
+              const list = parsed[provider]
+              if (Array.isArray(list) && list.length > 0) {
+                const pId = provider === 'gemini' ? 'google' : provider
+                if (status[pId]) {
+                  status[pId].configured = true
+                  status[pId].count = list.length
+                  status[pId].maskedList = list.map((k: string) => {
+                    if (k.length > 8) {
+                      return k.substring(0, 4) + '••••' + k.substring(k.length - 4)
+                    }
+                    return '••••••••'
+                  })
+                }
+              }
+            }
+          } catch {}
+        }
+        
         result = {
           ok: true,
-          keysStatus: {
-            google: { configured: true, count: 1, maskedList: ['••••••••'] },
-            groq: { configured: true, count: 1, maskedList: ['••••••••'] },
-            openrouter: { configured: true, count: 1, maskedList: ['••••••••'] },
-            pollinations: { configured: true, count: 1, maskedList: ['free'] }
-          },
+          keysStatus: status,
           defaults: {
             text: 'llama-3.3-70b-versatile',
             vision: 'gemini-2.0-flash'
@@ -339,6 +375,39 @@ export async function handleLocalApi(req: http.IncomingMessage, res: http.Server
             } catch {}
           }
         }
+
+        // Nếu vẫn không có keys ở local, ta kéo thử từ GAS (không cần mật khẩu)
+        if (localKeys.length === 0) {
+          try {
+            console.log('[Local API] Tải API Keys từ GAS không cần mật khẩu...')
+            const response = await fetch(REAL_GAS_URL, {
+              method: 'POST',
+              headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+              body: JSON.stringify({ action: 'getSharedApiKeysWithoutPassword' })
+            })
+            if (response.ok) {
+              const data = await response.json()
+              if (data.ok && Array.isArray(data.keys)) {
+                // Lưu cục bộ config.json
+                const apiKeysObj: Record<string, string[]> = {}
+                data.keys.forEach((k: any) => {
+                  localKeys.push(k)
+                  const providerKey = k.provider === 'google' ? 'google' : k.provider
+                  if (!apiKeysObj[providerKey]) apiKeysObj[providerKey] = []
+                  apiKeysObj[providerKey].push(k.key)
+                })
+                
+                const config = await readJsonFile<any>(CONFIG_FILE, {})
+                config.api_keys = JSON.stringify(apiKeysObj)
+                await writeJsonFile(CONFIG_FILE, config)
+                console.log('[Local API] Đã tải và lưu sẵn các API Keys vào config.json cục bộ!')
+              }
+            }
+          } catch (e: any) {
+            console.warn('[Local API] Không thể tải API Keys từ GAS:', e.message)
+          }
+        }
+
         result = { ok: true, keys: localKeys }
         break
       }

@@ -1,0 +1,107 @@
+[
+  {
+    "name": "Set menu 1",
+    "price": 2500000,
+    "acronym": "SM1",
+    "cleanName": "set menu 1",
+    "desc": "1/ Sum Vầy [1]\n2/ Súp Gà Trứng Bắc Thảo (10) [1]\n3/ Thịt Heo Xiên Nướng [2]\n4/ Bò Om Pate [2]\n5/ Tôm Cocktail (10) [1]\n6/ Lẩu Riêu Cua Đồng [1]\n7/ Trái Cây/ Tàu Hủ Lạnh/ Bánh Bò Thốt Nốt [1]"
+  },
+  {
+    "name": "Set menu 2",
+    "price": 2500000,
+    "acronym": "SM2",
+    "cleanName": "set menu 2",
+    "desc": "T"
+  },
+  {
+    "name": "Set menu 3",
+    "price": 2500000,
+    "acronym": "SM3",
+    "cleanName": "set menu 3",
+    "desc": "1/ Con Gà Cục Tác Lá Chanh [1]\n2/ Chả Giò Bát Bửu (5) [2]\n3/ Bê Chao Tỏi [2]\n4/ Cá Chim Om Chanh [1]\n5/ Lẩu Bò Sate [1]\n6/ Trái Cây/ Tàu Hủ Lạnh/ Bánh Bò Thốt Nốt [1]"
+  },
+  {
+    "name": "Set menu 4",
+    "price": 2500000,
+    "acronym": "SM4",
+    "cleanName": "set menu 4",
+    "desc": "1/ Gỏi Bò Rau Muống [2]\n2/ Gà Om Mía [2]\n3/ Cơm Chiên Cá Mặn [2]\n4/ Cá Diêu Hồng Nướng Hà Giang [2]\n5/ Tôm Cocktail 10 [1]\n6/ Lẩu Nấm Hải Sản [1]\n7/ Trái Cây/ Tàu Hủ Lạnh/ Bánh Bò Thốt Nốt [1]"
+  },
+  {
+    "name": "Set menu 5",
+    "price": 2500000,
+    "acronym": "SM5",
+    "cleanName": "set menu 5",
+    "desc": "1/ Salad King's Grill [2]\n2/ Chả Đùm Trứng Muối [2]\n3/ Gà Nướng King's Grill [1]\n4/ Tôm Nướng Muối ỚT (10) [1]\n5/ Sườn Bò Om Kim Chi [2]\n6/ Lẩu Bò Lá Giang [1]\n7/ Trái Cây/ Tàu Hủ Lạnh/ Bánh Bò Thốt Nốt [1]"
+  },
+  {
+    "name": "Set menu 6",
+    "price": 3000000,
+    "acronym": "SM6",
+    "cleanName": "set menu 6",
+    "desc": "1/ Gánh Gánh Gồng Gồng (Tôm (10), Thịt Xiên (10), Chả Giò Kim Tiền (10), Chả Vuông) [1]\n2/ Súp Cua Rong Biển (10) [1]\n3/ Bò Nướng Xiên Sốt Mè [2]\n4/ Tôm Cocktail (10) [1]\n5/ Mực Né Chảo Gang [2]\n6/ Lẩu Gà Nấm Shiitake [1]\n7/ Trái Cây/ Tàu Hủ Lạnh/ Bánh Bò Thốt Nốt [1]"
+  },
+  {
+    "name": "Set menu 7",
+    "price": 3000000,
+    "acronym": "SM7",
+    "cleanName": "set menu 7",
+    "desc": "1/ Gỏi Gà Hoa Chuối [2]\n2/ Cá Chim Chiên Giòn Sốt Mắm Chanh [2]\n3/ Tôm Rang Mắm Phú Quốc (10) [1]\n4/ Bò Lúc Lắc [2]\n5/ Bao Tử Om Tiêu [2]\n6/ Lẩu Riêu Cua Đồng [1]\n7/ Trái Cây/ Tàu Hủ Lạnh/ Bánh Bò Thốt Nốt [1]"
+  },
+  {
+    "name": "Set menu 8",
+    "price": 3000000,
+    "acronym": "SM8",
+    "cleanName": "set menu 8",
+    "desc": "1/ Gỏi Đu Đủ Đâm & Nạc Nọng Nướng [2]\n2/ Chả Giò Bát Bửu (10) [2]\n3/ Thịt Heo Nướng Xiên [2]\n4/ Hủ Tiếu Áp Chảo Tomyum [2]\n5/ Dã Tràng Xe Cát Biển Đông (5 tôm sú) [2]\n6/ Lẩu Mực Lá É [1]\n7/ Trái Cây/ Tàu Hủ Lạnh/ Bánh Bò Thốt Nốt [1]"
+  },
+  {
+    "name": "Set menu 9",
+    "price": 3000000,
+    "acronym": "SM9",
+    "cleanName": "set menu 9",
+    "desc": "1/ Chả Giò Kim Tiền (5) [2]\n2/ Giò Heo Muối Hoa Tiêu Xôi Hạt Sen [2]\n3/ Con Gà Cục Tác Lá Chanh [1]\n4/ Tôm Cocktail (10) [1]\n5/ Bê Chao Tỏi [2]\n6/ Lẩu Chua Cay Hải Sản [1]\n7/ Trái Cây/ Tàu Hủ Lạnh/ Bánh Bò Thốt Nốt [1]"
+  },
+  {
+    "name": "Set menu 10",
+    "price": 3000000,
+    "acronym": "SM1",
+    "cleanName": "set menu 10",
+    "desc": "1/ Sum Vầy [2]\n2/ Gà Nướng King's Grill [1]\n3/ Phá Lấu Bánh Mì [2]\n4/ Tôm Rang Trứng Muối (10) [2]\n5/ Bò Lục Lạc Nướng Than Hoa [2]\n6/ Lẩu Chua Cay Hải Sản [1]\n7/ Trái Cây/ Tàu Hủ Lạnh/ Bánh Bò Thốt Nốt [1]"
+  },
+  {
+    "name": "Set menu 11",
+    "price": 3900000,
+    "acronym": "SM1",
+    "cleanName": "set menu 11",
+    "desc": "1/ Thịt Nguội [2]\n2/ Chả Giò Kim Tiền (5) [2]\n3/ Bò Nướng Chảo Gang [2]\n4/ Tôm Càng Nướng Phomai (10) [1]\n5/ Giò Heo Muối Hoa Tiêu Xôi Hạt Sen [1]\n6/ Mực Trứng Om Ớt Xiêm Xanh [2]\n7/ Lẩu Gà Nấm Shiitake [1]\n8/ Trái Cây/ Tàu Hủ Lạnh/ Bánh Bò Thốt Nốt [1]"
+  },
+  {
+    "name": "Set menu 12",
+    "price": 3900000,
+    "acronym": "SM1",
+    "cleanName": "set menu 12",
+    "desc": "1/ Combo Khai Vị: (Chả Đùm Trứng Muối (1), Chả Giò Bát Bửu (10), Phá Lấu Bánh Mì (1)) [1]\n2/ Súp Bào Ngư (10) [1]\n3/ Con Gà Cục Tác Lá Chanh [1]\n4/ Sườn Bò Nướng Tiêu Đen Sốt Salsa [2]\n5/ Cá Chim Om Chanh [2]\n6/ Tôm Cocktail (10) [1]\n7/ Lẩu Sườn Bò Kim Chi [1]\n8/ Trái Cây/ Tàu Hủ Lạnh/ Bánh Bò Thốt Nốt [1]"
+  },
+  {
+    "name": "Set menu 13",
+    "price": 3900000,
+    "acronym": "SM1",
+    "cleanName": "set menu 13",
+    "desc": "1/ Salad King's Grill [2]\n2/ Thịt Heo Nướng Xiên [2]\n3/ Súp Hải Sản Tomyum (10) [1]\n4/ Gà Om Mía & Xôi Xéo [2]\n5/ Cá Bống Mú Hấp Hongkong [1]\n6/ Tôm Cocktail (10) [1]\n7/ Lẩu Chua Cay Hải Sản [1]\n8/ Trái Cây/ Tàu Hủ Lạnh/ Bánh Bò Thốt Nốt [1]"
+  },
+  {
+    "name": "Set menu 14",
+    "price": 3900000,
+    "acronym": "SM1",
+    "cleanName": "set menu 14",
+    "desc": "1/ Khói Tây Bắc & Gỏi Đu Đủ Đâm [2]\n2/ Sườn Heo Om Ớt Xiêm Xanh [2]\n3/ Bò Nướng Xiên Sốt Mè [2]\n4/ Tôm Cocktail (10) [1]\n5/ Cá Lăng Nướng Muối Ớt [2]\n6/ Bào Ngư Sốt XO [1]\n7/ Lẩu Gà Nấm Shiitake Thượng Hạng [1]\n8/ Trái Cây/ Tàu Hủ Lạnh/ Bánh Bò Thốt Nốt [1]"
+  },
+  {
+    "name": "Set menu 15",
+    "price": 3900000,
+    "acronym": "SM1",
+    "cleanName": "set menu 15",
+    "desc": "1/ Combo Khai Vị: Bánh Bèo, Bánh Bột Lọc, Bánh Nậm [1]\n2/ Gỏi Tôm Thịt Hoa Chuối [2]\n3/ Dã Tràng Xe Cát Biển Đông [2]\n4/ Gà Nướng King's Grill [1]\n5/ Bò Né Rau Củ Dầu Hào [2]\n6/ Mực Một Nắng Nướng Sate [2]\n7/ Lẩu Cá Lăng Măng Chua [1]\n8/ Trái Cây/ Tàu Hủ Lạnh/ Bánh Bò Thốt Nốt [1]"
+  }
+]
