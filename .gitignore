@@ -33,3 +33,10 @@ dist-ssr
 # OS
 .DS_Store
 Thumbs.db
+
+# Backup folders
+kg-booking old/
+
+# Local databases & dynamic data files
+src/infrastructure/local/data/
+
