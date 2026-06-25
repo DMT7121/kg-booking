@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest'
-import { extractByRules, preNormalizeInput, prepareAIPayload } from '../ruleEngine'
+import { extractByRules, preNormalizeInput, prepareAIPayload, classifyPeopleNames, evaluateNameConfidence } from '../ruleEngine'
 
 describe('Rule Engine Tests', () => {
   it('should extract basic details: date, time, pax', () => {

@@ -212,7 +212,8 @@ export function cleanHonorificPrefix(name: string): string {
 export const AMBIGUOUS_VIETNAMESE_NAME_TOKENS = new Set([
   'nam', 'mai', 'dat', 'đạt', 'son', 'sơn', 'hanh', 'hạnh', 'oanh', 'vui',
   'bang', 'bằng', 'hai', 'hải', 'phuc', 'phúc', 'tam', 'tâm', 'hien', 'hiền',
-  'dung', 'dũng', 'loan', 'lanh', 'lành'
+  'dung', 'dũng', 'loan', 'lanh', 'lành',
+  'chi', 'chị', 'anh', 'em', 'chu', 'chú', 'co', 'cô', 'ong', 'ông', 'ba', 'bà', 'be', 'bé', 'bac', 'bác', 'khach', 'khách'
 ])
 
 export function evaluateNameConfidence(name: string, normalizedText: string): {
@@ -235,12 +236,16 @@ export function evaluateNameConfidence(name: string, normalizedText: string): {
     return AMBIGUOUS_VIETNAMESE_NAME_TOKENS.has(w) || AMBIGUOUS_VIETNAMESE_NAME_TOKENS.has(noAccent)
   })
 
+  const escapedName = nameClean.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&')
+
   if (isSingleToken && hasAmbiguousToken) {
-    score -= 0.35
-    risks.push('ambiguous_single_token_name')
+    const honorificRegex = new RegExp(`\\b(anh|chi|chị|em|chu|chú|co|cô|ong|ông|ba|bà|be|bé|bac|bác|khach|khách)\\s+${escapedName}\\b`, 'i')
+    if (!honorificRegex.test(normalizedText)) {
+      score -= 0.35
+      risks.push('ambiguous_single_token_name')
+    }
   }
 
-  const escapedName = nameClean.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&')
   const honorificRegex = new RegExp(`\\b(anh|chi|chị|em|chu|chú|co|cô|ong|ông|ba|bà|be|bé|bac|bác|khach|khách)\\s+${escapedName}\\b`, 'i')
   if (honorificRegex.test(normalizedText)) {
     score += 0.20
@@ -357,7 +362,35 @@ export function classifyPeopleNames(text: string) {
   const bookerCandidates: string[] = []
   const partyOwnerCandidates: string[] = []
   
-  const invalidNameSet = new Set(['ban', 'giup', 'minh', 'toi', 'ngay', 'gio', 'pax', 'khach', 'nguoi', 'sdt', 'lien', 'he', 'cho', 'duoc', 'khong', 'nhe', 'nha', 'ho', 'lam', 'sao', 'nao', 'chua', 'co', 'hoi', 'hỏi', 'xin', 'xem', 'gui', 'gửi', 'nhan', 'nhận', 'co', 'có', 'con', 'còn', 'la', 'là'])
+  const invalidNameSet = new Set(['ban', 'giup', 'minh', 'toi', 'ngay', 'gio', 'pax', 'khach', 'nguoi', 'sdt', 'lien', 'he', 'cho', 'duoc', 'khong', 'nhe', 'nha', 'ho', 'lam', 'sao', 'nao', 'chua', 'co', 'hoi', 'hỏi', 'xin', 'xem', 'gui', 'gửi', 'nhan', 'nhận', 'co', 'có', 'con', 'còn', 'la', 'là', 'luc', 'lúc', 'trua', 'trưa', 'sang', 'sáng', 'chieu', 'chiều', 'toi', 'tối', 'tai', 'tại', 'lon', 'lớn', 'nho', 'nhỏ', 'tre', 'trẻ', 'em', 'pax'])
+
+  const isInvalidName = (nameValStr: string) => {
+    const nameWords = stripAccents(nameValStr).toLowerCase().split(/\s+/)
+    return nameWords.some(w => {
+      if (w === 'minh') {
+        const isCapitalized = text.includes('Minh')
+        const hasNameIndicator = /\b(anh|chi|chị|em|chu|chú|co|cô|ong|ông|ba|bà|be|bé|bac|bác|ten|tên)\s+minh\b/i.test(text)
+        return !(isCapitalized || hasNameIndicator)
+      }
+      return invalidNameSet.has(w)
+    })
+  }
+
+  const cleanTrailingInvalidWords = (nameStr: string): string => {
+    let cleaned = nameStr.trim()
+    while (true) {
+      const words = cleaned.split(/\s+/)
+      if (words.length <= 1) break
+      const lastWordNorm = stripAccents(words[words.length - 1]).toLowerCase()
+      if (invalidNameSet.has(lastWordNorm)) {
+        words.pop()
+        cleaned = words.join(' ')
+      } else {
+        break
+      }
+    }
+    return cleaned
+  }
 
   const lines = text.split('\n')
   for (const line of lines) {
@@ -378,9 +411,7 @@ export function classifyPeopleNames(text: string) {
       if (lastWord && /^[A-Z\p{Lu}][\p{Ll}]+$/u.test(lastWord)) {
         const cleanName = cleanHonorificPrefix(lastWord)
         if (cleanName && !/^(nay|kia|truoc|sau|sang|chieu|toi|ngay|gio|pax|khach|nguoi|ban|mon|set|combo|happy|birthday|hbd|hpbd|sinh|nhat|thoi|noi|giup|giom|cho|sdt|lien|he|table|pax|duoc|khong)$/i.test(stripAccents(cleanName))) {
-          const nameWords = stripAccents(cleanName).toLowerCase().split(/\s+/)
-          const hasInvalidWord = nameWords.some(w => invalidNameSet.has(w))
-          if (!hasInvalidWord && !peopleNames.includes(cleanName)) {
+          if (!isInvalidName(cleanName) && !peopleNames.includes(cleanName)) {
             peopleNames.push(cleanName)
           }
         }
@@ -392,28 +423,31 @@ export function classifyPeopleNames(text: string) {
       if (firstWord && /^[A-Z\p{Lu}][\p{Ll}]+$/u.test(firstWord)) {
         const cleanName = cleanHonorificPrefix(firstWord)
         if (cleanName && !/^(nay|kia|truoc|sau|sang|chieu|toi|ngay|gio|pax|khach|nguoi|ban|mon|set|combo|happy|birthday|hbd|hpbd|sinh|nhat|thoi|noi|giup|giom|cho|sdt|lien|he|table|pax|duoc|khong)$/i.test(stripAccents(cleanName))) {
-          const nameWords = stripAccents(cleanName).toLowerCase().split(/\s+/)
-          const hasInvalidWord = nameWords.some(w => invalidNameSet.has(w))
-          if (!hasInvalidWord && !peopleNames.includes(cleanName)) {
+          if (!isInvalidName(cleanName) && !peopleNames.includes(cleanName)) {
             peopleNames.push(cleanName)
           }
         }
       }
     }
 
-    const nameRegex = /(?:anh|chị|em|chú|cô|ông|bà|anh|chi|em|chu|co|ong|ba|bé|be|khách|khach|tên|ten|đặt|dat|cho|liên hệ|lien he)\s+(\p{L}+(?:\s+(?!cho\b|dat\b|đặt\b|dat\s+ban|đặt\s+bàn|xin\b|gui\b|gửi\b|nha\b|nhà\b|ngay\b|ngày\b|luc\b|lúc\b|vao\b|vào\b|sdt\b|sđt\b|ban\b|bàn\b)\p{L}+){0,3})/gui
+    const nameRegex = /(?:anh|chị|em|chú|cô|ông|bà|anh|chi|em|chu|co|ong|ba|bé|be|khách|khach|tên|ten|đặt|dat|cho|liên hệ|lien he)\s+((?!cho\b|dat\b|đặt\b|dat\s+ban|đặt\s+bàn|xin\b|gui\b|gửi\b|nha\b|nhà\b|ngay\b|ngày\b|luc\b|lúc\b|vao\b|vào\b|sdt\b|sđt\b|ban\b|bàn\b|trua\b|trưa\b|sang\b|sáng\b|chieu\b|chiều\b|toi\b|tối\b|tai\b|tại\b|lon\b|lớn\b|nho\b|nhỏ\b|tre\b|trẻ\b|em\b|pax\b|khach\b|khách\b|nguoi\b|người\b)\p{L}+(?:\s+(?!cho\b|dat\b|đặt\b|dat\s+ban|đặt\s+bàn|xin\b|gui\b|gửi\b|nha\b|nhà\b|ngay\b|ngày\b|luc\b|lúc\b|vao\b|vào\b|sdt\b|sđt\b|ban\b|bàn\b|trua\b|trưa\b|sang\b|sáng\b|chieu\b|chiều\b|toi\b|tối\b|tai\b|tại\b|lon\b|lớn\b|nho\b|nhỏ\b|tre\b|trẻ\b|em\b|pax\b|khach\b|khách\b|nguoi\b|người\b)\p{L}+){0,3})/gui
     let match
     while ((match = nameRegex.exec(lineClean)) !== null) {
-      let name = match[1].trim()
-      name = cleanHonorificPrefix(name)
+      const cleanedRaw = cleanTrailingInvalidWords(match[1])
+      if (!cleanedRaw) continue
+      const rawNameFirstChar = cleanedRaw.charAt(0)
+      const isCapitalized = rawNameFirstChar === rawNameFirstChar.toUpperCase()
+      const normName = stripAccents(cleanedRaw).toLowerCase()
+      if (['anh', 'chi', 'em', 'chu', 'co', 'ong', 'ba', 'be', 'bac', 'khach'].includes(normName) && !isCapitalized) {
+        continue
+      }
+      let name = cleanHonorificPrefix(cleanedRaw)
       if (name.length <= 1) continue
       if (/^(nay|kia|truoc|sau|sang|chieu|toi|ngay|gio|pax|khach|nguoi|ban|mon|set|combo|happy|birthday|hbd|hpbd|sinh|nhat|thoi|noi|giup|giom|cho|sdt|lien|he|table|pax|duoc|khong)$/i.test(stripAccents(name))) {
         continue
       }
       // Bộ lọc từ cấm cho tên khớp từ regex nameRegex:
-      const nameWords = stripAccents(name).toLowerCase().split(/\s+/)
-      const hasInvalidWord = nameWords.some(w => invalidNameSet.has(w))
-      if (hasInvalidWord) continue
+      if (isInvalidName(name)) continue
 
       if (!peopleNames.includes(name)) {
         peopleNames.push(name)
@@ -465,23 +499,28 @@ export function classifyPeopleNames(text: string) {
   }
 
   const specialPatterns = [
-    { regex: /(?:sinh nhật|sinh nhat|hbd|hpbd|happy birthday|thôi nôi|thoi noi|đầy tháng|day thang|bé|be)\s+of\s+(\p{L}+(?:\s+(?!cho\b|dat\b|đặt\b|dat\s+ban|đặt\s+bàn|xin\b|gui\b|gửi\b|nha\b|nhà\b|ngay\b|ngày\b|luc\b|lúc\b|vao\b|vào\b|sdt\b|sđt\b|ban\b|bàn\b)\p{L}+){0,3})/ugi, isPartyOwner: true },
-    { regex: /(?:sinh nhật|sinh nhat|hbd|hpbd|happy birthday|thôi nôi|thoi noi|đầy tháng|day thang|bé|be)\s+(\p{L}+(?:\s+(?!cho\b|dat\b|đặt\b|dat\s+ban|đặt\s+bàn|xin\b|gui\b|gửi\b|nha\b|nhà\b|ngay\b|ngày\b|luc\b|lúc\b|vao\b|vào\b|sdt\b|sđt\b|ban\b|bàn\b)\p{L}+){0,3})/ugi, isPartyOwner: true },
-    { regex: /(?:bảng tên|bang ten|chữ|chu)\s+(\p{L}+(?:\s+(?!cho\b|dat\b|đặt\b|dat\s+ban|đặt\s+bàn|xin\b|gui\b|gửi\b|nha\b|nhà\b|ngay\b|ngày\b|luc\b|lúc\b|vao\b|vào\b|sdt\b|sđt\b|ban\b|bàn\b)\p{L}+){0,3})/ugi, isPartyOwner: true },
-    { regex: /(?:người đặt|nguoi dat|liên hệ|lien he|anh|chị|chi|anh|sđt|sdt|tên|ten)\s+(\p{L}+(?:\s+(?!cho\b|dat\b|đặt\b|dat\s+ban|đặt\s+bàn|xin\b|gui\b|gửi\b|nha\b|nhà\b|ngay\b|ngày\b|luc\b|lúc\b|vao\b|vào\b|sdt\b|sđt\b|ban\b|bàn\b)\p{L}+){0,3})/ugi, isBooker: true },
-    { regex: /\b((?:cty|công ty|đoàn|doan|team|group|phòng|phong)\s+\p{L}+(?:\s+(?!cho\b|dat\b|đặt\b|dat\s+ban|đặt\s+bàn|xin\b|gui\b|gửi\b|nha\b|nhà\b|ngay\b|ngày\b|luc\b|lúc\b|vao\b|vào\b|sdt\b|sđt\b|ban\b|bàn\b)\p{L}+){0,4})\b/ugi, isBooker: true, isPartyOwner: true }
+    { regex: /(?:sinh nhật|sinh nhat|hbd|hpbd|happy birthday|thôi nôi|thoi noi|đầy tháng|day thang|bé|be)\s+of\s+((?!cho\b|dat\b|đặt\b|dat\s+ban|đặt\s+bàn|xin\b|gui\b|gửi\b|nha\b|nhà\b|ngay\b|ngày\b|luc\b|lúc\b|vao\b|vào\b|sdt\b|sđt\b|ban\b|bàn\b|trua\b|trưa\b|sang\b|sáng\b|chieu\b|chiều\b|toi\b|tối\b|tai\b|tại\b|lon\b|lớn\b|nho\b|nhỏ\b|tre\b|trẻ\b|em\b|pax\b|khach\b|khách\b|nguoi\b|người\b)\p{L}+(?:\s+(?!cho\b|dat\b|đặt\b|dat\s+ban|đặt\s+bàn|xin\b|gui\b|gửi\b|nha\b|nhà\b|ngay\b|ngày\b|luc\b|lúc\b|vao\b|vào\b|sdt\b|sđt\b|ban\b|bàn\b|trua\b|trưa\b|sang\b|sáng\b|chieu\b|chiều\b|toi\b|tối\b|tai\b|tại\b|lon\b|lớn\b|nho\b|nhỏ\b|tre\b|trẻ\b|em\b|pax\b|khach\b|khách\b|nguoi\b|người\b)\p{L}+){0,3})/ugi, isPartyOwner: true },
+    { regex: /(?:sinh nhật|sinh nhat|hbd|hpbd|happy birthday|thôi nôi|thoi noi|đầy tháng|day thang|bé|be)\s+((?!cho\b|dat\b|đặt\b|dat\s+ban|đặt\s+bàn|xin\b|gui\b|gửi\b|nha\b|nhà\b|ngay\b|ngày\b|luc\b|lúc\b|vao\b|vào\b|sdt\b|sđt\b|ban\b|bàn\b|trua\b|trưa\b|sang\b|sáng\b|chieu\b|chiều\b|toi\b|tối\b|tai\b|tại\b|lon\b|lớn\b|nho\b|nhỏ\b|tre\b|trẻ\b|em\b|pax\b|khach\b|khách\b|nguoi\b|người\b)\p{L}+(?:\s+(?!cho\b|dat\b|đặt\b|dat\s+ban|đặt\s+bàn|xin\b|gui\b|gửi\b|nha\b|nhà\b|ngay\b|ngày\b|luc\b|lúc\b|vao\b|vào\b|sdt\b|sđt\b|ban\b|bàn\b|trua\b|trưa\b|sang\b|sáng\b|chieu\b|chiều\b|toi\b|tối\b|tai\b|tại\b|lon\b|lớn\b|nho\b|nhỏ\b|tre\b|trẻ\b|em\b|pax\b|khach\b|khách\b|nguoi\b|người\b)\p{L}+){0,3})/ugi, isPartyOwner: true },
+    { regex: /(?:bảng tên|bang ten|chữ|chu)\s+((?!cho\b|dat\b|đặt\b|dat\s+ban|đặt\s+bàn|xin\b|gui\b|gửi\b|nha\b|nhà\b|ngay\b|ngày\b|luc\b|lúc\b|vao\b|vào\b|sdt\b|sđt\b|ban\b|bàn\b|trua\b|trưa\b|sang\b|sáng\b|chieu\b|chiều\b|toi\b|tối\b|tai\b|tại\b|lon\b|lớn\b|nho\b|nhỏ\b|tre\b|trẻ\b|em\b|pax\b|khach\b|khách\b|nguoi\b|người\b)\p{L}+(?:\s+(?!cho\b|dat\b|đặt\b|dat\s+ban|đặt\s+bàn|xin\b|gui\b|gửi\b|nha\b|nhà\b|ngay\b|ngày\b|luc\b|lúc\b|vao\b|vào\b|sdt\b|sđt\b|ban\b|bàn\b|trua\b|trưa\b|sang\b|sáng\b|chieu\b|chiều\b|toi\b|tối\b|tai\b|tại\b|lon\b|lớn\b|nho\b|nhỏ\b|tre\b|trẻ\b|em\b|pax\b|khach\b|khách\b|nguoi\b|người\b)\p{L}+){0,3})/ugi, isPartyOwner: true },
+    { regex: /(?:người đặt|nguoi dat|liên hệ|lien he|anh|chị|chi|anh|sđt|sdt|tên|ten)\s+((?!cho\b|dat\b|đặt\b|dat\s+ban|đặt\s+bàn|xin\b|gui\b|gửi\b|nha\b|nhà\b|ngay\b|ngày\b|luc\b|lúc\b|vao\b|vào\b|sdt\b|sđt\b|ban\b|bàn\b|trua\b|trưa\b|sang\b|sáng\b|chieu\b|chiều\b|toi\b|tối\b|tai\b|tại\b|lon\b|lớn\b|nho\b|nhỏ\b|tre\b|trẻ\b|em\b|pax\b|khach\b|khách\b|nguoi\b|người\b)\p{L}+(?:\s+(?!cho\b|dat\b|đặt\b|dat\s+ban|đặt\s+bàn|xin\b|gui\b|gửi\b|nha\b|nhà\b|ngay\b|ngày\b|luc\b|lúc\b|vao\b|vào\b|sdt\b|sđt\b|ban\b|bàn\b|trua\b|trưa\b|sang\b|sáng\b|chieu\b|chiều\b|toi\b|tối\b|tai\b|tại\b|lon\b|lớn\b|nho\b|nhỏ\b|tre\b|trẻ\b|em\b|pax\b|khach\b|khách\b|nguoi\b|người\b)\p{L}+){0,3})/ugi, isBooker: true },
+    { regex: /\b((?:cty|công ty|đoàn|doan|team|group|phòng|phong)\s+(?!cho\b|dat\b|đặt\b|dat\s+ban|đặt\s+bàn|xin\b|gui\b|gửi\b|nha\b|nhà\b|ngay\b|ngày\b|luc\b|lúc\b|vao\b|vào\b|sdt\b|sđt\b|ban\b|bàn\b|trua\b|trưa\b|sang\b|sáng\b|chieu\b|chiều\b|toi\b|tối\b|tai\b|tại\b|lon\b|lớn\b|nho\b|nhỏ\b|tre\b|trẻ\b|em\b|pax\b|khach\b|khách\b|nguoi\b|người\b)\p{L}+(?:\s+(?!cho\b|dat\b|đặt\b|dat\s+ban|đặt\s+bàn|xin\b|gui\b|gửi\b|nha\b|nhà\b|ngay\b|ngày\b|luc\b|lúc\b|vao\b|vào\b|sdt\b|sđt\b|ban\b|bàn\b|trua\b|trưa\b|sang\b|sáng\b|chieu\b|chiều\b|toi\b|tối\b|tai\b|tại\b|lon\b|lớn\b|nho\b|nhỏ\b|tre\b|trẻ\b|em\b|pax\b|khach\b|khách\b|nguoi\b|người\b)\p{L}+){0,4})\b/ugi, isBooker: true, isPartyOwner: true }
   ]
 
   specialPatterns.forEach(({ regex, isPartyOwner, isBooker }) => {
     let match
     while ((match = regex.exec(text)) !== null) {
-      let name = match[1].trim()
-      name = cleanHonorificPrefix(name)
+      const cleanedRaw = cleanTrailingInvalidWords(match[1])
+      if (!cleanedRaw) continue
+      const rawNameFirstChar = cleanedRaw.charAt(0)
+      const isCapitalized = rawNameFirstChar === rawNameFirstChar.toUpperCase()
+      const normName = stripAccents(cleanedRaw).toLowerCase()
+      if (['anh', 'chi', 'em', 'chu', 'co', 'ong', 'ba', 'be', 'bac', 'khach'].includes(normName) && !isCapitalized) {
+        continue
+      }
+      let name = cleanHonorificPrefix(cleanedRaw)
       if (name.length > 1 && !/^(nay|kia|truoc|sau|sang|chieu|toi|ngay|gio|pax|khach|nguoi|ban|mon|set|combo|happy|birthday|hbd|hpbd|sinh|nhat|thoi|noi|giup|giom|cho|sdt|lien|he|table|pax|duoc|khong)$/i.test(stripAccents(name))) {
         // Bộ lọc từ cấm cho tên khớp từ specialPatterns:
-        const nameWords = stripAccents(name).toLowerCase().split(/\s+/)
-        const hasInvalidWord = nameWords.some(w => invalidNameSet.has(w))
-        if (hasInvalidWord) continue
+        if (isInvalidName(name)) continue
 
         if (!peopleNames.includes(name)) {
           peopleNames.push(name)

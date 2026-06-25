@@ -21,7 +21,10 @@ export function analyzeBookingLocally(text: string): LocalBookingExtractionResul
       if (['ban', 'ban oi', 'quan', 'cho', 'dem', 'anh', 'chi', 'em', 'dat', 'nguoi', 'khach', 'viet', 'nam'].includes(cleanN)) {
         return false
       }
-      return cleanN !== cleanNameVal
+      if (cleanN === cleanNameVal || cleanN.includes(cleanNameVal) || cleanNameVal.includes(cleanN)) {
+        return false
+      }
+      return true
     })
     
     if (filteredNames.length > 0 && nameConf > 0.80) {
