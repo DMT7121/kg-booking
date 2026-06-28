@@ -24,7 +24,7 @@ onMounted(() => {
   window.addEventListener('hashchange', checkRoute)
   
   if (ui.isDarkMode) {
-    document.documentElement.classList.add('dark-theme')
+    document.documentElement.classList.add('dark-theme', 'dark')
   }
 
   const setAppHeight = () => {

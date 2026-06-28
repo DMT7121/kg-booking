@@ -23,6 +23,10 @@ export class GasOrderRepository implements OrderRepository {
     return fetchWithRetry({ action: 'saveOrder', data })
   }
 
+  async saveOrdersBatch(payloads: any[]): Promise<any> {
+    return fetchWithRetry({ action: 'saveOrdersBatch', payloads })
+  }
+
   async deleteOrder(id: string, password?: string, token?: string): Promise<any> {
     return postGAS({ action: 'deleteOrder', id, password, token })
   }

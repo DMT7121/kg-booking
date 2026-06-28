@@ -89,7 +89,7 @@ function doPost(e) {
     
     // Write actions that modify configuration or sheets and need script lock protection
     const writeActions = [
-      "saveOrder", "deleteOrder", "createMenu", "deleteMenu", 
+      "saveOrder", "saveOrdersBatch", "deleteOrder", "createMenu", "deleteMenu", 
       "uploadMenuImage", "uploadDishImage", "saveConfig", "saveApiKey", 
       "deleteApiKey", "saveApiKeys", "saveAiApiConfig", "saveMenuAlias", 
       "deleteMenuAlias", "logAiCorrection", "upsertSystemConfig", 
@@ -109,6 +109,7 @@ function doPost(e) {
       let result = {};
       switch (action) {
         case "saveOrder": result = saveOrder(data.data); break;
+        case "saveOrdersBatch": result = saveOrdersBatch(data.payloads); break;
         case "deleteOrder": result = deleteOrder(data.id, data.password, data.token); break;
         case "getHistory": result = getHistoryData(); break;
         case "getMenuSheets": result = getMenuSheets(); break;
@@ -553,6 +554,130 @@ function saveOrder(p) {
   }
   try { sendNotification_(p, bookingId, billUrl); } catch(e) { console.log("Notification Failed: " + e.message); }
   return { message: "Order Saved (V3.6.0)", id: bookingId, billUrl: billUrl, calendarSync: calendarSync };
+}
+
+function saveOrdersBatch(payloads) {
+  if (!payloads || !Array.isArray(payloads) || payloads.length === 0) {
+    return { ok: false, message: "No batch payloads provided" };
+  }
+  
+  const spreadsheetId = CONFIG.SS_ID;
+  const rangeName = CONFIG.SHEET_NAME_ORDERS + "!A:B";
+  let values = [];
+  try {
+    const response = Sheets.Spreadsheets.Values.get(spreadsheetId, rangeName);
+    values = response.values || [];
+  } catch (err) {
+    const ss = SpreadsheetApp.openById(CONFIG.SS_ID);
+    initSheetIfNeeded_(ss, CONFIG.SHEET_NAME_ORDERS, CONFIG.ORDER_HEADERS, "#dbeafe");
+    const response = Sheets.Spreadsheets.Values.get(spreadsheetId, rangeName);
+    values = response.values || [];
+  }
+
+  // Create a map of ID -> Row Number (1-indexed)
+  const idToRowMap = {};
+  for (let i = 1; i < values.length; i++) {
+    if (values[i][0]) {
+      idToRowMap[values[i][0]] = i + 1;
+    }
+  }
+
+  const results = [];
+  const valueRanges = [];
+  let nextNewRowIndex = values.length + 1;
+
+  for (let idx = 0; idx < payloads.length; idx++) {
+    const p = payloads[idx];
+    try {
+      if (!p || !p.customer || !p.customer.name || !p.customer.phone) {
+        throw new Error("Dữ liệu khách hàng không hợp lệ!");
+      }
+      const total = Number(p.total) || 0;
+      const itemsCount = (p.items && Array.isArray(p.items)) ? p.items.length : 0;
+      if (itemsCount > 0 && total < 10000) {
+        throw new Error("Đơn hàng có món nhưng tổng tiền < 10.000 VNĐ!");
+      } else if (total < 0) {
+        throw new Error("Tổng tiền âm không hợp lệ!");
+      }
+
+      if (p.oldBillFileId) { try { Drive.Files.update({trashed: true}, p.oldBillFileId); } catch(e) {} }
+      let billUrl = p.billImage || "";
+      if (p.htmlContent) {
+        const pdf = renderPreview({htmlContent: p.htmlContent, name: p.customer.name});
+        if(pdf.downloadUrl) billUrl = pdf.downloadUrl;
+      } else if (p.billImage && p.billImage.includes("base64")) {
+        const img = uploadImageToDrive(p.billImage, `Bill_${p.customer.name}_${Date.now()}.jpg`);
+        if(img.url) billUrl = img.url;
+      }
+      let transferUrl = p.deposit.image || "";
+      if (transferUrl && transferUrl.includes("base64")) {
+        const img = uploadImageToDrive(transferUrl, `CK_${p.customer.name}_${Date.now()}.jpg`);
+        if(img.url) transferUrl = img.url;
+      }
+      p.billUrl = billUrl;
+      if(transferUrl) p.deposit.image = transferUrl;
+
+      const bookingId = p.id || Utilities.getUuid();
+      
+      let foundRowIndex = idToRowMap[bookingId] || -1;
+      const isNew = (foundRowIndex === -1);
+      
+      let createdAt;
+      if (isNew) {
+        createdAt = new Date().toISOString();
+        foundRowIndex = nextNewRowIndex++;
+        idToRowMap[bookingId] = foundRowIndex; // Update map to catch duplicate IDs in the same batch
+      } else {
+        createdAt = values[foundRowIndex - 1] ? (values[foundRowIndex - 1][1] || new Date().toISOString()) : new Date().toISOString();
+      }
+      const updatedAt = new Date().toISOString();
+
+      const unifiedData = {
+        customer: p.customer, items: p.items, staff: p.staff, deposit: p.deposit,
+        activeMenuSheet: p.activeMenuSheet || "",
+        aiMetadata: p.aiMetadata || null,
+        warnings: p.warnings || [],
+        unresolvedItems: p.unresolvedItems || [],
+        meta: { createdAt: createdAt, updatedAt: updatedAt }
+      };
+
+      const row = [
+        bookingId, createdAt, p.customer.name,
+        "'" + p.customer.phone, JSON.stringify(unifiedData), p.total,
+        p.deposit.amount, p.deposit.isPaid ? "YES" : "NO", transferUrl, billUrl
+      ];
+
+      // Add to batch update list
+      const updateRange = CONFIG.SHEET_NAME_ORDERS + "!A" + foundRowIndex + ":J" + foundRowIndex;
+      valueRanges.push({
+        range: updateRange,
+        values: [row]
+      });
+
+      // Calendar sync & notifications (best effort)
+      let calendarSync = { status: "SKIPPED" };
+      try {
+        calendarSync = syncToCalendar(p, bookingId, billUrl, transferUrl);
+      } catch(e) {
+        calendarSync = { status: "ERROR", message: e.message };
+      }
+      try { sendNotification_(p, bookingId, billUrl); } catch(e) {}
+
+      results.push({ ok: true, id: bookingId, billUrl: billUrl, calendarSync: calendarSync });
+    } catch (e) {
+      results.push({ ok: false, message: e.toString(), payloadId: p ? p.id : "unknown" });
+    }
+  }
+
+  // Perform sheet updates in a single batch call!
+  if (valueRanges.length > 0) {
+    Sheets.Spreadsheets.Values.batchUpdate({
+      valueInputOption: "USER_ENTERED",
+      data: valueRanges
+    }, spreadsheetId);
+  }
+
+  return { ok: true, results: results };
 }
 
 function initLocationSheets_(ss) {

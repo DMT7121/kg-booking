@@ -144,6 +144,19 @@ export class PostgresOrderRepository implements OrderRepository {
     }
   }
 
+  async saveOrdersBatch(payloads: any[]): Promise<any> {
+    const results = []
+    for (const p of payloads) {
+      try {
+        const res = await this.saveOrder(p)
+        results.push(res)
+      } catch (e: any) {
+        results.push({ ok: false, message: e.message })
+      }
+    }
+    return { ok: true, results }
+  }
+
   async deleteOrder(id: string, password?: string, token?: string): Promise<any> {
     try {
       await pgFetch(`/bookings?id=eq.${encodeURIComponent(id)}`, {

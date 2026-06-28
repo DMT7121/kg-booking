@@ -22,6 +22,7 @@ const BookingDetailModal = defineAsyncComponent(() => import('@/components/modal
 const FloorPlanModal = defineAsyncComponent(() => import('@/components/modals/FloorPlanModal.vue'))
 const CustomerCareModal = defineAsyncComponent(() => import('@/components/modals/CustomerCareModal.vue'))
 const GuideConfigModal = defineAsyncComponent(() => import('@/components/modals/GuideConfigModal.vue'))
+const ConflictResolutionModal = defineAsyncComponent(() => import('@/components/modals/ConflictResolutionModal.vue'))
 
 const ui = useUIStore()
 const formStore = useFormStore()
@@ -535,6 +536,7 @@ function handleGlobalKeydown(e: KeyboardEvent) {
     <BookingDetailModal />
     <FloorPlanModal />
     <CustomerCareModal />
+    <ConflictResolutionModal />
 
     <!-- COMMAND PALETTE MODAL -->
     <transition name="fade">

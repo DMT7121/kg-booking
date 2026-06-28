@@ -175,9 +175,9 @@ export const useUIStore = defineStore('ui', () => {
     isDarkMode.value = !isDarkMode.value
     localStorage.setItem('kg_dark_mode', String(isDarkMode.value))
     if (isDarkMode.value) {
-      document.documentElement.classList.add('dark-theme')
+      document.documentElement.classList.add('dark-theme', 'dark')
     } else {
-      document.documentElement.classList.remove('dark-theme')
+      document.documentElement.classList.remove('dark-theme', 'dark')
     }
   }
 

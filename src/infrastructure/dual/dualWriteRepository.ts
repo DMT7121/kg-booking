@@ -196,6 +196,13 @@ export class DualWriteOrderRepository implements OrderRepository {
     }
   }
 
+  async saveOrdersBatch(payloads: any[]): Promise<any> {
+    const mode = getBackendMode()
+    if (mode === 'gas') return this.gas.saveOrdersBatch(payloads)
+    // Fallback/standard: use GAS batch implementation for background offline queue updates
+    return this.gas.saveOrdersBatch(payloads)
+  }
+
   async deleteOrder(id: string, password?: string, token?: string): Promise<any> {
     const mode = getBackendMode()
     if (mode === 'gas') return this.gas.deleteOrder(id, password, token)

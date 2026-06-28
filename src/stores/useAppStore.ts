@@ -1311,102 +1311,163 @@ export const useAppStore = defineStore('app', () => {
       uiStore.showToast(`Đang đồng bộ ${pendingItems.length} đơn offline...`, 'info')
       await loadHistory(true)
 
-      await runWithConcurrencyLimit(pendingItems, 2, async (item) => {
+      // 1. Separate 'saveOrder' items from other actions
+      const saveOrderItems = pendingItems.filter(item => item.action === 'saveOrder')
+      const otherItems = pendingItems.filter(item => item.action !== 'saveOrder')
+
+      const batchToSync: typeof saveOrderItems = []
+
+      // 2. Perform conflict detection on 'saveOrder' items first
+      for (const item of saveOrderItems) {
         const state = offlineItemStatuses.value[item.id]
-        state.status = 'syncing'
         state.lastAttempt = Date.now()
+        const payload = item.payload
+        const localId = payload.id
+
+        let conflictType: BookingConflict['type'] | null = null
+        let serverSnapshot: any = null
+
+        const existingServerBooking = historyList.value.find(h => h.id === localId)
+        if (existingServerBooking) {
+          const baseVersion = payload.baseServerVersion ?? payload.version ?? 1
+          const serverVersion = existingServerBooking.version ?? 1
+          if (serverVersion > baseVersion) {
+            conflictType = 'version_mismatch'
+          }
+        }
+
+        if (!conflictType) {
+          const date = payload.customer.date
+          const time = payload.customer.time
+          const tables = payload.customer.tables || ''
+
+          const hasConflict = hasTimeConflictIndexed({ id: localId, date, time, tables })
+          if (hasConflict) {
+            conflictType = 'table_time_overlap'
+            serverSnapshot = historyList.value.find(h => {
+              if (h.id === localId) return false
+              return hasTimeConflict(
+                { date, time, tables },
+                { date: h.parsedCustomer.date, time: h.parsedCustomer.time || '', tables: h.parsedCustomer.tables || '' }
+              )
+            })
+          }
+        }
+
+        if (conflictType) {
+          state.status = 'conflict'
+          const newConflict: BookingConflict = {
+            localBookingId: localId,
+            serverBookingId: serverSnapshot?.id,
+            type: conflictType,
+            severity: 'blocking',
+            localSnapshot: payload,
+            serverSnapshot,
+            detectedAt: new Date().toISOString()
+          }
+
+          if (!activeConflicts.value.some(c => c.localBookingId === localId)) {
+            activeConflicts.value.push(newConflict)
+            saveConflicts()
+          }
+          uiStore.showToast(`Phát hiện xung đột đồng bộ cho đơn của ${payload.customer.name}!`, 'warning', 6000)
+        } else {
+          batchToSync.push(item)
+        }
+      }
+
+      // 3. Batch sync non-conflicting saveOrder items using saveOrdersBatch
+      if (batchToSync.length > 0) {
+        batchToSync.forEach(item => {
+          offlineItemStatuses.value[item.id].status = 'syncing'
+        })
 
         try {
-          const payload = item.payload
-          const localId = payload.id
+          const controller = new AbortController()
+          const tId = setTimeout(() => controller.abort(), 15000) // 15s timeout for batch
 
-          if (item.action !== 'saveOrder') {
-            const res = await fetchWithRetry({ action: item.action, data: payload }, 1)
+          const payloads = batchToSync.map(item => item.payload)
+          const res = await orderRepo.saveOrdersBatch(payloads)
+          clearTimeout(tId)
+
+          if (res?.ok && Array.isArray(res.results)) {
+            for (let i = 0; i < batchToSync.length; i++) {
+              const item = batchToSync[i]
+              const state = offlineItemStatuses.value[item.id]
+              const result = res.results[i]
+              if (result && result.ok) {
+                state.status = 'synced'
+                
+                // Trigger audit logs for each successfully batch-saved item
+                const beforeOrder = item.payload.id ? historyList.value.find(h => h.id === item.payload.id) : null
+                await triggerAuditLog(
+                  beforeOrder ? 'booking:update' : 'booking:create',
+                  'booking',
+                  result.id || item.payload.id,
+                  beforeOrder ? beforeOrder.parsedCustomer : null,
+                  item.payload.customer || item.payload.data?.customer || item.payload
+                )
+
+                await removeFromQueue(item.id)
+              } else {
+                state.status = 'failed'
+                console.warn('[OfflineQueue] Batch sync rejected sub-item:', item.id, result)
+              }
+            }
+            await updateOfflineQueueCount()
+          } else {
+            throw new Error(res?.message || 'Invalid batch response')
+          }
+        } catch (e: any) {
+          console.warn('[OfflineQueue] Exception processing batch sync:', e)
+          batchToSync.forEach(item => {
+            const state = offlineItemStatuses.value[item.id]
+            const isNetworkOrTimeout = e.name === 'AbortError' || e.message?.includes('fetch') || e.message?.includes('network')
+            if (isNetworkOrTimeout && state.retries < 3) {
+              state.status = 'deferred'
+              state.retries++
+            } else {
+              state.status = 'failed'
+            }
+          })
+        }
+      }
+
+      // 4. Process non-saveOrder items concurrently (e.g. config updates, deletes, alias saves)
+      if (otherItems.length > 0) {
+        await runWithConcurrencyLimit(otherItems, 2, async (item) => {
+          const state = offlineItemStatuses.value[item.id]
+          state.status = 'syncing'
+          state.lastAttempt = Date.now()
+
+          try {
+            const payload = item.payload
+            const controller = new AbortController()
+            const tId = setTimeout(() => controller.abort(), 8000)
+
+            const res = await fetchWithRetry({ action: item.action, data: payload }, 1, controller.signal)
+            clearTimeout(tId)
+
             if (res?.ok) {
               state.status = 'synced'
               await removeFromQueue(item.id)
               await updateOfflineQueueCount()
             } else {
               state.status = 'failed'
+              console.warn('[OfflineQueue] Server sync rejected other item:', item.id, res)
             }
-            return
-          }
-
-          let conflictType: BookingConflict['type'] | null = null
-          let serverSnapshot: any = null
-
-          const existingServerBooking = historyList.value.find(h => h.id === localId)
-          if (existingServerBooking) {
-            const baseVersion = payload.baseServerVersion ?? payload.version ?? 1
-            const serverVersion = existingServerBooking.version ?? 1
-            if (serverVersion > baseVersion) {
-              conflictType = 'version_mismatch'
+          } catch (e: any) {
+            const isNetworkOrTimeout = e.name === 'AbortError' || e.message?.includes('fetch') || e.message?.includes('network')
+            if (isNetworkOrTimeout && state.retries < 3) {
+              state.status = 'deferred'
+              state.retries++
+            } else {
+              state.status = 'failed'
             }
+            console.warn('[OfflineQueue] Exception processing other item:', item.id, e)
           }
-
-          if (!conflictType) {
-            const date = payload.customer.date
-            const time = payload.customer.time
-            const tables = payload.customer.tables || ''
-
-            const hasConflict = hasTimeConflictIndexed({ id: localId, date, time, tables })
-            if (hasConflict) {
-              conflictType = 'table_time_overlap'
-              serverSnapshot = historyList.value.find(h => {
-                if (h.id === localId) return false
-                return hasTimeConflict(
-                  { date, time, tables },
-                  { date: h.parsedCustomer.date, time: h.parsedCustomer.time || '', tables: h.parsedCustomer.tables || '' }
-                )
-              })
-            }
-          }
-
-          if (conflictType) {
-            state.status = 'conflict'
-            const newConflict: BookingConflict = {
-              localBookingId: localId,
-              serverBookingId: serverSnapshot?.id,
-              type: conflictType,
-              severity: 'blocking',
-              localSnapshot: payload,
-              serverSnapshot,
-              detectedAt: new Date().toISOString()
-            }
-
-            if (!activeConflicts.value.some(c => c.localBookingId === localId)) {
-              activeConflicts.value.push(newConflict)
-              saveConflicts()
-            }
-            uiStore.showToast(`Phát hiện xung đột đồng bộ cho đơn của ${payload.customer.name}!`, 'warning', 6000)
-            return
-          }
-
-          const controller = new AbortController()
-          const tId = setTimeout(() => controller.abort(), 8000)
-
-          const res = await fetchWithRetry({ action: item.action, data: payload }, 1, controller.signal)
-          clearTimeout(tId)
-
-          if (res?.ok) {
-            state.status = 'synced'
-            await removeFromQueue(item.id)
-            await updateOfflineQueueCount()
-          } else {
-            state.status = 'failed'
-            console.warn('[OfflineQueue] Server sync rejected item:', item.id, res)
-          }
-        } catch (e: any) {
-          const isNetworkOrTimeout = e.name === 'AbortError' || e.message?.includes('fetch') || e.message?.includes('network')
-          if (isNetworkOrTimeout && state.retries < 3) {
-            state.status = 'deferred'
-            state.retries++
-          } else {
-            state.status = 'failed'
-          }
-          console.warn('[OfflineQueue] Exception processing item:', item.id, e)
-        }
-      })
+        })
+      }
     } finally {
       isProcessingOfflineQueue = false
     }

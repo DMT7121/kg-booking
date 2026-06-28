@@ -693,24 +693,192 @@ html.is-ios .animate-pulse {
 }
 
 /* =========================================
-   DARK MODE HACK (Invert + Hue Rotate)
+   NATIVE DARK MODE THEME SYSTEM
    ========================================= */
 html.dark-theme {
-  filter: invert(0.93) hue-rotate(180deg);
-  background-color: #f8fafc; /* Inverts to dark grey */
+  background-color: #0f172a !important;
+  color: #f8fafc !important;
 }
 
-/* Images, videos, canvas, and elements that shouldn't be inverted */
-html.dark-theme img,
-html.dark-theme video,
-html.dark-theme canvas,
-html.dark-theme .print-no-shadow,
-html.dark-theme .no-invert {
-  filter: invert(1) hue-rotate(180deg);
+html.dark-theme body {
+  background-color: #0f172a !important;
+  color: #f8fafc !important;
 }
 
-/* Prevent double inversion issues on backdrop filters */
-html.dark-theme .backdrop-blur-md,
-html.dark-theme .backdrop-blur-sm {
-  backdrop-filter: none !important;
+/* Background overrides */
+html.dark-theme .bg-white,
+html.dark-theme .bg-surface {
+  background-color: #1e293b !important;
 }
+
+html.dark-theme .bg-slate-50,
+html.dark-theme .bg-slate-100,
+html.dark-theme .bg-gray-50,
+html.dark-theme .bg-gray-100,
+html.dark-theme .bg-background {
+  background-color: #0f172a !important;
+}
+
+html.dark-theme .bg-slate-200,
+html.dark-theme .bg-slate-300,
+html.dark-theme .bg-gray-200,
+html.dark-theme .bg-gray-300 {
+  background-color: #334155 !important;
+}
+
+html.dark-theme .bg-slate-100\/50,
+html.dark-theme .bg-slate-50\/50 {
+  background-color: rgba(15, 23, 42, 0.4) !important;
+}
+
+/* Text overrides */
+html.dark-theme .text-slate-900,
+html.dark-theme .text-gray-900,
+html.dark-theme .text-gray-800,
+html.dark-theme .text-text {
+  color: #f8fafc !important;
+}
+
+html.dark-theme .text-slate-700,
+html.dark-theme .text-slate-800,
+html.dark-theme .text-gray-700,
+html.dark-theme .text-gray-600 {
+  color: #cbd5e1 !important;
+}
+
+html.dark-theme .text-slate-500,
+html.dark-theme .text-slate-400,
+html.dark-theme .text-gray-500,
+html.dark-theme .text-gray-400 {
+  color: #94a3b8 !important;
+}
+
+html.dark-theme .text-slate-600 {
+  color: #cbd5e1 !important;
+}
+
+/* Border overrides */
+html.dark-theme .border-slate-100,
+html.dark-theme .border-slate-200,
+html.dark-theme .border-slate-300,
+html.dark-theme .border-gray-100,
+html.dark-theme .border-gray-200,
+html.dark-theme .border-gray-300,
+html.dark-theme .border-slate-200\/60 {
+  border-color: #334155 !important;
+}
+
+html.dark-theme .divide-slate-100 > :not([hidden]) ~ :not([hidden]),
+html.dark-theme .divide-slate-200 > :not([hidden]) ~ :not([hidden]),
+html.dark-theme .divide-gray-200 > :not([hidden]) ~ :not([hidden]) {
+  border-color: #334155 !important;
+}
+
+/* Forms & Inputs */
+html.dark-theme input,
+html.dark-theme textarea,
+html.dark-theme select {
+  background-color: #0f172a !important;
+  color: #f8fafc !important;
+  border-color: #475569 !important;
+}
+
+html.dark-theme input:focus,
+html.dark-theme textarea:focus,
+html.dark-theme select:focus {
+  border-color: #3b82f6 !important;
+  --tw-ring-color: #3b82f6 !important;
+}
+
+html.dark-theme input::placeholder,
+html.dark-theme textarea::placeholder {
+  color: #64748b !important;
+}
+
+html.dark-theme input[disabled],
+html.dark-theme textarea[disabled],
+html.dark-theme select[disabled] {
+  background-color: #1e293b !important;
+  opacity: 0.6;
+}
+
+/* Scrollbars */
+html.dark-theme .custom-scrollbar::-webkit-scrollbar-thumb {
+  background: #475569;
+}
+html.dark-theme .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: #64748b;
+}
+
+/* Keep bill preview elements light and print-accurate */
+html.dark-theme .bill-preview-container {
+  background-color: #ffffff !important;
+  color: #1e293b !important;
+}
+html.dark-theme .bill-preview-container .bg-white {
+  background-color: #ffffff !important;
+}
+html.dark-theme .bill-preview-container th {
+  background-color: #1e293b !important;
+  color: #ffffff !important;
+}
+html.dark-theme .bill-preview-container td {
+  color: #1e293b !important;
+  border-bottom-color: #e2e8f0 !important;
+}
+html.dark-theme .bill-preview-container tr:nth-child(even) {
+  background-color: #f8fafc !important;
+}
+html.dark-theme .bill-preview-container .text-slate-900,
+html.dark-theme .bill-preview-container .text-gray-900,
+html.dark-theme .bill-preview-container .text-slate-700,
+html.dark-theme .bill-preview-container .text-gray-700 {
+  color: #1e293b !important;
+}
+html.dark-theme .bill-preview-container .text-slate-500,
+html.dark-theme .bill-preview-container .text-slate-400 {
+  color: #64748b !important;
+}
+html.dark-theme .bill-preview-container .border-slate-200 {
+  border-color: #e2e8f0 !important;
+}
+
+/* Modals glassmorphism overlays */
+html.dark-theme .glass-effect {
+  background: rgba(30, 41, 59, 0.85);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+/* Info & details cards */
+html.dark-theme .info-card {
+  background-color: #1e293b;
+  border-color: #334155;
+}
+html.dark-theme .info-value {
+  color: #f8fafc;
+}
+html.dark-theme .info-label {
+  color: #94a3b8;
+}
+
+/* Tags & Badges */
+html.dark-theme .key-tag {
+  background: #334155;
+  border-color: #475569;
+  color: #cbd5e1;
+}
+html.dark-theme .key-tag:hover {
+  background: #475569;
+}
+html.dark-theme .draft-badge {
+  background: #334155;
+  color: #cbd5e1;
+}
+
+/* Dashboard & Analytics Charts */
+html.dark-theme .analytics-card,
+html.dark-theme .dashboard-card {
+  background-color: #1e293b !important;
+  border-color: #334155 !important;
+}
+

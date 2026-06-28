@@ -20,6 +20,7 @@ export interface OrderRepository {
   getHistory(onBgUpdate?: (data: any) => void): Promise<any>
   getOrderById(id: string): Promise<any>
   saveOrder(data: any): Promise<any>
+  saveOrdersBatch(payloads: any[]): Promise<any>
   deleteOrder(id: string, password?: string, token?: string): Promise<any>
 }
 

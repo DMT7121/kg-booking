@@ -250,6 +250,23 @@ function onDrop(e: DragEvent) {
           Độ tin cậy: {{ Math.round((formStore.parsedAiResult.confidence?.overall || 0) * 100) }}%
         </span>
       </div>
+      
+      <!-- Metrics Info Pill -->
+      <div v-if="formStore.aiMetadata" class="flex flex-wrap gap-1.5 text-[9px] font-extrabold uppercase tracking-wider text-slate-500 bg-slate-50 border border-slate-100 rounded-2xl p-2.5 items-center dark:bg-slate-800/40 dark:border-slate-700">
+        <span class="text-[10px]">📊 Metrics:</span>
+        <span class="px-2 py-0.5 rounded bg-blue-50 border border-blue-100 text-blue-700 dark:bg-blue-900/20 dark:border-blue-900/40 dark:text-blue-300">
+          {{ (formStore.aiMetadata as any).mode || 'Direct' }}
+        </span>
+        <span class="px-2 py-0.5 rounded bg-indigo-50 border border-indigo-100 text-indigo-700 dark:bg-indigo-900/20 dark:border-indigo-900/40 dark:text-indigo-300">
+          {{ formStore.aiMetadata.model_used }}
+        </span>
+        <span class="px-2 py-0.5 rounded bg-amber-50 border border-amber-100 text-amber-700 dark:bg-amber-900/20 dark:border-amber-900/40 dark:text-amber-300">
+          {{ formStore.aiMetadata.latency }}s
+        </span>
+        <span v-if="formStore.aiMetadata.fallback_count > 0" class="px-2 py-0.5 rounded bg-rose-50 border border-rose-100 text-rose-700 dark:bg-rose-900/20 dark:border-rose-900/40 dark:text-rose-300">
+          Fallback: {{ formStore.aiMetadata.fallback_count }}
+        </span>
+      </div>
 
       <!-- Warning Alert Box -->
       <div v-if="hasWarnings || formStore.unresolvedItems?.length" class="p-3 bg-amber-50/80 border border-amber-300 rounded-2xl flex items-start gap-2.5 text-amber-800 text-[11px] font-bold">
