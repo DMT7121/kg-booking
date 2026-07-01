@@ -6,8 +6,19 @@ compatibility_date = "2024-01-01"
 [vars]
 CORS_ORIGIN = "*"
 GOOGLE_SPREADSHEET_ID = "1TCVdHWwve9xHmBC89QYZnbrmhrhDsqin9S9jtZRj-r8"
+SUPABASE_JWT_SECRET = "" # Configure in production secrets
 
-# If KV is available, bind it for persistent Rate Limiting
-# [[kv_namespaces]]
-# binding = "RATE_LIMIT_KV"
-# id = "xxxx"
+[[r2_buckets]]
+binding = "BUCKET"
+bucket_name = "kg-images"
+preview_bucket_name = "kg-images-preview"
+
+# [[queues.producers]]
+# queue = "kg-sheets-sync"
+# binding = "SHEETS_QUEUE"
+
+# [[queues.consumers]]
+# queue = "kg-sheets-sync"
+# max_batch_size = 5
+# max_batch_timeout = 5
+

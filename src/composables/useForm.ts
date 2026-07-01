@@ -128,10 +128,8 @@ function _createForm() {
       if (note !== null) {
         formStore.deposit.isPaid = true
         formStore.deposit.note = note || 'Confirmed'
-        // Lock the timestamp: only set if not already present
-        if (!formStore.deposit.time) {
-          formStore.deposit.time = new Date().toLocaleString('vi-VN')
-        }
+        // Always update the time to the actual action time
+        formStore.deposit.time = new Date().toLocaleString('vi-VN')
       }
     } else {
       const reason = await uiStore.showPrompt('Hủy Trạng Thái Cọc', 'Nhập lý do hủy:', 'Khách hủy/Hoàn tiền')
@@ -139,6 +137,7 @@ function _createForm() {
         formStore.deposit.isPaid = false
         formStore.deposit.image = null
         formStore.deposit.note = ''
+        formStore.deposit.time = ''
       }
     }
   }
@@ -146,6 +145,7 @@ function _createForm() {
   function clearDeposit() {
     formStore.deposit.image = null
     formStore.deposit.isPaid = false
+    formStore.deposit.time = ''
   }
 
   // --- CRM ---
@@ -333,13 +333,23 @@ Cảm ơn anh/chị đã tin tưởng King's Grill 🙏`
     uiStore.showToast('Đã copy!', 'info')
   }
 
-  // --- Menu Helpers ---
   function fillSampleMenu() {
     if (appStore.menuList.length > 0) {
       const lines = appStore.menuList.map((i: any) => {
         let p = i.price
         if (p && typeof p === 'number' && p >= 1000 && p % 1000 === 0) p = (p / 1000) + 'k'
-        return `${i.name} - ${p}`
+        let itemStr = `${i.name} - ${p}`
+        if (i.desc) {
+          const formattedDesc = i.desc.split('\n').map((d: string) => {
+            const trimmed = d.trim()
+            if (!trimmed) return ''
+            return trimmed.startsWith('-') ? trimmed : `- ${trimmed}`
+          }).filter((d: string) => d.length > 0).join('\n')
+          if (formattedDesc) {
+            itemStr += `\n${formattedDesc}`
+          }
+        }
+        return itemStr
       })
       appStore.newMenuContent = lines.join('\n')
     } else {
@@ -360,10 +370,8 @@ Cảm ơn anh/chị đã tin tưởng King's Grill 🙏`
       formStore.deposit.amount = uiStore.verifyModal.scanned.amount
       formStore.deposit.note = uiStore.verifyModal.scanned.content || 'Manual Verified'
       formStore.deposit.isPaid = true
-      // Lock the timestamp: only set if not already present
-      if (!formStore.deposit.time) {
-        formStore.deposit.time = new Date().toLocaleString('vi-VN')
-      }
+      // Always update the time to the actual action time
+      formStore.deposit.time = new Date().toLocaleString('vi-VN')
       uiStore.showToast('Đã cập nhật theo số liệu AI!', 'success')
     } else {
       formStore.deposit.isPaid = false

@@ -1,13 +1,17 @@
 /// <reference types="vitest" />
-import { defineConfig } from 'vite'
+import { defineConfig, loadEnv } from 'vite'
 import vue from '@vitejs/plugin-vue'
 import { VitePWA } from 'vite-plugin-pwa'
 import { fileURLToPath, URL } from 'node:url'
 import { handleLocalApi } from './src/infrastructure/local/localApiServer'
 
-export default defineConfig({
-  plugins: [
-    vue(),
+export default defineConfig(({ mode }) => {
+  const env = loadEnv(mode, process.cwd(), '')
+  process.env.VITE_GAS_URL = env.VITE_GAS_URL
+
+  return {
+    plugins: [
+      vue(),
     VitePWA({
       registerType: 'autoUpdate',
       includeAssets: ['favicon.ico', 'favicon.svg', 'favicon-96x96.png', 'apple-touch-icon.png'],
@@ -81,5 +85,6 @@ export default defineConfig({
   test: {
     globals: true,
     environment: 'happy-dom'
+  }
   }
 })

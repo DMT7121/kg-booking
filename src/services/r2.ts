@@ -12,7 +12,7 @@ export function isR2Available(): boolean {
   return !!R2_URL
 }
 
-/** Upload base64 image to R2 */
+/** Upload base64 image to R2 using presigned URLs */
 export async function uploadToR2(
   base64Data: string,
   filename: string,
@@ -21,18 +21,57 @@ export async function uploadToR2(
   if (!R2_URL) return { ok: false, error: 'R2 not configured' }
 
   try {
-    const res = await fetch(`${R2_URL}/upload`, {
+    const { useAppStore } = await import('@/stores/useAppStore')
+    const appStore = useAppStore()
+    const token = appStore.adminToken
+
+    // 1. Get presigned upload URL
+    const presignRes = await fetch(`${R2_URL}/api/images/presign`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        data: base64Data,
-        filename,
-        orderId
-      })
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+      },
+      body: JSON.stringify({ filename, type: 'image/jpeg', orderId })
     })
 
-    const result = await res.json()
-    return result
+    if (!presignRes.ok) {
+      throw new Error(`Failed to get presigned URL: HTTP ${presignRes.status}`)
+    }
+
+    const { url, method, key } = await presignRes.json()
+
+    // Convert base64 to binary blob
+    let binaryData: Blob
+    if (base64Data.startsWith('data:')) {
+      const res = await fetch(base64Data)
+      binaryData = await res.blob()
+    } else {
+      const binaryString = atob(base64Data)
+      const len = binaryString.length
+      const bytes = new Uint8Array(len)
+      for (let i = 0; i < len; i++) {
+        bytes[i] = binaryString.charCodeAt(i)
+      }
+      binaryData = new Blob([bytes], { type: 'image/jpeg' })
+    }
+
+    // 2. Put binary data to presigned upload URL
+    const uploadRes = await fetch(url, {
+      method: method || 'PUT',
+      headers: { 'Content-Type': 'image/jpeg' },
+      body: binaryData
+    })
+
+    if (!uploadRes.ok) {
+      throw new Error(`Upload failed: HTTP ${uploadRes.status}`)
+    }
+
+    return {
+      ok: true,
+      url: `${R2_URL}/image/${key}`,
+      key
+    }
   } catch (e: any) {
     console.warn('[R2] Upload failed, will fallback to GAS:', e.message)
     return { ok: false, error: e.message }
@@ -44,7 +83,16 @@ export async function deleteFromR2(key: string): Promise<boolean> {
   if (!R2_URL || !key) return false
 
   try {
-    const res = await fetch(`${R2_URL}/image/${key}`, { method: 'DELETE' })
+    const { useAppStore } = await import('@/stores/useAppStore')
+    const appStore = useAppStore()
+    const token = appStore.adminToken
+
+    const res = await fetch(`${R2_URL}/image/${key}`, {
+      method: 'DELETE',
+      headers: {
+        ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+      }
+    })
     const result = await res.json()
     return result.ok
   } catch {
@@ -61,7 +109,15 @@ export function getR2ImageUrl(key: string): string {
 export async function getR2Stats(): Promise<any> {
   if (!R2_URL) return null
   try {
-    const res = await fetch(`${R2_URL}/stats`)
+    const { useAppStore } = await import('@/stores/useAppStore')
+    const appStore = useAppStore()
+    const token = appStore.adminToken
+
+    const res = await fetch(`${R2_URL}/stats`, {
+      headers: {
+        ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+      }
+    })
     return await res.json()
   } catch {
     return null
@@ -72,7 +128,15 @@ export async function getR2Stats(): Promise<any> {
 export async function listOrderImages(orderId: string): Promise<any[]> {
   if (!R2_URL) return []
   try {
-    const res = await fetch(`${R2_URL}/list?prefix=orders/${orderId}`)
+    const { useAppStore } = await import('@/stores/useAppStore')
+    const appStore = useAppStore()
+    const token = appStore.adminToken
+
+    const res = await fetch(`${R2_URL}/list?prefix=orders/${orderId}`, {
+      headers: {
+        ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+      }
+    })
     const result = await res.json()
     return result.files || []
   } catch {

@@ -402,24 +402,24 @@ function openZaloChat() {
             <!-- INFO & STAMP SECTION -->
             <div class="relative mb-10">
               <!-- Customer Info Grid -->
-              <div class="grid grid-cols-[130px_1fr] gap-y-3.5 text-[15px] w-full lg:w-[70%]">
-                <div class="flex items-center gap-3 text-slate-500 font-bold uppercase text-[11px] tracking-wider"><i class="fa-solid fa-user-tie w-4 text-center text-[13px]"></i> Khách hàng</div>
-                <div class="font-black text-blue-950 text-[14px]">{{ formStore.customer.name || '---' }}</div>
+              <div class="grid gap-y-3.5 text-[16px] w-full lg:w-[70%]" style="grid-template-columns: 140px 1fr;">
+                <div class="flex items-center gap-3 text-slate-500 font-bold uppercase text-[12px] tracking-wider"><i class="fa-solid fa-user-tie w-4 text-center text-[13px]"></i> Khách hàng</div>
+                <div class="font-black text-blue-950 text-[16px]">{{ formStore.customer.name || '---' }}</div>
                 
-                <div class="flex items-center gap-3 text-slate-500 font-bold uppercase text-[11px] tracking-wider"><i class="fa-solid fa-phone w-4 text-center text-[13px]"></i> SĐT / Zalo</div>
-                <div class="font-black text-blue-950 text-[14px]">{{ formStore.customer.phone || '---' }}</div>
+                <div class="flex items-center gap-3 text-slate-500 font-bold uppercase text-[12px] tracking-wider"><i class="fa-solid fa-phone w-4 text-center text-[13px]"></i> SĐT / Zalo</div>
+                <div class="font-black text-blue-950 text-[16px]">{{ formStore.customer.phone || '---' }}</div>
                 
-                <div class="flex items-center gap-3 text-slate-500 font-bold uppercase text-[11px] tracking-wider"><i class="fa-regular fa-calendar-days w-4 text-center text-[13px]"></i> Thời gian</div>
-                <div class="font-black text-blue-950 text-[14px]">{{ getDayOfWeek(formStore.customer.date) ? getDayOfWeek(formStore.customer.date) + ', ' : '' }}{{ formStore.customer.date || 'dd/mm/yyyy' }} • {{ formStore.customer.time || '--:--' }}</div>
+                <div class="flex items-center gap-3 text-slate-500 font-bold uppercase text-[12px] tracking-wider"><i class="fa-regular fa-calendar-days w-4 text-center text-[13px]"></i> Thời gian</div>
+                <div class="font-black text-blue-950 text-[16px]">{{ getDayOfWeek(formStore.customer.date) ? getDayOfWeek(formStore.customer.date) + ', ' : '' }}{{ formStore.customer.date || 'dd/mm/yyyy' }} • {{ formStore.customer.time || '--:--' }}</div>
                 
-                <div class="flex items-center gap-3 text-slate-500 font-bold uppercase text-[11px] tracking-wider"><i class="fa-solid fa-users w-4 text-center text-[13px]"></i> Số khách</div>
-                <div class="font-black text-blue-950 text-[14px]">{{ formStore.customer.pax || '0' }} người</div>
+                <div class="flex items-center gap-3 text-slate-500 font-bold uppercase text-[12px] tracking-wider"><i class="fa-solid fa-users w-4 text-center text-[13px]"></i> Số khách</div>
+                <div class="font-black text-blue-950 text-[16px]">{{ formStore.customer.pax || '0' }} người</div>
                 
-                <div class="flex items-center gap-3 text-slate-500 font-bold uppercase text-[11px] tracking-wider"><i class="fa-solid fa-border-all w-4 text-center text-[13px]"></i> Bàn</div>
-                <div class="font-black text-blue-950 text-[14px]">{{ formStore.customer.tables || '---' }}</div>
+                <div class="flex items-center gap-3 text-slate-500 font-bold uppercase text-[12px] tracking-wider"><i class="fa-solid fa-border-all w-4 text-center text-[13px]"></i> Bàn</div>
+                <div class="font-black text-blue-950 text-[16px]">{{ formStore.customer.tables || '---' }}</div>
                 
-                <div class="flex items-center gap-3 text-slate-500 font-bold uppercase text-[11px] tracking-wider"><i class="fa-solid fa-utensils w-4 text-center text-[13px]"></i> Loại tiệc</div>
-                <div class="font-black text-blue-950 text-[14px]">{{ formStore.customer.type || '---' }}</div>
+                <div class="flex items-center gap-3 text-slate-500 font-bold uppercase text-[12px] tracking-wider"><i class="fa-solid fa-utensils w-4 text-center text-[13px]"></i> Loại tiệc</div>
+                <div class="font-black text-blue-950 text-[16px]">{{ formStore.customer.type || '---' }}</div>
               </div>
 
               <!-- Stamp -->
@@ -483,6 +483,8 @@ function openZaloChat() {
                 </tbody>
               </table>
             </div>
+
+
 
             <!-- TOTALS -->
             <div class="space-y-4 mb-10 w-full md:w-1/2 ml-auto">
@@ -554,6 +556,43 @@ function openZaloChat() {
                     <span class="text-sm font-bold text-slate-500 uppercase">Nội dung CK</span>
                     <span class="font-black text-blue-600 text-right">{{ depositTransferContent }}</span>
                   </div>
+                </div>
+              </div>
+            </div>
+            
+            <!-- UNIFIED POLICY & NOTES CONTAINER -->
+            <div v-if="!formStore.deposit.isPaid || formStore.filteredBillItems.length > 0" class="bg-blue-50/30 border border-blue-100 rounded-3xl p-6 mb-8 text-left space-y-5 relative overflow-hidden">
+              <div class="absolute top-0 left-0 w-1.5 h-full bg-blue-500"></div>
+              
+              <div class="flex items-center gap-2 text-blue-950 font-black uppercase text-[11px] tracking-wider border-b border-blue-100/50 pb-2.5">
+                <i class="fa-solid fa-circle-exclamation text-blue-600 text-sm"></i>
+                Lưu ý quan trọng dành cho khách hàng
+              </div>
+
+              <!-- Subsection 1: Deposit Policy (shown only if not paid) -->
+              <div v-if="!formStore.deposit.isPaid" class="space-y-2">
+                <div class="text-[10px] font-black text-blue-900 uppercase tracking-widest flex items-center gap-1.5">
+                  <i class="fa-solid fa-vault text-[10px]"></i> 1. Quy định về đặt cọc
+                </div>
+                <div class="text-blue-950 text-[13px] font-bold leading-relaxed space-y-1.5 pl-4">
+                  <p>• Mức cọc tối thiểu là <span class="bg-blue-100/80 text-blue-950 px-2 py-0.5 rounded-lg font-black text-[13px]">500.000đ/bàn</span>. Với phiếu đặt có thức ăn, mức cọc bằng <span class="bg-blue-100/80 text-blue-950 px-2 py-0.5 rounded-lg font-black text-[13px]">1/3 tổng tiền thức ăn đặt trước</span>.</p>
+                  <p>• Hình thức trả cọc: Tiền cọc sẽ được <span class="text-emerald-700 font-black underline decoration-2 underline-offset-2">trừ vào bill khi thanh toán</span> hoặc <span class="text-emerald-700 font-black underline decoration-2 underline-offset-2">hoàn lại bằng tiền mặt</span>.</p>
+                  <p>• Yêu cầu đặt cọc: Quý khách vui lòng <span class="bg-rose-50 text-rose-650 border border-rose-200/80 px-2 py-0.5 rounded-lg font-black text-[13px] inline-block shadow-sm">đặt cọc đúng theo số tiền ghi trên phiếu</span>.</p>
+                </div>
+              </div>
+
+              <!-- Divider line if both are present -->
+              <div v-if="!formStore.deposit.isPaid && formStore.filteredBillItems.length > 0" class="h-[1px] bg-blue-100/50 my-3"></div>
+
+              <!-- Subsection 2: Pre-order Notes (shown only if has pre-ordered items) -->
+              <div v-if="formStore.filteredBillItems.length > 0" class="space-y-2">
+                <div class="text-[10px] font-black text-amber-800 uppercase tracking-widest flex items-center gap-1.5">
+                  <i class="fa-solid fa-utensils text-[10px]"></i> 2. Lưu ý cho món ăn đặt trước
+                </div>
+                <div class="text-slate-800 text-[13px] font-bold leading-relaxed space-y-1.5 pl-4">
+                  <p>• <strong>Giá món chênh lệch:</strong> Giá một số món có thể được cập nhật mới và chênh lệch so với thực đơn online. Nếu cần kiểm tra, quý khách có thể yêu cầu nhân viên cập nhật và phản hồi lại.</p>
+                  <p>• <strong>Giá chưa bao gồm thuế:</strong> Giá trên thực đơn chưa bao gồm VAT. Thuế suất áp dụng: <span class="bg-amber-100 text-amber-950 px-1.5 py-0.5 rounded font-black text-[13px]">8%</span> đối với món ăn, đồ uống pha chế; <span class="bg-amber-100 text-amber-950 px-1.5 py-0.5 rounded font-black text-[13px]">10%</span> đối với bia, rượu và đồ uống có ga đóng lon.</p>
+                  <p>• <strong>Thời gian lên thức ăn:</strong> Với món đặt trước, nhà hàng sẽ ưu tiên chuẩn bị nguyên liệu và sơ chế trước. Khi quý khách yêu cầu lên món, nhà hàng sẽ xác nhận lại một lần trước khi chế biến. Thời gian lên món dự kiến sẽ từ <span class="text-rose-600 font-black">10–30 phút</span>, theo tình hình thực tế tại thời điểm tổ chức.</p>
                 </div>
               </div>
             </div>

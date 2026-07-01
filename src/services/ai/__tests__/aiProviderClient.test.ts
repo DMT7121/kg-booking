@@ -65,11 +65,11 @@ describe('aiProviderClient - Server Fallback Gateway Tests', () => {
 
     // Verify GAS Proxy was NOT called
     expect(api.callAiProxy).not.toHaveBeenCalled()
-    expect(logCallback).toHaveBeenCalledWith(expect.stringContaining('qua Server Proxy (Cloudflare Edge)...'), 'info')
-    expect(logCallback).toHaveBeenCalledWith(expect.stringContaining('qua Server Proxy (Cloudflare Edge) thành công!'), 'success')
+    expect(logCallback).toHaveBeenCalledWith(expect.stringContaining('Gọi qua AI Gateway:'), 'info')
+    expect(logCallback).toHaveBeenCalledWith(expect.stringContaining('Gọi qua AI Gateway thành công'), 'success')
   })
 
-  it('should fallback to GAS Proxy if Cloudflare Worker Edge Proxy fails', async () => {
+  it('should NOT fallback to GAS Proxy if Cloudflare Worker Edge Proxy fails', async () => {
     // Mock Cloudflare Worker failure (e.g. 500 server error)
     const fetchMock = vi.fn().mockResolvedValue({
       ok: false,
@@ -78,33 +78,27 @@ describe('aiProviderClient - Server Fallback Gateway Tests', () => {
     })
     global.fetch = fetchMock
 
-    // Mock GAS Proxy success
-    const mockGasResponse = { ok: true, content: 'GAS Response Content' }
-    vi.mocked(api.callAiProxy).mockResolvedValue(mockGasResponse)
-
     const logCallback = vi.fn()
 
-    const result = await callAIModel({
-      model: mockModel,
-      sysPrompt: 'sys',
-      userPrompt: 'user',
-      localKeys: [],
-      apiGatewayUrl: 'https://mock-cf-worker.workers.dev',
-      aiMode: 'direct'
-    }, logCallback)
+    // Since VITE_AI_GATEWAY_URL is set, and it fails, it should throw an error because there are no keys and no GAS fallback
+    await expect(
+      callAIModel({
+        model: mockModel,
+        sysPrompt: 'sys',
+        userPrompt: 'user',
+        localKeys: [],
+        apiGatewayUrl: 'https://mock-cf-worker.workers.dev',
+        aiMode: 'direct'
+      }, logCallback)
+    ).rejects.toThrow('Tất cả các tuyến vận chuyển (2 stages) của mô hình Gemini 2.0 Flash đều thất bại.')
 
-    // Verify fetch was tried first
+    // Verify fetch was tried
     expect(fetchMock).toHaveBeenCalled()
 
-    // Verify GAS Proxy fallback was called
-    expect(api.callAiProxy).toHaveBeenCalled()
+    // Verify GAS Proxy fallback was NOT called
+    expect(api.callAiProxy).not.toHaveBeenCalled()
 
-    // Verify GAS result is returned
-    expect(result).toBe('GAS Response Content')
-
-    // Verify warning log for Worker failure and info log for GAS fallback
-    expect(logCallback).toHaveBeenCalledWith(expect.stringContaining('Lỗi khi gọi qua Server Proxy (Cloudflare Edge)'), 'warning')
-    expect(logCallback).toHaveBeenCalledWith(expect.stringContaining('Chuyển tiếp yêu cầu qua Server Proxy (GAS)...'), 'info')
-    expect(logCallback).toHaveBeenCalledWith(expect.stringContaining('Gọi qua Server Proxy (GAS) thành công!'), 'success')
+    // Verify warning log for Worker failure
+    expect(logCallback).toHaveBeenCalledWith(expect.stringContaining('AI Gateway thất bại:'), 'warning')
   })
 })

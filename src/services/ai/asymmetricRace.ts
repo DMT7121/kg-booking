@@ -89,7 +89,7 @@ async function runSingleModel(request: RaceRequest, model: AIModel, modeName: st
     userPrompt: request.userPrompt,
     image: request.image,
     jsonMode: true,
-    localKeys: request.configKeys[model.provider] || [],
+    localKeys: [],
     signal: request.signal,
     apiGatewayUrl: request.apiGatewayUrl,
     aiMode: request.aiMode
@@ -99,7 +99,7 @@ async function runSingleModel(request: RaceRequest, model: AIModel, modeName: st
   let parsed = safeParseJSON(rawText)
   let repairApplied = false
   if (!parsed) {
-    parsed = await repairBrokenJSONWithAI(rawText, [model], request.configKeys[model.provider] || [], request.signal, request.logCallback)
+    parsed = await repairBrokenJSONWithAI(rawText, [model], [], request.signal, request.logCallback)
     repairApplied = true
   }
   const normalized = repairAndNormalizeJSON(parsed, request.image ? 'chat_screenshot' : 'booking_text')
@@ -239,7 +239,7 @@ export async function runAsymmetricRace(request: RaceRequest): Promise<RaceResul
         userPrompt,
         image,
         jsonMode: true,
-        localKeys: configKeys[fastModel.provider] || [],
+        localKeys: [],
         signal: fastAbort.signal,
         apiGatewayUrl,
         aiMode
@@ -321,7 +321,7 @@ export async function runAsymmetricRace(request: RaceRequest): Promise<RaceResul
         userPrompt,
         image,
         jsonMode: true,
-        localKeys: configKeys[qualityModel.provider] || [],
+        localKeys: [],
         signal: qualityAbort.signal,
         apiGatewayUrl,
         aiMode
@@ -342,7 +342,7 @@ export async function runAsymmetricRace(request: RaceRequest): Promise<RaceResul
           let parsed = safeParseJSON(rawText)
           let repairApplied = false
           if (!parsed) {
-            parsed = await repairBrokenJSONWithAI(rawText, [qualityModel], configKeys[qualityModel.provider] || [], qualityAbort.signal, logCallback)
+            parsed = await repairBrokenJSONWithAI(rawText, [qualityModel], [], qualityAbort.signal, logCallback)
             repairApplied = true
           }
 

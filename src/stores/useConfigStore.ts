@@ -4,14 +4,22 @@ import { PLATFORMS, AI_MODELS, CACHE_KEYS } from '@/utils/constants'
 import { useUIStore } from './useUIStore'
 import * as api from '@/services/api'
 import { useAppStore } from './useAppStore'
+import * as localKeyVault from '@/services/security/localKeyVault'
 
 export const useConfigStore = defineStore('config', () => {
   const uiStore = useUIStore()
 
   // --- Branding ---
-  const branding = reactive(
-    JSON.parse(localStorage.getItem(CACHE_KEYS.BRANDING) || '{"logo": null, "theme": "blue"}')
-  )
+  const branding = reactive({
+    logo: null,
+    theme: 'blue',
+    glassEnabled: true,
+    animations: 'normal',
+    buttonHaptic: 'standard',
+    glowEffects: true,
+    soundEffects: false,
+    ...JSON.parse(localStorage.getItem(CACHE_KEYS.BRANDING) || '{}')
+  })
 
   // Apply theme on load & live preview
   watch(() => branding.theme, (newTheme) => {
@@ -22,14 +30,67 @@ export const useConfigStore = defineStore('config', () => {
     }
   }, { immediate: true })
 
-  // --- AI Keys (Platform-Centric) ---
-  const savedKeys = JSON.parse(localStorage.getItem(CACHE_KEYS.KEYS) || '{}') as Record<string, string[]>
-  Object.keys(PLATFORMS).forEach(pId => {
-    if (!savedKeys[pId]) savedKeys[pId] = pId === 'pollinations' ? ['free'] : []
-  })
+  // Apply other branding options
+  watch(() => branding.glassEnabled, (val) => {
+    if (val === false) {
+      document.documentElement.classList.add('no-glass')
+    } else {
+      document.documentElement.classList.remove('no-glass')
+    }
+  }, { immediate: true })
 
-  const keys = reactive<Record<string, string[]>>(savedKeys)
+  watch(() => branding.animations, (val) => {
+    document.documentElement.classList.remove('anim-none', 'anim-fast')
+    if (val === 'none') {
+      document.documentElement.classList.add('anim-none')
+    } else if (val === 'fast') {
+      document.documentElement.classList.add('anim-fast')
+    }
+  }, { immediate: true })
+
+  watch(() => branding.glowEffects, (val) => {
+    if (val) {
+      document.documentElement.classList.add('glow-active')
+    } else {
+      document.documentElement.classList.remove('glow-active')
+    }
+  }, { immediate: true })
+
+  watch(() => branding.buttonHaptic, (val) => {
+    document.documentElement.classList.remove('haptic-extra', 'haptic-none')
+    if (val === 'extra') {
+      document.documentElement.classList.add('haptic-extra')
+    } else if (val === 'none') {
+      document.documentElement.classList.add('haptic-none')
+    }
+  }, { immediate: true })
+
+  // Global click sound listener for micro-interactions
+  if (typeof window !== 'undefined') {
+    window.addEventListener('click', (e) => {
+      if (branding.soundEffects) {
+        const target = e.target as HTMLElement
+        const isInteractive = target.closest('button') || 
+                              target.closest('a') || 
+                              target.closest('.cursor-pointer') || 
+                              target.closest('input[type="checkbox"]') ||
+                              target.closest('select') ||
+                              target.closest('.interactive-item')
+        if (isInteractive) {
+          import('@/utils/audio').then(m => m.sound.playPop())
+        }
+      }
+    })
+  }
+
+  // --- AI Keys (Decoupled & Encrypted Local Vault) ---
   const keysStatus = reactive<Record<string, { configured: boolean, count: number, maskedList: string[] }>>({})
+  const gatewayProviderStatus = reactive<Record<string, { configured: boolean }>>({})
+  
+  const isVaultInitialized = ref(false)
+  const isVaultUnlocked = ref(false)
+  const vaultUnlockMode = ref<'device' | 'passphrase' | null>(null)
+
   const defaultsObj = JSON.parse(localStorage.getItem(CACHE_KEYS.DEFAULTS) || '{"text":"llama-3.3-70b-versatile", "vision":"gemini-2.0-flash","aiWorkflowMode":"direct"}')
   if (!defaultsObj.aiWorkflowMode) defaultsObj.aiWorkflowMode = 'direct'
 
@@ -56,6 +117,40 @@ export const useConfigStore = defineStore('config', () => {
     localStorage.setItem(CACHE_KEYS.DEFAULTS, JSON.stringify(val))
   }, { deep: true })
 
+  async function refreshVaultState() {
+    await localKeyVault.tryAutoUnlockFromSession()
+    isVaultInitialized.value = await localKeyVault.isVaultInitialized()
+    isVaultUnlocked.value = localKeyVault.isUnlocked()
+    vaultUnlockMode.value = localKeyVault.getUnlockMode()
+
+    // Run legacy keys migration if unlocked
+    if (isVaultUnlocked.value) {
+      try {
+        const { migrateLegacyKeys } = await import('@/services/security/localKeyVaultMigration')
+        const migrationRes = await migrateLegacyKeys()
+        if (migrationRes.migrated && migrationRes.count > 0) {
+          uiStore.showToast(`Đã tự động chuyển đổi thành công ${migrationRes.count} keys cũ sang két sắt bảo mật!`, 'success')
+        }
+      } catch (e) {
+        console.error('Auto migration failed:', e)
+      }
+    }
+
+    const meta = await localKeyVault.getMetadata()
+    Object.keys(PLATFORMS).forEach(pId => {
+      if (pId === 'pollinations') {
+        keysStatus[pId] = { configured: true, count: 1, maskedList: ['free'] }
+      } else {
+        const providerMeta = meta[pId]
+        keysStatus[pId] = {
+          configured: !!(providerMeta && providerMeta.count > 0),
+          count: providerMeta ? providerMeta.count : 0,
+          maskedList: providerMeta ? providerMeta.maskedList : []
+        }
+      }
+    })
+  }
+
   // --- Computed ---
   const textModels = computed(() => AI_MODELS.filter(m => m.type === 'text').sort((a, b) => a.tier - b.tier))
   const visionModels = computed(() => AI_MODELS.filter(m => m.type === 'vision').sort((a, b) => a.tier - b.tier))
@@ -74,79 +169,83 @@ export const useConfigStore = defineStore('config', () => {
     visibleKeys[`${pId}_${idx}`] = !visibleKeys[`${pId}_${idx}`]
   }
 
+  // --- Vault Lifecycle Actions ---
+  async function initializeVault(mode: 'device' | 'passphrase', credential?: string) {
+    await localKeyVault.initialize(mode, credential)
+    await refreshVaultState()
+    uiStore.showToast('Két sắt bảo mật đã được khởi tạo!', 'success')
+  }
+
+  async function unlockVault(credential?: string) {
+    await localKeyVault.unlock(credential)
+    await refreshVaultState()
+    uiStore.showToast('Két sắt đã được mở khóa!', 'success')
+  }
+
+  function lockVault() {
+    localKeyVault.lock()
+    refreshVaultState()
+    uiStore.showToast('Két sắt đã khóa!', 'info')
+  }
+
   // --- API Key Management ---
   async function saveApiKey(pId: string) {
     const keyVal = tempKeys[pId]?.trim()
     if (!keyVal) return
 
-    if (!keys[pId]) keys[pId] = []
-    if (keys[pId].includes(keyVal)) {
-      tempKeys[pId] = ''
-      uiStore.showToast('Key này đã tồn tại trên thiết bị, đã bỏ qua lưu mới!', 'info')
+    if (!localKeyVault.isUnlocked()) {
+      uiStore.showToast('Vui lòng mở khóa két sắt trước khi lưu key!', 'warning')
       return
     }
 
-    // Save locally immediately
-    keys[pId].push(keyVal)
-    localStorage.setItem(CACHE_KEYS.KEYS, JSON.stringify(keys))
-    tempKeys[pId] = ''
-    uiStore.showToast(`Đã lưu cục bộ API Key ${PLATFORMS[pId].name}!`, 'success')
-
-    // Asynchronously sync to cloud
-    const appStore = useAppStore()
-    api.saveApiKeyToCloud(pId, keyVal, '', appStore.adminToken)
-      .then(data => {
-        if (data.ok) {
-          uiStore.showToast(`Đã đồng bộ API Key ${PLATFORMS[pId].name} lên Server!`, 'success')
-          hydrateAiRuntimeConfig()
-        } else if (!data.message?.toLowerCase().includes('trùng')) {
-          console.warn(`Lỗi đồng bộ API Key lên Server: ${data.message}`)
-        }
-      })
-      .catch((e: any) => {
-        console.warn(`Không thể đồng bộ API Key lên Server: ${e.message}`)
-      })
+    try {
+      await localKeyVault.addKey(pId, keyVal)
+      tempKeys[pId] = ''
+      uiStore.showToast(`Đã lưu cục bộ API Key ${PLATFORMS[pId].name} vào két sắt!`, 'success')
+      await refreshVaultState()
+    } catch (e: any) {
+      uiStore.showToast(`Không thể lưu key: ${e.message}`, 'error')
+    }
   }
 
   async function deleteApiKey(pId: string, idx: number) {
-    if (keys[pId]) {
-      keys[pId].splice(idx, 1)
-      localStorage.setItem(CACHE_KEYS.KEYS, JSON.stringify(keys))
-      uiStore.showToast('Đã xóa API Key cục bộ!', 'success')
+    if (!localKeyVault.isUnlocked()) {
+      uiStore.showToast('Vui lòng mở khóa két sắt để xóa key!', 'warning')
+      return
     }
 
-    const appStore = useAppStore()
-    api.deleteApiKeyFromCloud(pId, idx, appStore.adminToken)
-      .then(data => {
-        if (data.ok) {
-          hydrateAiRuntimeConfig()
-        } else {
-          console.warn(`Lỗi xóa API Key trên Server: ${data.message}`)
-        }
-      })
-      .catch((e: any) => {
-        console.warn(`Không thể đồng bộ yêu cầu xóa API Key lên Server: ${e.message}`)
-      })
+    try {
+      await localKeyVault.removeKey(pId, idx)
+      uiStore.showToast('Đã xóa API Key khỏi két sắt!', 'success')
+      await refreshVaultState()
+    } catch (e: any) {
+      uiStore.showToast(`Không thể xóa key: ${e.message}`, 'error')
+    }
   }
 
   async function borrowKeys(pass?: string) {
     const actualPass = pass || borrowPass.value
     if (!actualPass) return uiStore.showToast('Nhập pass Admin hoặc Password Truy cập!', 'warning')
+    
+    if (!localKeyVault.isUnlocked()) {
+      return uiStore.showToast('Vui lòng mở khóa két sắt để nhập keys!', 'warning')
+    }
+
     try {
       const data = await api.borrowApiKeys(actualPass)
-      if (data.ok) {
+      if (data.ok && Array.isArray(data.keys)) {
         let addedCount = 0
-        data.keys.forEach((k: any) => {
+        for (const k of data.keys) {
           let pId = k.provider === 'gemini' ? 'google' : k.provider
           if (PLATFORMS[pId]) {
-            if (!keys[pId]) keys[pId] = []
-            if (!keys[pId].includes(k.key)) {
-              keys[pId].push(k.key)
+            const currentKeys = await localKeyVault.getKeysForProvider(pId)
+            if (!currentKeys.includes(k.key)) {
+              await localKeyVault.addKey(pId, k.key)
               addedCount++
             }
           }
-        })
-        localStorage.setItem(CACHE_KEYS.KEYS, JSON.stringify(keys))
+        }
+        await refreshVaultState()
         uiStore.showToast(`Đã tải thành công ${data.keys.length} Keys từ hệ thống! (Mới: ${addedCount})`, 'success', 5000)
         borrowPass.value = ''
       } else {
@@ -160,11 +259,15 @@ export const useConfigStore = defineStore('config', () => {
   async function hydrateAiRuntimeConfig() {
     try {
       const data = await api.getAiRuntimeConfig()
-      if (data.ok && data.keysStatus) {
-        Object.keys(keysStatus).forEach(k => delete keysStatus[k])
-        Object.keys(data.keysStatus).forEach(provider => {
-          keysStatus[provider] = data.keysStatus[provider]
-        })
+      if (data.ok) {
+        if (data.keysStatus) {
+          Object.keys(gatewayProviderStatus).forEach(k => delete gatewayProviderStatus[k])
+          Object.keys(data.keysStatus).forEach(provider => {
+            gatewayProviderStatus[provider] = {
+              configured: !!data.keysStatus[provider]?.configured
+            }
+          })
+        }
         if (data.defaults) {
           defaults.text = data.defaults.text || defaults.text
           defaults.vision = data.defaults.vision || defaults.vision
@@ -175,46 +278,51 @@ export const useConfigStore = defineStore('config', () => {
     }
   }
 
-  async function autoLoadApiKeys() {
+  async function autoImportKeys() {
     try {
-      const apiUrl = import.meta.env.VITE_API_URL || '/api'
-      const sharedSecret = import.meta.env.VITE_APP_SHARED_SECRET || ''
-      const headers: Record<string, string> = { 'Content-Type': 'application/json' }
-      if (sharedSecret) {
-        headers['Authorization'] = `Bearer ${sharedSecret}`
+      const isInit = await localKeyVault.isVaultInitialized()
+      if (!isInit) {
+        console.log('[Vault] Auto-initializing vault in device mode...')
+        await localKeyVault.initialize('device')
       }
-      const res = await fetch(apiUrl, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify({ action: 'getSharedApiKeysWithoutPassword' })
-      })
-      if (res.ok) {
-        const data = await res.json()
-        if (data.ok && Array.isArray(data.keys)) {
-          let updated = false
-          data.keys.forEach((k: any) => {
-            let pId = k.provider === 'gemini' ? 'google' : k.provider
-            if (PLATFORMS[pId]) {
-              if (!keys[pId]) keys[pId] = []
-              if (!keys[pId].includes(k.key)) {
-                keys[pId].push(k.key)
-                updated = true
+      
+      await localKeyVault.tryAutoUnlockFromSession()
+      
+      if (localKeyVault.isUnlocked()) {
+        const meta = await localKeyVault.getMetadata()
+        const totalKeys = Object.values(meta).reduce((sum, p) => sum + (p?.count || 0), 0)
+        
+        if (totalKeys === 0) {
+          console.log('[Vault] Auto-importing keys from server...')
+          const data = await api.getSharedApiKeysWithoutPassword()
+          if (data.ok && Array.isArray(data.keys)) {
+            let addedCount = 0
+            for (const k of data.keys) {
+              let pId = k.provider === 'gemini' ? 'google' : k.provider
+              if (PLATFORMS[pId]) {
+                const currentKeys = await localKeyVault.getKeysForProvider(pId)
+                if (!currentKeys.includes(k.key)) {
+                  await localKeyVault.addKey(pId, k.key)
+                  addedCount++
+                }
               }
             }
-          })
-          if (updated) {
-            localStorage.setItem(CACHE_KEYS.KEYS, JSON.stringify(keys))
-            console.log('[AI Config] Tự động tải và lưu sẵn các API Keys thành công!')
+            if (addedCount > 0) {
+              console.log(`[Vault] Successfully auto-imported ${addedCount} keys!`)
+              await refreshVaultState()
+            }
           }
         }
       }
     } catch (e) {
-      console.warn('[AI Config] Không thể tự động tải API Keys từ Gateway:', e)
+      console.warn('[Vault] Auto key import failed:', e)
     }
   }
 
-  // Tự động tải API Keys khi khởi chạy store
-  autoLoadApiKeys()
+  // Tải trạng thái ban đầu của Vault và tự động nạp keys
+  refreshVaultState().then(() => {
+    autoImportKeys()
+  })
 
   // --- Branding ---
   function saveBranding() {
@@ -264,10 +372,12 @@ export const useConfigStore = defineStore('config', () => {
 
   return {
     branding,
-    keys, keysStatus, defaults, visibleKeys, tempKeys, borrowPass,
+    keysStatus, gatewayProviderStatus, defaults, visibleKeys, tempKeys, borrowPass,
+    isVaultInitialized, isVaultUnlocked, vaultUnlockMode,
+    initializeVault, unlockVault, lockVault, refreshVaultState,
     textModels, visionModels, totalKeyCount, totalKeysHasData,
     getKeyCount, toggleKeyVisibility,
-    saveApiKey, deleteApiKey, borrowKeys: borrowKeys, hydrateAiRuntimeConfig, autoLoadApiKeys,
+    saveApiKey, deleteApiKey, borrowKeys: borrowKeys, hydrateAiRuntimeConfig,
     saveBranding, handleLogoUpload
   }
 })

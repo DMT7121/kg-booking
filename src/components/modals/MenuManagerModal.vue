@@ -127,6 +127,25 @@ function getCategoryColor(category: string) {
   }
 }
 
+function serializeMenuToText(menuList: any[]): string {
+  return menuList.map((m: any) => {
+    let p = m.price
+    if (p && typeof p === 'number' && p >= 1000 && p % 1000 === 0) p = (p / 1000) + 'k'
+    let itemStr = `${m.name} - ${p}`
+    if (m.desc) {
+      const formattedDesc = m.desc.split('\n').map((d: string) => {
+        const trimmed = d.trim()
+        if (!trimmed) return ''
+        return trimmed.startsWith('-') ? trimmed : `- ${trimmed}`
+      }).filter((d: string) => d.length > 0).join('\n')
+      if (formattedDesc) {
+        itemStr += `\n${formattedDesc}`
+      }
+    }
+    return itemStr
+  }).join('\n')
+}
+
 async function saveSelectedDish() {
   if (!selectedDish.value) return;
   
@@ -135,10 +154,11 @@ async function saveSelectedDish() {
   if (index !== -1) {
     appStore.menuList[index].name = selectedDish.value.name;
     appStore.menuList[index].price = selectedDish.value.price;
+    appStore.menuList[index].desc = selectedDish.value.desc; // Update description
   }
   
   // Convert to raw text
-  const rawText = appStore.menuList.map(m => `${m.name} - ${m.price}`).join('\n');
+  const rawText = serializeMenuToText(appStore.menuList);
   
   // Trigger upload
   appStore.newMenuName = appStore.activeSheet;
@@ -161,7 +181,7 @@ async function deleteSelectedDish() {
     appStore.menuList.splice(index, 1);
   }
   
-  const rawText = appStore.menuList.map(m => `${m.name} - ${m.price}`).join('\n');
+  const rawText = serializeMenuToText(appStore.menuList);
   appStore.newMenuName = appStore.activeSheet;
   appStore.newMenuContent = rawText;
   ui.isUpdateMode = true;
@@ -423,6 +443,11 @@ async function handleDishImageUpload(event: Event) {
                 </select>
               </div>
 
+              <div>
+                <label class="block text-[11px] font-black text-slate-500 uppercase mb-1.5 tracking-wider">Mô tả món ăn / Chi tiết Set menu (Description)</label>
+                <textarea v-model="selectedDish.desc" rows="4" class="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 shadow-sm transition-all resize-y custom-scrollbar" placeholder="Nhập các món ăn trong set hoặc mô tả món..."></textarea>
+              </div>
+
               <!-- Current Images list -->
               <div class="pt-2">
                 <label class="block text-[11px] font-black text-slate-500 uppercase mb-2 tracking-wider">Ảnh hiện tại</label>
@@ -480,6 +505,22 @@ async function handleDishImageUpload(event: Event) {
             <input v-model="appStore.newMenuName" class="w-full px-4 py-3 rounded-xl border border-slate-200 bg-slate-50 font-black text-slate-800 text-sm focus:border-blue-500 focus:bg-white focus:ring-2 focus:ring-blue-100 outline-none transition-all" :placeholder="ui.isUpdateMode ? 'Tên sheet đang sửa' : 'VD: Menu Tết 2025'">
           </div>
           <div class="space-y-2">
+            <div class="bg-indigo-50/70 border border-indigo-100 rounded-2xl p-3.5 text-left text-indigo-900 text-[11px] leading-relaxed">
+              <div class="font-black uppercase tracking-wider text-indigo-950 mb-1 flex items-center gap-1.5">
+                <i class="fa-solid fa-lightbulb text-amber-500 text-xs"></i> Hướng dẫn nhập Set menu / Combo
+              </div>
+              <p class="mb-1">Để nạp chi tiết các món bên trong Set menu/Combo vào cột Mô tả (Description):</p>
+              <div class="bg-white/80 rounded-lg p-2 font-mono text-[10px] text-slate-700 leading-normal border border-indigo-50 select-text">
+                Set menu 1 - 2500k<br>
+                - Gà quay lu nguyên con<br>
+                - Soup hải sâm bào ngư<br>
+                - Lẩu hơi hải sản thủy triều
+              </div>
+              <p class="mt-1 font-semibold italic text-slate-500">(Viết tên món và giá ở dòng đầu, danh sách các món bên trong ghi ở các dòng tiếp theo bắt đầu bằng dấu gạch ngang)</p>
+            </div>
+          </div>
+          
+          <div class="space-y-2">
             <div class="flex justify-between items-center">
               <label class="text-[10px] font-black text-slate-500 uppercase tracking-widest">Nội dung (Text)</label>
               <div class="flex gap-2">
@@ -491,7 +532,7 @@ async function handleDishImageUpload(event: Event) {
                 </button>
               </div>
             </div>
-            <textarea v-model="appStore.newMenuContent" rows="10" class="w-full p-4 rounded-xl border border-slate-200 bg-slate-50 font-mono text-[13px] leading-relaxed text-slate-800 focus:border-blue-500 focus:bg-white focus:ring-2 focus:ring-blue-100 outline-none transition-all resize-none custom-scrollbar" placeholder="Dán văn bản lộn xộn vào đây rồi nhấn AI PHÂN TÍCH, hoặc nhập theo mẫu:&#10;Tên món - Giá&#10;VD:&#10;Bò nướng tảng - 250k"></textarea>
+            <textarea v-model="appStore.newMenuContent" rows="8" class="w-full p-4 rounded-xl border border-slate-200 bg-slate-50 font-mono text-[13px] leading-relaxed text-slate-800 focus:border-blue-500 focus:bg-white focus:ring-2 focus:ring-blue-100 outline-none transition-all resize-none custom-scrollbar" placeholder="Dán văn bản lộn xộn vào đây rồi nhấn AI PHÂN TÍCH, hoặc nhập theo mẫu:&#10;Tên món - Giá&#10;VD:&#10;Bò nướng tảng - 250k"></textarea>
           </div>
           <button @click="appStore.uploadNewMenu(); ui.showMenuUploadModal = false" class="w-full h-14 bg-blue-900 text-white rounded-xl font-black text-sm uppercase shadow-lg shadow-blue-900/20 active:scale-95 transition-all flex items-center justify-center gap-2">
             <i class="fa-solid fa-cloud-arrow-up text-lg text-white/80"></i> {{ ui.isUpdateMode ? 'CẬP NHẬT MENU' : 'TẠO MENU MỚI' }}

@@ -165,52 +165,41 @@ CREATE INDEX idx_ai_logs_perf ON ai_logs (model_name, created_at DESC) WHERE suc
 
 ---
 
-## 4. Chiến lược Di chuyển & Chạy song song (Dual-Read/Write)
+## 4. Chiến lược Di chuyển với Primary DB + Outbox
 
-Để đảm bảo quá trình di chuyển cơ sở dữ liệu diễn ra êm đẹp, không gây gián đoạn hoạt động của nhà hàng (Zero Downtime), chúng tôi đề xuất chiến lược 3 giai đoạn:
+Không để frontend tự dual-write hai nguồn dữ liệu vì không có transaction chung và dễ báo thành công giả. PostgreSQL là nguồn dữ liệu chính; IndexedDB outbox bảo đảm thao tác offline; Sheets là reporting sink bất đồng bộ.
 
 ```
-[Giai đoạn 1: Dual-Write / Single-Read]
-   Frontend (Vue) ----> API Server ----> Write to PostgreSQL
-                                   ----> Write to Google Sheets (GAS)
-                      ----> Read from PostgreSQL (Chính) / Fallback to Sheets (Phụ)
+[Giai đoạn 1: Local outbox + Primary Write]
+   Frontend (Vue) ----> IndexedDB Outbox ----> Authenticated API ----> PostgreSQL
+                              |                       |
+                              | pending/synced UI     +----> Outbox/Queue ----> Google Sheets
 
 [Giai đoạn 2: Kiểm chứng và Đồng bộ dữ liệu]
-   Chạy tool đối chiếu dữ liệu (Reconciliation Script) hàng đêm để so khớp sai lệch giữa Sheets và DB.
+   Chạy reconciliation job để so sánh event đã publish với Sheets; PostgreSQL luôn là nguồn chuẩn.
 
 [Giai đoạn 3: Cutover]
-   Ngắt kết nối ghi sang Google Sheets, chuyển Sheets về chế độ chỉ đọc (Archived). 
-   Hệ thống chạy 100% trên PostgreSQL.
+   Loại GAS khỏi critical path; Sheets chỉ đọc/báo cáo hoặc được cập nhật bởi Queue consumer.
 ```
 
-### Chi tiết kỹ thuật Giai đoạn 1 (Dual-Write):
-1. **Thiết lập Feature Flag**: Thêm biến cấu hình `VITE_DB_MODE` nhận giá trị `sheets`, `dual`, hoặc `postgres`.
+### Chi tiết kỹ thuật Giai đoạn 1:
+1. **Thiết lập Feature Flag**: Dùng feature flag server-side để cutover primary API; không dùng public `VITE_*` để đổi quyền truy cập dữ liệu.
 2. **Triển khai ở Repository Layer**:
    ```typescript
    class BookingRepository {
      async create(booking: Booking): Promise<Booking> {
-       if (config.DB_MODE === 'postgres') {
-         return await pgClient.insert(booking);
-       } else if (config.DB_MODE === 'sheets') {
-         return await gasClient.insert(booking);
-       } else if (config.DB_MODE === 'dual') {
-         // Ghi song song
-         const [pgResult, gasResult] = await Promise.allSettled([
-           pgClient.insert(booking),
-           gasClient.insert(booking)
-         ]);
-         
-         if (pgResult.status === 'fulfilled') {
-           return pgResult.value;
-         } else {
-           // Fallback ghi lỗi
-           logger.error('PG Write failed, fallback to Sheets only', pgResult.reason);
-           return (gasResult as PromiseFulfilledResult<Booking>).value;
-         }
-       }
+       const event = await localOutbox.enqueue(booking);
+       const committed = await bookingApi.create({
+         ...booking,
+         idempotencyKey: event.id
+       });
+       await localOutbox.markCommitted(event.id, committed.version);
+       return committed;
      }
    }
    ```
+
+API transaction phải ghi booking và outbox event trong cùng một transaction. Queue consumer chịu trách nhiệm cập nhật Sheets và retry/dead-letter khi lỗi.
 
 ---
 
@@ -220,17 +209,16 @@ Trong trường hợp hệ thống mới gặp sự cố nghiêm trọng sau khi
 
 ### 5.1. Kịch bản lỗi và Quy trình Rollback tương ứng:
 
-#### Kịch bản A: Lỗi kết nối PostgreSQL tăng cao đột biến (Database Connection Timeout)
-- **Hành động**: Đổi Feature Flag `VITE_DB_MODE` từ `postgres` hoặc `dual` về lại `sheets`.
-- **Thời gian thực hiện**: < 1 phút (thông qua cập nhật file `.env` trên Hosting Frontend/Vercel/Cloudflare Pages).
-- **Kết quả**: Ứng dụng Vue sẽ tự động bỏ qua API Server mới và gọi trực tiếp vào Google Apps Script cũ, nhà hàng tiếp tục hoạt động bình thường.
+#### Kịch bản A: Lỗi kết nối PostgreSQL/API tăng cao
+- **Hành động**: Chuyển UI sang trạng thái offline/pending-sync; giữ booking trong IndexedDB outbox và rollback API về bản ổn định gần nhất.
+- **Kết quả**: Nhân viên tiếp tục nhập đơn, nhưng hệ thống không báo `synced` cho tới khi primary commit thành công. Không tự động ghi GAS.
 
-#### Kịch bản B: Dữ liệu ghi song song bị lệch (Data Desynchronization)
-- **Hành động**: Sử dụng bản sao dữ liệu tại Google Sheets (vì luôn được ghi song song ở chế độ `dual`) làm nguồn dữ liệu chuẩn để đồng bộ ngược lại PostgreSQL.
+#### Kịch bản B: Google Sheets reporting bị lệch
+- **Hành động**: Giữ PostgreSQL làm nguồn chuẩn, chạy reconciliation và replay outbox events sang Sheets.
 - **Quy trình xử lý**:
-  1. Chuyển `VITE_DB_MODE` về `sheets` tạm thời.
-  2. Chạy script đồng bộ: Đọc dữ liệu từ Google Sheets -> Lọc các dòng chưa có UUID trong PostgreSQL -> Ghi đè/Bổ sung vào PostgreSQL.
-  3. Khắc phục lỗi hệ thống PostgreSQL và chuyển lại chế độ `postgres`.
+  1. Tạm dừng Sheets consumer.
+  2. So sánh idempotency key/version giữa DB và Sheets.
+  3. Replay các event thiếu theo thứ tự; không ghi đè DB từ Sheets tự động.
 
 ---
 
@@ -239,5 +227,5 @@ Trong trường hợp hệ thống mới gặp sự cố nghiêm trọng sau khi
 1. **Tuần 1: Thiết lập Database & Viết DDL**: Tạo cơ sở dữ liệu trên Supabase, chạy mã tạo bảng và thiết lập chỉ mục.
 2. **Tuần 2: Xây dựng API Server / Workers**: Viết lớp REST API kết nối PostgreSQL.
 3. **Tuần 3: Đồng bộ dữ liệu cũ**: Viết script ETL tải toàn bộ dữ liệu lịch sử đặt bàn và món ăn hiện tại từ Google Sheets nạp vào PostgreSQL.
-4. **Tuần 4: Triển khai Dual-Write & Test**: Phát hành bản cập nhật Frontend với chế độ `dual-write`, kiểm tra đối chiếu dữ liệu sau 1 tuần.
+4. **Tuần 4: Triển khai Outbox/Queue & Test**: Phát hành local outbox, primary API và Sheets consumer; kiểm tra retry, idempotency và reconciliation.
 5. **Tuần 5: Hoàn tất chuyển đổi**: Đổi cấu hình sang chạy 100% PostgreSQL.

@@ -53,9 +53,8 @@ async function handleTogglePaid(targetPaid: boolean) {
     if (note !== null) {
       formStore.deposit.isPaid = true
       formStore.deposit.note = note || 'Confirmed'
-      if (!formStore.deposit.time) {
-        formStore.deposit.time = new Date().toLocaleString('vi-VN')
-      }
+      // Always update the time to the actual action time
+      formStore.deposit.time = new Date().toLocaleString('vi-VN')
     }
   } else {
     const confirmed = await ui.showConfirm('Hủy trạng thái cọc?', 'Bạn có chắc chắn muốn hủy trạng thái đã cọc?')
