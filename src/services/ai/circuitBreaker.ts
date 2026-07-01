@@ -353,9 +353,15 @@ export function handleModelFailure(modelId: string, error: any): void {
     errMsg.includes('invalid_key') ||
     errMsg.includes('invalid api key')
   ) {
-    durationMs = 15 * 60 * 1000 // 15 minutes for key issues
-    reason = 'HTTP 401/403 Invalid API Key / Unauthorized'
-    failureKind = 'auth_error'
+    if (errMsg.includes('turnstile') || errMsg.includes('missing turnstile token')) {
+      durationMs = 1 * 60 * 1000 // 1 minute for transient issues
+      reason = 'Cloudflare Turnstile block'
+      failureKind = 'network_error'
+    } else {
+      durationMs = 15 * 60 * 1000 // 15 minutes for key issues
+      reason = 'HTTP 401/403 Invalid API Key / Unauthorized'
+      failureKind = 'auth_error'
+    }
   } else if (
     errMsg.includes('402') || 
     errMsg.includes('payment') || 

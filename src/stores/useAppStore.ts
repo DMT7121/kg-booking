@@ -10,6 +10,7 @@ import {
   cacheIsFresh, getOfflineQueue, removeFromQueue
 } from '@/services/cache'
 import { fetchWithRetry } from '@/infrastructure/gas/gasClient'
+import { getPendingItems } from '@/infrastructure/outbox/outbox'
 import { 
   DualWriteOrderRepository as GasOrderRepository, 
   DualWriteMenuRepository as GasMenuRepository, 
@@ -230,8 +231,8 @@ export const useAppStore = defineStore('app', () => {
   const activeSheet = ref(localStorage.getItem(CACHE_KEYS.MENU_SHEET) || 'Menu')
   const newMenuName = ref('')
   const newMenuContent = ref('')
-  const adminToken = ref(sessionStorage.getItem('kg_admin_token') || 'admin_bypass')
-  const adminExpiresAt = ref(parseInt(sessionStorage.getItem('kg_admin_expires_at') || '0') || (Date.now() + 365 * 24 * 60 * 60 * 1000))
+  const adminToken = ref(sessionStorage.getItem('kg_admin_token') || '')
+  const adminExpiresAt = ref(parseInt(sessionStorage.getItem('kg_admin_expires_at') || '0'))
   const defaultMenuProfileId = ref(localStorage.getItem('default_menu_profile_id') || '')
   const defaultBankAccountIndex = ref(parseInt(localStorage.getItem('default_bank_account_index') || '-1'))
   const menuAliases = ref<{ alias: string; dishName: string }[]>(JSON.parse(localStorage.getItem('menu_aliases') || '[]'))
@@ -917,17 +918,15 @@ export const useAppStore = defineStore('app', () => {
   }
 
   function getRoleFromToken(token: string): UserRole {
+    if (token === 'admin_bypass' || (token && token.startsWith('ADM_'))) return 'admin'
     try {
-      if (token === 'admin_bypass') return 'admin'
       const parts = token.split('.')
       if (parts.length === 3) {
         const payload = JSON.parse(atob(parts[1].replace(/-/g, '+').replace(/_/g, '/')))
-        if (payload && typeof payload.role === 'string') {
-          return payload.role as UserRole
+        if (payload && payload.app_metadata && typeof payload.app_metadata.role === 'string') {
+          return payload.app_metadata.role as UserRole
         }
       }
-      if (token === 'mock-jwt-admin-token') return 'admin'
-      if (token === 'mock-jwt-manager-token') return 'manager'
     } catch (e) {}
     return 'staff'
   }
@@ -1018,12 +1017,19 @@ export const useAppStore = defineStore('app', () => {
   }
 
   async function verifySession(permission: Permission): Promise<boolean> {
-    adminToken.value = 'admin_bypass'
-    const newExpiresAt = Date.now() + 365 * 24 * 60 * 60 * 1000
-    adminExpiresAt.value = newExpiresAt
-    sessionStorage.setItem('kg_admin_token', 'admin_bypass')
-    sessionStorage.setItem('kg_admin_expires_at', String(newExpiresAt))
-    return true
+    if (can(currentUserRole.value, permission)) return true
+
+    // Prompt user to unlock
+    const pass = await uiStore.showPrompt(
+      'Mở khóa quyền hạn',
+      `Tính năng này yêu cầu quyền [${permission}]. Nhập mật khẩu để tiếp tục:`
+    )
+    if (!pass) return false
+    const success = await unlockAdminSettings(pass)
+    if (success) {
+      return can(currentUserRole.value, permission)
+    }
+    return false
   }
 
   async function verifyAdminSession(): Promise<boolean> {
@@ -1208,7 +1214,19 @@ export const useAppStore = defineStore('app', () => {
   async function updateOfflineQueueCount() {
     try {
       const queue = await getOfflineQueue()
-      offlineQueueCount.value = queue.length
+      let count = queue.length
+      
+      const mode = import.meta.env.VITE_BACKEND_MODE || 'postgres'
+      if (mode === 'postgres' || mode === 'dual_write') {
+        try {
+          const pendingOutbox = await getPendingItems()
+          count += pendingOutbox.length
+        } catch (err) {
+          console.warn('Failed to read outbox queue:', err)
+        }
+      }
+      
+      offlineQueueCount.value = count
     } catch (e) {
       console.warn('Failed to read offline queue:', e)
     }
@@ -1236,6 +1254,7 @@ export const useAppStore = defineStore('app', () => {
         const targetVersion = (conflict.serverSnapshot?.version ?? 0) + 1
         const payload = conflict.localSnapshot
         payload.version = targetVersion
+        payload.baseServerVersion = conflict.serverSnapshot?.version ?? 0
         
         uiStore.loading.is = true
         uiStore.loading.msg = 'ĐANG ĐỒNG BỘ ĐÈ...'
@@ -1268,6 +1287,15 @@ export const useAppStore = defineStore('app', () => {
       if (queueItem) {
         await removeFromQueue(queueItem.id)
       }
+      
+      // Also mark outbox item as synced (dropped) if in postgres/dual_write mode
+      try {
+        const { markAsSynced } = await import('@/infrastructure/outbox/outbox')
+        await markAsSynced(localId, 'upsert')
+      } catch (err) {
+        console.warn('Failed to drop outbox item:', err)
+      }
+      
       activeConflicts.value = activeConflicts.value.filter(c => c.localBookingId !== localId)
       saveConflicts()
       await updateOfflineQueueCount()
@@ -1511,6 +1539,6 @@ export const useAppStore = defineStore('app', () => {
     logout, handleInactivityTimeout,
     offlineQueueCount, updateOfflineQueueCount,
     scheduleMenuPrefetch, scheduleMenusPrecache,
-    activeConflicts, resolveConflict
+    activeConflicts, saveConflicts, resolveConflict
   }
 })

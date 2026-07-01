@@ -1,9 +1,65 @@
 import { stripAccents, cleanPhoneNumber } from '@/utils'
 import { safeParseJSON } from '@/domain/ai/jsonRepair'
 
+export function cleanCustomerName(name: string): string {
+  if (!name) return ''
+  let cleaned = name.trim()
+
+  // 1. Remove table prefixes followed by zone/number combinations (case-insensitive)
+  // e.g. "bàn A12", "bàn C6", "khu B5", "phòng D8", "bàn 5", "bàn 12", "bàn A", "khu B"
+  cleaned = cleaned.replace(/\b(?:ban|b\u00e0n|so\s*ban|s\u1ed1\s*b\u00e0n|khu|phong|vip)\s+[A-G]?\d*\b/gi, '')
+
+  // 2. Remove standalone table/room codes (a letter A-G or VIP prefix followed by digits)
+  // e.g. "C6", "A12", "B5", "VIP2"
+  cleaned = cleaned.replace(/\b(?:[A-G]|VIP)\d+\b/gi, '')
+
+  // 3. Remove trailing/leading hyphen, comma, slash, colon, or space after stripping
+  cleaned = cleaned.replace(/^[\s-,\/:]+|[\s-,\/:]+$/g, '')
+
+  // 4. Double space cleanup
+  cleaned = cleaned.replace(/\s+/g, ' ').trim()
+
+  return cleaned
+}
+
+export function normalizeDateString(dateStr: string): string {
+  if (!dateStr) return ''
+  let s = dateStr.trim().toLowerCase()
+
+  // Remove prefixes like "ngay", "ngày"
+  s = s.replace(/^(?:ngay|ng\u00e0y)\s+/i, '')
+
+  // Replace dashes/dots/spaces with slashes
+  s = s.replace(/[\.\-\s]/g, '/')
+
+  // Match DD/MM/YYYY
+  const threeParts = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})$/)
+  if (threeParts) {
+    const d = String(parseInt(threeParts[1], 10)).padStart(2, '0')
+    const m = String(parseInt(threeParts[2], 10)).padStart(2, '0')
+    let y = threeParts[3]
+    if (y.length === 2) {
+      y = '20' + y
+    }
+    return `${d}/${m}/${y}`
+  }
+
+  // Match DD/MM
+  const twoParts = s.match(/^(\d{1,2})\/(\d{1,2})$/)
+  if (twoParts) {
+    const d = String(parseInt(twoParts[1], 10)).padStart(2, '0')
+    const m = String(parseInt(twoParts[2], 10)).padStart(2, '0')
+    const y = new Date().getFullYear()
+    return `${d}/${m}/${y}`
+  }
+
+  return dateStr // Fallback
+}
+
 export function resolveDisplayCustomerName(parsed: any): string {
   if (parsed.customer?.name && parsed.customer.name.trim()) {
-    const name = parsed.customer.name.trim()
+    const name = cleanCustomerName(parsed.customer.name.trim())
+    if (!name) return ''
     const cleanNameLower = stripAccents(name).toLowerCase()
     // Guard: do not allow request, notes or food keywords to be used as customer name
     const requestKeywords = /\byeu\s+cau\b|\bphong\s+lanh\b|\btrang\s+tri\b|\bbong\s+bong\b|\bbong\s+bay\b|\bcom\s+chien\b|\bthuc\s+don\b|\bmon\s+an\b|\bcoc\b|\bchuyen\s+khoan\b|\bset\s+menu\b|\bcombo\b|\bbao\s+gia\b|\bbia\b|\bnuoc\s+ngot\b/i
@@ -273,6 +329,7 @@ export function repairAndNormalizeJSON(raw: any, inputType = 'unknown'): any {
   }
 
   let customerName = safeGet(parsed, 'customer.name', parsed.customer_name || parsed.name || "")
+  customerName = cleanCustomerName(customerName)
   const customerPhone = safeGet(parsed, 'customer.phone', parsed.customer_phone || parsed.phone || "")
 
   let eventDate = safeGet(parsed, 'booking.event_date', safeGet(parsed, 'reservation.date', parsed.event_date || parsed.date || ""))
@@ -304,6 +361,7 @@ export function repairAndNormalizeJSON(raw: any, inputType = 'unknown'): any {
       eventDate = `${dd}/${mm}/${yyyy}`
     }
   }
+  eventDate = normalizeDateString(eventDate)
   const guestCount = safeGet(parsed, 'booking.guest_count', safeGet(parsed, 'reservation.pax', parsed.guest_count || parsed.guestCount || parsed.pax || null))
   const tableCount = safeGet(parsed, 'booking.table_count', parsed.table_count || null)
   const tableNumber = safeGet(parsed, 'booking.table_number', safeGet(parsed, 'reservation.table_code', parsed.table_number || ""))

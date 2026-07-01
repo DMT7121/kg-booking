@@ -310,7 +310,9 @@ export function useAI() {
   ) {
     const keysStatusMapped: Record<string, { configured: boolean }> = {}
     Object.keys(configStore.keysStatus).forEach(k => {
-      keysStatusMapped[k] = { configured: !!configStore.keysStatus[k]?.configured }
+      keysStatusMapped[k] = {
+        configured: !!configStore.keysStatus[k]?.configured || !!configStore.gatewayProviderStatus[k]?.configured
+      }
     })
 
     return runAIRouter({
@@ -322,7 +324,7 @@ export function useAI() {
       signal,
       availableModels: AI_MODELS,
       defaultModelId: type === 'vision' ? configStore.defaults.vision : configStore.defaults.text,
-      configKeys: configStore.keys,
+      configKeys: {},
       keysStatus: keysStatusMapped,
       apiGatewayUrl,
       aiMode,
@@ -1113,7 +1115,7 @@ Output JSON: { "amount": Number, "content": "String", "bank": "String", "time": 
             userPrompt: 'Trích xuất TOÀN BỘ văn bản từ ảnh này. CRITICAL: Nếu có bảng, phải trích xuất TẤT CẢ các dòng từ đầu đến cuối, KHÔNG được bỏ sót hay cắt ngắn. Trả về đầy đủ 100% nội dung.',
             image: optimizedImg,
             jsonMode: false,
-            localKeys: configStore.keys[model.provider] || [],
+            localKeys: [],
             apiGatewayUrl,
             aiMode
           }, (msg, level) => logStore.addLog(msg, level))
@@ -1155,7 +1157,7 @@ Salad bò - 120000
       
       const candidates = AI_MODELS
         .filter(m => m.type === 'text')
-        .filter(m => m.provider === 'pollinations' || (configStore.keysStatus[m.provider]?.configured))
+        .filter(m => m.provider === 'pollinations' || (configStore.keysStatus[m.provider]?.configured) || (configStore.gatewayProviderStatus[m.provider]?.configured))
         .sort((a, b) => a.tier - b.tier)
       
       if (candidates.length === 0) throw new Error('Chưa cấu hình API Key')
@@ -1165,7 +1167,7 @@ Salad bò - 120000
         sysPrompt,
         userPrompt: text,
         jsonMode: false,
-        localKeys: configStore.keys[candidates[0].provider] || [],
+        localKeys: [],
         apiGatewayUrl,
         aiMode
       })

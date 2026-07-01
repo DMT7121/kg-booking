@@ -74,6 +74,20 @@ const hasSoftWarning = computed(() => {
   const score = meta && typeof meta.confidence_score === 'number' ? meta.confidence_score : 1.0
   return score < 0.80 || (formStore.warnings && formStore.warnings.length > 0)
 })
+
+function formatPriceWithDots(val: any): string {
+  if (val === undefined || val === null || val === '') return ''
+  const cleanStr = String(val).replace(/\./g, '')
+  const num = parseInt(cleanStr, 10)
+  if (isNaN(num)) return ''
+  return num.toLocaleString('de-DE')
+}
+
+function updateItemPrice(index: number, valStr: string) {
+  const cleanStr = valStr.replace(/\./g, '')
+  const num = cleanStr ? parseInt(cleanStr, 10) : 0
+  formStore.items[index].price = isNaN(num) ? 0 : num
+}
 </script>
 
 <template>
@@ -187,7 +201,7 @@ const hasSoftWarning = computed(() => {
               </button>
 
               <div class="h-6 w-[1px] bg-slate-200 animate-pulse"></div>
-              <input type="number" v-model="item.price" @focus="handleInputFocus" @blur="handleInputBlur" class="w-28 text-right font-black text-blue-900 bg-transparent text-base md:text-sm outline-none placeholder-slate-400" placeholder="Giá">
+              <input type="text" :value="formatPriceWithDots(item.price)" @input="updateItemPrice(index, ($event.target as HTMLInputElement).value)" @focus="handleInputFocus" @blur="handleInputBlur" class="w-28 text-right font-black text-blue-900 bg-transparent text-base md:text-sm outline-none placeholder-slate-400" placeholder="Giá">
             </div>
             <button @click="formStore.items.splice(index, 1)" class="w-12 h-12 bg-white border border-rose-200 text-rose-400 hover:bg-rose-50 hover:text-rose-600 hover:border-rose-300 transition-colors rounded-xl flex items-center justify-center active:scale-95 shadow-sm"><i class="fa-solid fa-trash-can"></i></button>
           </div>

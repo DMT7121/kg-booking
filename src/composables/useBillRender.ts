@@ -275,8 +275,10 @@ function _createBillRender() {
       //  BACKGROUND SYNC: Cloud save runs silently after UI is free
       // ══════════════════════════════════════════════════════════════
       const needsSync = isNewOrder || hasChanges || formStore.saveType === 'save'
+      console.log('[useBillRender] needsSync:', needsSync, { isNewOrder, hasChanges, saveType: formStore.saveType })
 
       if (needsSync) {
+        console.log('[useBillRender] Starting background sync...')
         // Run AI corrections auto-learning
         checkAndLogAiCorrections()
 
@@ -557,7 +559,8 @@ function _createBillRender() {
         height: `${billHeight * s + 16}px`, 
         position: 'relative', 
         margin: '0 auto',
-        overflow: 'hidden'
+        overflow: 'hidden',
+        maxWidth: 'none'
       }
     })
   }

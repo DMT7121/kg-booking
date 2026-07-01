@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, watch, computed } from 'vue'
+import { ref, watch, computed, onMounted, onUnmounted } from 'vue'
 import { useUIStore } from '@/stores/useUIStore'
 import { useFormStore } from '@/stores/useFormStore'
 import { useConfigStore } from '@/stores/useConfigStore'
@@ -18,6 +18,7 @@ const isDragging = ref(false)
 const showAiReview = ref(false)
 const isProcessing = ref(false)
 const isEditing = ref(false)
+const isOcrProcessing = ref(false)
 
 const hasWarnings = computed(() => {
   const confs = formStore.aiMetadata?.confidences
@@ -107,12 +108,25 @@ function clearText() {
   formStore.rawInput = ''
 }
 
+function isBookingText(text: string): boolean {
+  if (!text) return false
+  const hasPhone = /0\d{8,11}/.test(text.replace(/[\s.-]/g, ''))
+  const hasTime = /\b\d{1,2}[h:]\d{0,2}\b/i.test(text)
+  const hasPax = /\b\d{1,2}\s*(người|pax|khách|bàn)\b/i.test(text)
+  return hasPhone && (hasTime || hasPax)
+}
+
 async function pasteClipboard() {
   try {
     const text = await navigator.clipboard.readText()
     if (text) {
       formStore.rawInput = (formStore.rawInput ? formStore.rawInput + '\n' : '') + text
       ui.showToast('📋 Đã dán nội dung từ Clipboard!', 'success')
+      if (isBookingText(text)) {
+        setTimeout(() => {
+          handleAnalyze()
+        }, 500)
+      }
     } else {
       ui.showToast('Không có nội dung dạng văn bản trong clipboard!', 'warning')
     }
@@ -127,6 +141,7 @@ async function processImage(f: File) {
     return
   }
   
+  isOcrProcessing.value = true
   const r = new FileReader()
   r.onload = async (ev) => {
     const base64 = ev.target?.result as string
@@ -136,9 +151,15 @@ async function processImage(f: File) {
       if (text) {
         formStore.rawInput = (formStore.rawInput ? formStore.rawInput + '\n\n' : '') + text
         formStore.aiImage = null // Clear image so processAI focuses purely on text
+        ui.showToast('📝 Đã nhận diện chữ viết thành công từ ảnh!', 'success')
+        setTimeout(() => {
+          handleAnalyze()
+        }, 500)
       }
     } catch (err: any) {
       ui.showToast('Lỗi OCR: ' + err.message, 'error')
+    } finally {
+      isOcrProcessing.value = false
     }
     if (aiFileIn.value) aiFileIn.value.value = '' // Reset input
   }
@@ -153,14 +174,57 @@ function onImageSelect(e: Event) {
 function onPaste(e: ClipboardEvent) {
   const items = e.clipboardData?.items
   if (!items) return
+  
+  let hasImage = false
   for (const item of items) {
     if (item.type.indexOf('image') !== -1) {
       e.preventDefault()
       const f = item.getAsFile()
-      if (f) processImage(f)
+      if (f) {
+        hasImage = true
+        processImage(f)
+      }
       break
     }
   }
+  
+  if (!hasImage) {
+    const text = e.clipboardData?.getData('text') || ''
+    if (isBookingText(text)) {
+      setTimeout(() => {
+        handleAnalyze()
+      }, 500)
+    }
+  }
+}
+
+function handleGlobalImagePaste(e: CustomEvent<{ file: File }>) {
+  if (e.detail?.file) {
+    processImage(e.detail.file)
+  }
+}
+
+onMounted(() => {
+  window.addEventListener('global-image-paste', handleGlobalImagePaste as EventListener)
+})
+
+onUnmounted(() => {
+  window.removeEventListener('global-image-paste', handleGlobalImagePaste as EventListener)
+})
+
+function formatPriceWithDots(val: any): string {
+  if (val === undefined || val === null || val === '') return ''
+  const cleanStr = String(val).replace(/\./g, '')
+  const num = parseInt(cleanStr, 10)
+  if (isNaN(num)) return ''
+  return num.toLocaleString('de-DE')
+}
+
+function updateItemUnitPrice(index: number, valStr: string) {
+  if (!formStore.parsedAiResult?.menu_items) return
+  const cleanStr = valStr.replace(/\./g, '')
+  const num = cleanStr ? parseInt(cleanStr, 10) : 0
+  formStore.parsedAiResult.menu_items[index].unit_price = isNaN(num) ? 0 : num
 }
 
 // --- Drag & Drop ---
@@ -206,6 +270,12 @@ function onDrop(e: DragEvent) {
       <div class="relative">
         <textarea v-model="formStore.rawInput" @focus="handleInputFocus" @blur="handleInputBlur" @paste="onPaste" rows="3" class="w-full pt-10 pb-12 px-3 border-none rounded-xl text-sm bg-white/95 text-slate-800 font-medium focus:ring-4 focus:ring-yellow-400 outline-none shadow-xl placeholder-slate-400 transition-all custom-scrollbar" placeholder="Dán nội dung đặt bàn, nói 'Hey King', hoặc kéo thả ảnh Bill vào đây..."></textarea>
         
+        <!-- OCR Loading Overlay -->
+        <div v-if="isOcrProcessing" class="absolute inset-0 bg-slate-900/75 backdrop-blur-sm z-30 flex flex-col items-center justify-center rounded-xl text-white">
+          <i class="fa-solid fa-spinner animate-spin text-3xl mb-2 text-blue-400"></i>
+          <span class="text-xs font-black uppercase tracking-widest">Đang chạy OCR nhận diện ảnh...</span>
+        </div>
+
         <!-- Top Right Actions inside textarea -->
         <div class="absolute top-2 right-2 flex gap-1 z-20 bg-slate-100/80 backdrop-blur rounded-lg p-0.5 border border-slate-200 shadow-sm">
           <button @click.prevent="clearText" class="px-2 py-1 text-[9px] font-black text-slate-600 hover:text-red-600 uppercase tracking-widest rounded transition-all select-none cursor-pointer" title="Xóa hết chữ">Xóa</button>
@@ -510,7 +580,7 @@ function onDrop(e: DragEvent) {
               </div>
               <div class="col-span-8 md:col-span-4">
                 <label class="text-[8px] font-black text-slate-400 uppercase tracking-widest block mb-0.5">Đơn giá</label>
-                <input type="number" v-model.number="item.unit_price" class="w-full px-2 py-1 text-xs border border-slate-250 rounded-lg focus:ring-2 focus:ring-blue-400 outline-none bg-white font-bold text-right text-blue-650">
+                <input type="text" :value="formatPriceWithDots(item.unit_price)" @input="updateItemUnitPrice(idx, ($event.target as HTMLInputElement).value)" class="w-full px-2 py-1 text-xs border border-slate-250 rounded-lg focus:ring-2 focus:ring-blue-400 outline-none bg-white font-bold text-right text-blue-650">
               </div>
               <div class="col-span-12">
                 <label class="text-[8px] font-black text-slate-400 uppercase tracking-widest block mb-0.5">Ghi chú món (Set details, note...)</label>

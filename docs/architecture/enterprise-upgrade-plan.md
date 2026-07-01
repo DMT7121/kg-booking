@@ -23,7 +23,7 @@ At present, the frontend client (Vue 3/Pinia) performs direct operations on both
 ```
 
 ### Known Vulnerabilities:
-* **Security:** API keys are exposed or saved client-side (`localStorage`).
+* **Security:** API keys are currently stored as plaintext in `localStorage` and may be auto-synchronized to GAS. Direct provider calls are a supported BYOK requirement; plaintext persistence and implicit cloud sync are the vulnerabilities.
 * **Database Bottlenecks:** Writes to Google Sheets via GAS take between 1.5s and 4.0s. No transaction isolation.
 * **Access Control:** UI-only checks for admin features; no server-side enforcement.
 
@@ -31,36 +31,35 @@ At present, the frontend client (Vue 3/Pinia) performs direct operations on both
 
 ## 2. Target Architecture
 
-The target architecture moves critical responsibilities (API key containment, database persistence, access control, and logging) to serverless edge workers and a transactional relational database:
+The target architecture keeps user-owned AI keys in an encrypted browser vault while moving database persistence, access control, server-owned secrets, and audit logging to serverless edge workers and a transactional relational database:
 
 ```
-                  +-----------------------------------+
-                  |          Vue 3 SPA Client         |
-                  |     (Inactivity Session Timer)    |
-                  +-----------------------------------+
-                                    |
-                                    | (All API / AI requests)
-                                    v
-                  +-----------------------------------+
-                  |      Cloudflare Worker Gateway    |
-                  |    (Rate Limiting, Routing, RLS)  |
-                  +-----------------------------------+
-                         /                     \
-                        /                       \
-     (AI Requests with Secrets)        (Database Queries)
-                      v                           v
-             +------------------+       +-------------------+
-             |   AI Providers   |       |    PostgreSQL     |
-             | (Gemini / Groq)  |       | (Supabase / Neon) |
-             +------------------+       +-------------------+
-                                                  |
-                                                  | (Reporting/Cron Sync)
-                                                  v
-                                        +-------------------+
-                                        |   Google Sheets   |
-                                        | (Legacy Reporting)|
-                                        +-------------------+
+                         +-------------------------------+
+                         |        Vue 3 SPA Client       |
+                         | Local cache + encrypted BYOK  |
+                         +-------------------------------+
+                            |                         |
+              local direct AI|                         |authenticated data API
+                            v                         v
+                   +----------------+       +-------------------------+
+                   | AI Providers   |       | Cloudflare API Worker   |
+                   +----------------+       | + optional AI fallback  |
+                            ^               +-------------------------+
+                            |                         |
+                   gateway fallback                  v
+                                           +-------------------+
+                                           |    PostgreSQL     |
+                                           +-------------------+
+                                                    |
+                                            async outbox/queue
+                                                    v
+                                           +-------------------+
+                                           | Google Sheets     |
+                                           | reporting only    |
+                                           +-------------------+
 ```
+
+The Vue client also owns an encrypted local BYOK vault and may call supported AI providers directly. The preferred AI path is local rule/cache → direct provider with local key → optional AI Gateway. GAS is not part of the AI path. Booking writes use a local outbox and commit to the primary API/database; Sheets is an asynchronous reporting sink.
 
 ---
 
@@ -71,24 +70,30 @@ The target architecture moves critical responsibilities (API key containment, da
   * Formulate ADR for database selection.
   * Draft database initial SQL migration.
   * Implement feature flags (`VITE_BACKEND_MODE=gas`).
-* **Phase 1: AI Gateway Implementation**
+* **Phase 1: Local Key Vault and AI Transport**
+  * Migrate plaintext local keys into encrypted IndexedDB storage.
+  * Make `local_first` the default and separate local key availability from gateway provider availability.
+  * Keep direct provider calls for supported CORS providers.
+  * Remove GAS from AI fallback.
+* **Phase 2: Optional AI Gateway Implementation**
   * Deploy Cloudflare AI Gateway Worker.
   * Load API Secrets into Worker Environment.
   * Integrate client-side calling to reroute via Edge Gateway.
-* **Phase 2: Database Scaffolding & Dual-Write**
+* **Phase 3: Database Scaffolding & Outbox Migration**
   * Establish Supabase database instance.
-  * Create repository layer with `DualWriteBookingRepository`.
-  * Enable dual-writing to write to both PostgreSQL and Google Sheets.
-  * bookings failing on Sheets are reconciled asynchronously.
-* **Phase 3: RBAC & Session Security**
+  * Create a single primary booking API backed by PostgreSQL.
+  * Add a local IndexedDB outbox for optimistic/offline operation.
+  * Commit once to the primary database with an idempotency key.
+  * Publish Google Sheets updates asynchronously through an outbox/Queue and reconcile failures.
+* **Phase 4: RBAC & Session Security**
   * Add permission checks in Pinia store.
   * Implement inactivity listeners for auto-logout.
   * Enforce role-based checks inside the Cloudflare Worker Gateway.
-* **Phase 4: Self-Learning Pipeline**
+* **Phase 5: Self-Learning Pipeline**
   * Implement diff calculations for correction updates.
   * Apply PII masking rules to scrub names/phones.
   * Deploy dynamic few-shot prompt injector.
-* **Phase 5: Cutover & Hardening**
+* **Phase 6: Cutover & Hardening**
   * Set `VITE_BACKEND_MODE=postgres`.
   * Restructure Google Sheets to be a read-only reporting destination.
 
@@ -97,10 +102,11 @@ The target architecture moves critical responsibilities (API key containment, da
 ## 4. Rollback Strategy
 
 We maintain a zero-downtime rollback structure via environment feature flags:
-* **AI Gateway Failure:** If the AI gateway goes down or becomes unreachable, the client automatically falls back to direct client-side model calling (if debug keys are supplied) or fallback GAS calling.
+* **AI Gateway Failure:** If the AI gateway goes down, an unlocked local BYOK vault continues with direct provider calls. `gateway_only` users receive an explicit error. The client never falls back to GAS for AI.
 * **Database Migration Failure:** By keeping the database mode configurable via `VITE_BACKEND_MODE`:
-  * If PostgreSQL experiences a outage: Toggle mode to `gas`. The client immediately redirects all reads and writes directly back to Google Sheets via GAS, restoring complete app functionality within minutes.
-  * Syncing script is run later to import missings.
+  * If PostgreSQL/API is unavailable, keep bookings in the local outbox and show an explicit pending-sync state.
+  * Roll back to the last signed stable API release. Direct GAS write is an emergency operator-controlled procedure, never an automatic client fallback.
+  * Run reconciliation before replaying pending outbox entries.
 
 ---
 
@@ -108,6 +114,6 @@ We maintain a zero-downtime rollback structure via environment feature flags:
 
 | Risk | Mitigation | Rollback Plan |
 | :--- | :--- | :--- |
-| **API Key leakage during Worker transition** | Keys are injected solely via `wrangler secret` on Cloudflare Dashboard; never committed in source code or client configs. | Revoke compromised credentials immediately on the provider console. |
-| **Database Sync Mismatch** | Idempotency keys are checked at the repository layer. A nightly reconcile script reports mismatches. | Sheets serves as the database backup. If mismatch is detected, DB values are restored from Sheets. |
-| **User Access Privilege Escapes** | CF Worker validates requests against user tokens and roles, rejecting unauthorized actions. | Revert backend workers to mock verification mode. |
+| **API Key leakage** | Local BYOK keys use the encrypted browser vault; server-owned keys use Worker secrets. Raw keys are never logged or auto-synchronized. | Lock/purge the local vault and revoke the affected provider key. |
+| **Database Sync Mismatch** | Primary commit uses idempotency/CAS; Sheets updates use outbox/Queue and reconciliation. | PostgreSQL remains authoritative; replay only verified outbox events. |
+| **User Access Privilege Escapes** | API Worker validates signed sessions and permissions for every protected operation. | Fail closed and roll back to the last signed release; never enable mock verification. |

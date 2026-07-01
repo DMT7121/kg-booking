@@ -240,7 +240,7 @@ export async function runAIRouter(request: {
         userPrompt,
         image,
         jsonMode: true,
-        localKeys: configKeys[model.provider] || [],
+        localKeys: [],
         signal: controller.signal,
         apiGatewayUrl,
         aiMode,
@@ -254,7 +254,7 @@ export async function runAIRouter(request: {
         let parsed = safeParseJSON(rawResult)
         let repairApplied = false
         if (!parsed) {
-          parsed = await repairBrokenJSONWithAI(rawResult, candidates, configKeys[model.provider] || [], signal, logCallback)
+          parsed = await repairBrokenJSONWithAI(rawResult, candidates, [], signal, logCallback)
           repairApplied = true
         }
         if (parsed) {

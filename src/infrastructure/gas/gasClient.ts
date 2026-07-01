@@ -282,7 +282,10 @@ export async function fetchWithRetry(
 
 // Tránh hiển thị Toast thông báo lỗi cho các tác vụ lấy dữ liệu chạy nền hoặc AI
 function showErrorToastIfNeeded(action: string, message: string, ui: any) {
-  const silentActions = ['getConfig', 'getHistory', 'logAiCorrection', 'callAiService']
+  const silentActions = [
+    'getConfig', 'getHistory', 'logAiCorrection', 'callAiService',
+    'writeAuditLog', 'getSystemConfigAuditLogs', 'getAiRuntimeConfig'
+  ]
   if (!silentActions.includes(action)) {
     ui.showToast(message, 'error')
   }

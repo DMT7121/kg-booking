@@ -170,7 +170,7 @@ function goToTomorrowTimeline() {
       </div>
 
       <!-- CENTER: NAVIGATION TABS (DESKTOP) -->
-      <div class="hidden md:flex items-center gap-1 bg-slate-800/40 p-1 rounded-2xl border border-slate-700/30 mx-4 max-w-xl flex-1 justify-center relative z-10 overflow-x-auto overflow-y-hidden scrollbar-none flex-nowrap">
+      <div class="hidden md:flex items-center gap-1 bg-slate-800/40 p-1 rounded-2xl border border-slate-700/30 mx-4 max-w-3xl flex-1 justify-start lg:justify-center relative z-10 overflow-x-auto overflow-y-hidden scrollbar-none flex-nowrap">
         <button @click="ui.tab = 'dashboard'" :class="['px-3 py-2 rounded-xl text-[11px] font-black uppercase tracking-wider transition-all flex items-center gap-1.5 min-h-[36px] whitespace-nowrap', ui.tab === 'dashboard' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-400 hover:text-white hover:bg-slate-800/50']">
           <i class="fa-solid fa-gauge-high"></i>
           <span>Tổng Quan</span>

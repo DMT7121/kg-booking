@@ -76,6 +76,28 @@ function setAppHeight() {
   document.documentElement.style.setProperty('--app-height', `${height}px`)
 }
 
+function handleGlobalPaste(e: ClipboardEvent) {
+  if (ui.tab !== 'create') return
+  const activeEl = document.activeElement
+  const isInput = activeEl && (activeEl.tagName === 'INPUT' || activeEl.tagName === 'TEXTAREA' || activeEl.hasAttribute('contenteditable'))
+  if (isInput) return
+  
+  const items = e.clipboardData?.items
+  if (!items) return
+  for (const item of items) {
+    if (item.type.indexOf('image') !== -1) {
+      e.preventDefault()
+      const f = item.getAsFile()
+      if (f) {
+        const event = new CustomEvent('global-image-paste', { detail: { file: f } })
+        window.dispatchEvent(event)
+        ui.showToast('📸 Đã nhận diện ảnh chụp màn hình từ Clipboard toàn trang!', 'info')
+      }
+      break
+    }
+  }
+}
+
 onMounted(() => {
   if (!formStore.id) formStore.id = crypto.randomUUID()
   ui.isVoiceSupported = 'webkitSpeechRecognition' in window || 'SpeechRecognition' in window
@@ -102,6 +124,9 @@ onMounted(() => {
   window.visualViewport?.addEventListener('scroll', setAppHeight)
   window.addEventListener('resize', setAppHeight)
   setAppHeight()
+
+  // Global paste handler
+  window.addEventListener('paste', handleGlobalPaste)
 
   // Preview scaling
   window.addEventListener('resize', () => {
@@ -139,6 +164,7 @@ onUnmounted(() => {
   window.visualViewport?.removeEventListener('resize', setAppHeight)
   window.visualViewport?.removeEventListener('scroll', setAppHeight)
   window.removeEventListener('resize', setAppHeight)
+  window.removeEventListener('paste', handleGlobalPaste)
 
   // Remove inactivity listeners
   activityEvents.forEach(evt => {

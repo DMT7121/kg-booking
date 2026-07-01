@@ -12,13 +12,17 @@ const themes = [
   { id: 'red', color: '#dc2626', name: 'Đỏ' },
   { id: 'green', color: '#16a34a', name: 'Xanh lá' },
   { id: 'orange', color: '#d97706', name: 'Cam' },
-  { id: 'purple', color: '#9333ea', name: 'Tím' }
+  { id: 'purple', color: '#9333ea', name: 'Tím' },
+  { id: 'gold', color: '#da981d', name: 'Vàng Cát' },
+  { id: 'teal', color: '#14b8a6', name: 'Teal' },
+  { id: 'rose', color: '#e11d48', name: 'Hoa Hồng' },
+  { id: 'cyberpunk', color: '#c000c0', name: 'Neon' }
 ]
 </script>
 
 <template>
   <div v-if="ui.activeSettingModal === 'branding'" class="flex-1 h-full flex justify-center items-center p-4 bg-slate-50 relative z-[1000] lg:z-10 w-full" @click.self="ui.closeConfig()">
-    <div class="bg-white rounded-3xl shadow-2xl p-6 md:p-8 max-w-sm w-[95%] md:w-full flex flex-col relative overflow-hidden border border-slate-200">
+    <div class="bg-white rounded-3xl shadow-2xl p-6 md:p-8 max-w-md w-[95%] md:w-full flex flex-col relative overflow-hidden border border-slate-200">
       
       <!-- Header BG Decoration -->
       <div class="absolute top-0 left-0 right-0 h-24 bg-gradient-to-r from-blue-600 to-blue-900 rounded-t-3xl opacity-10"></div>
@@ -35,9 +39,9 @@ const themes = [
         </button>
       </div>
 
-      <div class="space-y-6 relative z-10">
+      <div class="space-y-5 relative z-10 max-h-[72vh] overflow-y-auto pr-1 custom-scrollbar">
         <!-- Logo -->
-        <div class="bg-slate-50 p-5 rounded-2xl border border-slate-100 shadow-sm">
+        <div class="bg-slate-50 p-4 rounded-2xl border border-slate-100 shadow-sm">
           <label class="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-3">Logo thương hiệu</label>
           <div class="flex items-center gap-4">
             <div class="w-16 h-16 rounded-2xl border-2 border-dashed border-blue-200 flex items-center justify-center overflow-hidden bg-white shadow-inner">
@@ -50,25 +54,77 @@ const themes = [
         </div>
 
         <!-- Brand Color Theme -->
-        <div class="bg-slate-50 p-5 rounded-2xl border border-slate-100 shadow-sm">
+        <div class="bg-slate-50 p-4 rounded-2xl border border-slate-100 shadow-sm">
           <label class="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-3">Màu chủ đạo giao diện</label>
-          <div class="flex flex-wrap gap-3">
+          <div class="grid grid-cols-3 gap-2">
             <button v-for="t in themes" :key="t.id"
               @click="configStore.branding.theme = t.id"
               class="flex flex-col items-center gap-1.5 p-2 rounded-xl transition-all active:scale-95 group"
               :class="configStore.branding.theme === t.id ? 'bg-white shadow-sm border border-slate-200' : 'hover:bg-slate-100 border border-transparent'">
-              <div class="w-8 h-8 rounded-full shadow-inner border-2 flex items-center justify-center transition-all"
-                :class="configStore.branding.theme === t.id ? 'border-slate-800 scale-110' : 'border-white'"
+              <div class="w-7 h-7 rounded-full shadow-inner border-2 flex items-center justify-center transition-all"
+                :class="configStore.branding.theme === t.id ? 'border-slate-800 scale-110 shadow' : 'border-white'"
                 :style="{ backgroundColor: t.color }">
-                <i v-if="configStore.branding.theme === t.id" class="fa-solid fa-check text-white text-[10px]"></i>
+                <i v-if="configStore.branding.theme === t.id" class="fa-solid fa-check text-white text-[9px]"></i>
               </div>
-              <span class="text-[9px] font-black text-slate-600 uppercase tracking-wider">{{ t.name }}</span>
+              <span class="text-[9px] font-black text-slate-600 uppercase tracking-wider text-center truncate w-full">{{ t.name }}</span>
             </button>
           </div>
           <p class="text-[10px] font-bold text-slate-400 mt-3 pl-1 flex items-center gap-1"><i class="fa-solid fa-palette text-slate-300"></i> Màu sẽ thay đổi toàn bộ nút bấm & giao diện.</p>
         </div>
 
-        <button @click="configStore.saveBranding()" class="w-full py-4 bg-blue-900 text-white rounded-xl font-black uppercase tracking-widest text-[11px] shadow-lg shadow-blue-900/20 active:scale-95 transition-all flex items-center justify-center gap-2 mt-2">
+        <!-- Interactive Effects & Experience Settings -->
+        <div class="bg-slate-50 p-4 rounded-2xl border border-slate-100 shadow-sm space-y-4">
+          <label class="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-2">Hiệu ứng & Trải nghiệm</label>
+          
+          <!-- Glassmorphism & Glow Effects Grid -->
+          <div class="grid grid-cols-2 gap-3">
+            <label class="flex items-center gap-2 px-3 py-2 bg-white rounded-xl border border-slate-200 shadow-sm cursor-pointer select-none active:scale-98 transition-transform">
+              <input type="checkbox" v-model="configStore.branding.glassEnabled" class="accent-blue-600 w-4 h-4 rounded">
+              <span class="text-[10px] font-bold text-slate-700">Kính mờ (Glass)</span>
+            </label>
+            
+            <label class="flex items-center gap-2 px-3 py-2 bg-white rounded-xl border border-slate-200 shadow-sm cursor-pointer select-none active:scale-98 transition-transform">
+              <input type="checkbox" v-model="configStore.branding.glowEffects" class="accent-blue-600 w-4 h-4 rounded">
+              <span class="text-[10px] font-bold text-slate-700">Đèn viền phát sáng</span>
+            </label>
+          </div>
+
+          <!-- Sound Effects -->
+          <label class="flex items-center gap-3 px-3 py-2.5 bg-white rounded-xl border border-slate-200 shadow-sm cursor-pointer select-none active:scale-98 transition-transform w-full">
+            <input type="checkbox" v-model="configStore.branding.soundEffects" class="accent-blue-600 w-4 h-4 rounded">
+            <div class="flex-grow">
+              <div class="text-[10px] font-black text-slate-800 flex items-center gap-1.5">
+                <i class="fa-solid fa-volume-high text-blue-600 text-sm"></i> Âm thanh tương tác
+              </div>
+              <span class="text-[8px] text-slate-400 font-medium block mt-0.5">(Bật tiếng click cơ học khi nhấn nút)</span>
+            </div>
+          </label>
+
+          <!-- Animations & Button Haptic Selectors -->
+          <div class="grid grid-cols-2 gap-3">
+            <!-- Animation Speed Select -->
+            <div class="space-y-1">
+              <label class="text-[8px] font-black text-slate-400 uppercase tracking-widest block">Tốc độ chuyển động</label>
+              <select v-model="configStore.branding.animations" class="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-[11px] font-bold text-slate-700 outline-none focus:border-blue-500">
+                <option value="normal">Mượt mà</option>
+                <option value="fast">Phản hồi nhanh</option>
+                <option value="none">Tắt chuyển động</option>
+              </select>
+            </div>
+            
+            <!-- Button Haptic Haptic Select -->
+            <div class="space-y-1">
+              <label class="text-[8px] font-black text-slate-400 uppercase tracking-widest block">Độ nhún của nút (Haptic)</label>
+              <select v-model="configStore.branding.buttonHaptic" class="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-[11px] font-bold text-slate-700 outline-none focus:border-blue-500">
+                <option value="standard">Nhẹ nhàng</option>
+                <option value="extra">Mạnh mẽ (Nhún sâu)</option>
+                <option value="none">Tắt phản hồi nhún</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <button @click="configStore.saveBranding()" class="w-full py-4 bg-blue-900 text-white rounded-xl font-black uppercase tracking-widest text-[11px] shadow-lg shadow-blue-900/20 active:scale-95 transition-all flex items-center justify-center gap-2 mt-2 shrink-0">
           <i class="fa-solid fa-floppy-disk text-lg text-white/80"></i> LƯU GIAO DIỆN
         </button>
       </div>

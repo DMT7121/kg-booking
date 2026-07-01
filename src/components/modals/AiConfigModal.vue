@@ -12,15 +12,62 @@ const appStore = useAppStore()
 
 const newAliasText = ref('')
 const selectedAliasDish = ref('')
+const vaultPassword = ref('')
 
 function copyToClipboard(text: string) {
   navigator.clipboard.writeText(text)
   ui.showToast('Đã copy API Key', 'success')
 }
 
+async function initVault(mode: 'device' | 'passphrase') {
+  if (mode === 'device') {
+    try {
+      await configStore.initializeVault('device')
+    } catch (e: any) {
+      ui.showToast(e.message, 'error')
+    }
+  } else {
+    const pin = await ui.showPrompt('Thiết lập Passphrase', 'Nhập mã PIN hoặc Passphrase để bảo vệ két sắt (tối thiểu 4 ký tự):')
+    if (pin && pin.trim().length >= 4) {
+      try {
+        await configStore.initializeVault('passphrase', pin.trim())
+      } catch (e: any) {
+        ui.showToast(e.message, 'error')
+      }
+    } else if (pin) {
+      ui.showToast('Mật khẩu quá ngắn (tối thiểu 4 ký tự)', 'warning')
+    }
+  }
+}
+
+async function unlockVault() {
+  if (configStore.vaultUnlockMode === 'device') {
+    try {
+      await configStore.unlockVault()
+    } catch (e: any) {
+      ui.showToast(e.message, 'error')
+    }
+  } else {
+    if (!vaultPassword.value) {
+      ui.showToast('Vui lòng nhập mật khẩu mở khóa', 'warning')
+      return
+    }
+    try {
+      await configStore.unlockVault(vaultPassword.value)
+      vaultPassword.value = ''
+    } catch (e: any) {
+      ui.showToast(e.message, 'error')
+    }
+  }
+}
+
 async function handlePlatformOptions(pId: string) {
   if (pId === 'pollinations') {
     ui.showToast('Pollinations là miễn phí, không cần key!', 'info')
+    return
+  }
+  if (!configStore.isVaultUnlocked) {
+    ui.showToast('Vui lòng mở khóa két sắt bảo mật trước!', 'warning')
     return
   }
   const isAdmin = await appStore.verifyAdminSession()
@@ -34,13 +81,16 @@ async function handlePlatformOptions(pId: string) {
 }
 
 async function handleKeyClick(pId: string, idx: number) {
+  if (!configStore.isVaultUnlocked) {
+    ui.showToast('Vui lòng mở khóa két sắt để xóa key!', 'warning')
+    return
+  }
   const isAdmin = await appStore.verifyAdminSession()
   if (!isAdmin) return
 
   const confirmed = await ui.showConfirm('Xóa Key', 'Bạn có chắc chắn muốn XÓA API key này?')
   if (confirmed) {
-    configStore.deleteApiKey(pId, idx)
-    ui.showToast('Đã xóa API Key thành công', 'success')
+    await configStore.deleteApiKey(pId, idx)
   }
 }
 
@@ -81,6 +131,10 @@ async function handleWorkflowModeChange(e: Event) {
 }
 
 async function handleBorrowKeys() {
+  if (!configStore.isVaultUnlocked) {
+    ui.showToast('Vui lòng mở khóa két sắt trước khi tải keys!', 'warning')
+    return
+  }
   const pass = await ui.showPrompt('Nhập mật khẩu Admin', 'Nhập mật khẩu để tải API Key từ Cloud:')
   if (pass) {
     await configStore.borrowKeys(pass)
@@ -187,7 +241,66 @@ function handleClearCooldowns() {
         <p class="text-xs font-bold text-slate-500 leading-relaxed">Thiết lập và quản lý các mô hình AI giúp bạn phân tích<br>thực đơn và gợi ý số bàn thông minh.</p>
       </div>
 
-    <div class="p-4 md:p-6 max-w-2xl mx-auto w-full space-y-6 pb-20">
+      <!-- Key Vault Security Card -->
+      <div class="space-y-3">
+        <h4 class="text-[11px] font-black text-slate-400 uppercase tracking-widest pl-2 flex items-center gap-1.5">
+          <i class="fa-solid fa-vault text-blue-900"></i> Két sắt bảo mật (Local Vault)
+        </h4>
+        <div class="bg-white rounded-3xl shadow-sm border border-slate-100 p-4 space-y-4">
+          <!-- Uninitialized state -->
+          <div v-if="!configStore.isVaultInitialized" class="space-y-3">
+            <div class="bg-blue-50 border border-blue-200 rounded-2xl p-3 text-[11px] font-bold text-blue-800 leading-relaxed">
+              <i class="fa-solid fa-circle-info"></i> Hệ thống đã nâng cấp lên két sắt cục bộ mã hóa. Vui lòng thiết lập két sắt để lưu trữ API key của bạn.
+            </div>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <button @click="initVault('device')" class="p-3 bg-slate-50 border border-slate-200 hover:border-blue-900 rounded-2xl text-left transition-all active:scale-95">
+                <div class="text-xs font-black text-slate-800"><i class="fa-solid fa-mobile-screen-button"></i> Device Local</div>
+                <div class="text-[10px] text-slate-500 mt-1 font-semibold leading-relaxed">Mở khóa tự động. Khóa ngẫu nhiên lưu trong trình duyệt.</div>
+              </button>
+              <button @click="initVault('passphrase')" class="p-3 bg-slate-50 border border-slate-200 hover:border-blue-900 rounded-2xl text-left transition-all active:scale-95">
+                <div class="text-xs font-black text-slate-800"><i class="fa-solid fa-key"></i> PIN / Passphrase</div>
+                <div class="text-[10px] text-slate-500 mt-1 font-semibold leading-relaxed">Mã hóa bằng mật khẩu. Nhập mật khẩu để mở khóa khi sử dụng.</div>
+              </button>
+            </div>
+          </div>
+
+          <!-- Initialized but Locked -->
+          <div v-else-if="!configStore.isVaultUnlocked" class="space-y-3">
+            <div class="bg-amber-50 border border-amber-200 rounded-2xl p-3 text-[11px] font-bold text-amber-800 leading-relaxed">
+              <i class="fa-solid fa-lock"></i> Két sắt đang KHÓA. Hãy mở khóa để quản lý và sử dụng API Keys.
+            </div>
+            <div class="flex gap-2">
+              <input v-if="configStore.vaultUnlockMode === 'passphrase'" v-model="vaultPassword" type="password" placeholder="Nhập PIN hoặc Passphrase..." class="flex-1 border border-slate-200 rounded-xl px-3 py-2 text-xs font-semibold text-slate-800 focus:border-blue-900 outline-none" @keyup.enter="unlockVault">
+              <button @click="unlockVault" class="px-5 py-2.5 bg-blue-900 hover:bg-blue-800 text-white rounded-xl font-black text-[11px] active:scale-95 transition-all">
+                <i class="fa-solid fa-unlock-keyhole"></i> Mở khóa
+              </button>
+            </div>
+          </div>
+
+          <!-- Unlocked -->
+          <div v-else class="space-y-3">
+            <div class="flex items-center justify-between">
+              <div>
+                <div class="text-xs font-black text-emerald-600 flex items-center gap-1.5"><i class="fa-solid fa-circle-check"></i> Két sắt đã MỞ KHÓA</div>
+                <div class="text-[9px] text-slate-400 font-bold uppercase tracking-wider mt-0.5">Chế độ: {{ configStore.vaultUnlockMode === 'device' ? 'Thiết bị cục bộ' : 'Mật khẩu PIN' }}</div>
+              </div>
+              <button @click="configStore.lockVault" class="px-4 py-2 border border-slate-200 hover:bg-rose-50 text-rose-500 rounded-xl font-black text-[10px] active:scale-95 transition-all">
+                <i class="fa-solid fa-lock"></i> Khóa két sắt
+              </button>
+            </div>
+          </div>
+
+          <!-- Threat Model details -->
+          <details class="text-[9px] font-bold text-slate-400 cursor-pointer pl-1">
+            <summary class="hover:text-blue-900 transition-colors">Tìm hiểu thêm về Mô hình bảo mật (Threat Model)</summary>
+            <div class="mt-2 pl-3 border-l-2 border-slate-200 space-y-1.5 text-justify leading-relaxed">
+              <p><b>Device Local:</b> Sử dụng khóa AES-GCM 256-bit được sinh ngẫu nhiên trên trình duyệt với cờ <code>extractable: false</code>. Khóa này không thể bị xuất ra khỏi trình duyệt qua lệnh JS thông thường, giúp chống mã độc sao chép key. Tuy nhiên, nếu website bị lỗi XSS, kẻ tấn công có thể chạy lệnh trực tiếp trong origin này khi trình duyệt đang mở.</p>
+              <p><b>PIN/Passphrase:</b> Khóa AES được sinh thông qua hàm phái sinh PBKDF2 (100.000 vòng băm SHA-256) từ mật khẩu của bạn. Keys chỉ được giải mã và lưu trên bộ nhớ RAM tạm thời của trình duyệt, tự động xóa sạch (khóa lại) khi đóng tab, đăng xuất hoặc sau 30 phút không hoạt động.</p>
+            </div>
+          </details>
+        </div>
+      </div>
+
       <!-- General Config -->
       <div class="space-y-3">
         <h4 class="text-[11px] font-black text-slate-400 uppercase tracking-widest pl-2">Cấu hình chung</h4>
@@ -374,7 +487,6 @@ function handleClearCooldowns() {
       <div class="mt-6 text-center text-[10px] font-bold text-slate-400 flex items-center justify-center gap-1.5 pb-4">
         <i class="fa-solid fa-circle-info"></i> Tổng cộng: {{ configStore.totalKeyCount + 1 }} keys across {{ Object.keys(PLATFORMS).length }} platforms
       </div>
-    </div>
     </div>
   </div>
 </template>

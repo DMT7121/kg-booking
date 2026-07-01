@@ -2,6 +2,15 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { DualWriteOrderRepository } from '../dualWriteRepository'
 import { GasOrderRepository } from '../../gas/gasRepositories'
 import { PostgresOrderRepository } from '../../postgres/postgresRepository'
+import * as outbox from '../../outbox/outbox'
+
+// Mock idb-keyval
+const mockDb = new Map<string, any>()
+vi.mock('idb-keyval', () => ({
+  get: vi.fn(async (key: string) => mockDb.get(key)),
+  set: vi.fn(async (key: string, val: any) => { mockDb.set(key, val) }),
+  del: vi.fn(async (key: string) => { mockDb.delete(key) })
+}))
 
 vi.mock('../../gas/gasRepositories', () => {
   return {
@@ -31,6 +40,7 @@ describe('DualWriteOrderRepository Tests', () => {
   let mockPgRepo: any
 
   beforeEach(() => {
+    mockDb.clear()
     vi.clearAllMocks()
     repository = new DualWriteOrderRepository()
     mockGasRepo = vi.mocked(GasOrderRepository).mock.results[0].value
@@ -61,43 +71,35 @@ describe('DualWriteOrderRepository Tests', () => {
     expect(mockGasRepo.getHistory).not.toHaveBeenCalled()
   })
 
-  it('should dual-write to both when mode is dual_write and return result', async () => {
+  it('should queue to outbox and return immediate success when saving in dual_write mode', async () => {
     vi.stubEnv('VITE_BACKEND_MODE', 'dual_write')
     const testData = { id: 'test-id', customer: { name: 'A', phone: '09' } }
-    mockPgRepo.saveOrder.mockResolvedValue({ ok: true, id: 'test-id' })
-    mockGasRepo.saveOrder.mockResolvedValue({ ok: true, id: 'test-id' })
 
     const res = await repository.saveOrder(testData)
 
-    expect(mockPgRepo.saveOrder).toHaveBeenCalledWith(testData)
-    expect(mockGasRepo.saveOrder).toHaveBeenCalledWith(testData)
     expect(res.ok).toBe(true)
+    expect(res.id).toBe('test-id')
+    expect(res.message).toContain('queued in local outbox')
+
+    // Verify it was added to the outbox list
+    const pending = await outbox.getPendingItems()
+    expect(pending.length).toBe(1)
+    expect(pending[0].id).toBe('test-id')
   })
 
-  it('should handle PG success and GAS failure correctly in dual_write mode', async () => {
+  it('should queue to outbox and return immediate success when deleting in dual_write mode', async () => {
     vi.stubEnv('VITE_BACKEND_MODE', 'dual_write')
-    const testData = { id: 'test-id', customer: { name: 'A', phone: '09' } }
-    mockPgRepo.saveOrder.mockResolvedValue({ ok: true, id: 'test-id' })
-    mockGasRepo.saveOrder.mockResolvedValue({ ok: false, message: 'GAS Error' })
 
-    const res = await repository.saveOrder(testData)
+    const res = await repository.deleteOrder('test-id')
 
-    // PG should be called again to mark pending sync
-    expect(mockPgRepo.saveOrder).toHaveBeenLastCalledWith(expect.objectContaining({
-      sheet_sync_pending: true
-    }))
     expect(res.ok).toBe(true)
-  })
+    expect(res.id).toBe('test-id')
+    expect(res.message).toContain('Deletion queued in local outbox')
 
-  it('should handle PG failure and GAS success correctly in dual_write mode', async () => {
-    vi.stubEnv('VITE_BACKEND_MODE', 'dual_write')
-    const testData = { id: 'test-id', customer: { name: 'A', phone: '09' } }
-    mockPgRepo.saveOrder.mockResolvedValue({ ok: false, message: 'PG Error' })
-    mockGasRepo.saveOrder.mockResolvedValue({ ok: true, id: 'test-id' })
-
-    const res = await repository.saveOrder(testData)
-
-    expect(res.pg_sync_failed).toBe(true)
-    expect(res.warning).toContain('PostgreSQL save failed')
+    // Verify it was added to the outbox list
+    const pending = await outbox.getPendingItems()
+    expect(pending.length).toBe(1)
+    expect(pending[0].id).toBe('test-id')
+    expect(pending[0].action).toBe('delete')
   })
 })

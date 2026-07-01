@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, watch, nextTick } from 'vue'
 import { useUIStore } from '@/stores/useUIStore'
 import { useAppStore } from '@/stores/useAppStore'
 import { useFormStore } from '@/stores/useFormStore'
@@ -58,6 +58,92 @@ const selectedDateInput = computed({
     if (parts.length === 3) selectedDateStr.value = `${parts[2]}/${parts[1]}/${parts[0]}`
   }
 })
+
+const dateTextVal = ref(selectedDateStr.value)
+watch(selectedDateStr, (newVal) => {
+  dateTextVal.value = newVal
+})
+
+function formatInputDate(value: string): string {
+  const digits = value.replace(/\D/g, '').substring(0, 8)
+  if (digits.length <= 2) {
+    return digits
+  } else if (digits.length <= 4) {
+    return `${digits.substring(0, 2)}/${digits.substring(2)}`
+  } else {
+    return `${digits.substring(0, 2)}/${digits.substring(2, 4)}/${digits.substring(4)}`
+  }
+}
+
+async function onDateTextInput(e: Event) {
+  const target = e.target as HTMLInputElement
+  const rawValue = target.value
+  const selectionStart = target.selectionStart || 0
+  
+  const formatted = formatInputDate(rawValue)
+  
+  // Count prefix digits before the cursor in raw value
+  const prefixRaw = rawValue.substring(0, selectionStart)
+  const prefixDigitsCount = prefixRaw.replace(/\D/g, '').length
+  
+  // Find where that many digits end in formatted string
+  let formattedSelectionStart = 0
+  let digitsFound = 0
+  for (let i = 0; i < formatted.length; i++) {
+    if (digitsFound === prefixDigitsCount) {
+      break
+    }
+    if (formatted[i] !== '/') {
+      digitsFound++
+    }
+    formattedSelectionStart++
+  }
+  
+  // If the next character in formatted is a slash, and the user typed a digit
+  // that triggered the slash auto-insertion, step the cursor over the slash.
+  if (formatted[formattedSelectionStart] === '/' && rawValue[selectionStart - 1] !== '/') {
+    formattedSelectionStart++
+  }
+  
+  dateTextVal.value = formatted
+  
+  await nextTick()
+  target.setSelectionRange(formattedSelectionStart, formattedSelectionStart)
+  
+  if (formatted.length === 10) {
+    const parts = formatted.split('/')
+    const day = parseInt(parts[0], 10)
+    const month = parseInt(parts[1], 10)
+    const year = parseInt(parts[2], 10)
+    if (day >= 1 && day <= 31 && month >= 1 && month <= 12 && year >= 1000) {
+      selectedDateStr.value = formatted
+    }
+  }
+}
+
+function onDateTextBlur() {
+  const parts = dateTextVal.value.split('/')
+  if (parts.length === 3) {
+    const day = parseInt(parts[0], 10)
+    const month = parseInt(parts[1], 10)
+    const year = parseInt(parts[2], 10)
+    if (day >= 1 && day <= 31 && month >= 1 && month <= 12 && year >= 1000) {
+      selectedDateStr.value = dateTextVal.value
+      return
+    }
+  }
+  dateTextVal.value = selectedDateStr.value
+}
+
+function triggerDatePicker() {
+  if (dateInputRef.value) {
+    if (typeof dateInputRef.value.showPicker === 'function') {
+      dateInputRef.value.showPicker()
+    } else {
+      dateInputRef.value.click()
+    }
+  }
+}
 
 // Timeline Data Mapping
 // A booking belongs to a cell if its date matches and its time starts with the hour, and its zone matches.
@@ -165,6 +251,134 @@ function getStaff(order: any) {
     return ''
   }
 }
+
+// --- Drag & Drop handlers ---
+const activeDragTarget = ref<{ hour: string; zone: string } | null>(null)
+const draggedBookingId = ref<string | null>(null)
+
+function isDropTarget(hour: string, zone: string): boolean {
+  return activeDragTarget.value?.hour === hour && activeDragTarget.value?.zone === zone
+}
+
+function handleDragStart(e: DragEvent, booking: any) {
+  if (!booking) return
+  draggedBookingId.value = booking.id
+  if (e.dataTransfer) {
+    e.dataTransfer.effectAllowed = 'move'
+    e.dataTransfer.setData('text/plain', booking.id)
+  }
+}
+
+function handleDragOver(e: DragEvent, hour: string, zone: string) {
+  e.preventDefault()
+  if (timelineData.value[hour][zone]) return
+  activeDragTarget.value = { hour, zone }
+}
+
+function handleDragLeave(e: DragEvent, hour: string, zone: string) {
+  if (activeDragTarget.value?.hour === hour && activeDragTarget.value?.zone === zone) {
+    activeDragTarget.value = null
+  }
+}
+
+async function handleDrop(e: DragEvent, hour: string, zone: string) {
+  e.preventDefault()
+  activeDragTarget.value = null
+  
+  const bookingId = e.dataTransfer?.getData('text/plain') || draggedBookingId.value
+  draggedBookingId.value = null
+  if (!bookingId) return
+  
+  const order = appStore.historyList.find(o => o.id === bookingId)
+  if (!order) return
+  
+  if (timelineData.value[hour][zone]) {
+    ui.showToast('Vị trí này đã có khách đặt bàn!', 'warning')
+    return
+  }
+  
+  const cleanZone = zone.replace('Khu ', '')
+  const oldTime = order.parsedCustomer?.time || '--:--'
+  const oldTable = order.parsedCustomer?.tables || 'Chưa xếp'
+  
+  ui.loading.is = true
+  ui.loading.msg = `Đang chuyển bàn của ${order.parsedCustomer?.name}...`
+  ui.loading.subMsg = `${oldTime} (${oldTable}) → ${hour} (Khu ${cleanZone})`
+  
+  try {
+    const zoneTables = Array.from({length: zone === 'Khu A' ? 22 : zone === 'Khu C' ? 16 : zone === 'Khu B' ? 10 : 8}, (_, i) => `${cleanZone}${i+1}`)
+    const occupiedTablesInNewSlot = new Set<string>()
+    const targetDate = order.parsedCustomer?.date
+    
+    appStore.historyList.forEach(o => {
+      if (o.id === bookingId) return
+      if (o.parsedCustomer?.date !== targetDate) return
+      
+      const parseTimeToMinutes = (tStr: string) => {
+        if (!tStr) return 0
+        const parts = tStr.split(':').map(Number)
+        return parts[0] * 60 + parts[1]
+      }
+      
+      const oTime = parseTimeToMinutes(o.parsedCustomer?.time || '')
+      const targetTime = parseTimeToMinutes(hour)
+      
+      if (Math.abs(oTime - targetTime) < 120) {
+        const tables = (o.parsedCustomer?.tables || '').split(/[\s,]+/).map(t => t.trim().toUpperCase()).filter(Boolean)
+        tables.forEach(t => occupiedTablesInNewSlot.add(t))
+      }
+    })
+    
+    const freeTable = zoneTables.find(t => !occupiedTablesInNewSlot.has(t)) || cleanZone
+    
+    const updatedCustomer = {
+      ...order.parsedCustomer,
+      time: hour,
+      tables: freeTable
+    }
+    
+    const rawData = JSON.parse((order as any).data || '{}')
+    const originalMetadata = order.aiEngine ? { model_used: order.aiEngine } : null
+    
+    const payload = {
+      id: order.id,
+      customer: updatedCustomer,
+      items: order.menuItems || [],
+      staff: order.staff || { name: 'Admin', phone: '' },
+      deposit: order.deposit || { amount: order.depositAmount, isPaid: order.isDeposited },
+      total: order.totalAmount,
+      activeMenuSheet: rawData.activeMenuSheet || appStore.activeSheet || '',
+      aiMetadata: rawData.aiMetadata || originalMetadata,
+      warnings: rawData.warnings || [],
+      unresolvedItems: rawData.unresolvedItems || [],
+      version: (order.version || 1) + 1,
+      baseServerVersion: order.version || 1
+    }
+    
+    const optimisticOrder = {
+      ...order,
+      parsedCustomer: updatedCustomer,
+      version: payload.version,
+      isSyncing: true
+    }
+    appStore.setOptimisticOrder(optimisticOrder)
+    
+    const res = await appStore.saveOrder(payload)
+    if (res && res.ok) {
+      appStore.markOrderSynced(order.id, { version: payload.version })
+      ui.showToast(`Đã chuyển lịch của ${order.parsedCustomer?.name} sang ${hour} Bàn ${freeTable}!`, 'success')
+      await appStore.loadHistory(true)
+    } else {
+      throw new Error(res?.message || 'Save failed')
+    }
+  } catch (err: any) {
+    appStore.markOrderFailed(order.id)
+    ui.showToast(`Lỗi chuyển lịch: ${err.message}`, 'error')
+    await appStore.loadHistory(true)
+  } finally {
+    ui.loading.is = false
+  }
+}
 </script>
 
 <template>
@@ -184,12 +398,30 @@ function getStaff(order: any) {
 
     <!-- Top Controls -->
     <div class="p-4 bg-white border-b border-slate-100 flex gap-3 items-center z-10 shadow-sm">
-      <div class="relative flex-grow border border-slate-200 rounded-xl px-3 py-2 flex flex-col cursor-pointer hover:border-blue-400 transition-colors overflow-hidden group">
-        <input type="date" v-model="selectedDateInput" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10">
+      <div class="relative flex-grow border border-slate-200 rounded-xl px-3 py-2 flex flex-col hover:border-blue-400 transition-colors group">
+        <input 
+          ref="dateInputRef" 
+          type="date" 
+          v-model="selectedDateInput" 
+          class="absolute -z-10 opacity-0 w-0 h-0 pointer-events-none"
+        >
         <label class="text-[10px] font-bold text-slate-500 uppercase pointer-events-none group-hover:text-blue-500 transition-colors">Chọn ngày</label>
-        <div class="font-black text-slate-800 text-sm flex justify-between items-center pointer-events-none">
-          <span>{{ selectedDateStr }}</span>
-          <i class="fa-solid fa-calendar-days text-blue-600/70 text-xs"></i>
+        <div class="font-black text-slate-800 text-sm flex justify-between items-center">
+          <input 
+            type="text" 
+            v-model="dateTextVal" 
+            @input="onDateTextInput" 
+            @blur="onDateTextBlur"
+            class="bg-transparent border-none font-black text-slate-800 text-sm outline-none w-full p-0"
+            placeholder="DD/MM/YYYY"
+          >
+          <button 
+            type="button"
+            @click.stop="triggerDatePicker" 
+            class="text-blue-600/70 hover:text-blue-800 transition-colors cursor-pointer shrink-0 ml-2"
+          >
+            <i class="fa-solid fa-calendar-days text-sm"></i>
+          </button>
         </div>
       </div>
       
@@ -234,12 +466,22 @@ function getStaff(order: any) {
             </div>
             
             <!-- Zone Columns -->
-            <div v-for="z in ZONES" :key="z" class="flex-1 p-2 border-r border-slate-100 last:border-0 flex items-center justify-center min-h-[110px]">
+            <div 
+              v-for="z in ZONES" 
+              :key="z" 
+              class="flex-1 p-2 border-r border-slate-100 last:border-0 flex items-center justify-center min-h-[110px] transition-all duration-200"
+              :class="{'border-2 border-dashed border-blue-500 bg-blue-50/40 scale-95 shadow-inner rounded-xl': isDropTarget(h, z)}"
+              @dragover.prevent="handleDragOver($event, h, z)"
+              @dragleave="handleDragLeave($event, h, z)"
+              @drop="handleDrop($event, h, z)"
+            >
               <template v-if="timelineData[h][z]">
                 <!-- Booked Slot -->
                 <div 
                   @click="openBookingDetail(timelineData[h][z])"
-                  class="w-full h-full rounded-xl flex flex-col items-center justify-start p-2 text-center shadow-sm border cursor-pointer active:scale-95 transition-transform relative overflow-hidden"
+                  draggable="true"
+                  @dragstart="handleDragStart($event, timelineData[h][z])"
+                  class="w-full h-full rounded-xl flex flex-col items-center justify-start p-2 text-center shadow-sm border cursor-pointer active:scale-95 transition-transform relative overflow-hidden select-none hover:shadow-md cursor-grab active:cursor-grabbing"
                   :class="timelineData[h][z].isDeposited ? 'bg-blue-50 border-blue-200 text-blue-900 hover:bg-blue-100' : 'bg-rose-50 border-rose-200 text-rose-700 hover:bg-rose-100'"
                 >
                   <!-- Table Badge -->

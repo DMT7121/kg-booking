@@ -9,5 +9,10 @@ const app = createApp(App)
 
 // Tự động update Service Worker khi có phiên bản mới
 registerSW({ immediate: true })
-app.use(createPinia())
+const pinia = createPinia()
+app.use(pinia)
 app.mount('#app')
+
+if (typeof window !== 'undefined') {
+  (window as any).pinia = pinia
+}

@@ -102,7 +102,7 @@ export class PostgresOrderRepository implements OrderRepository {
     }
   }
 
-  async saveOrder(data: any): Promise<any> {
+  async saveOrder(data: any, token?: string): Promise<any> {
     const orderData = data.id ? data : data.data
     const orderId = orderData.id || crypto.randomUUID()
     
@@ -128,11 +128,15 @@ export class PostgresOrderRepository implements OrderRepository {
     }
 
     try {
+      const headers: Record<string, string> = {
+        'Prefer': 'resolution=merge-duplicates, return=representation'
+      }
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`
+      }
       const response = await pgFetch(`/bookings?on_conflict=id`, {
         method: 'POST',
-        headers: {
-          'Prefer': 'resolution=merge-duplicates, return=representation'
-        },
+        headers,
         body: JSON.stringify(payload)
       })
       if (response && response.length > 0) {
@@ -159,8 +163,13 @@ export class PostgresOrderRepository implements OrderRepository {
 
   async deleteOrder(id: string, password?: string, token?: string): Promise<any> {
     try {
+      const headers: Record<string, string> = {}
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`
+      }
       await pgFetch(`/bookings?id=eq.${encodeURIComponent(id)}`, {
-        method: 'DELETE'
+        method: 'DELETE',
+        headers
       })
       return { ok: true, message: 'Order Deleted' }
     } catch (e: any) {
@@ -270,13 +279,18 @@ export class PostgresMenuRepository implements MenuRepository {
 
   async saveMenuAlias(alias: string, dishName: string, token?: string): Promise<any> {
     try {
+      const headers: Record<string, string> = {}
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`
+      }
       // Find item
-      const rows = await pgFetch(`/menu_items?name=eq.${encodeURIComponent(dishName)}&select=*`)
+      const rows = await pgFetch(`/menu_items?name=eq.${encodeURIComponent(dishName)}&select=*`, { headers })
       if (rows.length === 0) return { ok: false, message: 'Dish not found' }
       const item = rows[0]
       const aliases = Array.from(new Set([...(item.aliases || []), alias]))
       await pgFetch(`/menu_items?id=eq.${item.id}`, {
         method: 'PATCH',
+        headers,
         body: JSON.stringify({ aliases })
       })
       return { ok: true }
@@ -287,11 +301,16 @@ export class PostgresMenuRepository implements MenuRepository {
 
   async deleteMenuAlias(alias: string, token?: string): Promise<any> {
     try {
-      const rows = await pgFetch(`/menu_items?aliases=cs.{${encodeURIComponent(alias)}}&select=*`)
+      const headers: Record<string, string> = {}
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`
+      }
+      const rows = await pgFetch(`/menu_items?aliases=cs.{${encodeURIComponent(alias)}}&select=*`, { headers })
       for (const item of rows) {
         const aliases = (item.aliases || []).filter((a: string) => a !== alias)
         await pgFetch(`/menu_items?id=eq.${item.id}`, {
           method: 'PATCH',
+          headers,
           body: JSON.stringify({ aliases })
         })
       }
@@ -326,15 +345,54 @@ export class PostgresSettingsRepository implements SettingsRepository {
     return { ok: true, keys: [] }
   }
 
-  async authAdminSettings(password: string): Promise<any> {
-    if (password === 'admin123') {
-      return { ok: true, token: 'mock-jwt-admin-token', expiresAt: Date.now() + 1800000 }
+  async authAdminSettings(passwordInput: string): Promise<any> {
+    let email = 'admin@kingsgrill.com'
+    let password = passwordInput
+    if (passwordInput.includes(':')) {
+      const parts = passwordInput.split(':')
+      email = parts[0]
+      password = parts.slice(1).join(':')
     }
-    return { ok: false, message: 'Invalid Admin Password' }
+
+    try {
+      if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
+        throw new Error('Supabase not configured')
+      }
+      const response = await fetch(`${SUPABASE_URL}/auth/v1/token?grant_type=password`, {
+        method: 'POST',
+        headers: {
+          'apikey': SUPABASE_ANON_KEY,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ email, password })
+      })
+      if (!response.ok) {
+        const err = await response.json().catch(() => ({}))
+        return { ok: false, message: err.error_description || err.error || 'Mật khẩu hoặc tài khoản không chính xác!' }
+      }
+      const data = await response.json()
+      return {
+        ok: true,
+        token: data.access_token,
+        expiresAt: Date.now() + (data.expires_in * 1000)
+      }
+    } catch (e: any) {
+      return { ok: false, message: e.message }
+    }
   }
 
   async verifyAdminSettings(token: string): Promise<any> {
-    return { ok: token === 'mock-jwt-admin-token' }
+    try {
+      const parts = token.split('.')
+      if (parts.length === 3) {
+        const payload = JSON.parse(atob(parts[1].replace(/-/g, '+').replace(/_/g, '/')))
+        if (payload && typeof payload.exp === 'number') {
+          const isValid = Date.now() / 1000 < payload.exp
+          return { ok: isValid }
+        }
+      }
+    } catch {}
+    return { ok: false }
   }
 
   async logoutAdminSettings(token: string): Promise<any> {

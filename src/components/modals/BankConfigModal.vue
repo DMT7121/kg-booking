@@ -204,9 +204,6 @@ function getBankLogoColor(bin: string) {
             <div v-if="!isEditing || editIndex !== appStore.selectedBankIndex" class="flex items-center gap-2 pt-2">
               <input type="checkbox" id="defaultBank" :checked="isEditing && editIndex === appStore.selectedBankIndex" @change="appStore.selectedBankIndex = (isEditing ? editIndex : appStore.bankList.length)" class="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 cursor-pointer">
               <label for="defaultBank" class="text-[13px] font-bold text-blue-600 cursor-pointer flex items-center gap-1.5 select-none">
-                <span class="w-5 h-5 bg-blue-600 text-white flex items-center justify-center rounded-[4px] text-[10px]">
-                  <i class="fa-solid fa-check"></i>
-                </span>
                 Đặt làm tài khoản mặc định
                 <i class="fa-regular fa-circle-question text-slate-400"></i>
               </label>
