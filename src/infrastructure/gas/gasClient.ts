@@ -65,13 +65,20 @@ export async function fetchWithStaleWhileRevalidate<T>(
   }
 
   // 3. Cache Miss: Fetch synchronously (coalesced)
-  const fresh = await coalesceRequest(key, fetcher)
-  if (isSuccessfulResponse(fresh)) {
-    const entry = { data: fresh, timestamp: Date.now() }
-    l1ApiCache.set(key, entry)
-    idbSet(`kg_api_cache_${key}`, entry).catch(() => {})
+  // Wrap in try/catch so offline first-load doesn't crash the app
+  try {
+    const fresh = await coalesceRequest(key, fetcher)
+    if (isSuccessfulResponse(fresh)) {
+      const entry = { data: fresh, timestamp: Date.now() }
+      l1ApiCache.set(key, entry)
+      idbSet(`kg_api_cache_${key}`, entry).catch(() => {})
+    }
+    return fresh
+  } catch (err) {
+    console.warn(`[API Cache] Network fetch failed for ${key} (offline?):`, err)
+    // Return a safe fallback so callers don't crash
+    return { ok: false, message: 'Không có mạng và chưa có dữ liệu cache.' } as T
   }
-  return fresh
 }
 
 function triggerBackgroundFetch<T>(
@@ -110,49 +117,62 @@ function coalesceRequest<T>(key: string, fetcher: () => Promise<T>): Promise<T> 
  * Gửi request POST tới API Gateway hoặc fallback sang GAS (Direct core execution)
  */
 async function postGASDirect(payload: Record<string, any>, signal?: AbortSignal): Promise<any> {
-  const ui = useUIStore()
-  ui.activeRequests++
-
-  const useWorker = !isGatewayCircuitOpen('cloudflare_edge')
-
-  if (useWorker) {
-    try {
-      const res = await fetch(API_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-        signal
-      })
-      
-      if (res.ok) {
-        reportGatewaySuccess('cloudflare_edge')
-        const data = await res.json()
-        if (!data.ok && data.message) {
-          showErrorToastIfNeeded(payload.action, `Lỗi Server: ${data.message}`, ui)
-        }
-        return data
-      }
-      throw new Error(`Gateway returned HTTP ${res.status}`)
-    } catch (gatewayError: any) {
-      if (gatewayError.name === 'AbortError') throw gatewayError
-
-      console.warn(`[API Client] Lỗi kết nối tới Gateway (${gatewayError.message}). Đang chuyển hướng dự phòng sang GAS trực tiếp...`)
-      
-      const isNetworkErr = gatewayError instanceof TypeError || gatewayError.message?.includes('fetch') || gatewayError.message?.includes('network')
-      if (isNetworkErr) {
-        reportGatewayFailure('cloudflare_edge', 'edge_cors_or_network', gatewayError.message)
-      }
-      
-      // Fallback to GAS below
-    } finally {
-      setTimeout(() => { ui.activeRequests-- }, 300)
-    }
-  } else {
-    console.info('[API Client] Cloudflare Edge circuit is open. Bypassing Gateway, calling GAS directly.')
+  // Guard useUIStore() — may be called before Pinia is initialized (e.g. from outboxSync top-level import)
+  let ui: ReturnType<typeof useUIStore> | null = null
+  try {
+    ui = useUIStore()
+    ui.activeRequests++
+  } catch {
+    // Pinia not yet initialized, skip UI tracking
   }
 
-  // Fallback sang GAS trực tiếp
+  const isGasMode = import.meta.env.VITE_BACKEND_MODE === 'gas'
+  const useLocalProxy = import.meta.env.DEV && API_URL.startsWith('/api')
+  const useWorker = (useLocalProxy || !isGasMode) && !isGatewayCircuitOpen('cloudflare_edge')
+
   try {
+    if (useWorker) {
+      try {
+        const res = await fetch(API_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+          signal
+        })
+        
+        if (res.ok) {
+          const ct = res.headers.get('content-type') || ''
+          if (!ct.includes('application/json')) {
+            throw new Error(`Gateway returned non-JSON (${ct.split(';')[0] || 'unknown'})`)
+          }
+          reportGatewaySuccess('cloudflare_edge')
+          const data = await res.json()
+          if (!data.ok && data.message) {
+            showErrorToastIfNeeded(payload.action, `Lỗi Server: ${data.message}`, ui)
+          }
+          if (ui) {
+            ui.connectionStatus = 'online'
+          }
+          return data
+        }
+        throw new Error(`Gateway returned HTTP ${res.status}`)
+      } catch (gatewayError: any) {
+        if (gatewayError.name === 'AbortError') throw gatewayError
+
+        console.warn(`[API Client] Lỗi kết nối tới Gateway (${gatewayError.message}). Đang chuyển hướng dự phòng sang GAS trực tiếp...`)
+        
+        const isNetworkErr = gatewayError instanceof TypeError || gatewayError.message?.includes('fetch') || gatewayError.message?.includes('network')
+        if (isNetworkErr) {
+          reportGatewayFailure('cloudflare_edge', 'edge_cors_or_network', gatewayError.message)
+        }
+        
+        // Fallback to GAS below
+      }
+    } else {
+      console.info('[API Client] Cloudflare Edge circuit is open. Bypassing Gateway, calling GAS directly.')
+    }
+
+    // Fallback sang GAS trực tiếp
     const res = await fetch(GAS_FALLBACK_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'text/plain;charset=utf-8' },
@@ -164,13 +184,21 @@ async function postGASDirect(payload: Record<string, any>, signal?: AbortSignal)
     if (!data.ok && data.message) {
       showErrorToastIfNeeded(payload.action, `Lỗi Server (GAS Fallback): ${data.message}`, ui)
     }
+    if (ui) {
+      ui.connectionStatus = 'online'
+    }
     return data
-  } catch (gasError: any) {
-    if (gasError.name === 'AbortError') throw gasError
-    showErrorToastIfNeeded(payload.action, `Lỗi mạng (Cả Gateway và GAS đều lỗi): ${gasError.message}`, ui)
-    throw gasError
+  } catch (err: any) {
+    if (err.name === 'AbortError') throw err
+    if (ui) {
+      ui.connectionStatus = 'error'
+    }
+    showErrorToastIfNeeded(payload.action, `Lỗi mạng (Cả Gateway và GAS đều lỗi): ${err.message}`, ui)
+    throw err
   } finally {
-    setTimeout(() => { ui.activeRequests-- }, 300)
+    if (ui) {
+      setTimeout(() => { ui!.activeRequests-- }, 300)
+    }
   }
 }
 
@@ -212,7 +240,9 @@ export async function fetchWithRetry(
   const ui = useUIStore()
   ui.activeRequests++
 
-  const useWorker = !isGatewayCircuitOpen('cloudflare_edge')
+  const isGasMode = import.meta.env.VITE_BACKEND_MODE === 'gas'
+  const useLocalProxy = import.meta.env.DEV && API_URL.startsWith('/api')
+  const useWorker = (useLocalProxy || !isGasMode) && !isGatewayCircuitOpen('cloudflare_edge')
 
   // Lần lượt thử qua API Gateway trước, nếu thất bại qua số lần retry thì chuyển sang GAS Fallback
   for (let i = 0; i < retries; i++) {
@@ -230,11 +260,16 @@ export async function fetchWithRetry(
           signal
         })
         if (res.ok) {
+          const ct = res.headers.get('content-type') || ''
+          if (!ct.includes('application/json')) {
+            throw new Error(`Gateway returned non-JSON (${ct.split(';')[0] || 'unknown'})`)
+          }
           reportGatewaySuccess('cloudflare_edge')
           const data = await res.json()
           if (!data.ok && data.message) {
             ui.showToast(`Lỗi Server: ${data.message}`, 'error')
           }
+          ui.connectionStatus = 'online'
           setTimeout(() => { ui.activeRequests-- }, 300)
           return data
         }
@@ -270,10 +305,12 @@ export async function fetchWithRetry(
     })
     if (!res.ok) throw new Error(`GAS fallback HTTP error! status: ${res.status}`)
     const data = await res.json()
+    ui.connectionStatus = 'online'
     setTimeout(() => { ui.activeRequests-- }, 300)
     return data
   } catch (gasError: any) {
     if (gasError.name === 'AbortError') throw gasError
+    ui.connectionStatus = 'error'
     ui.showToast(`Đồng bộ thất bại (Đã thử ${retries} lần Gateway và fallback GAS): ${gasError.message}`, 'error')
     setTimeout(() => { ui.activeRequests-- }, 300)
     throw gasError
@@ -282,6 +319,7 @@ export async function fetchWithRetry(
 
 // Tránh hiển thị Toast thông báo lỗi cho các tác vụ lấy dữ liệu chạy nền hoặc AI
 function showErrorToastIfNeeded(action: string, message: string, ui: any) {
+  if (!ui) return // Pinia not initialized yet, skip toast
   const silentActions = [
     'getConfig', 'getHistory', 'logAiCorrection', 'callAiService',
     'writeAuditLog', 'getSystemConfigAuditLogs', 'getAiRuntimeConfig'

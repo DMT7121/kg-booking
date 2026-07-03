@@ -3,24 +3,41 @@ import * as outbox from '../outbox'
 import { triggerSync } from '../outboxSync'
 import { PostgresOrderRepository } from '../../postgres/postgresRepository'
 
-// Mock idb-keyval
-const mockDb = new Map<string, any>()
-vi.mock('idb-keyval', () => ({
-  get: vi.fn(async (key: string) => mockDb.get(key)),
-  set: vi.fn(async (key: string, val: any) => { mockDb.set(key, val) }),
-  del: vi.fn(async (key: string) => { mockDb.delete(key) })
-}))
+// Mock idb-keyval using a lazy global map to avoid hoisting/initialization race conditions
+vi.mock('idb-keyval', () => {
+  if (!(globalThis as any).__mockDb) {
+    (globalThis as any).__mockDb = new Map<string, any>()
+  }
+  return {
+    get: vi.fn(async (key: string) => (globalThis as any).__mockDb.get(key)),
+    set: vi.fn(async (key: string, val: any) => { (globalThis as any).__mockDb.set(key, val) }),
+    del: vi.fn(async (key: string) => { (globalThis as any).__mockDb.delete(key) })
+  }
+})
+
+// Retrieve the database map reference safely for test assertions/clearing
+const getMockDb = () => {
+  if (!(globalThis as any).__mockDb) {
+    (globalThis as any).__mockDb = new Map<string, any>()
+  }
+  return (globalThis as any).__mockDb
+}
 
 // Mock fetch for Sheets background sync trigger
 const originalFetch = global.fetch
-const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: () => Promise.resolve({ ok: true }) })
+const fetchMock = vi.fn().mockResolvedValue({
+  ok: true,
+  status: 200,
+  text: () => Promise.resolve('ok'),
+  json: () => Promise.resolve({ ok: true })
+})
 
 describe('Outbox and OutboxSync Integration Tests', () => {
   let saveSpy: any
   let deleteSpy: any
 
   beforeEach(() => {
-    mockDb.clear()
+    getMockDb().clear()
     vi.clearAllMocks()
     global.fetch = fetchMock
     
@@ -29,7 +46,9 @@ describe('Outbox and OutboxSync Integration Tests', () => {
     deleteSpy = vi.spyOn(PostgresOrderRepository.prototype, 'deleteOrder').mockResolvedValue({ ok: true })
   })
 
-  afterEach(() => {
+  afterEach(async () => {
+    // Wait for any pending background fetches to complete before restoring original fetch
+    await new Promise(resolve => setTimeout(resolve, 10))
     global.fetch = originalFetch
     saveSpy.mockRestore()
     deleteSpy.mockRestore()
@@ -134,5 +153,33 @@ describe('Outbox and OutboxSync Integration Tests', () => {
 
     // Idempotency key must be stable across multiple writes of the same record/version
     expect(idempKey1).toBe(idempKey2)
+  })
+
+  it('should skip conflict items and continue syncing subsequent non-conflict items in queue', async () => {
+    // Mock saveOrder to fail with conflict for order-c1, but succeed for order-c2
+    saveSpy.mockImplementation(async (payload: any) => {
+      if (payload.id === 'order-c1') {
+        return { ok: false, message: 'Conflict detected: table_time_overlap' }
+      }
+      return { ok: true }
+    })
+
+    await outbox.addToOutbox('order-c1', 'upsert', { id: 'order-c1', note: 'Conflicted' })
+    await outbox.addToOutbox('order-c2', 'upsert', { id: 'order-c2', note: 'Normal' })
+
+    // Trigger sync
+    await triggerSync()
+
+    // order-c1 should remain unsynced with attempts=1 and lastError='Conflict detected: table_time_overlap'
+    const rawItems = await outbox.getOutboxRawItems()
+    const c1 = rawItems.find(item => item.id === 'order-c1')
+    const c2 = rawItems.find(item => item.id === 'order-c2')
+
+    expect(c1?.synced).toBe(false)
+    expect(c1?.attempts).toBe(1)
+    expect(c1?.lastError).toContain('Conflict detected')
+
+    // order-c2 should be successfully synced
+    expect(c2?.synced).toBe(true)
   })
 })

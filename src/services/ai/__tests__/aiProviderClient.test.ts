@@ -5,7 +5,9 @@ import * as api from '@/services/api'
 vi.mock('@/services/api', () => ({
   callAiProxy: vi.fn(),
   createAIAbortController: vi.fn(),
-  clearAIAbortController: vi.fn()
+  clearAIAbortController: vi.fn(),
+  getSharedApiKeysWithoutPassword: vi.fn().mockResolvedValue({ ok: true, keys: [] }),
+  getAiRuntimeConfig: vi.fn().mockResolvedValue({ ok: true, keysStatus: {} })
 }))
 
 describe('aiProviderClient - Server Fallback Gateway Tests', () => {

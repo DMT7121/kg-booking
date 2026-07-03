@@ -64,7 +64,12 @@ export const cleanPhoneNumber = (p: string): string => {
 }
 
 /** Resize image to max width, returns base64 data URL */
-export const resizeImage = (base64Str: string, maxWidth = 1024): Promise<string> => {
+export const resizeImage = (
+  base64Str: string,
+  maxWidth = 1024,
+  quality = 0.8,
+  format = 'image/jpeg'
+): Promise<string> => {
   return new Promise((resolve) => {
     const img = new Image()
     img.src = base64Str
@@ -79,8 +84,13 @@ export const resizeImage = (base64Str: string, maxWidth = 1024): Promise<string>
       canvas.width = width
       canvas.height = height
       const ctx = canvas.getContext('2d')!
+      
+      // Enable high-quality smoothing for sharp text rendering
+      ctx.imageSmoothingEnabled = true
+      ctx.imageSmoothingQuality = 'high'
+      
       ctx.drawImage(img, 0, 0, width, height)
-      resolve(canvas.toDataURL('image/jpeg', 0.8))
+      resolve(canvas.toDataURL(format, quality))
     }
   })
 }

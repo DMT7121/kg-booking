@@ -101,143 +101,114 @@ function _createBillRender() {
       formStore.version = (formStore.version || 1) + 1
     }
 
+    const dynamicFileName = constructFileName()
+    const isSaveOnly = formStore.saveType === 'save'
+    let highResBase64 = ""
+
     try {
-      if (typeof html2canvas === 'undefined') {
-        await loadLibrary('https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js')
-      }
-      await document.fonts.ready
+      if (!isSaveOnly) {
+        if (typeof html2canvas === 'undefined') {
+          await loadLibrary('https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js')
+        }
+        await document.fonts.ready
 
-      const currentScrollX = window.scrollX
-      const currentScrollY = window.scrollY
-      window.scrollTo(0, 0)
+        const currentScrollX = window.scrollX
+        const currentScrollY = window.scrollY
+        window.scrollTo(0, 0)
 
-      const originalElement = document.getElementById('bill-render')
-      if (!originalElement) throw new Error('Không tìm thấy phiếu đặt. Vui lòng thử lại.')
+        const originalElement = document.getElementById('bill-render')
+        if (!originalElement) throw new Error('Không tìm thấy phiếu đặt. Vui lòng thử lại.')
 
-      // ALWAYS clone bill to avoid any scroll offset, transform clipping, or hidden state issues
-      const container = document.createElement('div')
-      container.id = 'sandbox-container'
-      // FIX iOS SAFARI BUG: Do not use left:-9999px. Use opacity:0.01 instead to force WebKit rendering
-      container.style.cssText = 'position:fixed;top:0;left:0;width:800px;z-index:-9999;visibility:visible;opacity:0.01;pointer-events:none;'
-      const clone = originalElement.cloneNode(true) as HTMLElement
-      clone.id = 'bill-render' // Keep ID so all #bill-render CSS rules apply to the clone
-      clone.style.cssText = 'position:static !important;transform:none !important;margin:0;width:800px;min-height:100px;left:auto !important;top:auto !important;'
-      
-      const originalId = originalElement.id
-      originalElement.id = 'bill-render-original' // Temporarily rename original to avoid ID collision
+        // ALWAYS clone bill to avoid any scroll offset, transform clipping, or hidden state issues
+        const container = document.createElement('div')
+        container.id = 'sandbox-container'
+        // FIX iOS SAFARI BUG: Do not use left:-9999px. Use opacity:0.01 instead to force WebKit rendering
+        container.style.cssText = 'position:fixed;top:0;left:0;width:800px;z-index:-9999;visibility:visible;opacity:0.01;pointer-events:none;'
+        const clone = originalElement.cloneNode(true) as HTMLElement
+        clone.id = 'bill-render' // Keep ID so all #bill-render CSS rules apply to the clone
+        clone.style.cssText = 'position:static !important;transform:none !important;margin:0;width:800px;min-height:100px;left:auto !important;top:auto !important;'
+        
+        const originalId = originalElement.id
+        originalElement.id = 'bill-render-original' // Temporarily rename original to avoid ID collision
 
-      container.appendChild(clone)
-      document.body.appendChild(container)
-      const elementToRender = clone
-      
-      // Wait for fonts, images, and layout to settle
-      await new Promise(r => setTimeout(r, isIOS ? 150 : 50))
+        container.appendChild(clone)
+        document.body.appendChild(container)
+        const elementToRender = clone
+        
+        // Wait for fonts, images, and layout to settle
+        await new Promise(r => setTimeout(r, isIOS ? 150 : 50))
 
-      // Inline all images to avoid CORS/taint issues which crash the render on PC
-      try {
-        const imgs = Array.from(elementToRender.querySelectorAll('img'))
-        await Promise.all(imgs.map(async (img) => {
-          if (!img.src || img.src.startsWith('data:')) return
-          try {
-            const r = await fetch(img.src)
-            const blob = await r.blob()
-            const base64 = await new Promise<string>((res) => {
-              const reader = new FileReader()
-              reader.onloadend = () => res(reader.result as string)
-              reader.readAsDataURL(blob)
-            })
-            img.src = base64
-          } catch (e) { img.style.display = 'none' } // Hide if CORS blocked
-        }))
-      } catch (e) {}
+        // Inline all images to avoid CORS/taint issues which crash the render on PC
+        try {
+          const imgs = Array.from(elementToRender.querySelectorAll('img'))
+          await Promise.all(imgs.map(async (img) => {
+            if (!img.src || img.src.startsWith('data:')) return
+            try {
+              const r = await fetch(img.src)
+              const blob = await r.blob()
+              const base64 = await new Promise<string>((res) => {
+                const reader = new FileReader()
+                reader.onloadend = () => res(reader.result as string)
+                reader.readAsDataURL(blob)
+              })
+              img.src = base64
+            } catch (e) { img.style.display = 'none' } // Hide if CORS blocked
+          }))
+        } catch (e) {}
 
-      let canvas: HTMLCanvasElement | null = null
+        let canvas: HTMLCanvasElement | null = null
 
-      // Wait for rendering pipeline
-      await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)))
+        // Wait for rendering pipeline
+        await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)))
 
-      // Render fixed high-quality scale directly (siêu nhanh)
-      try {
-        canvas = await html2canvas(elementToRender, {
-          scale: 2, useCORS: true, logging: false,
-          backgroundColor: '#ffffff', width: 800, windowWidth: 800,
-          ignoreElements: (el: Element) => el.classList.contains('no-print') || (el as HTMLElement).style?.display === 'none'
-        })
-      } catch (e) {
-        console.error('H2C Error', e)
-        canvas = null
-      }
+        // Render fixed high-quality scale directly (siêu nhanh)
+        try {
+          canvas = await html2canvas(elementToRender, {
+            scale: 2, useCORS: true, logging: false,
+            backgroundColor: '#ffffff', width: 800, windowWidth: 800,
+            ignoreElements: (el: Element) => el.classList.contains('no-print') || (el as HTMLElement).style?.display === 'none'
+          })
+        } catch (e) {
+          console.error('H2C Error', e)
+          canvas = null
+        }
 
-      if (container) document.body.removeChild(container)
-      originalElement.id = originalId // restore original ID
-      window.scrollTo(currentScrollX, currentScrollY)
+        if (container) document.body.removeChild(container)
+        originalElement.id = originalId // restore original ID
+        window.scrollTo(currentScrollX, currentScrollY)
 
-      if (!canvas) throw new Error('Render ảnh thất bại. Vui lòng chuyển sang tab Bill rồi thử lại.')
+        if (!canvas) throw new Error('Render ảnh thất bại. Vui lòng chuyển sang tab Bill rồi thử lại.')
 
-      const highResBase64 = canvas.toDataURL('image/jpeg', 0.85)
+        highResBase64 = canvas.toDataURL('image/jpeg', 0.85)
 
-      if (highResBase64.length < 500) throw new Error('Render ảnh thất bại (File quá nhỏ). Vui lòng thử lại.')
-
-      const dynamicFileName = constructFileName()
-
-      uiStore.loading.subMsg = 'Optimizing Payload...'
-      const lowResBase64 = await resizeImage(highResBase64, 800)
-
-      uiStore.loading.subMsg = 'Uploading Images...'
-
-      // Smart upload bill image: R2 first, fallback to base64 for GAS
-      const billUpload = await smartUploadImage(
-        lowResBase64,
-        `${dynamicFileName}.jpg`,
-        formStore.id || undefined
-      )
-
-      // Smart upload transfer image if exists
-      let transferUpload: { url: string; source: 'r2' | 'base64'; key?: string } = { url: formStore.deposit.image || '', source: 'base64' }
-      if (formStore.deposit.image && formStore.deposit.image.includes('base64')) {
-        transferUpload = await smartUploadImage(
-          formStore.deposit.image,
-          `CK_${formStore.customer.name}_${Date.now()}.jpg`,
-          formStore.id || undefined
-        )
+        if (highResBase64.length < 500) throw new Error('Render ảnh thất bại (File quá nhỏ). Vui lòng thử lại.')
       }
 
-      // Cache bill image locally for offline preview
-      cacheBillImage(formStore.id || '', lowResBase64)
+      // Capture all formStore state locally before releasing UI / running background sync
+      const orderId = formStore.id || generateBookingId()
+      const orderVersion = formStore.version || 1
+      const customer = JSON.parse(JSON.stringify(formStore.customer))
+      const items = JSON.parse(JSON.stringify(formStore.items))
+      const depositAmount = formStore.deposit.amount
+      const depositIsPaid = formStore.deposit.isPaid
+      const depositImage = formStore.deposit.image || ''
+      const depositInfo = JSON.parse(JSON.stringify(formStore.deposit))
+      const staff = JSON.parse(JSON.stringify(formStore.staff))
+      const calculatedTotalsFinal = formStore.calculatedTotals.final
+      const oldBillFileId = formStore.oldBillFileId
+      const activeSheet = appStore.activeSheet
+      const aiEngine = formStore.aiMetadata ? formStore.aiMetadata.model_used : ''
+      const saveType = formStore.saveType
 
-      uiStore.loading.subMsg = 'Building Payload...'
-
-      const metadata = {
-        customerName: formStore.customer.name,
-        customerPhone: formStore.customer.phone,
-        customerTable: formStore.customer.tables,
-        bookingDate: formStore.customer.date,
-        totalAmount: formStore.calculatedTotals.final,
-        itemsCount: formStore.items.length,
-        isDeposited: formStore.deposit.isPaid,
-        staff: formStore.staff.name,
-        aiEngine: formStore.aiMetadata ? formStore.aiMetadata.model_used : '',
-        timestamp: new Date().toISOString()
-      }
-
-      const payload: any = {
-        customer: formStore.customer,
-        items: formStore.items,
-        deposit: { ...formStore.deposit, image: transferUpload.url },
-        staff: formStore.staff,
-        id: formStore.id || generateBookingId(),
-        version: formStore.version || 1,
-        total: formStore.calculatedTotals.final,
-        billImage: billUpload.source === 'r2' ? billUpload.url : lowResBase64,
-        customFileName: dynamicFileName,
-        oldBillFileId: formStore.oldBillFileId,
-        smartIndex: metadata,
-        renderPdf: formStore.saveType === 'pdf',
-        imageSource: billUpload.source,
-        activeMenuSheet: appStore.activeSheet
-      }
-
-      if (formStore.saveType === 'pdf') {
+      // ══════════════════════════════════════════════════════════════
+      //  INSTANT ACTION: Save image/PDF/Print immediately (don't wait for cloud)
+      // ══════════════════════════════════════════════════════════════
+      if (saveType === 'image' || saveType === 'copy') {
+        // Release UI immediately — user gets their file NOW
+        uiStore.loading.is = false
+        await universalSaveImage(highResBase64, `${dynamicFileName}.jpg`)
+        uiStore.showToast('✅ Xuất ảnh tức thì!', 'success')
+      } else if (saveType === 'pdf') {
         uiStore.loading.subMsg = 'Generating PDF...'
         if (typeof (window as any).jspdf === 'undefined') {
           await loadLibrary('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js')
@@ -250,32 +221,27 @@ function _createBillRender() {
         doc.addImage(highResBase64, 'JPEG', 0, 0, pdfWidth, pdfHeight)
         doc.save(`${dynamicFileName}.pdf`)
         uiStore.showToast('Xuất PDF tức thì thành công!', 'success')
-      }
-
-      // ══════════════════════════════════════════════════════════════
-      //  INSTANT ACTION: Save image/PDF immediately (don't wait for cloud)
-      // ══════════════════════════════════════════════════════════════
-      if (formStore.saveType === 'image' || formStore.saveType === 'copy') {
-        // Release UI immediately — user gets their file NOW
         uiStore.loading.is = false
-        await universalSaveImage(highResBase64, `${dynamicFileName}.jpg`)
-        uiStore.showToast('✅ Xuất ảnh tức thì!', 'success')
-      } else if (formStore.saveType === 'pdf') {
-        // PDF already saved above, just release UI
-        uiStore.loading.is = false
-      } else if (formStore.saveType === 'print') {
+      } else if (saveType === 'print') {
         uiStore.loading.is = false
         setTimeout(() => { window.print() }, 300)
-      } else if (formStore.saveType === 'save') {
-        // For "save only", show brief loading then release
-        uiStore.loading.subMsg = 'Đang gửi...'
+      } else if (saveType === 'save') {
+        // For "save only", show brief loading then release immediately (Optimistic UI)
+        uiStore.loading.is = false
+        uiStore.tab = 'history'
+        uiStore.showToast('💾 Đang lưu ngầm lên Google Sheets...', 'info', 3000)
       }
+
+      // Reset form changed state immediately since we are syncing optimistically
+      formStore.originalState = formStore.getDataSnapshot()
+      formStore.oldBillFileId = null
+      formStore.aiMetadata = null
 
       // ══════════════════════════════════════════════════════════════
       //  BACKGROUND SYNC: Cloud save runs silently after UI is free
       // ══════════════════════════════════════════════════════════════
-      const needsSync = isNewOrder || hasChanges || formStore.saveType === 'save'
-      console.log('[useBillRender] needsSync:', needsSync, { isNewOrder, hasChanges, saveType: formStore.saveType })
+      const needsSync = isNewOrder || hasChanges || saveType === 'save'
+      console.log('[useBillRender] needsSync:', needsSync, { isNewOrder, hasChanges, saveType })
 
       if (needsSync) {
         console.log('[useBillRender] Starting background sync...')
@@ -283,126 +249,205 @@ function _createBillRender() {
         checkAndLogAiCorrections()
 
         const optimisticOrder = {
-          id: payload.id,
-          version: payload.version,
+          id: orderId,
+          version: orderVersion,
           timestamp: new Date().toISOString(),
           parsedCustomer: {
-            name: payload.customer.name,
-            phone: payload.customer.phone,
-            date: payload.customer.date,
-            time: payload.customer.time || '',
-            pax: String(payload.customer.pax || ''),
-            tables: payload.customer.tables || '',
-            type: payload.customer.type || 'Ăn thường',
-            note: payload.customer.note || ''
+            name: customer.name,
+            phone: customer.phone,
+            date: customer.date,
+            time: customer.time || '',
+            pax: String(customer.pax || ''),
+            tables: customer.tables || '',
+            type: customer.type || 'Ăn thường',
+            note: customer.note || ''
           },
-          menuItems: payload.items,
-          totalAmount: payload.total,
-          depositAmount: payload.deposit.amount || 0,
-          isDeposited: payload.deposit.isPaid,
-          transferImage: payload.deposit.image || '',
-          staff: payload.staff,
+          menuItems: items,
+          totalAmount: calculatedTotalsFinal,
+          depositAmount: depositAmount || 0,
+          isDeposited: depositIsPaid,
+          transferImage: depositImage,
+          staff: staff,
           isSyncing: true
         }
 
-        if (!navigator.onLine) {
-          uiStore.connectionStatus = 'error'
-          uiStore.showToast('⚠️ Lưu cục bộ OK — Thiết bị ngoại tuyến', 'warning', 5000)
-          await addToOfflineQueue('saveOrder', payload)
-          appStore.updateOfflineQueueCount()
-          
-          // Save optimistically too!
-          appStore.setOptimisticOrder({ ...optimisticOrder, isSyncing: false })
-          
-          formStore.originalState = formStore.getDataSnapshot()
-          appStore.loadHistory(true)
-          if (formStore.saveType === 'save') {
-            uiStore.tab = 'history'
-            uiStore.loading.is = false
-          }
-        } else {
-          // Mark syncing indicator (non-blocking) and save optimistic order
-          uiStore.connectionStatus = 'syncing'
-          appStore.setOptimisticOrder(optimisticOrder)
+        // Save optimistic order locally
+        appStore.setOptimisticOrder(optimisticOrder)
 
-          // Fire-and-forget cloud sync
-          const syncPromise = appStore.saveOrder(payload)
-            .then(async (result: any) => {
-              if (result?.ok) {
-                formStore.originalState = formStore.getDataSnapshot()
-                uiStore.connectionStatus = 'online'
-                formStore.oldBillFileId = null
-                formStore.aiMetadata = null
+        // Fire-and-forget background task
+        const runBackgroundSync = async () => {
+          try {
+            let billUploadUrl = ""
+            let billUploadSource = "base64"
+            let lowResBase64 = ""
 
-                // Mark synced in local store
-                appStore.markOrderSynced(payload.id, result.data || {})
-
-                // Display detailed calendar sync status to user
-                let calendarMsg = ''
-                let calendarType: 'success' | 'warning' | 'info' = 'success'
-                if (result.calendarSync) {
-                  const status = result.calendarSync.status
-                  const msg = result.calendarSync.message
-                  if (status === 'SUCCESS') {
-                    calendarMsg = '📅 Đã tự động cập nhật sơ đồ lịch bàn.'
-                    calendarType = 'success'
-                  } else if (status === 'MOVED_DATE') {
-                    calendarMsg = '📅 Khách đổi ngày - Đã thu hồi ô cũ và xếp sang ngày mới.'
-                    calendarType = 'success'
-                  } else if (status === 'MOVED_TABLE') {
-                    calendarMsg = '📅 Khách đổi bàn - Đã thu hồi bàn cũ và xếp sang bàn mới.'
-                    calendarType = 'success'
-                  } else if (status === 'CONFLICT') {
-                    calendarMsg = '⚠️ Xung đột vị trí - Bàn đã bị trùng với tiệc khác cùng khung giờ.'
-                    calendarType = 'warning'
-                  } else if (status === 'NO_SLOT') {
-                    calendarMsg = '⚠️ Hết chỗ trống hoặc không tìm thấy ngày trong sơ đồ lịch.'
-                    calendarType = 'warning'
-                  } else if (status === 'FAILED' || status === 'ERROR') {
-                    calendarMsg = `❌ Lỗi đồng bộ lịch: ${msg || 'Không rõ nguyên nhân'}`
-                    calendarType = 'warning'
-                  }
-                }
-
-                if (calendarMsg) {
-                  uiStore.showToast(calendarMsg, calendarType, 5000)
-                } else if (result.syncResult && !result.syncResult.ok) {
-                  uiStore.showToast(result.syncResult.msg, 'warning')
-                } else {
-                  // Only show sync toast if user hasn't navigated away
-                  const syncMsg = formStore.saveType === 'save'
-                    ? '☁️ Đồng bộ Cloud hoàn tất!'
-                    : '☁️ Đã đồng bộ ngầm thành công'
-                  uiStore.showToast(syncMsg, 'success', 2000)
-                }
-
-                // Refresh history in background
-                appStore.loadHistory(true)
-                if (formStore.saveType === 'save') uiStore.tab = 'history'
-              } else {
-                throw new Error(result?.message || 'Sync failed')
-              }
-            })
-            .catch(async (err: any) => {
-              console.error('[BG Sync] Failed:', err.message)
-              uiStore.connectionStatus = 'error'
-              uiStore.showToast('⚠️ Lưu cục bộ OK — Chờ mạng để đồng bộ', 'warning', 5000)
+            // 1. Process bill image optimization & upload in background
+            if (!isSaveOnly && highResBase64) {
+              // Resize to 1600px width with 0.92 quality WebP to ensure maximum text sharpness and fast upload
+              lowResBase64 = await resizeImage(highResBase64, 1600, 0.92, 'image/webp')
               
-              // Mark failed/not syncing locally
-              appStore.markOrderFailed(payload.id)
+              // Smart upload bill image
+              const billUpload = await smartUploadImage(
+                lowResBase64,
+                `${dynamicFileName}.webp`,
+                orderId
+              )
+              billUploadUrl = billUpload.url
+              billUploadSource = billUpload.source
 
-              // Add to offline queue for later sync
-              await addToOfflineQueue('saveOrder', payload)
-              appStore.updateOfflineQueueCount()
-            })
+              // Cache bill image locally for offline preview
+              cacheBillImage(orderId, lowResBase64)
+            }
 
-          // If save-only mode, switch tab immediately (Optimistic UI) and run sync in background
-          if (formStore.saveType === 'save') {
-            uiStore.loading.is = false
-            uiStore.tab = 'history'
-            uiStore.showToast('💾 Đang lưu ngầm lên Google Sheets...', 'info', 3000)
+            // 2. Process receipt upload in background (if it is base64)
+            let uploadedReceiptUrl = depositImage
+            if (depositImage && depositImage.includes('base64')) {
+              const receiptUpload = await smartUploadImage(
+                depositImage,
+                `CK_${customer.name}_${Date.now()}.jpg`,
+                orderId
+              )
+              uploadedReceiptUrl = receiptUpload.url
+            }
+
+            // 3. Build payload with updated URLs
+            const metadata = {
+              customerName: customer.name,
+              customerPhone: customer.phone,
+              customerTable: customer.tables,
+              bookingDate: customer.date,
+              totalAmount: calculatedTotalsFinal,
+              itemsCount: items.length,
+              isDeposited: depositIsPaid,
+              staff: staff.name,
+              aiEngine: aiEngine,
+              timestamp: new Date().toISOString()
+            }
+
+            const payload: any = {
+              customer: customer,
+              items: items,
+              deposit: { ...depositInfo, image: uploadedReceiptUrl },
+              staff: staff,
+              id: orderId,
+              version: orderVersion,
+              total: calculatedTotalsFinal,
+              billImage: billUploadSource === 'r2' ? billUploadUrl : (isSaveOnly ? '' : lowResBase64),
+              customFileName: dynamicFileName,
+              oldBillFileId: oldBillFileId,
+              smartIndex: metadata,
+              renderPdf: saveType === 'pdf',
+              imageSource: billUploadSource,
+              activeMenuSheet: activeSheet
+            }
+
+            // Update optimistic order with uploaded transferImage URL
+            if (uploadedReceiptUrl !== depositImage) {
+              optimisticOrder.transferImage = uploadedReceiptUrl
+              appStore.setOptimisticOrder(optimisticOrder)
+            }
+
+            if (!navigator.onLine) {
+              throw new Error('Device offline')
+            }
+
+            uiStore.connectionStatus = 'syncing'
+            const result = await appStore.saveOrder(payload)
+
+            if (result?.ok) {
+              uiStore.connectionStatus = 'online'
+              // Mark synced in local store
+              appStore.markOrderSynced(orderId, result.data || {})
+
+              // Display detailed calendar sync status to user
+              let calendarMsg = ''
+              let calendarType: 'success' | 'warning' | 'info' = 'success'
+              if (result.calendarSync) {
+                const status = result.calendarSync.status
+                const msg = result.calendarSync.message
+                if (status === 'SUCCESS') {
+                  calendarMsg = '📅 Đã tự động cập nhật sơ đồ lịch bàn.'
+                  calendarType = 'success'
+                } else if (status === 'MOVED_DATE') {
+                  calendarMsg = '📅 Khách đổi ngày - Đã thu hồi ô cũ và xếp sang ngày mới.'
+                  calendarType = 'success'
+                } else if (status === 'MOVED_TABLE') {
+                  calendarMsg = '📅 Khách đổi bàn - Đã thu hồi bàn cũ và xếp sang bàn mới.'
+                  calendarType = 'success'
+                } else if (status === 'CONFLICT') {
+                  calendarMsg = '⚠️ Xung đột vị trí - Bàn đã bị trùng với tiệc khác cùng khung giờ.'
+                  calendarType = 'warning'
+                } else if (status === 'NO_SLOT') {
+                  calendarMsg = '⚠️ Hết chỗ trống hoặc không tìm thấy ngày trong sơ đồ lịch.'
+                  calendarType = 'warning'
+                } else if (status === 'FAILED' || status === 'ERROR') {
+                  calendarMsg = `❌ Lỗi đồng bộ lịch: ${msg || 'Không rõ nguyên nhân'}`
+                  calendarType = 'warning'
+                }
+              }
+
+              if (calendarMsg) {
+                uiStore.showToast(calendarMsg, calendarType, 5000)
+              } else {
+                const syncMsg = saveType === 'save'
+                  ? '☁️ Đồng bộ Cloud hoàn tất!'
+                  : '☁️ Đã đồng bộ ngầm thành công'
+                uiStore.showToast(syncMsg, 'success', 2000)
+              }
+
+              // Refresh history in background
+              appStore.loadHistory(true)
+            } else {
+              throw new Error(result?.message || 'Sync failed')
+            }
+          } catch (err: any) {
+            console.error('[BG Sync] Failed:', err.message)
+            uiStore.connectionStatus = 'error'
+            uiStore.showToast('⚠️ Lưu cục bộ OK — Chờ mạng để đồng bộ', 'warning', 5000)
+            
+            // Mark failed/not syncing locally
+            appStore.markOrderFailed(orderId)
+
+            // Fallback: Rebuild payload with offline parameters
+            const lowRes = isSaveOnly ? '' : (highResBase64 ? await resizeImage(highResBase64, 1600, 0.92, 'image/webp') : '')
+            const offlinePayload = {
+              customer: customer,
+              items: items,
+              deposit: { ...depositInfo, image: depositImage },
+              staff: staff,
+              id: orderId,
+              version: orderVersion,
+              total: calculatedTotalsFinal,
+              billImage: lowRes,
+              customFileName: dynamicFileName,
+              oldBillFileId: oldBillFileId,
+              smartIndex: {
+                customerName: customer.name,
+                customerPhone: customer.phone,
+                customerTable: customer.tables,
+                bookingDate: customer.date,
+                totalAmount: calculatedTotalsFinal,
+                itemsCount: items.length,
+                isDeposited: depositIsPaid,
+                staff: staff.name,
+                aiEngine: aiEngine,
+                timestamp: new Date().toISOString()
+              },
+              renderPdf: saveType === 'pdf',
+              imageSource: 'base64',
+              activeMenuSheet: activeSheet
+            }
+
+            // Add to offline queue for later sync
+            await addToOfflineQueue('saveOrder', offlinePayload)
+            appStore.updateOfflineQueueCount()
+            
+            // Reload history to reflect offline state
+            appStore.loadHistory(true)
           }
         }
+
+        runBackgroundSync()
       } else {
         uiStore.connectionStatus = 'online'
       }

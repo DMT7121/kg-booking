@@ -25,52 +25,38 @@ export async function uploadToR2(
     const appStore = useAppStore()
     const token = appStore.adminToken
 
-    // 1. Get presigned upload URL
-    const presignRes = await fetch(`${R2_URL}/api/images/presign`, {
+    let contentType = 'image/jpeg'
+    if (base64Data.startsWith('data:')) {
+      contentType = base64Data.split(',')[0].split(':')[1]?.split(';')[0] || 'image/jpeg'
+    }
+
+    const response = await fetch(`${R2_URL}/upload`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         ...(token ? { 'Authorization': `Bearer ${token}` } : {})
       },
-      body: JSON.stringify({ filename, type: 'image/jpeg', orderId })
+      body: JSON.stringify({
+        data: base64Data,
+        filename,
+        type: contentType,
+        orderId
+      })
     })
 
-    if (!presignRes.ok) {
-      throw new Error(`Failed to get presigned URL: HTTP ${presignRes.status}`)
+    if (!response.ok) {
+      throw new Error(`Upload failed: HTTP ${response.status}`)
     }
 
-    const { url, method, key } = await presignRes.json()
-
-    // Convert base64 to binary blob
-    let binaryData: Blob
-    if (base64Data.startsWith('data:')) {
-      const res = await fetch(base64Data)
-      binaryData = await res.blob()
-    } else {
-      const binaryString = atob(base64Data)
-      const len = binaryString.length
-      const bytes = new Uint8Array(len)
-      for (let i = 0; i < len; i++) {
-        bytes[i] = binaryString.charCodeAt(i)
-      }
-      binaryData = new Blob([bytes], { type: 'image/jpeg' })
-    }
-
-    // 2. Put binary data to presigned upload URL
-    const uploadRes = await fetch(url, {
-      method: method || 'PUT',
-      headers: { 'Content-Type': 'image/jpeg' },
-      body: binaryData
-    })
-
-    if (!uploadRes.ok) {
-      throw new Error(`Upload failed: HTTP ${uploadRes.status}`)
+    const result = await response.json()
+    if (!result.ok) {
+      throw new Error(result.message || 'Upload failed')
     }
 
     return {
       ok: true,
-      url: `${R2_URL}/image/${key}`,
-      key
+      url: result.url,
+      key: result.key
     }
   } catch (e: any) {
     console.warn('[R2] Upload failed, will fallback to GAS:', e.message)

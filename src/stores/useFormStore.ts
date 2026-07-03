@@ -71,6 +71,7 @@ export const useFormStore = defineStore('form', () => {
   const unresolvedItems = ref<string[]>([])
   const originalAiValues = ref<any>(null)
   const parsedAiResult = ref<any>(null)
+  const billUrl = ref<string>('')
 
   // --- Tax ---
   const taxEnabled = ref(false)
@@ -104,6 +105,7 @@ export const useFormStore = defineStore('form', () => {
         if (parsed.taxEnabled !== undefined) taxEnabled.value = parsed.taxEnabled
         if (parsed.billMode) billMode.value = parsed.billMode
         if (parsed.saveType) saveType.value = parsed.saveType
+        if (parsed.billUrl) billUrl.value = parsed.billUrl
       }
     } catch (e) {
       console.warn('Failed to load draft:', e)
@@ -129,7 +131,8 @@ export const useFormStore = defineStore('form', () => {
         originalAiValues: originalAiValues.value,
         taxEnabled: taxEnabled.value,
         billMode: billMode.value,
-        saveType: saveType.value
+        saveType: saveType.value,
+        billUrl: billUrl.value
       }
       localStorage.setItem('kg_booking_draft', JSON.stringify(draft))
     } catch (e) {
@@ -142,7 +145,7 @@ export const useFormStore = defineStore('form', () => {
   }
 
   // Watch state changes to auto-save draft
-  watch([id, version, originalState, customer, items, deposit, staff, rawInput, aiImage, oldBillFileId, aiMetadata, warnings, unresolvedItems, originalAiValues, taxEnabled, billMode, saveType], () => {
+  watch([id, version, originalState, customer, items, deposit, staff, rawInput, aiImage, oldBillFileId, aiMetadata, warnings, unresolvedItems, originalAiValues, taxEnabled, billMode, saveType, billUrl], () => {
     saveDraft()
   }, { deep: true })
 
@@ -210,6 +213,7 @@ export const useFormStore = defineStore('form', () => {
     unresolvedItems.value = []
     originalAiValues.value = null
     parsedAiResult.value = null
+    billUrl.value = ''
     clearDraft()
   }
 
@@ -217,7 +221,7 @@ export const useFormStore = defineStore('form', () => {
     id, version, originalState,
     customer, items, deposit, staff,
     rawInput, aiImage, oldBillFileId, aiMetadata, warnings, unresolvedItems, originalAiValues, parsedAiResult,
-    taxEnabled, billMode, saveType,
+    taxEnabled, billMode, saveType, billUrl,
     calculatedTotals, filteredBillItems, previewTitle,
     getDataSnapshot, $reset
   }

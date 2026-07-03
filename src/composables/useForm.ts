@@ -206,6 +206,7 @@ function _createForm() {
     formStore.deposit.isPaid = o.isDeposited
     formStore.deposit.image = o.transferImage || (o.deposit && o.deposit.image) || null
     formStore.oldBillFileId = o.billFileId || null
+    formStore.billUrl = o.billUrl || o.billImage || ''
 
     formStore.id = o.id || generateBookingId()
     formStore.version = o.version || 1

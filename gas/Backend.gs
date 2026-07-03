@@ -1727,7 +1727,7 @@ function sendNotification_(orderData, orderId, billUrl) {
       .replace(/>/g, '&gt;');
   };
 
-  const shareUrl = 'https://kg-booking.pages.dev/#/bill/' + (orderId || '');
+  const shareUrl = getShareUrlWithData_(orderId, orderData);
   const c = orderData.customer || {};
   const fmt = (n) => n ? n.toString().replace(/\B(?=(\d{3})+(?!\d))/g, '.') + 'đ' : '0đ';
   const dep = orderData.deposit || {};

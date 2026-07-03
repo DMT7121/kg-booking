@@ -104,7 +104,7 @@ export async function addToOutbox(id: string, action: 'upsert' | 'delete', paylo
 
 export async function getPendingItems(): Promise<DecryptedOutboxItem[]> {
   const rawItems = await getOutboxRawItems()
-  const pending = rawItems.filter(item => !item.synced)
+  const pending = rawItems.filter(item => !item.synced && !item.lastError?.startsWith('Conflict detected'))
   
   const decrypted: DecryptedOutboxItem[] = []
   if (pending.length === 0) return decrypted

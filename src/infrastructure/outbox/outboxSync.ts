@@ -90,7 +90,12 @@ export async function triggerSync(): Promise<void> {
           }
           let res = { ok: true, message: '' }
           try {
-            res = await pgRepo.saveOrder(payload, token)
+            const rawRes = await pgRepo.saveOrder(payload, token)
+            if (rawRes) {
+              res = rawRes
+            } else {
+              res = { ok: false, message: 'No response from database repository' }
+            }
             if (!res.ok && res.message?.includes('not configured')) {
               console.warn('[Outbox Sync] Supabase not configured (returned), skipping Postgres save.')
               res = { ok: true, message: '' }
@@ -111,7 +116,12 @@ export async function triggerSync(): Promise<void> {
         } else if (item.action === 'delete') {
           let res = { ok: true, message: '' }
           try {
-            res = await pgRepo.deleteOrder(item.id, undefined, token)
+            const rawRes = await pgRepo.deleteOrder(item.id, undefined, token)
+            if (rawRes) {
+              res = rawRes
+            } else {
+              res = { ok: false, message: 'No response from database repository' }
+            }
             if (!res.ok && res.message?.includes('not configured')) {
               console.warn('[Outbox Sync] Supabase not configured (returned), skipping Postgres delete.')
               res = { ok: true, message: '' }
@@ -133,6 +143,11 @@ export async function triggerSync(): Promise<void> {
       } catch (err: any) {
         console.error(`[Outbox Sync] Failed to sync item ${item.id}:`, err.message)
         await outbox.recordAttemptFailure(item.id, item.action, err.message)
+        
+        if (err.message?.startsWith('Conflict detected:')) {
+          pendingItems = await outbox.getPendingItems()
+          continue
+        }
         
         // Halt processing to avoid loop hammering
         break 
@@ -176,24 +191,57 @@ async function triggerSheetsSyncInBackground(item: outbox.DecryptedOutboxItem) {
     }
     
     const gatewayUrl = import.meta.env.VITE_API_URL || '/api'
+    const gasFallbackUrl = import.meta.env.VITE_GAS_URL ||
+      'https://script.google.com/macros/s/AKfycbxzjio4sat5fWoUncPgp8SfjoGqfGxW5vFoDgkHvBI3OKVWIaszsAaUt0LE2fCHtkCFsA/exec'
     const sharedSecret = import.meta.env.VITE_APP_SHARED_SECRET || ''
+    const bodyStr = JSON.stringify(sheetsPayload)
     
     const headers: Record<string, string> = { 'Content-Type': 'application/json' }
     if (sharedSecret) {
       headers['Authorization'] = `Bearer ${sharedSecret}`
     }
     
+    // Try gateway first, fall back to GAS directly if it fails
     fetch(gatewayUrl, {
       method: 'POST',
       headers,
-      body: JSON.stringify(sheetsPayload)
+      body: bodyStr
     })
       .then(async (res) => {
-        const text = await res.text()
-        console.log('[Outbox Sync Sheets] response:', res.status, text.substring(0, 200))
+        if (res.ok) {
+          const text = await res.text()
+          console.log('[Outbox Sync Sheets] Gateway response:', res.status, text.substring(0, 200))
+          return
+        }
+        // Gateway failed (e.g. /api returns 404 on Cloudflare Pages) → fallback to GAS
+        console.warn(`[Outbox Sync Sheets] Gateway returned ${res.status}, falling back to GAS...`)
+        return fetch(gasFallbackUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+          body: bodyStr
+        })
+      })
+      .then(async (res) => {
+        if (res) {
+          const text = await res.text()
+          console.log('[Outbox Sync Sheets] GAS Fallback response:', res.status, text.substring(0, 200))
+        }
       })
       .catch(err => {
-        console.warn('[Outbox Sync] Background Sheets sync trigger error:', err.message)
+        // Network error on gateway → try GAS directly
+        console.warn('[Outbox Sync] Gateway network error, trying GAS directly:', err.message)
+        fetch(gasFallbackUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+          body: bodyStr
+        })
+          .then(async (res) => {
+            const text = await res.text()
+            console.log('[Outbox Sync Sheets] GAS Direct response:', res.status, text.substring(0, 200))
+          })
+          .catch(gasErr => {
+            console.warn('[Outbox Sync] GAS direct also failed:', gasErr.message)
+          })
       })
   } catch (e) {
     // Ignore error, non-blocking
@@ -201,7 +249,7 @@ async function triggerSheetsSyncInBackground(item: outbox.DecryptedOutboxItem) {
 }
 
 // Watch network online event
-if (typeof window !== 'undefined') {
+if (typeof window !== 'undefined' && import.meta.env.MODE !== 'test') {
   window.addEventListener('online', () => {
     triggerSync()
   })

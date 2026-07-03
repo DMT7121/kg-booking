@@ -35,6 +35,7 @@ vi.mock('@/services/api', () => ({
       google: { configured: true, count: 1, maskedList: ['••••••••'] }
     }
   }),
+  getSharedApiKeysWithoutPassword: vi.fn().mockResolvedValue({ ok: true, keys: [] }),
   callAiProxy: vi.fn()
 }))
 

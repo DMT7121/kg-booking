@@ -802,6 +802,8 @@ export const useAppStore = defineStore('app', () => {
       if (result.ok && result.data) {
         uiStore.connectionStatus = 'online'
         processRemoteConfigPayload(result.data)
+      } else {
+        uiStore.connectionStatus = 'error'
       }
     } catch (e) {
       console.warn('Config Sync Failed (Offline Mode)', e)
@@ -1232,7 +1234,18 @@ export const useAppStore = defineStore('app', () => {
     }
   }
 
-  function autoSyncIfReady() {
+  async function autoSyncIfReady() {
+    // Populate history cache early for instant offline access and conflict checking
+    try {
+      const cached = await getCachedHistory()
+      if (cached && cached.length > 0 && historyList.value.length === 0) {
+        historyList.value = cached
+        rebuildBookingTimeIndex(cached)
+      }
+    } catch (e) {
+      console.warn('Failed to pre-hydrate history cache:', e)
+    }
+
     fetchRemoteConfig()
     updateOfflineQueueCount()
     computeMenuFingerprint()
@@ -1518,6 +1531,15 @@ export const useAppStore = defineStore('app', () => {
   window.addEventListener('online', () => {
     uiStore.showToast('Đã có mạng lại, đang đồng bộ dữ liệu...', 'info')
     processOfflineQueue()
+    fetchSheets()
+    fetchMenu()
+    loadHistory(true)
+    fetchRemoteConfig()
+  })
+
+  window.addEventListener('offline', () => {
+    uiStore.showToast('Đã mất kết nối mạng. Ứng dụng hoạt động ở chế độ offline.', 'warning')
+    uiStore.connectionStatus = 'error'
   })
 
   return {

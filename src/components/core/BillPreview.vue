@@ -167,6 +167,17 @@ function shareCurrentBill() {
   }
 }
 
+function copyBillImageUrl() {
+  const url = formStore.billUrl
+  if (!url) {
+    ui.showToast('Chưa có link ảnh online!', 'warning')
+    return
+  }
+  navigator.clipboard.writeText(url).then(() => {
+    ui.showToast('📤 Đã copy link ảnh phiếu đặt!', 'success')
+  }).catch(() => ui.showAlert('Link Ảnh', url))
+}
+
 const showMoreMenu = ref(false)
 
 function openZaloChat() {
@@ -262,6 +273,11 @@ function openZaloChat() {
           <i class="fa-solid fa-link"></i> <span>Copy link</span>
         </button>
 
+        <!-- Copy Image Link -->
+        <button v-if="formStore.billUrl" @click="copyBillImageUrl" class="bg-indigo-50 hover:bg-indigo-100 text-indigo-700 px-3 py-1.5 rounded-xl font-black text-[10px] uppercase flex items-center gap-1 border border-indigo-200 transition-all active:scale-95 shadow-sm">
+          <i class="fa-solid fa-image"></i> <span>Copy Link Ảnh</span>
+        </button>
+
         <!-- Download PNG -->
         <button @click="triggerSave('image')" class="bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-1.5 rounded-xl font-black text-[10px] uppercase flex items-center gap-1 shadow-md transition-all active:scale-95">
           <i class="fa-solid fa-image"></i> <span>PNG</span>
@@ -314,6 +330,9 @@ function openZaloChat() {
             </button>
             <button @click="shareCurrentBill(); showMoreMenu = false" class="w-full px-4 py-2.5 text-left text-xs font-black uppercase tracking-wider hover:bg-slate-50 active:bg-slate-100 flex items-center gap-2">
               <i class="fa-solid fa-link text-slate-400 w-4 text-center text-xs"></i> Chia sẻ link
+            </button>
+            <button v-if="formStore.billUrl" @click="copyBillImageUrl(); showMoreMenu = false" class="w-full px-4 py-2.5 text-left text-xs font-black uppercase tracking-wider hover:bg-slate-50 active:bg-slate-100 flex items-center gap-2 text-indigo-650">
+              <i class="fa-solid fa-image text-indigo-400 w-4 text-center text-xs"></i> Copy Link Ảnh
             </button>
             <button @click="openZaloChat(); showMoreMenu = false" class="w-full px-4 py-2.5 text-left text-xs font-black uppercase tracking-wider hover:bg-slate-50 active:bg-slate-100 flex items-center gap-2">
               <i class="fa-solid fa-comment-dots text-slate-400 w-4 text-center text-xs"></i> Nhắn Zalo

@@ -35,6 +35,12 @@ const activeTab = ref('general') // 'general' | 'ai' | 'offline' | 'faq'
         <i class="fa-solid fa-wand-magic-sparkles mr-1"></i> Trợ lý AI
       </button>
       <button 
+        @click="activeTab = 'bot'" 
+        :class="['flex-1 min-w-[90px] py-3 text-xs font-black uppercase tracking-wider text-center border-b-2 transition-all whitespace-nowrap', activeTab === 'bot' ? 'border-blue-900 text-blue-900 bg-blue-50/20' : 'border-transparent text-slate-400 hover:text-slate-600']"
+      >
+        <i class="fa-brands fa-telegram mr-1 text-[13px]"></i> Bot Telegram
+      </button>
+      <button 
         @click="activeTab = 'offline'" 
         :class="['flex-1 min-w-[90px] py-3 text-xs font-black uppercase tracking-wider text-center border-b-2 transition-all whitespace-nowrap', activeTab === 'offline' ? 'border-blue-900 text-blue-900 bg-blue-50/20' : 'border-transparent text-slate-400 hover:text-slate-600']"
       >
@@ -170,6 +176,87 @@ const activeTab = ref('general') // 'general' | 'ai' | 'offline' | 'faq'
                   <div>
                     <div class="font-bold text-slate-800 text-[12px] flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-blue-500"></span> Chế độ Review (Kiểm duyệt)</div>
                     <p class="text-slate-550 mt-1 leading-relaxed text-[11px] font-semibold">Hiển thị bảng so sánh chi tiết giữa thông tin AI phân tích được và form hiện tại. Bạn có quyền tick chọn chỉ đồng ý cập nhật các trường mong muốn.</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- TAB: Telegram Bot -->
+        <div v-if="activeTab === 'bot'" class="space-y-5">
+          <div class="bg-gradient-to-r from-sky-500 to-blue-600 rounded-3xl p-5 text-white shadow-md shadow-sky-100 relative overflow-hidden">
+            <div class="absolute right-0 bottom-0 opacity-10 translate-y-4 translate-x-4"><i class="fa-brands fa-telegram text-9xl"></i></div>
+            <h3 class="text-lg font-black uppercase tracking-wide mb-1.5 flex items-center gap-2"><i class="fa-brands fa-telegram"></i> Trợ lý Tự Động Telegram</h3>
+            <p class="text-xs text-sky-100 font-medium leading-relaxed font-semibold">Hướng dẫn sử dụng các cú pháp gọi bot, đăng ký luồng xử lý tự động và cập nhật trạng thái phiếu trực tiếp trong group chat.</p>
+          </div>
+
+          <div class="space-y-4">
+            <!-- Calling bot -->
+            <div class="bg-white rounded-3xl p-5 border border-slate-100 shadow-sm space-y-3">
+              <h4 class="font-black text-slate-800 text-sm flex items-center gap-2 border-b border-slate-100 pb-2"><i class="fa-solid fa-terminal text-sky-600"></i> 1. Cú pháp Đặt bàn tự động bằng AI</h4>
+              <p class="text-xs text-slate-600 font-semibold leading-relaxed">
+                Để lên phiếu đặt bàn trực tiếp từ chat nhóm (hoặc topic đã được đăng ký), bạn chỉ cần dán nội dung thông tin khách hàng do nhân viên nhập hoặc khách gửi:
+              </p>
+              <div class="bg-slate-900 text-slate-100 p-4 rounded-2xl font-mono text-[11px] leading-relaxed shadow-inner">
+                Tên: Ngọc Linh<br>
+                Sđt: 0934109342<br>
+                Ngày: 19h30 7/7/2026<br>
+                Sl: 12khách - Bàn C7<br>
+                Tiệc sinh nhật<br>
+                Chỉ cần bảng tên không cần ngày<br>
+                3 cơm chiên hải sản<br>
+                2 lẩu riêu cua...
+              </div>
+              <p class="text-[11px] text-slate-500 font-semibold leading-relaxed">
+                💡 <strong>Lưu ý:</strong> Bot tích hợp AI Core sẽ tự động bóc tách thông tin, quy đổi món ăn khớp với thực đơn nhà hàng, lưu trực tiếp vào Google Sheets/Lịch sơ đồ và trả về hình ảnh hóa đơn đặt bàn sắc nét kèm mã QR thanh toán trong vài giây.
+              </p>
+            </div>
+
+            <!-- Auto deposit calculation -->
+            <div class="bg-white rounded-3xl p-5 border border-slate-100 shadow-sm space-y-3">
+              <h4 class="font-black text-slate-800 text-sm flex items-center gap-2 border-b border-slate-100 pb-2"><i class="fa-solid fa-calculator text-sky-600"></i> 2. Quy tắc tính tiền cọc tự động</h4>
+              <p class="text-xs text-slate-600 font-semibold leading-relaxed">
+                Tiền cọc yêu cầu trên phiếu của Bot được đồng bộ chính xác với quy định trên webapp:
+              </p>
+              <ul class="space-y-2 text-xs text-slate-650 font-semibold list-disc pl-4">
+                <li><strong>Chưa đặt món:</strong> Dưới 20 khách cọc <span class="text-rose-600 font-black">500.000đ</span>; Từ 20 khách trở lên cọc <span class="text-rose-600 font-black">1.000.000đ</span>.</li>
+                <li><strong>Có đặt món trước:</strong> Tổng tiền món dưới 1.500.000đ cọc <span class="text-rose-600 font-black">500.000đ</span>; Tổng tiền món từ 1.500.000đ trở lên cọc <span class="text-rose-600 font-black">1/3 tổng tiền món</span> (làm tròn về mốc 500.000đ gần nhất).</li>
+              </ul>
+            </div>
+
+            <!-- Reply update deposit status -->
+            <div class="bg-white rounded-3xl p-5 border border-slate-100 shadow-sm space-y-3">
+              <h4 class="font-black text-slate-800 text-sm flex items-center gap-2 border-b border-slate-100 pb-2"><i class="fa-solid fa-reply text-sky-600"></i> 3. Cập nhật Tiền cọc trực tiếp qua lệnh Reply</h4>
+              <p class="text-xs text-slate-600 font-semibold leading-relaxed">
+                Khi khách chuyển khoản đặt cọc thành công, nhân viên chỉ cần **Trả lời (Reply)** tin nhắn hóa đơn do bot tạo với cú pháp cọc:
+              </p>
+              <div class="bg-blue-50 border border-blue-100 p-3 rounded-2xl text-xs text-blue-800 font-bold space-y-2">
+                <p>👉 <strong>Cú pháp mẫu:</strong> <code class="bg-white px-2 py-0.5 rounded border border-blue-200 text-blue-700 font-mono font-black">CỌC 500K - TIỀN MẶT</code> hoặc <code class="bg-white px-2 py-0.5 rounded border border-blue-200 text-blue-700 font-mono font-black">CỌC 2TR CK</code></p>
+                <p>• Từ khóa bắt buộc có từ: <code class="bg-white px-1.5 py-0.5 rounded border border-blue-200 text-blue-700 font-mono font-black">cọc</code> hoặc <code class="bg-white px-1.5 py-0.5 rounded border border-blue-200 text-blue-700 font-mono font-black">coc</code></p>
+                <p>• Nhận dạng linh hoạt mệnh giá: <code class="font-mono text-slate-700">K</code> (nghìn), <code class="font-mono text-slate-700">TR</code> / <code class="font-mono text-slate-700">TRIỆU</code> (triệu đồng).</p>
+              </div>
+              <p class="text-xs text-slate-600 font-semibold leading-relaxed">
+                <strong>Kết quả:</strong> Bot tự động đánh dấu <strong>Đã nhận cọc</strong> trên Google Sheets/Lịch, đóng dấu đỏ <strong>"ĐÃ ĐÓNG CỌC"</strong> lên hóa đơn online và **cập nhật lại bức ảnh hóa đơn mới ngay tại vị trí tin nhắn cũ** trên Telegram (không gửi tin nhắn rác mới).
+              </p>
+            </div>
+
+            <!-- Commands register -->
+            <div class="bg-white rounded-3xl p-5 border border-slate-100 shadow-sm space-y-3">
+              <h4 class="font-black text-slate-800 text-sm flex items-center gap-2 border-b border-slate-100 pb-2"><i class="fa-solid fa-gears text-sky-600"></i> 4. Đăng ký xử lý tự động & Lệnh hệ thống</h4>
+              <div class="space-y-3 text-xs">
+                <div class="p-3 rounded-2xl border border-slate-100 bg-slate-50 flex items-start gap-2.5">
+                  <code class="bg-blue-100 text-blue-800 font-mono font-black px-2 py-1 rounded shrink-0">/register</code>
+                  <div>
+                    <div class="font-bold text-slate-800">Đăng ký Topic nhận diện đặt bàn</div>
+                    <div class="text-[10px] text-slate-500 font-semibold mt-0.5">Gõ lệnh này trong Topic bất kỳ của nhóm để cài đặt Topic đó làm kênh nhận và phân tích đặt bàn tự động cho bot.</div>
+                  </div>
+                </div>
+                <div class="p-3 rounded-2xl border border-slate-100 bg-slate-50 flex items-start gap-2.5">
+                  <code class="bg-blue-100 text-blue-800 font-mono font-black px-2 py-1 rounded shrink-0">/status</code>
+                  <div>
+                    <div class="font-bold text-slate-800">Kiểm tra trạng thái kết nối</div>
+                    <div class="text-[10px] text-slate-500 font-semibold mt-0.5">Hiển thị thông tin kết nối giữa Bot, Google Sheets hoạt động và phiên bản hệ thống hiện tại.</div>
                   </div>
                 </div>
               </div>
