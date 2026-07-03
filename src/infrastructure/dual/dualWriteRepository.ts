@@ -8,31 +8,7 @@ import { GasOrderRepository, GasMenuRepository, GasSettingsRepository, GasCorrec
 import { PostgresOrderRepository, PostgresMenuRepository, PostgresSettingsRepository, PostgresCorrectionRepository } from '../postgres/postgresRepository'
 import * as outbox from '@/infrastructure/outbox/outbox'
 import { triggerSync as triggerOutboxSync } from '@/infrastructure/outbox/outboxSync'
-
-let _resolvedMode: 'gas' | 'postgres' | 'dual_write' | null = null
-
-const getBackendMode = (): 'gas' | 'postgres' | 'dual_write' => {
-  if (_resolvedMode && import.meta.env.MODE !== 'test') return _resolvedMode
-
-  const mode = import.meta.env.VITE_BACKEND_MODE || 'postgres'
-
-  // If dual_write or postgres mode but Supabase not configured, fall back to gas
-  if (mode !== 'gas') {
-    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
-    if (!supabaseUrl) {
-      console.warn(`[Backend] VITE_BACKEND_MODE="${mode}" but VITE_SUPABASE_URL not set. Falling back to GAS mode.`)
-      _resolvedMode = 'gas'
-      return 'gas'
-    }
-  }
-
-  if (mode === 'postgres' || mode === 'dual_write' || mode === 'gas') {
-    _resolvedMode = mode
-    return mode
-  }
-  _resolvedMode = 'postgres'
-  return 'postgres'
-}
+import { getBackendMode } from '@/utils/backendMode'
 
 export class DualWriteOrderRepository implements OrderRepository {
   private gas = new GasOrderRepository()
@@ -73,9 +49,6 @@ export class DualWriteOrderRepository implements OrderRepository {
   }
 
   async saveOrder(data: any): Promise<any> {
-    const mode = getBackendMode()
-    if (mode === 'gas') return this.gas.saveOrder(data)
-
     const orderData = data.id ? data : data.data
     const orderId = orderData.id || crypto.randomUUID()
     if (data.customer) {
@@ -94,9 +67,6 @@ export class DualWriteOrderRepository implements OrderRepository {
   }
 
   async saveOrdersBatch(payloads: any[]): Promise<any> {
-    const mode = getBackendMode()
-    if (mode === 'gas') return this.gas.saveOrdersBatch(payloads)
-    
     const results = []
     for (const p of payloads) {
       const res = await this.saveOrder(p)
@@ -106,9 +76,6 @@ export class DualWriteOrderRepository implements OrderRepository {
   }
 
   async deleteOrder(id: string, password?: string, token?: string): Promise<any> {
-    const mode = getBackendMode()
-    if (mode === 'gas') return this.gas.deleteOrder(id, password, token)
-
     // 1. Add delete action to local IndexedDB outbox
     await outbox.addToOutbox(id, 'delete', { id })
     

@@ -41,6 +41,9 @@ describe('Outbox and OutboxSync Integration Tests', () => {
     vi.clearAllMocks()
     global.fetch = fetchMock
     
+    vi.stubEnv('VITE_BACKEND_MODE', 'postgres')
+    vi.stubEnv('VITE_SUPABASE_URL', 'https://mock-supabase.supabase.co')
+    
     // Spy on PostgresOrderRepository prototype methods
     saveSpy = vi.spyOn(PostgresOrderRepository.prototype, 'saveOrder').mockResolvedValue({ ok: true })
     deleteSpy = vi.spyOn(PostgresOrderRepository.prototype, 'deleteOrder').mockResolvedValue({ ok: true })
@@ -52,6 +55,7 @@ describe('Outbox and OutboxSync Integration Tests', () => {
     global.fetch = originalFetch
     saveSpy.mockRestore()
     deleteSpy.mockRestore()
+    vi.unstubAllEnvs()
   })
 
   it('should encrypt PII data and retrieve decrypted payload', async () => {
@@ -82,6 +86,7 @@ describe('Outbox and OutboxSync Integration Tests', () => {
   })
 
   it('should sync pending outbox items to postgres and trigger background sheets sync', async () => {
+    vi.stubEnv('VITE_BACKEND_MODE', 'dual_write')
     const bookingId = 'order-234'
     const payload = { id: bookingId, customer: { name: 'Customer B', phone: '0908888888' } }
 

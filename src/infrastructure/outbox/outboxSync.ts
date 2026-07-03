@@ -1,8 +1,68 @@
 import * as outbox from './outbox'
 import { PostgresOrderRepository } from '../postgres/postgresRepository'
+import { getBackendMode } from '@/utils/backendMode'
 
 const pgRepo = new PostgresOrderRepository()
 let isSyncing = false
+
+async function syncToSheets(item: outbox.DecryptedOutboxItem): Promise<boolean> {
+  const sheetsPayload = {
+    action: item.action === 'upsert' ? 'saveOrder' : 'deleteOrder',
+    id: item.id,
+    data: item.payload,
+    idempotencyKey: item.idempotencyKey
+  }
+  
+  const gatewayUrl = import.meta.env.VITE_API_URL || '/api'
+  const gasFallbackUrl = import.meta.env.VITE_GAS_URL ||
+    'https://script.google.com/macros/s/AKfycbxzjio4sat5fWoUncPgp8SfjoGqfGxW5vFoDgkHvBI3OKVWIaszsAaUt0LE2fCHtkCFsA/exec'
+  const sharedSecret = import.meta.env.VITE_APP_SHARED_SECRET || ''
+  const bodyStr = JSON.stringify(sheetsPayload)
+  
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+  if (sharedSecret) {
+    headers['Authorization'] = `Bearer ${sharedSecret}`
+  }
+
+  // 1. Try API Gateway first (will proxy to GAS or Worker)
+  try {
+    const res = await fetch(gatewayUrl, {
+      method: 'POST',
+      headers,
+      body: bodyStr
+    })
+    
+    if (res.ok) {
+      const data = await res.json()
+      if (data && data.ok) {
+        console.log('[Outbox Sync Sheets] Success via Gateway:', data)
+        return true
+      }
+    }
+  } catch (err: any) {
+    console.warn('[Outbox Sync Sheets] Gateway failed:', err.message)
+  }
+
+  // 2. Fallback to GAS directly
+  try {
+    const res = await fetch(gasFallbackUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: bodyStr
+    })
+    if (res.ok) {
+      const data = await res.json()
+      if (data && data.ok) {
+        console.log('[Outbox Sync Sheets] Success via GAS Fallback:', data)
+        return true
+      }
+    }
+  } catch (err: any) {
+    console.warn('[Outbox Sync Sheets] GAS Fallback failed:', err.message)
+  }
+
+  return false
+}
 
 export async function triggerSync(): Promise<void> {
   if (isSyncing) return
@@ -21,13 +81,15 @@ export async function triggerSync(): Promise<void> {
       }
     } catch {}
 
+    const mode = getBackendMode()
+
     while (pendingItems.length > 0) {
       const item = pendingItems[0]
       let success = false
       
       try {
         if (item.action === 'upsert') {
-          // 1. Conflict detection before saving to Postgres (only if Pinia is active)
+          // 1. Conflict detection before saving (only if Pinia is active)
           let conflictType: string | null = null
           let existingServerBooking: any = null
           
@@ -83,62 +145,50 @@ export async function triggerSync(): Promise<void> {
             // Ignore other dynamic import errors or active pinia instance errors to prevent blocking execution
             console.warn('[Outbox Sync] Warning: could not verify conflict check:', e.message)
           }
+        }
 
-          const payload = {
-            ...item.payload,
-            idempotencyKey: item.idempotencyKey
+        // 2. Perform database write operations based on resolved backend mode
+        if (mode === 'gas') {
+          // GAS mode: sync to Google Sheets synchronously
+          const sheetsOk = await syncToSheets(item)
+          if (!sheetsOk) {
+            throw new Error('Failed to save to Google Sheets')
           }
+          success = true
+        } else if (mode === 'postgres') {
+          // Postgres mode: sync only to Postgres
           let res = { ok: true, message: '' }
-          try {
-            const rawRes = await pgRepo.saveOrder(payload, token)
-            if (rawRes) {
-              res = rawRes
-            } else {
-              res = { ok: false, message: 'No response from database repository' }
-            }
-            if (!res.ok && res.message?.includes('not configured')) {
-              console.warn('[Outbox Sync] Supabase not configured (returned), skipping Postgres save.')
-              res = { ok: true, message: '' }
-            }
-          } catch (e: any) {
-            if (e.message?.includes('not configured')) {
-              console.warn('[Outbox Sync] Supabase not configured (thrown), skipping Postgres save.')
-              res = { ok: true, message: '' }
-            } else {
-              throw e
-            }
+          if (item.action === 'upsert') {
+            const payload = { ...item.payload, idempotencyKey: item.idempotencyKey }
+            res = await pgRepo.saveOrder(payload, token)
+          } else if (item.action === 'delete') {
+            res = await pgRepo.deleteOrder(item.id, undefined, token)
           }
-          if (res.ok) {
+          if (res && res.ok) {
             success = true
           } else {
-            throw new Error(res.message || 'Postgres save returned failed state')
+            throw new Error(res?.message || 'Postgres operation failed')
           }
-        } else if (item.action === 'delete') {
-          let res = { ok: true, message: '' }
-          try {
-            const rawRes = await pgRepo.deleteOrder(item.id, undefined, token)
-            if (rawRes) {
-              res = rawRes
-            } else {
-              res = { ok: false, message: 'No response from database repository' }
-            }
-            if (!res.ok && res.message?.includes('not configured')) {
-              console.warn('[Outbox Sync] Supabase not configured (returned), skipping Postgres delete.')
-              res = { ok: true, message: '' }
-            }
-          } catch (e: any) {
-            if (e.message?.includes('not configured')) {
-              console.warn('[Outbox Sync] Supabase not configured (thrown), skipping Postgres delete.')
-              res = { ok: true, message: '' }
-            } else {
-              throw e
-            }
+        } else if (mode === 'dual_write') {
+          // Dual Write mode: sync to both Postgres and Google Sheets sequentially
+          let pgOk = false
+          if (item.action === 'upsert') {
+            const payload = { ...item.payload, idempotencyKey: item.idempotencyKey }
+            const res = await pgRepo.saveOrder(payload, token)
+            pgOk = res && res.ok
+          } else if (item.action === 'delete') {
+            const res = await pgRepo.deleteOrder(item.id, undefined, token)
+            pgOk = res && res.ok
           }
-          if (res.ok) {
-            success = true
-          } else {
-            throw new Error(res.message || 'Postgres delete returned failed state')
+          if (!pgOk) {
+            throw new Error('Postgres write failed in dual_write mode')
           }
+
+          const sheetsOk = await syncToSheets(item)
+          if (!sheetsOk) {
+            throw new Error('Google Sheets write failed in dual_write mode')
+          }
+          success = true
         }
       } catch (err: any) {
         console.error(`[Outbox Sync] Failed to sync item ${item.id}:`, err.message)
@@ -155,9 +205,6 @@ export async function triggerSync(): Promise<void> {
       
       if (success) {
         await outbox.markAsSynced(item.id, item.action)
-        
-        // Asynchronously trigger Sheets sync in background
-        triggerSheetsSyncInBackground(item)
       }
       
       pendingItems = await outbox.getPendingItems()
@@ -178,73 +225,6 @@ export async function triggerSync(): Promise<void> {
     } catch (err) {
       console.warn('[Outbox Sync] Failed to update offline queue count in store:', err)
     }
-  }
-}
-
-async function triggerSheetsSyncInBackground(item: outbox.DecryptedOutboxItem) {
-  try {
-    const sheetsPayload = {
-      action: item.action === 'upsert' ? 'saveOrder' : 'deleteOrder',
-      id: item.id,
-      data: item.payload,
-      idempotencyKey: item.idempotencyKey
-    }
-    
-    const gatewayUrl = import.meta.env.VITE_API_URL || '/api'
-    const gasFallbackUrl = import.meta.env.VITE_GAS_URL ||
-      'https://script.google.com/macros/s/AKfycbxzjio4sat5fWoUncPgp8SfjoGqfGxW5vFoDgkHvBI3OKVWIaszsAaUt0LE2fCHtkCFsA/exec'
-    const sharedSecret = import.meta.env.VITE_APP_SHARED_SECRET || ''
-    const bodyStr = JSON.stringify(sheetsPayload)
-    
-    const headers: Record<string, string> = { 'Content-Type': 'application/json' }
-    if (sharedSecret) {
-      headers['Authorization'] = `Bearer ${sharedSecret}`
-    }
-    
-    // Try gateway first, fall back to GAS directly if it fails
-    fetch(gatewayUrl, {
-      method: 'POST',
-      headers,
-      body: bodyStr
-    })
-      .then(async (res) => {
-        if (res.ok) {
-          const text = await res.text()
-          console.log('[Outbox Sync Sheets] Gateway response:', res.status, text.substring(0, 200))
-          return
-        }
-        // Gateway failed (e.g. /api returns 404 on Cloudflare Pages) → fallback to GAS
-        console.warn(`[Outbox Sync Sheets] Gateway returned ${res.status}, falling back to GAS...`)
-        return fetch(gasFallbackUrl, {
-          method: 'POST',
-          headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-          body: bodyStr
-        })
-      })
-      .then(async (res) => {
-        if (res) {
-          const text = await res.text()
-          console.log('[Outbox Sync Sheets] GAS Fallback response:', res.status, text.substring(0, 200))
-        }
-      })
-      .catch(err => {
-        // Network error on gateway → try GAS directly
-        console.warn('[Outbox Sync] Gateway network error, trying GAS directly:', err.message)
-        fetch(gasFallbackUrl, {
-          method: 'POST',
-          headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-          body: bodyStr
-        })
-          .then(async (res) => {
-            const text = await res.text()
-            console.log('[Outbox Sync Sheets] GAS Direct response:', res.status, text.substring(0, 200))
-          })
-          .catch(gasErr => {
-            console.warn('[Outbox Sync] GAS direct also failed:', gasErr.message)
-          })
-      })
-  } catch (e) {
-    // Ignore error, non-blocking
   }
 }
 
