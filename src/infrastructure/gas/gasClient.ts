@@ -26,7 +26,7 @@ export function clearL1ApiCache(): void {
  */
 export async function fetchWithStaleWhileRevalidate<T>(
   key: string,
-  fetcher: () => Promise<T>,
+  fetcher: (isBg: boolean) => Promise<T>,
   options: { ttlMs: number; onBgUpdate?: (data: T) => void }
 ): Promise<T> {
   const { ttlMs, onBgUpdate } = options
@@ -67,7 +67,7 @@ export async function fetchWithStaleWhileRevalidate<T>(
   // 3. Cache Miss: Fetch synchronously (coalesced)
   // Wrap in try/catch so offline first-load doesn't crash the app
   try {
-    const fresh = await coalesceRequest(key, fetcher)
+    const fresh = await coalesceRequest(key, () => fetcher(false))
     if (isSuccessfulResponse(fresh)) {
       const entry = { data: fresh, timestamp: Date.now() }
       l1ApiCache.set(key, entry)
@@ -83,10 +83,10 @@ export async function fetchWithStaleWhileRevalidate<T>(
 
 function triggerBackgroundFetch<T>(
   key: string,
-  fetcher: () => Promise<T>,
+  fetcher: (isBg: boolean) => Promise<T>,
   onBgUpdate?: (data: T) => void
 ) {
-  coalesceRequest(key, fetcher)
+  coalesceRequest(key, () => fetcher(true))
     .then(async (fresh) => {
       if (isSuccessfulResponse(fresh)) {
         const entry = { data: fresh, timestamp: Date.now() }
@@ -116,7 +116,7 @@ function coalesceRequest<T>(key: string, fetcher: () => Promise<T>): Promise<T> 
 /**
  * Gửi request POST tới API Gateway hoặc fallback sang GAS (Direct core execution)
  */
-async function postGASDirect(payload: Record<string, any>, signal?: AbortSignal): Promise<any> {
+async function postGASDirect(payload: Record<string, any>, signal?: AbortSignal, isBackground = false): Promise<any> {
   // Guard useUIStore() — may be called before Pinia is initialized (e.g. from outboxSync top-level import)
   let ui: ReturnType<typeof useUIStore> | null = null
   try {
@@ -147,7 +147,7 @@ async function postGASDirect(payload: Record<string, any>, signal?: AbortSignal)
           }
           reportGatewaySuccess('cloudflare_edge')
           const data = await res.json()
-          if (!data.ok && data.message) {
+          if (!data.ok && data.message && !isBackground) {
             showErrorToastIfNeeded(payload.action, `Lỗi Server: ${data.message}`, ui)
           }
           if (ui) {
@@ -181,7 +181,7 @@ async function postGASDirect(payload: Record<string, any>, signal?: AbortSignal)
     })
     if (!res.ok) throw new Error(`GAS fallback HTTP error! status: ${res.status}`)
     const data = await res.json()
-    if (!data.ok && data.message) {
+    if (!data.ok && data.message && !isBackground) {
       showErrorToastIfNeeded(payload.action, `Lỗi Server (GAS Fallback): ${data.message}`, ui)
     }
     if (ui) {
@@ -190,10 +190,12 @@ async function postGASDirect(payload: Record<string, any>, signal?: AbortSignal)
     return data
   } catch (err: any) {
     if (err.name === 'AbortError') throw err
-    if (ui) {
+    if (ui && !isBackground) {
       ui.connectionStatus = 'error'
     }
-    showErrorToastIfNeeded(payload.action, `Lỗi mạng (Cả Gateway và GAS đều lỗi): ${err.message}`, ui)
+    if (!isBackground) {
+      showErrorToastIfNeeded(payload.action, `Lỗi mạng (Cả Gateway và GAS đều lỗi): ${err.message}`, ui)
+    }
     throw err
   } finally {
     if (ui) {
@@ -221,12 +223,12 @@ export async function postGAS(
     
     return fetchWithStaleWhileRevalidate(
       cacheKey,
-      () => postGASDirect(payload, signal),
+      (isBg) => postGASDirect(payload, signal, isBg),
       { ttlMs, onBgUpdate }
     )
   }
 
-  return postGASDirect(payload, signal)
+  return postGASDirect(payload, signal, false)
 }
 
 /**

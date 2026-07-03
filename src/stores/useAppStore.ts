@@ -421,12 +421,15 @@ export const useAppStore = defineStore('app', () => {
 
   // --- API Actions ---
   async function loadHistory(silent: boolean) {
-    uiStore.connectionStatus = 'syncing'
-
     const cached = await getCachedHistory()
-    if (cached && cached.length > 0 && historyList.value.length === 0) {
+    const hasCache = cached && cached.length > 0
+    if (hasCache && historyList.value.length === 0) {
       historyList.value = cached
       rebuildBookingTimeIndex(cached)
+    }
+
+    if (!hasCache) {
+      uiStore.connectionStatus = 'syncing'
     }
 
     try {
@@ -444,12 +447,12 @@ export const useAppStore = defineStore('app', () => {
         uiStore.connectionStatus = 'online'
         cacheHistory(data.data || [])
       } else {
-        uiStore.connectionStatus = cached ? 'online' : 'error'
+        uiStore.connectionStatus = hasCache ? 'online' : 'error'
       }
     } catch (e) {
       console.error(e)
-      uiStore.connectionStatus = cached ? 'online' : 'error'
-      if (cached && !silent) uiStore.showToast('Đang dùng dữ liệu offline', 'info')
+      uiStore.connectionStatus = hasCache ? 'online' : 'error'
+      if (hasCache && !silent) uiStore.showToast('Đang dùng dữ liệu offline', 'info')
     }
   }
 
@@ -793,7 +796,10 @@ export const useAppStore = defineStore('app', () => {
 
   // --- Remote Config Sync ---
   async function fetchRemoteConfig() {
-    uiStore.connectionStatus = 'syncing'
+    const hasCachedConfig = localStorage.getItem('kg_v400_webhookUrl') || localStorage.getItem('showPortalMinigames')
+    if (!hasCachedConfig) {
+      uiStore.connectionStatus = 'syncing'
+    }
     try {
       const result = await settingsRepo.getConfig((freshConfig) => {
         if (freshConfig && freshConfig.ok && freshConfig.data) {
@@ -804,11 +810,15 @@ export const useAppStore = defineStore('app', () => {
         uiStore.connectionStatus = 'online'
         processRemoteConfigPayload(result.data)
       } else {
-        uiStore.connectionStatus = 'error'
+        if (!hasCachedConfig) {
+          uiStore.connectionStatus = 'error'
+        }
       }
     } catch (e) {
       console.warn('Config Sync Failed (Offline Mode)', e)
-      uiStore.connectionStatus = 'error'
+      if (!hasCachedConfig) {
+        uiStore.connectionStatus = 'error'
+      }
     }
   }
 
