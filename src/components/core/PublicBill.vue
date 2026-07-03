@@ -40,13 +40,20 @@ async function downloadBillImage() {
       }
     }))
 
+    const originalStyle = el.getAttribute('style') || ''
+    el.style.width = '600px'
+    el.style.maxWidth = 'none'
+    await new Promise(r => setTimeout(r, 100))
+
     const canvas = await html2canvas(el, {
-      scale: 2,
+      scale: 3,
       useCORS: true,
       logging: false,
       backgroundColor: '#ffffff',
       ignoreElements: (element: Element) => element.classList.contains('no-print')
     })
+    
+    el.setAttribute('style', originalStyle)
     
     const dataUrl = canvas.toDataURL('image/png')
     const link = document.createElement('a')
@@ -367,7 +374,7 @@ onUnmounted(() => { if (timer) clearInterval(timer) })
 
           <!-- INFO CARD -->
           <div class="relative mb-6">
-            <div class="space-y-2">
+            <div class="space-y-2 relative z-10">
               <div class="flex justify-between items-baseline border-b border-dashed border-slate-200 pb-2">
                 <span class="text-xs font-bold text-slate-500">Khách hàng</span>
                 <span class="font-black text-slate-800 text-sm">{{ order.customer?.name || '---' }}</span>
@@ -399,7 +406,7 @@ onUnmounted(() => { if (timer) clearInterval(timer) })
             </div>
 
             <!-- STAMP -->
-            <div class="absolute bottom-1 right-2 pointer-events-none origin-bottom-right z-20" style="transform: scale(0.6) rotate(-5deg);">
+            <div class="absolute bottom-1 left-[48%] -translate-x-[50%] pointer-events-none origin-center z-0" style="transform: scale(0.55) rotate(-5deg);">
               <div class="relative w-[220px] flex flex-col items-center justify-center">
                 <img :src="order.isDeposited ? '/images/stamps/paid.png' : '/images/stamps/pending.png'" class="w-full object-contain filter drop-shadow-md" alt="Stamp" />
                 <div v-if="order.isDeposited" class="mt-2 w-full text-center text-[#d11124] font-black tracking-widest whitespace-nowrap" style="font-family: 'Cal Sans', sans-serif; font-size: 16px;">
