@@ -294,7 +294,8 @@ export async function handleLocalApi(req: http.IncomingMessage, res: http.Server
           staffList: payload.staffList,
           bankList: payload.bankList,
           webhookUrl: payload.webhookUrl,
-          telegramChatId: payload.telegramChatId
+          telegramChatId: payload.telegramChatId,
+          showPortalMinigames: payload.showPortalMinigames
         })
         result = { ok: true, message: 'Config Saved locally' }
 

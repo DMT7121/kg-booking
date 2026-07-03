@@ -105,7 +105,7 @@ export async function getConfig(): Promise<any> {
 }
 
 /** Save config to remote */
-export async function saveConfig(bankList?: string, staffList?: string, password?: string, webhookUrl?: string, telegramChatId?: string, token?: string): Promise<any> {
+export async function saveConfig(bankList?: string, staffList?: string, password?: string, webhookUrl?: string, telegramChatId?: string, token?: string, showPortalMinigames?: boolean): Promise<any> {
   return postGAS({
     action: 'saveConfig',
     bankList,
@@ -115,7 +115,8 @@ export async function saveConfig(bankList?: string, staffList?: string, password
     webhookUrl,
     telegramChatId,
     password,
-    token
+    token,
+    showPortalMinigames
   })
 }
 

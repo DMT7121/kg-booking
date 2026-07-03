@@ -241,6 +241,7 @@ export const useAppStore = defineStore('app', () => {
   // --- Cached Fingerprints ---
   const menuFingerprint = ref('')
   const correctionFingerprint = ref('')
+  const showPortalMinigames = ref(localStorage.getItem('showPortalMinigames') === 'true')
 
   async function computeMenuFingerprint() {
     if (menuList.value.length === 0) {
@@ -840,6 +841,11 @@ export const useAppStore = defineStore('app', () => {
     }
     if (data.telegramChatId) {
       localStorage.setItem('kg_v400_telegramChatId', data.telegramChatId)
+      hasChanges = true
+    }
+    if (data.showPortalMinigames !== undefined) {
+      showPortalMinigames.value = String(data.showPortalMinigames) === 'true'
+      localStorage.setItem('showPortalMinigames', String(showPortalMinigames.value))
       hasChanges = true
     }
     
@@ -1544,6 +1550,7 @@ export const useAppStore = defineStore('app', () => {
 
   return {
     adminToken, adminExpiresAt, isAdminSettingsUnlocked, lockAdminSettings, unlockAdminSettings, defaultMenuProfileId, defaultBankAccountIndex, setDefaultBankAccount, setDefaultMenuProfile, autoSyncIfReady,
+    showPortalMinigames,
     historyList, menuList, menuDetails, menuImages, dishImages, menuSheets, activeSheet, newMenuName, newMenuContent,
     menuAliases, loadMenuAliases, saveAlias, deleteAlias,
     aiCorrections, loadAiCorrections, logAiCorrection,

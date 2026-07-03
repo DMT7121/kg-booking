@@ -11,6 +11,7 @@ const activeTab = ref('notifications') // 'notifications' | 'backup' | 'audit'
 
 const webhookUrl = ref('')
 const telegramChatId = ref('')
+const showPortalMinigames = ref(false)
 const saving = ref(false)
 const showGuide = ref(false)
 
@@ -30,6 +31,7 @@ watch(() => ui.activeSettingModal, async (modal) => {
     showGuide.value = false
     webhookUrl.value = localStorage.getItem('kg_v400_webhookUrl') || ''
     telegramChatId.value = localStorage.getItem('kg_v400_telegramChatId') || ''
+    showPortalMinigames.value = localStorage.getItem('showPortalMinigames') === 'true'
     
     // Fetch values from server if needed
     fetchServerConfig()
@@ -50,8 +52,18 @@ async function fetchServerConfig() {
         telegramChatId.value = String(res.data.telegramChatId)
         localStorage.setItem('kg_v400_telegramChatId', telegramChatId.value)
       }
+      if (res.data.showPortalMinigames !== undefined) {
+        showPortalMinigames.value = String(res.data.showPortalMinigames) === 'true'
+        localStorage.setItem('showPortalMinigames', String(showPortalMinigames.value))
+      }
     }
   } catch { /* offline, use cache */ }
+}
+
+async function togglePortalMinigames() {
+  const isAdmin = await appStore.verifyAdminSession()
+  if (!isAdmin) return
+  showPortalMinigames.value = !showPortalMinigames.value
 }
 
 async function loadBackups() {
@@ -93,10 +105,20 @@ async function saveWebhook() {
 
   saving.value = true
   try {
-    const res = await api.saveConfig('', '', undefined, webhookUrl.value.trim(), telegramChatId.value.trim(), appStore.adminToken)
+    const res = await api.saveConfig(
+      undefined,
+      undefined,
+      undefined,
+      webhookUrl.value.trim(),
+      telegramChatId.value.trim(),
+      appStore.adminToken,
+      showPortalMinigames.value
+    )
     if (res.ok || res.message === 'Config Saved') {
       localStorage.setItem('kg_v400_webhookUrl', webhookUrl.value.trim())
       localStorage.setItem('kg_v400_telegramChatId', telegramChatId.value.trim())
+      localStorage.setItem('showPortalMinigames', String(showPortalMinigames.value))
+      appStore.showPortalMinigames = showPortalMinigames.value
       ui.showToast('✅ Đã lưu cấu hình thông báo!', 'success')
       ui.showWebhookConfig = false
     } else {
@@ -249,6 +271,22 @@ function formatTime(isoStr: string) {
               <input v-model="telegramChatId"
                 class="w-full px-4 py-3 rounded-xl border border-slate-200 bg-white font-mono font-bold text-slate-800 text-sm focus:border-blue-900 focus:ring-4 focus:ring-blue-50 outline-none transition-all placeholder-slate-300"
                 placeholder="-1001234567890 (Group ID hoặc User ID)">
+            </div>
+
+            <!-- Portal Settings (Minigames & VIP card) -->
+            <div class="space-y-2 pt-2 border-t border-slate-100">
+              <label class="text-[10px] font-black text-slate-500 uppercase tracking-widest block">Tính năng Portal khách hàng</label>
+              <div class="flex items-center justify-between p-3 rounded-2xl bg-slate-50 border border-slate-100">
+                <div>
+                  <div class="text-xs font-black text-slate-800">Vòng quay & Thẻ VIP</div>
+                  <div class="text-[9px] text-slate-400 font-semibold mt-0.5">Hiển thị minigame Vòng quay may mắn và Thẻ thành viên trên Portal khách hàng</div>
+                </div>
+                <div class="w-12 flex justify-end">
+                  <button @click="togglePortalMinigames" class="w-10 h-6 bg-slate-200 rounded-full relative transition-colors" :class="{'!bg-blue-500': showPortalMinigames}">
+                    <div class="w-5 h-5 bg-white rounded-full absolute top-0.5 left-0.5 transition-transform shadow-sm" :class="{'translate-x-4': showPortalMinigames}"></div>
+                  </button>
+                </div>
+              </div>
             </div>
 
             <!-- Status indicator -->

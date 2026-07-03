@@ -1619,6 +1619,7 @@ function saveSystemConfig(data, password) {
   if (data.staff !== undefined && data.staff !== null) patch['staff'] = data.staff;
   if (data.webhookUrl !== undefined && data.webhookUrl !== null) patch['webhookUrl'] = data.webhookUrl;
   if (data.telegramChatId !== undefined && data.telegramChatId !== null) patch['telegramChatId'] = data.telegramChatId;
+  if (data.showPortalMinigames !== undefined && data.showPortalMinigames !== null) patch['showPortalMinigames'] = String(data.showPortalMinigames);
   
   if (data.default_bank_account_id !== undefined) patch['default_bank_account_id'] = data.default_bank_account_id;
   if (data.default_menu_profile_id !== undefined) patch['default_menu_profile_id'] = data.default_menu_profile_id;

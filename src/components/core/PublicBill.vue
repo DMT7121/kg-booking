@@ -7,6 +7,7 @@ import { ALCOHOL_KEYS } from '@/utils/constants'
 import html2canvas from 'html2canvas'
 
 const showLuckyWheel = ref(false)
+const showPortalMinigames = ref(localStorage.getItem('showPortalMinigames') === 'true')
 
 const order = ref<any>(null)
 const loading = ref(true)
@@ -166,6 +167,10 @@ onMounted(async () => {
       if (current) {
         activeBank.value = current
       }
+      if (cfg.showPortalMinigames !== undefined) {
+        showPortalMinigames.value = String(cfg.showPortalMinigames) === 'true'
+        localStorage.setItem('showPortalMinigames', String(showPortalMinigames.value))
+      }
     }
   } catch (e) {
     console.warn('[PublicBill] Failed to fetch bank config:', e)
@@ -266,7 +271,7 @@ onUnmounted(() => { if (timer) clearInterval(timer) })
       </div>
 
       <!-- Minigame Banner -->
-      <div class="mb-5 bg-white border border-rose-100 rounded-3xl shadow-[0_8px_30px_rgba(225,29,72,0.08)] cursor-pointer active:scale-95 transition-transform overflow-hidden" @click="showLuckyWheel = true">
+      <div v-if="showPortalMinigames" class="mb-5 bg-white border border-rose-100 rounded-3xl shadow-[0_8px_30px_rgba(225,29,72,0.08)] cursor-pointer active:scale-95 transition-transform overflow-hidden" @click="showLuckyWheel = true">
         <div class="px-5 py-4 flex items-center justify-between">
           <div class="flex items-center gap-4">
             <div class="w-12 h-12 bg-rose-50 text-rose-500 rounded-2xl flex items-center justify-center text-xl animate-bounce">
@@ -286,7 +291,7 @@ onUnmounted(() => { if (timer) clearInterval(timer) })
       </div>
 
       <!-- Digital Loyalty Card -->
-      <div class="mb-5 relative rounded-3xl overflow-hidden bg-gradient-to-br from-slate-800 to-slate-900 border border-slate-700 shadow-2xl p-5">
+      <div v-if="showPortalMinigames" class="mb-5 relative rounded-3xl overflow-hidden bg-gradient-to-br from-slate-800 to-slate-900 border border-slate-700 shadow-2xl p-5">
         <!-- Shine effect -->
         <div class="absolute top-0 right-0 -mr-12 -mt-12 w-24 h-24 bg-white/10 blur-2xl rounded-full"></div>
         <div class="absolute bottom-0 left-0 -ml-12 -mb-12 w-32 h-32 bg-blue-500/20 blur-3xl rounded-full"></div>
@@ -316,13 +321,13 @@ onUnmounted(() => { if (timer) clearInterval(timer) })
       </div>
       <!-- Quick Actions -->
       <div class="grid grid-cols-2 gap-3 mb-5">
-        <a href="https://maps.app.goo.gl/search/kings+grill" target="_blank" class="bg-white border border-slate-100 hover:bg-slate-50 text-slate-700 rounded-3xl py-4 flex flex-col items-center justify-center gap-1.5 transition-all active:scale-95 shadow-[0_4px_15px_rgba(0,0,0,0.03)]">
+        <a href="https://www.google.com/maps/place/King%E2%80%99s+Grill/@10.97728,106.6661053,15z/data=!4m6!3m5!1s0x3174d12ffdb33b65:0x25ca14f40f0af9f!8m2!3d10.9760826!4d106.6646541!16s%2Fg%2F11hb8xpt7n?entry=ttu&g_ep=EgoyMDI2MDYyOS4wIKXMDSoASAFQAw%3D%3D" target="_blank" class="bg-white border border-slate-100 hover:bg-slate-50 text-slate-700 rounded-3xl py-4 flex flex-col items-center justify-center gap-1.5 transition-all active:scale-95 shadow-[0_4px_15px_rgba(0,0,0,0.03)]">
           <div class="w-10 h-10 bg-blue-50 text-blue-500 rounded-full flex items-center justify-center mb-1">
             <i class="fa-solid fa-location-dot text-lg"></i>
           </div>
           <span class="text-[10px] font-black uppercase tracking-wider">Chỉ đường</span>
         </a>
-        <a href="#" @click.prevent="() => {}" class="bg-white border border-slate-100 hover:bg-slate-50 text-slate-700 rounded-3xl py-4 flex flex-col items-center justify-center gap-1.5 transition-all active:scale-95 shadow-[0_4px_15px_rgba(0,0,0,0.03)]">
+        <a href="https://photos.app.goo.gl/PCwtnLcN2AhvzFLz8" target="_blank" class="bg-white border border-slate-100 hover:bg-slate-50 text-slate-700 rounded-3xl py-4 flex flex-col items-center justify-center gap-1.5 transition-all active:scale-95 shadow-[0_4px_15px_rgba(0,0,0,0.03)]">
           <div class="w-10 h-10 bg-amber-50 text-amber-500 rounded-full flex items-center justify-center mb-1">
             <i class="fa-solid fa-book-open text-lg"></i>
           </div>
@@ -394,7 +399,7 @@ onUnmounted(() => { if (timer) clearInterval(timer) })
             </div>
 
             <!-- STAMP -->
-            <div class="absolute -top-6 right-0 pointer-events-none origin-right z-20" style="transform: scale(0.65) rotate(-5deg);">
+            <div class="absolute bottom-1 right-2 pointer-events-none origin-bottom-right z-20" style="transform: scale(0.6) rotate(-5deg);">
               <div class="relative w-[220px] flex flex-col items-center justify-center">
                 <img :src="order.isDeposited ? '/images/stamps/paid.png' : '/images/stamps/pending.png'" class="w-full object-contain filter drop-shadow-md" alt="Stamp" />
                 <div v-if="order.isDeposited" class="mt-2 w-full text-center text-[#d11124] font-black tracking-widest whitespace-nowrap" style="font-family: 'Cal Sans', sans-serif; font-size: 16px;">
@@ -413,17 +418,19 @@ onUnmounted(() => { if (timer) clearInterval(timer) })
                   <tr class="border-y border-dashed border-slate-300 text-[9px] text-slate-400 uppercase tracking-wider">
                     <th class="py-2 text-left font-bold w-1/2">Tên món</th>
                     <th class="py-2 text-center font-bold">SL</th>
-                    <th class="py-2 text-right font-bold">Đơn giá</th>
+                    <th class="py-2 text-right font-bold">Thành tiền</th>
                   </tr>
                 </thead>
                 <tbody class="text-xs">
                   <tr v-for="(item, i) in order.items" :key="i" class="border-b border-dashed border-slate-100 last:border-0">
                     <td class="py-2.5">
-                      <div class="font-bold text-slate-800">{{ item.name }}</div>
+                      <div class="font-bold text-slate-800">
+                        {{ item.name }} [{{ formatVND(item.price || 0).replace(/\s/g, '').replace(/₫/g, 'đ') }}]
+                      </div>
                       <div v-if="item.note || item.notes" class="text-[10px] text-rose-500 font-semibold mt-0.5 whitespace-pre-line italic">{{ item.note || item.notes }}</div>
                     </td>
                     <td class="py-2.5 text-center font-black text-slate-700">{{ item.qty }}</td>
-                    <td class="py-2.5 text-right font-black text-slate-700">{{ formatVND(item.price || 0) }}</td>
+                    <td class="py-2.5 text-right font-black text-slate-700">{{ formatVND((item.price || 0) * (item.qty || 0)) }}</td>
                   </tr>
                 </tbody>
               </table>
@@ -509,12 +516,49 @@ onUnmounted(() => { if (timer) clearInterval(timer) })
             </div>
           </div>
 
+          <!-- UNIFIED POLICY & NOTES CONTAINER -->
+          <div v-if="!order.isDeposited || order.items?.length > 0" class="bg-blue-50/30 border border-blue-100 rounded-3xl p-5 mb-6 text-left space-y-4 relative overflow-hidden mt-6">
+            <div class="absolute top-0 left-0 w-1.5 h-full bg-blue-500"></div>
+            
+            <div class="flex items-center gap-2 text-blue-950 font-black uppercase text-[10px] tracking-wider border-b border-blue-100/50 pb-2">
+              <i class="fa-solid fa-circle-exclamation text-blue-600 text-sm"></i>
+              Lưu ý quan trọng dành cho khách hàng
+            </div>
+
+            <!-- Subsection 1: Deposit Policy (shown only if not paid) -->
+            <div v-if="!order.isDeposited" class="space-y-1.5">
+              <div class="text-[9px] font-black text-blue-900 uppercase tracking-widest flex items-center gap-1.5">
+                <i class="fa-solid fa-vault text-[9px]"></i> 1. Quy định về đặt cọc
+              </div>
+              <div class="text-blue-950 text-[12px] font-bold leading-relaxed space-y-1 pl-4">
+                <p>• Mức cọc tối thiểu là <span class="bg-blue-100/80 text-blue-950 px-1.5 py-0.5 rounded font-black text-[12px]">500.000đ/bàn</span>. Với phiếu đặt có thức ăn, mức cọc bằng <span class="bg-blue-100/80 text-blue-950 px-1.5 py-0.5 rounded font-black text-[12px]">1/3 tổng tiền thức ăn đặt trước</span>.</p>
+                <p>• Hình thức trả cọc: Tiền cọc sẽ được <span class="text-emerald-700 font-black underline decoration-2 underline-offset-2">trừ vào bill khi thanh toán</span> hoặc <span class="text-emerald-700 font-black underline decoration-2 underline-offset-2">hoàn lại bằng tiền mặt</span>.</p>
+                <p>• Yêu cầu đặt cọc: Vui lòng chuyển khoản đặt cọc đúng theo số tiền ghi trên phiếu.</p>
+              </div>
+            </div>
+
+            <!-- Divider line if both are present -->
+            <div v-if="!order.isDeposited && order.items?.length > 0" class="h-[1px] bg-blue-100/50 my-2"></div>
+
+            <!-- Subsection 2: Pre-order Notes (shown only if has pre-ordered items) -->
+            <div v-if="order.items?.length > 0" class="space-y-1.5">
+              <div class="text-[9px] font-black text-amber-800 uppercase tracking-widest flex items-center gap-1.5">
+                <i class="fa-solid fa-utensils text-[9px]"></i> 2. Lưu ý cho món ăn đặt trước
+              </div>
+              <div class="text-slate-800 text-[12px] font-bold leading-relaxed space-y-1 pl-4">
+                <p>• <strong>Giá món chênh lệch:</strong> Giá một số món có thể được cập nhật mới và chênh lệch so với thực đơn online.</p>
+                <p>• <strong>Giá chưa bao gồm thuế:</strong> Giá trên thực đơn chưa bao gồm VAT. Thuế suất áp dụng: <span class="bg-amber-100 text-amber-950 px-1 py-0.5 rounded font-black text-[12px]">8%</span> đối với món ăn, đồ uống pha chế; <span class="bg-amber-100 text-amber-950 px-1 py-0.5 rounded font-black text-[12px]">10%</span> đối với bia, rượu và đồ uống đóng lon.</p>
+                <p>• <strong>Thời gian lên món:</strong> Thời gian lên món dự kiến từ <span class="text-rose-600 font-black">10–30 phút</span> sau khi quý khách yêu cầu phục vụ.</p>
+              </div>
+            </div>
+          </div>
+
           <!-- FOOTER -->
           <div class="border-t border-dashed border-slate-200 pt-4 text-center">
             <p class="text-[10px] text-slate-400 font-bold mb-0.5">
-              Nhân viên hỗ trợ: <span class="text-slate-600">{{ order.staff?.name || 'Hệ thống' }}</span>
-              <span v-if="order.staff?.phone" class="text-slate-500 font-medium"> - 
-                <a :href="'tel:' + order.staff.phone" class="text-blue-500 underline font-bold hover:text-blue-700">{{ order.staff.phone }}</a>
+              Nhân viên hỗ trợ: <span class="text-slate-600">{{ order.staff?.name && order.staff.name !== 'Hệ thống' ? order.staff.name : 'Minh Trí' }}</span>
+              <span class="text-slate-500 font-medium"> - 
+                <a :href="'tel:' + (order.staff?.phone && order.staff.name !== 'Hệ thống' ? order.staff.phone : '0336667301')" class="text-blue-500 underline font-bold hover:text-blue-700">{{ order.staff?.phone && order.staff.name !== 'Hệ thống' ? order.staff.phone : '0336667301' }}</a>
               </span>
             </p>
             <p class="text-[9px] text-slate-300 font-mono">KG-SYS | {{ order.timestamp ? new Date(order.timestamp).toLocaleString('vi-VN') : '' }}</p>
