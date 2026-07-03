@@ -1,15 +1,68 @@
 <script setup lang="ts">
 import { ref, onMounted, computed, onUnmounted } from 'vue'
-import { getOrderById } from '@/services/api'
+import { getOrderById, getConfig } from '@/services/api'
 import LuckyWheel from './LuckyWheel.vue'
 import { stripAccents } from '@/utils'
 import { ALCOHOL_KEYS } from '@/utils/constants'
+import html2canvas from 'html2canvas'
 
 const showLuckyWheel = ref(false)
 
 const order = ref<any>(null)
 const loading = ref(true)
 const error = ref('')
+const activeBank = ref<any>(null)
+const downloading = ref(false)
+
+async function downloadBillImage() {
+  const el = document.getElementById('bill-render')
+  if (!el) return
+  downloading.value = true
+  try {
+    await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)))
+    
+    // Inline images if any to avoid CORS taint (like favicon.svg)
+    const imgs = Array.from(el.querySelectorAll('img'))
+    await Promise.all(imgs.map(async (img) => {
+      if (!img.src || img.src.startsWith('data:')) return
+      try {
+        const r = await fetch(img.src)
+        const blob = await r.blob()
+        const base64 = await new Promise<string>((res) => {
+          const reader = new FileReader()
+          reader.onloadend = () => res(reader.result as string)
+          reader.readAsDataURL(blob)
+        })
+        img.src = base64
+      } catch (e) {
+        // Silently skip image inline if CORS blocked
+      }
+    }))
+
+    const canvas = await html2canvas(el, {
+      scale: 2,
+      useCORS: true,
+      logging: false,
+      backgroundColor: '#ffffff',
+      ignoreElements: (element: Element) => element.classList.contains('no-print')
+    })
+    
+    const dataUrl = canvas.toDataURL('image/png')
+    const link = document.createElement('a')
+    const customerName = order.value?.customer?.name || 'Phieu_Dat_Ban'
+    const fileName = `KingsGrill_PhieuDat_${stripAccents(customerName).replace(/\s+/g, '_')}.png`
+    link.download = fileName
+    link.href = dataUrl
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+  } catch (err: any) {
+    console.error('Failed to download bill image:', err)
+    alert('Lỗi tải phiếu: ' + err.message)
+  } finally {
+    downloading.value = false
+  }
+}
 
 const orderId = computed(() => {
   const hash = window.location.hash
@@ -96,6 +149,70 @@ function updateCountdown() {
 }
 
 onMounted(async () => {
+  // Load remote config to get active bank details (dynamic QR)
+  try {
+    const configRes = await getConfig()
+    if (configRes.ok && configRes.data) {
+      const cfg = configRes.data
+      const defaultBankId = String(cfg.default_bank_account_id || '')
+      let banks = []
+      if (typeof cfg.banks === 'string') {
+        try { banks = JSON.parse(cfg.banks) } catch(e) {}
+      } else if (Array.isArray(cfg.banks)) {
+        banks = cfg.banks
+      }
+      
+      const current = banks.find((b: any) => String(b.bankId) === defaultBankId) || banks[0]
+      if (current) {
+        activeBank.value = current
+      }
+    }
+  } catch (e) {
+    console.warn('[PublicBill] Failed to fetch bank config:', e)
+  }
+  
+  // Dynamic fallback to user's preferred UOB account if config is empty or fails
+  if (!activeBank.value) {
+    activeBank.value = {
+      bankId: '970458',
+      name: 'UOB',
+      number: '1043862117',
+      owner: 'TRAN LE DUY',
+      template: 'compact'
+    }
+  }
+
+  // 1. Try to load data from query parameter (for fast screenshot / no deadlock)
+  const hash = window.location.hash;
+  const dataMatch = hash.match(/[?&]data=([^&]+)/);
+  if (dataMatch) {
+    try {
+      const base64 = dataMatch[1].replace(/-/g, '+').replace(/_/g, '/');
+      const decoded = decodeURIComponent(escape(window.atob(base64)));
+      const parsed = JSON.parse(decoded);
+      
+      order.value = {
+        id: parsed.id,
+        timestamp: parsed.timestamp || new Date().toISOString(),
+        customer: parsed.customer,
+        totalAmount: parsed.total,
+        depositAmount: parsed.deposit?.amount || 0,
+        isDeposited: parsed.deposit?.isPaid || false,
+        transferImage: parsed.deposit?.image || '',
+        billUrl: parsed.billUrl || '',
+        items: parsed.items || [],
+        staff: parsed.staff || { name: 'Hệ thống' }
+      };
+      
+      updateCountdown();
+      loading.value = false;
+      return;
+    } catch (e) {
+      console.warn('[PublicBill] Failed to parse URL data:', e);
+    }
+  }
+
+  // 2. Fallback to normal GAS fetch
   if (!orderId.value) { error.value = 'Không tìm thấy mã đơn hàng'; loading.value = false; return }
   try {
     const res = await getOrderById(orderId.value)
@@ -212,9 +329,23 @@ onUnmounted(() => { if (timer) clearInterval(timer) })
           <span class="text-[10px] font-black uppercase tracking-wider">Xem Menu</span>
         </a>
       </div>
+      
+      <!-- Download Button -->
+      <div class="mb-5">
+        <button @click="downloadBillImage" :disabled="downloading" class="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white rounded-3xl py-4 px-6 flex items-center justify-center gap-3 transition-all active:scale-[0.98] shadow-[0_8px_25px_rgba(37,99,235,0.2)] disabled:opacity-50 disabled:pointer-events-none">
+          <template v-if="downloading">
+            <div class="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+            <span class="text-xs font-black uppercase tracking-widest">Đang tải phiếu đặt...</span>
+          </template>
+          <template v-else>
+            <i class="fa-solid fa-cloud-arrow-down text-lg"></i>
+            <span class="text-xs font-black uppercase tracking-widest">Tải phiếu đặt (Ảnh)</span>
+          </template>
+        </button>
+      </div>
 
       <!-- TICKET / RECEIPT UI -->
-      <div class="relative bg-white shadow-sm border border-slate-200 mt-2 mb-6" style="border-radius: 16px; filter: drop-shadow(0 4px 6px rgba(0,0,0,0.02));">
+      <div id="bill-render" class="relative bg-white shadow-sm border border-slate-200 mt-2 mb-6" style="border-radius: 16px; filter: drop-shadow(0 4px 6px rgba(0,0,0,0.02));">
         
         <!-- Serrated top/bottom (Optional subtle CSS pattern) -->
         <div class="absolute -top-1.5 left-2 right-2 h-3 bg-slate-50" style="mask-image: radial-gradient(circle at 6px 0px, transparent 6px, black 6.5px); mask-size: 12px 12px; mask-repeat: repeat-x;"></div>
@@ -348,16 +479,32 @@ onUnmounted(() => { if (timer) clearInterval(timer) })
           </div>
 
           <!-- QR TRANSFER (only if not paid) -->
-          <div v-if="!order.isDeposited && order.depositAmount > 0" class="bg-blue-50 border border-blue-100 rounded-2xl p-4 mb-4">
+          <div v-if="!order.isDeposited && order.depositAmount > 0 && activeBank" class="bg-blue-50 border border-blue-100 rounded-2xl p-4 mb-4">
             <h3 class="font-black text-[10px] text-blue-800 uppercase tracking-widest mb-3 text-center">QUÉT MÃ ĐỂ ĐẶT CỌC</h3>
             <div class="flex flex-col items-center gap-3">
               <div class="bg-white p-2 rounded-xl shadow-sm border border-blue-100">
-                <img :src="`https://img.vietqr.io/image/970457-104029411095-compact.png?amount=${order.depositAmount}&addInfo=${encodeURIComponent(depositTransferContent)}&accountName=${encodeURIComponent('TRAN LE DUY')}`"
+                <img :src="`https://img.vietqr.io/image/${activeBank.bankId}-${activeBank.number}-${activeBank.template || 'compact'}.png?amount=${order.depositAmount}&addInfo=${encodeURIComponent(depositTransferContent)}&accountName=${encodeURIComponent(activeBank.owner)}`"
                   class="w-40 h-40 object-contain rounded-lg" alt="QR Code" loading="lazy">
               </div>
               <div class="w-full text-center">
                 <span class="text-[9px] font-bold text-blue-600 uppercase block mb-0.5">Nội dung chuyển khoản (bắt buộc)</span>
                 <div class="bg-white border border-blue-200 text-blue-700 font-black text-xs py-2 px-3 rounded-lg inline-block tracking-wider">{{ depositTransferContent }}</div>
+              </div>
+              
+              <!-- Bank Details text copy -->
+              <div class="w-full text-[11px] text-slate-500 font-bold space-y-1 mt-2 border-t border-blue-100/50 pt-2 text-left px-2">
+                <div class="flex justify-between">
+                  <span>Ngân hàng:</span>
+                  <span class="font-black text-slate-800">{{ activeBank.name }}</span>
+                </div>
+                <div class="flex justify-between">
+                  <span>Số tài khoản:</span>
+                  <span class="font-black text-blue-600 select-all">{{ activeBank.number }}</span>
+                </div>
+                <div class="flex justify-between">
+                  <span>Chủ tài khoản:</span>
+                  <span class="font-black text-slate-800">{{ activeBank.owner }}</span>
+                </div>
               </div>
             </div>
           </div>
