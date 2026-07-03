@@ -12,11 +12,7 @@ export class GasOrderRepository implements OrderRepository {
   }
   
   async getOrderById(id: string): Promise<any> {
-    const API_GATEWAY = import.meta.env.VITE_GAS_URL ||
-      'https://script.google.com/macros/s/AKfycbxzjio4sat5fWoUncPgp8SfjoGqfGxW5vFoDgkHvBI3OKVWIaszsAaUt0LE2fCHtkCFsA/exec'
-    const url = `${API_GATEWAY}?action=getOrder&id=${encodeURIComponent(id)}`
-    const res = await fetch(url)
-    return res.json()
+    return postGAS({ action: 'getOrder', id })
   }
 
   async saveOrder(data: any): Promise<any> {

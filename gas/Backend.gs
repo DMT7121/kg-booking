@@ -34,10 +34,7 @@ const CONFIG = {
 
 // --- PHẦN 0: HELPER ---
 function initSheetIfNeeded_(ss, sheetName, headers, bgColor) {
-  if (!ss) {
-    if (typeof console !== 'undefined') console.error("LỖI: Tránh chạy trực tiếp hàm này vì thiếu Data!");
-    return null;
-  }
+  if (!ss) return null;
   let sheet = ss.getSheetByName(sheetName);
   if (!sheet) {
     sheet = ss.insertSheet(sheetName);
@@ -45,18 +42,6 @@ function initSheetIfNeeded_(ss, sheetName, headers, bgColor) {
     sheet.getRange(1, 1, 1, headers.length)
          .setFontWeight("bold").setBackground(bgColor || "#f3f4f6").setHorizontalAlignment("center");
     sheet.setFrozenRows(1);
-  } else {
-    const currentHeaders = sheet.getRange(1, 1, 1, headers.length).getValues()[0];
-    let isMismatch = false;
-    for (let i = 0; i < headers.length; i++) {
-      if (currentHeaders[i] !== headers[i]) { isMismatch = true; break; }
-    }
-    if (isMismatch) {
-      sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
-      sheet.getRange(1, 1, 1, headers.length)
-           .setFontWeight("bold").setBackground(bgColor || "#f3f4f6").setHorizontalAlignment("center");
-      sheet.setFrozenRows(1);
-    }
   }
   return sheet;
 }
@@ -78,13 +63,71 @@ function doGet(e) {
   if (action === "getMenuSheets") return jsonResponse(getMenuSheets());
   if (action === "getHistory") return jsonResponse(getHistoryData());
   if (action === "getOrder") return jsonResponse(getOrderById(e.parameter.id));
+  if (action === "testConfig") {
+    const ss = SpreadsheetApp.openById(CONFIG.SS_ID);
+    const sheet = ss.getSheetByName(CONFIG.SHEET_NAME_CONFIG);
+    const values = sheet ? sheet.getDataRange().getValues() : [];
+    return jsonResponse(values);
+  }
+  if (action === "updateWebhookBotB") {
+    return HtmlService.createHtmlOutput(updateWebhookUrlToBotB());
+  }
+  if (action === "getWebhookLogs") {
+    const ss = SpreadsheetApp.openById(CONFIG.SS_ID);
+    const sheet = ss.getSheetByName("Webhook_Logs");
+    const values = sheet ? sheet.getDataRange().getValues() : [];
+    return jsonResponse(values);
+  }
   return HtmlService.createHtmlOutput("Backend Ready.");
 }
 
 function doPost(e) {
+  // AUTO CLEANUP SYSTEM CONFIG FOR BRACES (Run once and save)
   try {
-    if (!e || !e.postData) return jsonResponse({ok: false, message: "No post data"});
+    const ss = SpreadsheetApp.openById(CONFIG.SS_ID);
+    const configSheet = ss.getSheetByName(CONFIG.SHEET_NAME_CONFIG);
+    if (configSheet) {
+      const range = configSheet.getDataRange();
+      const values = range.getValues();
+      let updated = false;
+      for (let i = 1; i < values.length; i++) {
+        const key = values[i][0];
+        let val = values[i][1];
+        if (key === 'webhookUrl' && typeof val === 'string' && (val.includes('{') || val.includes('}'))) {
+          const cleaned = val.replace(/[{}]/g, '').trim();
+          configSheet.getRange(i + 1, 2).setValue(cleaned);
+          updated = true;
+        }
+        if (key === 'system_config' && typeof val === 'string') {
+          try {
+            const parsed = JSON.parse(val);
+            if (parsed.webhookUrl && (parsed.webhookUrl.includes('{') || parsed.webhookUrl.includes('}'))) {
+              parsed.webhookUrl = parsed.webhookUrl.replace(/[{}]/g, '').trim();
+              configSheet.getRange(i + 1, 2).setValue(JSON.stringify(parsed));
+              updated = true;
+            }
+          } catch(err) {}
+        }
+      }
+      if (updated) {
+        try { CacheService.getScriptCache().remove("system_config"); } catch(err) {}
+      }
+    }
+  } catch (err) {
+    console.log("Auto-clean config failed: " + err.message);
+  }
+
+  let isApiRequest = false;
+  try {
+    if (!e || !e.postData) return HtmlService.createHtmlOutput("No post data");
     const data = JSON.parse(e.postData.contents);
+    
+    // Check if it is a Telegram Webhook update or non-API call
+    if (!data.action) {
+      return handleTelegramWebhook(data);
+    }
+    
+    isApiRequest = true;
     const action = data.action;
     
     // Write actions that modify configuration or sheets and need script lock protection
@@ -148,6 +191,8 @@ function doPost(e) {
         case "deleteMenuAlias": result = deleteMenuAlias(data.alias, data.token); break;
         case "logAiCorrection": result = logAiCorrection(data.inputText, data.wrongValue, data.correctValue, data.field, data.token); break;
         case "getAiCorrections": result = getAiCorrections(data.token); break;
+        case "testTelegram": result = testTelegramNotification(data.data); break;
+        case "getOrder": result = getOrderById(data.id); break;
         
         default: result = { ok: false, message: "Unknown Action" };
       }
@@ -158,7 +203,11 @@ function doPost(e) {
       }
     }
   } catch (err) {
-    return jsonResponse({ok: false, message: err.toString()});
+    if (isApiRequest) {
+      return jsonResponse({ok: false, message: err.toString()});
+    } else {
+      return HtmlService.createHtmlOutput("Error: " + err.toString());
+    }
   }
 }
 
@@ -552,7 +601,9 @@ function saveOrder(p) {
     console.log("Calendar Sync Failed: " + e.message);
     calendarSync = { status: "ERROR", message: e.message };
   }
-  try { sendNotification_(p, bookingId, billUrl); } catch(e) { console.log("Notification Failed: " + e.message); }
+  if (!p.skipNotification) {
+    try { sendNotification_(p, bookingId, billUrl); } catch(e) { console.log("Notification Failed: " + e.message); }
+  }
   return { message: "Order Saved (V3.6.0)", id: bookingId, billUrl: billUrl, calendarSync: calendarSync };
 }
 
@@ -1496,6 +1547,61 @@ function getSharedApiKeysWithoutPassword() {
   return { ok: true, keys: keysList };
 }
 
+function loadSystemConfig_() {
+  const ss = SpreadsheetApp.openById(CONFIG.SS_ID);
+  const sheet = migrateSystemConfigSheetIfNeeded_(ss);
+  const rows = sheet.getDataRange().getValues();
+  const cfg = {};
+  
+  // 1. Merge keys from legacy system_config JSON first (for backwards compatibility if flat rows don't exist yet)
+  for (let i = 1; i < rows.length; i++) {
+    if (rows[i][0] === 'system_config') {
+      try {
+        const parsed = JSON.parse(rows[i][1]);
+        Object.assign(cfg, parsed);
+      } catch(e) {}
+      break;
+    }
+  }
+  
+  // 2. Load all other flat keys and overwrite/set them
+  for (let i = 1; i < rows.length; i++) {
+    const key = rows[i][0];
+    if (key && key !== 'system_config') {
+      let val = rows[i][1];
+      // Try to parse as JSON if it looks like JSON array or object, else use as string
+      if (typeof val === 'string') {
+        const trimmed = val.trim();
+        if ((trimmed.startsWith('{') && trimmed.endsWith('}')) || (trimmed.startsWith('[') && trimmed.endsWith(']'))) {
+          try {
+            val = JSON.parse(val);
+          } catch(e) {}
+        }
+      }
+      cfg[key] = val;
+    }
+  }
+  
+  // 3. Fallback matching between snake_case and camelCase for robust key lookup
+  if (cfg['telegram_chat_id'] && !cfg['telegramChatId']) cfg['telegramChatId'] = cfg['telegram_chat_id'];
+  if (cfg['telegramChatId'] && !cfg['telegram_chat_id']) cfg['telegram_chat_id'] = cfg['telegramChatId'];
+  if (cfg['telegram_topic_id'] && !cfg['telegramTopicId']) cfg['telegramTopicId'] = cfg['telegram_topic_id'];
+  if (cfg['telegramTopicId'] && !cfg['telegram_topic_id']) cfg['telegram_topic_id'] = cfg['telegramTopicId'];
+  
+  // Normalize webhookUrl and telegramChatId strings
+  if (typeof cfg['webhookUrl'] === 'string') {
+    cfg['webhookUrl'] = cfg['webhookUrl'].replace(/[{}]/g, '').trim();
+  }
+  if (typeof cfg['telegramChatId'] === 'string') {
+    cfg['telegramChatId'] = cfg['telegramChatId'].replace(/[{}]/g, '').trim();
+  }
+  if (typeof cfg['telegram_chat_id'] === 'string') {
+    cfg['telegram_chat_id'] = cfg['telegram_chat_id'].replace(/[{}]/g, '').trim();
+  }
+  
+  return cfg;
+}
+
 // --- PHẦN 5: SYSTEM CONFIG ---
 function saveSystemConfig(data, password) {
   const token = data.token;
@@ -1605,28 +1711,13 @@ function getOrderById(id) {
 
 // --- PHẦN 7: TELEGRAM / WEBHOOK NOTIFICATION ---
 function sendNotification_(orderData, orderId, billUrl) {
-  const ss = SpreadsheetApp.openById(CONFIG.SS_ID);
-  const configSheet = ss.getSheetByName(CONFIG.SHEET_NAME_CONFIG);
-  if (!configSheet) return;
-  const rows = configSheet.getDataRange().getValues();
-  const cfg = {};
+  const cfg = loadSystemConfig_();
   
-  // Load flat keys first
-  for (let i = 1; i < rows.length; i++) { cfg[rows[i][0]] = rows[i][1]; }
-  
-  // Merge keys from system_config JSON
-  for (let i = 1; i < rows.length; i++) {
-    if (rows[i][0] === 'system_config') {
-      try {
-        const parsed = JSON.parse(rows[i][1]);
-        Object.assign(cfg, parsed);
-      } catch(e) {}
-      break;
-    }
-  }
-
-  const webhookUrl = cfg['webhookUrl'];
+  let webhookUrl = cfg['webhookUrl'];
   if (!webhookUrl) return;
+
+  let chatId = cfg['telegramChatId'];
+  if (!chatId) return;
 
   const escapeHtml = function(text) {
     if (!text) return '';
@@ -1636,12 +1727,16 @@ function sendNotification_(orderData, orderId, billUrl) {
       .replace(/>/g, '&gt;');
   };
 
+  const shareUrl = 'https://kg-booking.pages.dev/#/bill/' + (orderId || '');
   const c = orderData.customer || {};
   const fmt = (n) => n ? n.toString().replace(/\B(?=(\d{3})+(?!\d))/g, '.') + 'đ' : '0đ';
   const dep = orderData.deposit || {};
   const depStatus = dep.isPaid ? '✅ ĐÃ CỌC' : '⏳ CHỜ CỌC';
   const itemCount = (orderData.items || []).length;
-  const shareUrl = 'https://kg-booking.pages.dev/#/bill/' + orderId;
+  let imageLinkLine = '';
+  if (billUrl && billUrl.indexOf('http') === 0) {
+    imageLinkLine = '\n🖼️ <a href="' + billUrl + '">XEM ẢNH PHIẾU ĐẶT (ONLINE)</a>';
+  }
 
   const msg = '🔔 <b>ĐƠN MỚI — KING\'S GRILL</b>\n' +
     '━━━━━━━━━━━━━━━━━━━\n' +
@@ -1653,16 +1748,23 @@ function sendNotification_(orderData, orderId, billUrl) {
     '💳 <b>Trạng thái:</b> ' + depStatus + (dep.amount ? ' (' + fmt(dep.amount) + ')' : '') + '\n' +
     '━━━━━━━━━━━━━━━━━━━\n' +
     '💬 <b>Ghi chú:</b> <i>' + escapeHtml(c.note || 'Không có') + '</i>\n\n' +
-    '👉 <a href="' + shareUrl + '">XEM CHI TIẾT PHIẾU ĐẶT BÀN</a>';
+    '👉 <a href="' + shareUrl + '">XEM CHI TIẾT PHIẾU ĐẶT BÀN</a>' + imageLinkLine;
 
   if (webhookUrl.includes('api.telegram.org')) {
-    const chatId = cfg['telegramChatId'];
-    if (!chatId) return;
-    UrlFetchApp.fetch(webhookUrl, {
-      method: 'POST', contentType: 'application/json',
-      payload: JSON.stringify({ chat_id: chatId, text: msg, parse_mode: 'HTML' }),
-      muteHttpExceptions: true
-    });
+    try {
+      const payload = { chat_id: chatId, text: msg, parse_mode: 'HTML' };
+      if (cfg['telegramTopicId']) {
+        const threadIdNum = Number(cfg['telegramTopicId']);
+        if (!isNaN(threadIdNum) && threadIdNum > 1) {
+          payload.message_thread_id = threadIdNum;
+        }
+      }
+      UrlFetchApp.fetch(webhookUrl, {
+        method: 'POST', contentType: 'application/json',
+        payload: JSON.stringify(payload),
+        muteHttpExceptions: true
+      });
+    } catch(tgErr) { console.log("Telegram fetch error: " + tgErr.message); }
   } else {
     UrlFetchApp.fetch(webhookUrl, {
       method: 'POST', contentType: 'application/json',
@@ -1763,17 +1865,9 @@ function getAiRuntimeConfig() {
     }
     
     // Get default models from System_Config
-    const ss = SpreadsheetApp.openById(CONFIG.SS_ID);
-    const configSheet = ss.getSheetByName(CONFIG.SHEET_NAME_CONFIG);
-    let defaultText = '';
-    let defaultVision = '';
-    if (configSheet) {
-      const rows = configSheet.getDataRange().getValues();
-      for (let i = 1; i < rows.length; i++) {
-        if (rows[i][0] === 'default_text_model') defaultText = rows[i][1];
-        if (rows[i][0] === 'default_vision_model') defaultVision = rows[i][1];
-      }
-    }
+    const cfg = loadSystemConfig_();
+    let defaultText = cfg['default_text_model'] || '';
+    let defaultVision = cfg['default_vision_model'] || '';
     
     return { 
       ok: true, 
@@ -1789,20 +1883,12 @@ function getAiRuntimeConfig() {
 }
 
 function getApiKeysFromConfig_() {
-  const ss = SpreadsheetApp.openById(CONFIG.SS_ID);
-  const sheet = ss.getSheetByName(CONFIG.SHEET_NAME_CONFIG);
-  if (!sheet) return {};
-  const rows = sheet.getDataRange().getValues();
-  for (let i = 1; i < rows.length; i++) {
-    if (rows[i][0] === 'api_keys') {
-      try {
-        return JSON.parse(rows[i][1]);
-      } catch (e) {
-        return {};
-      }
-    }
+  const cfg = loadSystemConfig_();
+  if (cfg['api_keys'] && typeof cfg['api_keys'] === 'object') {
+    return cfg['api_keys'];
   }
   // Try legacy API_Keys fallback
+  const ss = SpreadsheetApp.openById(CONFIG.SS_ID);
   const keysSheet = ss.getSheetByName(CONFIG.SHEET_NAME_KEYS);
   if (keysSheet) {
     const kRows = keysSheet.getDataRange().getValues();
@@ -2442,5 +2528,776 @@ function triggerAuthFlow() {
   const root = DriveApp.getRootFolder();
   Logger.log("UrlFetch response: " + res.getResponseCode());
   Logger.log("Drive Root Folder: " + root.getName());
+}
+
+function testTelegramNotification(orderData) {
+  try {
+    const cfg = loadSystemConfig_();
+    
+    let webhookUrl = cfg['webhookUrl'];
+    if (!webhookUrl) return { ok: false, message: "webhookUrl not set in config" };
+
+    let chatId = cfg['telegramChatId'];
+    if (!chatId) return { ok: false, message: "telegramChatId not set in config" };
+
+    const c = orderData.customer || {};
+    const fmt = (n) => n ? n.toString().replace(/\B(?=(\d{3})+(?!\d))/g, '.') + 'đ' : '0đ';
+    const dep = orderData.deposit || {};
+    const depStatus = dep.isPaid ? '✅ ĐÃ CỌC' : '⏳ CHỜ CỌC';
+    const itemCount = (orderData.items || []).length;
+    const shareUrl = 'https://kg-booking.pages.dev/#/bill/test_id';
+
+    const msg = '🔔 <b>ĐƠN MỚI — KING\'S GRILL</b>\n' +
+      '━━━━━━━━━━━━━━━━━━━\n' +
+      '👤 <b>Khách hàng:</b> ' + (c.name || 'N/A') + '\n' +
+      '📱 <b>Số điện thoại:</b> ' + (c.phone || 'N/A') + '\n' +
+      '📅 <b>Thời gian:</b> ' + (c.date || '?') + ' | ⏰ ' + (c.time || '?') + '\n' +
+      '👥 <b>Số lượng:</b> ' + (c.pax || '?') + ' khách | 🪑 <b>Bàn:</b> ' + (c.tables || '?') + '\n' +
+      '🍽️ <b>Chi tiết:</b> ' + itemCount + ' món | 💰 <b>Tổng:</b> ' + fmt(orderData.total) + '\n' +
+      '💳 <b>Trạng thái:</b> ' + depStatus + (dep.amount ? ' (' + fmt(dep.amount) + ')' : '') + '\n' +
+      '━━━━━━━━━━━━━━━━━━━\n' +
+      '💬 <b>Ghi chú:</b> <i>' + (c.note || 'Không có') + '</i>\n\n' +
+      '👉 <a href="' + shareUrl + '">XEM CHI TIẾT PHIẾU ĐẶT BÀN</a>';
+
+    const payload = { chat_id: chatId, text: msg, parse_mode: 'HTML' };
+    if (cfg['telegramTopicId']) {
+      const threadIdNum = Number(cfg['telegramTopicId']);
+      if (!isNaN(threadIdNum) && threadIdNum > 1) {
+        payload.message_thread_id = threadIdNum;
+      }
+    }
+
+    const response = UrlFetchApp.fetch(webhookUrl, {
+      method: 'POST',
+      contentType: 'application/json',
+      payload: JSON.stringify(payload),
+      muteHttpExceptions: true
+    });
+
+    return {
+      ok: true,
+      statusCode: response.getResponseCode(),
+      content: response.getContentText(),
+      webhookUrl: webhookUrl.substring(0, 30) + "...",
+      chatId: chatId,
+      topicId: cfg['telegramTopicId'] || null
+    };
+  } catch (e) {
+    return { ok: false, error: e.toString() };
+  }
+}
+
+// --- TELEGRAM WEBHOOK INCOMING EVENT HANDLERS ---
+
+function handleTelegramWebhook(update) {
+  // Log webhook event details to Webhook_Logs sheet for diagnostic purposes
+  logWebhookEvent_(update);
+
+  // 0. Filter duplicate webhook triggers from Telegram (using CacheService)
+  if (update && update.update_id) {
+    const updateId = String(update.update_id);
+    const cache = CacheService.getScriptCache();
+    if (cache.get("processed_update_" + updateId)) {
+      return HtmlService.createHtmlOutput("Duplicate update ignored");
+    }
+    cache.put("processed_update_" + updateId, "true", 600); // 10 minutes cache
+  }
+
+  const msg = update.message;
+  if (!msg) return HtmlService.createHtmlOutput("Not a message update");
+  
+  const text = msg.text ? msg.text.trim() : "";
+  const chatId = msg.chat.id;
+  const threadId = msg.message_thread_id;
+  
+  const botToken = getBotToken_();
+  if (!botToken) return HtmlService.createHtmlOutput("Bot token not found in config");
+
+  const escapeHtml = function(t) {
+    if (!t) return '';
+    return t.toString()
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;');
+  };
+
+  // A. Check if this is a reply message to update deposit
+  const replyTo = msg.reply_to_message;
+  let isReplyProcessed = false;
+  if (replyTo) {
+    const lowerText = text.toLowerCase();
+    const isDepositUpdate = lowerText.startsWith("cọc") || lowerText.startsWith("coc") || lowerText.includes("đã cọc") || lowerText.includes("da coc");
+    
+    if (isDepositUpdate) {
+      isReplyProcessed = true;
+      // Extract booking ID using robust extraction
+      const bookingId = extractBookingIdFromMessage_(replyTo);
+      
+      if (bookingId) {
+        sendChatAction_(botToken, chatId, threadId, "typing");
+        
+        try {
+          const order = getOrderById_(bookingId);
+          if (!order) {
+            throw new Error("Không tìm thấy đơn đặt bàn này trong Sheet.");
+          }
+          
+          let depAmount = 0;
+          const amountMatch = text.match(/(\d+[\.,]?\d*)\s*(tr|k|đ|d)/i) || text.match(/(\d+[\.,]?\d*)/);
+          if (amountMatch) {
+            let numStr = amountMatch[1].replace(',', '.');
+            let num = parseFloat(numStr);
+            const unit = amountMatch[2] ? amountMatch[2].toLowerCase() : "";
+            if (unit === "tr") {
+              depAmount = num * 1000000;
+            } else if (unit === "k") {
+              depAmount = num * 1000;
+            } else {
+              depAmount = num;
+            }
+          }
+          
+          order.deposit.isPaid = true;
+          order.deposit.amount = depAmount;
+          order.deposit.note = text;
+          order.deposit.time = new Date().toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' });
+          
+          order.skipNotification = true;
+          const saveResult = saveOrder(order);
+          if (!saveResult || !saveResult.id) {
+            throw new Error("Lưu cập nhật cọc thất bại.");
+          }
+          
+          const c = order.customer;
+          const fmt = (n) => n ? n.toString().replace(/\B(?=(\d{3})+(?!\d))/g, '.') + 'đ' : '0đ';
+          const depStatus = '✅ ĐÃ CỌC (' + fmt(depAmount) + ' - ' + text + ')';
+          
+          let imageLinkLine = '';
+          if (order.billImage && order.billImage.indexOf('http') === 0) {
+            imageLinkLine = '\n🖼️ <a href="' + order.billImage + '">XEM ẢNH PHIẾU ĐẶT (ONLINE)</a>';
+          }
+
+          const confirmCaption = '✅ <b>LÊN PHIẾU ĐẶT BÀN THÀNH CÔNG</b>\n' +
+            '━━━━━━━━━━━━━━━━━━━\n' +
+            '👤 <b>Khách hàng:</b> ' + escapeHtml(c.name || 'N/A') + '\n' +
+            '📱 <b>Số điện thoại:</b> ' + escapeHtml(c.phone || 'N/A') + '\n' +
+            '📅 <b>Thời gian:</b> ' + escapeHtml(c.date || '?') + ' | ⏰ ' + escapeHtml(c.time || '?') + '\n' +
+            '👥 <b>Số lượng:</b> ' + escapeHtml(c.pax || '?') + ' khách | 🪑 <b>Bàn:</b> ' + escapeHtml(c.tables || '?') + '\n' +
+            '🍽️ <b>Món ăn:</b> ' + (order.items.map(i => i.name + ' x' + i.qty).join(', ') || 'Chưa đặt') + '\n' +
+            '💰 <b>Tổng tiền:</b> ' + fmt(order.total) + '\n' +
+            '💳 <b>Trạng thái:</b> ' + depStatus + '\n' +
+            '━━━━━━━━━━━━━━━━━━━\n' +
+            '🆔 <b>Mã đặt bàn:</b> <code>' + bookingId + '</code>\n' +
+            '👉 <a href="https://kg-booking.pages.dev/#/bill/' + bookingId + '">XEM PHIẾU ĐẶT ONLINE</a>' + imageLinkLine;
+          
+          editTelegramText_(botToken, chatId, replyTo.message_id, confirmCaption);
+          
+          replyTelegram_(botToken, chatId, threadId, "✅ Đã xác nhận ĐÃ CỌC cho đơn khách " + escapeHtml(c.name) + " (" + fmt(depAmount) + " | " + escapeHtml(text) + ")");
+        } catch (err) {
+          replyTelegram_(botToken, chatId, threadId, "❌ Lỗi cập nhật cọc: " + err.message);
+        }
+      } else {
+        replyTelegram_(botToken, chatId, threadId, "⚠️ Không tìm thấy Mã đặt bàn hợp lệ trong tin nhắn được trả lời.");
+      }
+    }
+  }
+  
+  if (isReplyProcessed) {
+    return HtmlService.createHtmlOutput("Reply processed");
+  }
+
+  // 1. Check for registration commands
+  const isRegisterNotificationCmd = text && (text.startsWith("/register_notification") || text.startsWith("/register") || text.includes("@KGReservedBot_bot /register_notification"));
+  const isRegisterBookingCmd = text && (text.startsWith("/register_booking") || text.startsWith("/register_auto_booking") || text.includes("@KGReservedBot_bot /register_auto_booking"));
+  
+  if (isRegisterNotificationCmd) {
+    upsertSystemConfigRow_('telegram_chat_id', String(chatId), 'string', 'global', false, 'Telegram Group Chat ID for Bot', 'bot');
+    upsertSystemConfigRow_('telegramChatId', String(chatId), 'string', 'global', false, 'Telegram Group Chat ID for Bot (Camel)', 'bot');
+    upsertSystemConfigRow_('telegram_topic_id', String(threadId || ''), 'string', 'global', false, 'Telegram Topic ID for Bot Bookings', 'bot');
+    upsertSystemConfigRow_('telegramTopicId', String(threadId || ''), 'string', 'global', false, 'Telegram Topic ID for Bot Bookings (Camel)', 'bot');
+    try { CacheService.getScriptCache().remove("system_config"); } catch(e) {}
+    const replyMsg = "📢 <b>ĐĂNG KÝ TOPIC THÔNG BÁO THÀNH CÔNG!</b>\n" +
+      "━━━━━━━━━━━━━━━━━━━\n" +
+      "Kênh nhận thông báo đặt bàn đã được đặt tại Topic này (ID: " + (threadId || "Mặc định") + ").\n\n" +
+      "👉 Tất cả thông báo lịch đặt mới từ Webapp và Bot tự động sẽ được gửi về đây.";
+    replyTelegram_(botToken, chatId, threadId, replyMsg);
+    return HtmlService.createHtmlOutput("Registered notification topic");
+  }
+  
+  if (isRegisterBookingCmd) {
+    upsertSystemConfigRow_('telegram_chat_id', String(chatId), 'string', 'global', false, 'Telegram Group Chat ID for Bot', 'bot');
+    upsertSystemConfigRow_('telegramChatId', String(chatId), 'string', 'global', false, 'Telegram Group Chat ID for Bot (Camel)', 'bot');
+    upsertSystemConfigRow_('telegram_auto_booking_topic_id', String(threadId || ''), 'string', 'global', false, 'Telegram Topic ID for Auto Booking', 'bot');
+    upsertSystemConfigRow_('telegramAutoBookingTopicId', String(threadId || ''), 'string', 'global', false, 'Telegram Topic ID for Auto Booking (Camel)', 'bot');
+    try { CacheService.getScriptCache().remove("system_config"); } catch(e) {}
+    const replyMsg = "📥 <b>ĐĂNG KÝ TOPIC NHẬN ĐƠN THÀNH CÔNG!</b>\n" +
+      "━━━━━━━━━━━━━━━━━━━\n" +
+      "Kênh tự động ghi nhận đặt bàn đã được đặt tại Topic này (ID: " + (threadId || "Mặc định") + ").\n\n" +
+      "👉 Soạn tin nhắn đặt bàn tại đây để Bot tự động phân tích và tạo phiếu.";
+    replyTelegram_(botToken, chatId, threadId, replyMsg);
+    return HtmlService.createHtmlOutput("Registered auto booking topic");
+  }
+  
+  // 2. Read registered chat ID and topic IDs from config
+  const cfg = loadSystemConfig_();
+  const registeredChatId = cfg['telegramChatId'];
+  const registeredTopicId = cfg['telegramTopicId'];
+  const registeredAutoBookingTopicId = cfg['telegramAutoBookingTopicId'] || cfg['telegram_auto_booking_topic_id'] || registeredTopicId;
+  const activeMenuSheet = cfg['default_menu_profile_id'] || "Menu";
+  
+  // 3. Process booking text if it matches the registered group and topic
+  if (registeredChatId && String(chatId) === String(registeredChatId)) {
+    // A. Handle status command
+    const isStatusCmd = text && (text.startsWith("/status") || text.includes("@KGReservedBot_bot /status"));
+    if (isStatusCmd) {
+      const bankAccount = cfg['default_bank_account_id'] || "Chưa thiết lập";
+      const statusMsg = "🤖 <b>TRẠNG THÁI KẾT NỐI HỆ THỐNG</b>\n" +
+        "━━━━━━━━━━━━━━━━━━━\n" +
+        "🟢 <b>Kết nối:</b> Hoạt động bình thường\n" +
+        "📊 <b>Bảng thực đơn hoạt động:</b> <code>" + activeMenuSheet + "</code>\n" +
+        "💳 <b>Tài khoản nhận cọc mặc định:</b> <code>" + bankAccount + "</code>\n" +
+        "📍 <b>ID nhóm chat:</b> <code>" + chatId + "</code>\n" +
+        "📢 <b>Topic Thông báo:</b> <code>" + (registeredTopicId || "Mặc định / Không có") + "</code>\n" +
+        "📥 <b>Topic Nhận đơn:</b> <code>" + (registeredAutoBookingTopicId || "Mặc định / Không có") + "</code>\n" +
+        "📦 <b>Phiên bản backend:</b> <code>v121</code>\n\n" +
+        "👉 Lệnh đăng ký:\n" +
+        " - <code>/register_notification</code>: Đăng ký Topic hiện tại để nhận thông báo\n" +
+        " - <code>/register_auto_booking</code>: Đăng ký Topic hiện tại để tự động nhận đơn";
+      replyTelegram_(botToken, chatId, threadId, statusMsg);
+      return HtmlService.createHtmlOutput("Status responded");
+    }
+
+    // If a topic is registered, ignore booking messages from other topics in the same group
+    if (registeredAutoBookingTopicId && String(threadId || '') !== String(registeredAutoBookingTopicId)) {
+      return HtmlService.createHtmlOutput("Ignored message outside target topic");
+    }
+
+    // B. Handle invalid slash commands
+    if (text && text.startsWith("/")) {
+      const invalidCmdMsg = "⚠️ <b>LỆNH KHÔNG HỢP LỆ</b>\n" +
+        "━━━━━━━━━━━━━━━━━━━\n" +
+        "Hệ thống không hỗ trợ lệnh này.\n\n" +
+        "👉 Sử dụng lệnh <code>/status</code> để kiểm tra kết nối bot.";
+      replyTelegram_(botToken, chatId, threadId, invalidCmdMsg);
+      return HtmlService.createHtmlOutput("Invalid command responded");
+    }
+
+    // C. Handle empty updates
+    if (!text) {
+      const emptyMsg = "🤖 <b>TIN NHẮN KHÔNG HỢP LỆ</b>\n" +
+        "━━━━━━━━━━━━━━━━━━━\n" +
+        "Em nhận được cập nhật nhưng tin nhắn trống hoặc không có nội dung chữ để phân tích.\n\n" +
+        "👉 Hãy gửi tin nhắn đặt bàn kèm chữ hoặc trả lời tin nhắn cũ với cú pháp cọc nhé!";
+      replyTelegram_(botToken, chatId, threadId, emptyMsg);
+      return HtmlService.createHtmlOutput("Empty text responded");
+    }
+
+    // D. Respond immediately to notify user and retrieve temporary message ID
+    const tempRes = replyTelegramWithResult_(botToken, chatId, threadId, "⏳ <b>Đã ghi nhận thông tin đặt bàn, đang xử lý tự động...</b>");
+    const tempMsgId = (tempRes && tempRes.result && tempRes.result.message_id) ? tempRes.result.message_id : null;
+
+    sendChatAction_(botToken, chatId, threadId, "typing");
+    
+    try {
+      const parsedData = parseBookingWithGemini_(text, activeMenuSheet);
+      
+      if (!parsedData || !parsedData.customer || !parsedData.customer.name || !parsedData.customer.phone) {
+        throw new Error("Không trích xuất được thông tin tên hoặc số điện thoại khách hàng.");
+      }
+      
+      const calculatedDepositAmount = autoCalcDeposit_(parsedData.customer, parsedData.items);
+
+      const bookingId = "TG_" + Utilities.getUuid().substring(0, 8) + "_" + Date.now();
+      const payload = {
+        customer: parsedData.customer,
+        items: parsedData.items || [],
+        deposit: { 
+          isPaid: false, 
+          amount: calculatedDepositAmount, 
+          image: "",
+          note: "Yêu cầu cọc (Bot)"
+        },
+        staff: { name: "Telegram Bot", phone: "" },
+        id: bookingId,
+        version: 1,
+        total: parsedData.total || 0,
+        billImage: "",
+        customFileName: "TG_" + parsedData.customer.name,
+        activeMenuSheet: activeMenuSheet
+      };
+      
+      const c = parsedData.customer;
+      const cleanChatIdStr = String(chatId).replace('-100', '');
+      const notificationTopicUrl = "https://t.me/c/" + cleanChatIdStr + "/" + (registeredTopicId || "1");
+      
+      const quickReply = "✅ <b>LÊN PHIẾU THÀNH CÔNG!</b>\n" +
+        "━━━━━━━━━━━━━━━━━━━\n" +
+        "👤 Khách hàng: <b>" + escapeHtml(c.name) + "</b> (" + escapeHtml(c.phone) + ")\n" +
+        "📅 Thời gian: " + escapeHtml(c.date) + " lúc " + escapeHtml(c.time) + "\n\n" +
+        "👉 Chi tiết phiếu đặt đã được gửi sang topic <a href='" + notificationTopicUrl + "'>Lịch đặt mới</a>.";
+      
+      // A. Send quick acknowledgment in topic 96
+      replyTelegram_(botToken, chatId, threadId, quickReply);
+      
+      // B. Save order to sheet & calendar in the background (skipNotification is false, so it triggers sendNotification_ to topic 1)
+      payload.skipNotification = false;
+      const saveResult = saveOrder(payload);
+      if (!saveResult || !saveResult.id) {
+        throw new Error(saveResult ? saveResult.message : "Lưu dữ liệu thất bại.");
+      }
+      
+      // E. Delete temporary message on success
+      if (tempMsgId) {
+        deleteTelegramMessage_(botToken, chatId, tempMsgId);
+      }
+      
+      return HtmlService.createHtmlOutput("Order processed and replied");
+    } catch (err) {
+      // F. Delete temporary message on error/failure
+      if (tempMsgId) {
+        deleteTelegramMessage_(botToken, chatId, tempMsgId);
+      }
+
+      const isGeneralChat = err.message.indexOf("Không trích xuất được thông tin tên hoặc số điện thoại") !== -1;
+      if (isGeneralChat) {
+        const helpMsg = "🤖 <b>KÊNH ĐẶT BÀN TỰ ĐỘNG</b>\n" +
+          "━━━━━━━━━━━━━━━━━━━\n" +
+          "Em nhận được tin nhắn của anh/chị nhưng không phân tích được thông tin đặt bàn.\n\n" +
+          "👉 Vui lòng nhập theo cú pháp ví dụ:\n<i>Anh Trí 0901234567 ngày mai 18:30 đi 4 khách bàn A1 ăn Lẩu thái 1, cơm chiên 1</i>";
+        replyTelegram_(botToken, chatId, threadId, helpMsg);
+      } else {
+        const errMsg = "❌ <b>LỖI XỬ LÝ ĐẶT BÀN</b>\n" +
+          "━━━━━━━━━━━━━━━━━━━\n" +
+          "Hệ thống gặp sự cố khi lưu phiếu đặt bàn.\n" +
+          "Chi tiết: <i>" + err.message + "</i>\n\n" +
+          "👉 Anh/chị vui lòng kiểm tra lại cấu hình hoặc lên phiếu thủ công qua Webapp.";
+        replyTelegram_(botToken, chatId, threadId, errMsg);
+      }
+      
+      return HtmlService.createHtmlOutput("Error: " + err.message);
+    }
+  }
+  
+  return HtmlService.createHtmlOutput("Ignored message outside target topic");
+}
+
+function getBotToken_() {
+  const cfg = loadSystemConfig_();
+  let webhookUrl = cfg['webhookUrl'] || '';
+  if (typeof webhookUrl !== 'string') webhookUrl = '';
+  const match = webhookUrl.match(/\/bot([^/]+)\//);
+  const token = match ? match[1] : '';
+  return token.replace(/[{}]/g, '').trim();
+}
+
+function parseBookingWithGemini_(text, activeMenuSheet) {
+  const apiKeys = getApiKeysFromConfig_();
+  const googleKeys = apiKeys['google'] || apiKeys['gemini'] || [];
+  if (googleKeys.length === 0) {
+    throw new Error("Chưa cấu hình API Key cho Google Gemini. Vui lòng thiết lập trong Webapp.");
+  }
+  
+  // Load active menu to build dynamic prompt
+  const menuData = getMenuData(activeMenuSheet);
+  let menuContext = "Không có thực đơn.";
+  if (menuData && menuData.ok && Array.isArray(menuData.data)) {
+    menuContext = menuData.data.map(i => `- ${i.name}: ${i.price}đ`).join('\n');
+  }
+
+  const sysPrompt = `Bạn là Trợ lý Đặt bàn King's Grill. Nhiệm vụ của bạn là trích xuất thông tin đặt bàn từ văn bản của người dùng sang định dạng JSON.
+
+Định dạng JSON cần trả về:
+{
+  "customer": {
+    "name": "Tên khách hàng (ví dụ: 'Anh Trí')",
+    "phone": "Số điện thoại (chỉ giữ lại số, ví dụ: '0901234567')",
+    "date": "Ngày đặt (DD/MM/YYYY, ví dụ: '05/07/2026'). Hãy tự suy luận dựa trên thời gian hiện tại nếu người dùng dùng từ 'hôm nay', 'ngày mai'...",
+    "time": "Giờ đặt (HH:MM, ví dụ: '18:30')",
+    "pax": "Số khách (chỉ số, ví dụ: '4')",
+    "tables": "Mã bàn (ví dụ: 'A1'). Nếu không có, hãy để trống hoặc đoán bàn phù hợp.",
+    "type": "Ăn thường",
+    "note": "Ghi chú thêm"
+  },
+  "items": [
+    {
+      "name": "Tên món ăn chính xác từ thực đơn",
+      "qty": 1,
+      "price": 100000
+    }
+  ],
+  "total": 100000
+}
+
+Thời gian hiện tại của hệ thống: ${new Date().toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' })}
+
+Thực đơn chính thức của nhà hàng (để ánh xạ tên món ăn và đơn giá):
+${menuContext}
+
+LƯU Ý NGHIÊM NGẶT VỀ THỰC ĐƠN VÀ ĐƠN GIÁ:
+1. Chỉ trích xuất các món ăn có trong thực đơn ở trên. KHÔNG tự bịa ra món ăn mới, không bịa ra giá mới.
+2. Ánh xạ tên món ăn người viết viết (có thể viết tắt, viết không dấu) sang tên món ăn chính xác trong thực đơn.
+3. Nhân số lượng với đơn giá chính xác trong thực đơn để tính tổng tiền 'total'.
+4. Nếu món ăn người dùng viết không có trong thực đơn, hãy bỏ qua không đưa vào 'items'. Tuyệt đối không tự đoán giá của món không có trong thực đơn.`;
+
+  const body = {
+    contents: [{
+      parts: [{
+        text: sysPrompt + "\n\nUser text:\n" + text
+      }]
+    }],
+    generationConfig: {
+      temperature: 0.1,
+      responseMimeType: "application/json"
+    }
+  };
+
+  const models = ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash-latest", "gemini-1.5-pro"];
+  let response = null;
+  let code = 0;
+  let resText = "";
+  let lastError = "";
+  let success = false;
+
+  for (let k = 0; k < googleKeys.length; k++) {
+    const key = googleKeys[k];
+    for (let i = 0; i < models.length; i++) {
+      const model = models[i];
+      const fetchUrl = "https://generativelanguage.googleapis.com/v1beta/models/" + model + ":generateContent?key=" + key;
+      try {
+        response = UrlFetchApp.fetch(fetchUrl, {
+          method: 'post',
+          contentType: 'application/json',
+          payload: JSON.stringify(body),
+          muteHttpExceptions: true
+        });
+        code = response.getResponseCode();
+        resText = response.getContentText();
+        if (code === 200) {
+          success = true;
+          break;
+        } else {
+          lastError = "Key #" + (k + 1) + " | Model " + model + " (HTTP " + code + "): " + resText;
+        }
+      } catch (err) {
+        lastError = "Key #" + (k + 1) + " | " + err.message;
+      }
+    }
+    if (success) {
+      break;
+    }
+  }
+
+  if (!success) {
+    throw new Error("Lỗi gọi Gemini API: " + lastError);
+  }
+
+  const resJson = JSON.parse(resText);
+  const candidates = resJson.candidates || [];
+  const contentText = candidates[0]?.content?.parts?.[0]?.text;
+  if (!contentText) {
+    throw new Error("Không nhận được nội dung phân tích từ Gemini.");
+  }
+
+  let cleanJsonText = contentText.trim();
+  if (cleanJsonText.startsWith("```")) {
+    cleanJsonText = cleanJsonText.replace(/^```json\s*/i, "").replace(/```$/, "").trim();
+  }
+  cleanJsonText = cleanJsonText.replace(/\/\/.*$/gm, "");
+  cleanJsonText = cleanJsonText.replace(/,\s*([\]}])/g, "$1");
+  
+  try {
+    return JSON.parse(cleanJsonText);
+  } catch (parseErr) {
+    console.log("Gemini raw JSON: " + contentText);
+    throw new Error("JSON parsing failed: " + parseErr.message + "\nRaw: " + contentText);
+  }
+}
+
+function replyTelegram_(botToken, chatId, threadId, text) {
+  const url = "https://api.telegram.org/bot" + botToken + "/sendMessage";
+  const payload = {
+    chat_id: chatId,
+    text: text,
+    parse_mode: "HTML"
+  };
+  if (threadId && String(threadId) !== "1") {
+    payload.message_thread_id = threadId;
+  }
+  UrlFetchApp.fetch(url, {
+    method: "post",
+    contentType: "application/json",
+    payload: JSON.stringify(payload),
+    muteHttpExceptions: true
+  });
+}
+
+function sendTelegramPhoto_(botToken, chatId, threadId, photoUrl, caption) {
+  const url = "https://api.telegram.org/bot" + botToken + "/sendPhoto";
+  const payload = {
+    chat_id: chatId,
+    photo: photoUrl,
+    caption: caption,
+    parse_mode: "HTML"
+  };
+  if (threadId && String(threadId) !== "1") {
+    payload.message_thread_id = threadId;
+  }
+  const response = UrlFetchApp.fetch(url, {
+    method: "post",
+    contentType: "application/json",
+    payload: JSON.stringify(payload),
+    muteHttpExceptions: true
+  });
+  const code = response.getResponseCode();
+  if (code !== 200) {
+    throw new Error("HTTP " + code + ": " + response.getContentText());
+  }
+  return response.getContentText();
+}
+
+function sendChatAction_(botToken, chatId, threadId, action) {
+  const url = "https://api.telegram.org/bot" + botToken + "/sendChatAction";
+  const payload = {
+    chat_id: chatId,
+    action: action
+  };
+  if (threadId && String(threadId) !== "1") {
+    payload.message_thread_id = threadId;
+  }
+  UrlFetchApp.fetch(url, {
+    method: "post",
+    contentType: "application/json",
+    payload: JSON.stringify(payload),
+    muteHttpExceptions: true
+  });
+}
+
+function replyTelegramWithResult_(botToken, chatId, threadId, text, replyToMessageId) {
+  const url = "https://api.telegram.org/bot" + botToken + "/sendMessage";
+  const payload = {
+    chat_id: chatId,
+    text: text,
+    parse_mode: "HTML"
+  };
+  if (threadId && String(threadId) !== "1") {
+    payload.message_thread_id = threadId;
+  }
+  if (replyToMessageId) {
+    payload.reply_to_message_id = replyToMessageId;
+  }
+  try {
+    const res = UrlFetchApp.fetch(url, {
+      method: "post",
+      contentType: "application/json",
+      payload: JSON.stringify(payload),
+      muteHttpExceptions: true
+    });
+    if (res.getResponseCode() === 200) {
+      return JSON.parse(res.getContentText());
+    }
+  } catch(e) {
+    console.log("replyTelegramWithResult_ failed: " + e.message);
+  }
+  return null;
+}
+
+function deleteTelegramMessage_(botToken, chatId, messageId) {
+  const url = "https://api.telegram.org/bot" + botToken + "/deleteMessage";
+  const payload = {
+    chat_id: chatId,
+    message_id: messageId
+  };
+  try {
+    UrlFetchApp.fetch(url, {
+      method: "post",
+      contentType: "application/json",
+      payload: JSON.stringify(payload),
+      muteHttpExceptions: true
+    });
+  } catch(e) {
+    console.log("deleteTelegramMessage_ failed: " + e.message);
+  }
+}
+
+function autoCalcDeposit_(customer, items) {
+  const pax = parseInt(customer.pax) || 0;
+  const hasFood = items && items.length > 0 && items.some(function(item) {
+    return item.name && item.name.trim() && Number(item.qty) > 0;
+  });
+  
+  if (!hasFood) {
+    if (pax >= 20) {
+      return 1000000;
+    } else {
+      return 500000;
+    }
+  } else {
+    // Calculate total
+    const total = items.reduce(function(acc, i) {
+      return acc + (Number(i.price) * Number(i.qty));
+    }, 0);
+    if (total < 1500000) {
+      return 500000;
+    } else {
+      const oneThird = total / 3;
+      return Math.round(oneThird / 500000) * 500000;
+    }
+  }
+}
+
+function getOrderById_(bookingId) {
+  const ss = SpreadsheetApp.openById(CONFIG.SS_ID);
+  const sheet = ss.getSheetByName(CONFIG.SHEET_NAME_ORDERS);
+  if (!sheet) return null;
+  const values = sheet.getDataRange().getValues();
+  for (let i = 1; i < values.length; i++) {
+    if (values[i][0] === bookingId) {
+      try {
+        const unifiedData = JSON.parse(values[i][4]);
+        return {
+          id: bookingId,
+          customer: unifiedData.customer,
+          items: unifiedData.items,
+          deposit: unifiedData.deposit || { isPaid: false, amount: 0, image: "" },
+          staff: unifiedData.staff || { name: "Telegram Bot", phone: "" },
+          total: values[i][5],
+          billImage: values[i][9] || "",
+          activeMenuSheet: unifiedData.activeMenuSheet || ""
+        };
+      } catch(e) {
+        return null;
+      }
+    }
+  }
+  return null;
+}
+
+function editTelegramPhoto_(botToken, chatId, messageId, photoUrl, caption) {
+  const url = "https://api.telegram.org/bot" + botToken + "/editMessageMedia";
+  const payload = {
+    chat_id: chatId,
+    message_id: messageId,
+    media: {
+      type: "photo",
+      media: photoUrl,
+      caption: caption,
+      parse_mode: "HTML"
+    }
+  };
+  const response = UrlFetchApp.fetch(url, {
+    method: "post",
+    contentType: "application/json",
+    payload: JSON.stringify(payload),
+    muteHttpExceptions: true
+  });
+  return response.getContentText();
+}
+
+function editTelegramText_(botToken, chatId, messageId, text) {
+  const url = "https://api.telegram.org/bot" + botToken + "/editMessageCaption";
+  const payload = {
+    chat_id: chatId,
+    message_id: messageId,
+    caption: text,
+    parse_mode: "HTML"
+  };
+  UrlFetchApp.fetch(url, {
+    method: "post",
+    contentType: "application/json",
+    payload: JSON.stringify(payload),
+    muteHttpExceptions: true
+  });
+}
+
+function extractBookingIdFromMessage_(replyTo) {
+  let text = replyTo.caption || replyTo.text || "";
+  
+  // 1. Try regex on the text directly (in case bookingId is printed as plain text)
+  let match = text.match(/TG_[A-Za-z0-9_]+/);
+  if (match) return match[0];
+  
+  // 2. Try looking in entities or caption_entities
+  const entities = replyTo.caption_entities || replyTo.entities || [];
+  for (let i = 0; i < entities.length; i++) {
+    const ent = entities[i];
+    if (ent.type === "text_link" && ent.url) {
+      const urlMatch = ent.url.match(/#\/bill\/([A-Za-z0-9_-]+)/) || ent.url.match(/TG_[A-Za-z0-9_]+/);
+      if (urlMatch) {
+        return urlMatch[1] || urlMatch[0];
+      }
+    }
+  }
+  
+  // 3. Try to see if there is any URL in the text itself
+  const urlRegex = /https?:\/\/[^\s]+/g;
+  let urlMatch;
+  while ((urlMatch = urlRegex.exec(text)) !== null) {
+    const link = urlMatch[0];
+    const linkMatch = link.match(/#\/bill\/([A-Za-z0-9_-]+)/) || link.match(/TG_[A-Za-z0-9_]+/);
+    if (linkMatch) {
+      return linkMatch[1] || linkMatch[0];
+    }
+  }
+  
+  return "";
+}
+
+function getShareUrlWithData_(bookingId, payload) {
+  try {
+    const rawBytes = Utilities.newBlob(JSON.stringify(payload)).getBytes();
+    const base64Data = Utilities.base64EncodeWebSafe(rawBytes);
+    return "https://kg-booking.pages.dev/#/bill/" + bookingId + "?data=" + base64Data;
+  } catch (e) {
+    console.log("Failed to encode payload data: " + e.message);
+    return "https://kg-booking.pages.dev/#/bill/" + bookingId;
+  }
+}
+
+function updateWebhookUrlToBotB() {
+  const ss = SpreadsheetApp.openById(CONFIG.SS_ID);
+  const configSheet = ss.getSheetByName(CONFIG.SHEET_NAME_CONFIG);
+  if (!configSheet) return "No config sheet";
+  const range = configSheet.getDataRange();
+  const values = range.getValues();
+  for (let i = 1; i < values.length; i++) {
+    const key = values[i][0];
+    if (key === 'webhookUrl') {
+      configSheet.getRange(i + 1, 2).setValue("https://api.telegram.org/bot8991006823:AAHlNtYoTgzKF9LmKp2pnzsHDtpb2WngLBQ/sendMessage");
+    }
+    if (key === 'system_config') {
+      try {
+        const parsed = JSON.parse(values[i][1]);
+        parsed.webhookUrl = "https://api.telegram.org/bot8991006823:AAHlNtYoTgzKF9LmKp2pnzsHDtpb2WngLBQ/sendMessage";
+        configSheet.getRange(i + 1, 2).setValue(JSON.stringify(parsed));
+      } catch(e) {}
+    }
+  }
+  // Clear script cache
+  CacheService.getScriptCache().remove("system_config");
+  return "Updated webhookUrl to Bot B successfully";
+}
+
+function logWebhookEvent_(update) {
+  try {
+    const ss = SpreadsheetApp.openById(CONFIG.SS_ID);
+    let sheet = ss.getSheetByName("Webhook_Logs");
+    if (!sheet) {
+      sheet = ss.insertSheet("Webhook_Logs");
+      sheet.appendRow(["Timestamp", "Update ID", "Chat ID", "Thread ID", "Text", "Raw Update JSON"]);
+    }
+    const msg = update.message || {};
+    const chat = msg.chat || {};
+    const text = msg.text || "";
+    sheet.appendRow([
+      new Date().toISOString(),
+      update.update_id || "",
+      chat.id || "",
+      msg.message_thread_id || "None",
+      text.substring(0, 100),
+      JSON.stringify(update)
+    ]);
+  } catch (e) {
+    console.log("Failed to log webhook event: " + e.message);
+  }
 }
 

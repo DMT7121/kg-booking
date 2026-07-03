@@ -119,11 +119,9 @@ export async function saveConfig(bankList?: string, staffList?: string, password
   })
 }
 
-/** Fetch public order by ID (GET request) */
+/** Fetch public order by ID (POST request to bypass CORS issues) */
 export async function getOrderById(id: string): Promise<any> {
-  const url = `${API_GATEWAY}?action=getOrder&id=${encodeURIComponent(id)}`
-  const res = await fetch(url)
-  return res.json()
+  return postGAS({ action: 'getOrder', id })
 }
 
 // --- NEW SYSTEM CONFIG & ADMIN ENDPOINTS ---
