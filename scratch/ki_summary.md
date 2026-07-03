@@ -1,3 +1,20 @@
+## Recent Work: Customer Portal Upgrades & Settings Toggle
+- **What was done:**
+  - Added a configuration key `showPortalMinigames` to hide/show Portal minigames and VIP card, persisted in [Backend.gs](file:///f:/kg-booking/gas/Backend.gs), [api.ts](file:///f:/kg-booking/src/services/api.ts), and [localApiServer.ts](file:///f:/kg-booking/src/infrastructure/local/localApiServer.ts).
+  - Implemented toggle settings UI with "ADMINDMT" authentication in [WebhookConfigModal.vue](file:///f:/kg-booking/src/components/modals/WebhookConfigModal.vue).
+  - Repositioned the receipt stamp container in [PublicBill.vue](file:///f:/kg-booking/src/components/core/PublicBill.vue) to the bottom-right corner of the customer info card (scale 0.6) to avoid overlapping guest details.
+  - Updated Maps and Menu links to pointing URLs in [PublicBill.vue](file:///f:/kg-booking/src/components/core/PublicBill.vue).
+  - Appended inline unit prices in square brackets `[149.000đ]` after item names in Portal, and changed column header to "Thành tiền" with total prices (Qty * Price).
+  - Set default Portal support representative fallback to "Minh Trí" / "0336667301".
+  - Appended the unified policy rules and notes container block at the bottom of the Portal bill receipt.
+  - Built and successfully deployed all updates to Cloudflare Pages (version `@145` deployment on GAS clasp) and GitHub main branch.
+- **Why:** To fulfill portal customization requests, improve layout visual alignment, and give managers toggle controls over games and VIP cards.
+- **Current state:** Fully resolved and verified. All 132 tests pass.
+- **Next steps:** None.
+- **Gotchas:** When toggling settings, ensure that the admin token is active, otherwise the password prompt modal will be triggered.
+
+---
+
 ## Recent Work: Production & Local Connection Status and Offline Mode Fixes
 - **What was done:**
   - Modified [gasClient.ts](file:///f:/kg-booking/src/infrastructure/gas/gasClient.ts) to detect `useLocalProxy` in development, routing requests through Vite's local `/api` proxy middleware.
