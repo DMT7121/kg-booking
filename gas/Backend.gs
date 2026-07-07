@@ -2739,7 +2739,13 @@ function handleTelegramWebhook(update) {
   // --- B. Check if this is a reply message to edit or delete or update deposit ---
   const replyTo = msg.reply_to_message;
   let isReplyProcessed = false;
-  if (replyTo) {
+
+  const isTopicCreationReply = replyTo && (
+    replyTo.forum_topic_created || 
+    (threadId && String(replyTo.message_id) === String(threadId))
+  );
+
+  if (replyTo && !isTopicCreationReply) {
     isReplyProcessed = true;
     let bookingId = extractBookingIdFromMessage_(replyTo);
     if (!bookingId) {
@@ -2778,6 +2784,11 @@ function handleTelegramWebhook(update) {
           updatedOrder.billImage = order.billImage || "";
           updatedOrder.customFileName = order.customFileName || ("TG_" + updatedOrder.customer.name);
           updatedOrder.activeMenuSheet = order.activeMenuSheet;
+          
+          // Auto-recalculate deposit if unpaid
+          if (updatedOrder.deposit && !updatedOrder.deposit.isPaid) {
+            updatedOrder.deposit.amount = autoCalcDeposit_(updatedOrder.customer, updatedOrder.items);
+          }
           
           // Save updated order
           updatedOrder.skipNotification = true; // Skip sending spam notifications
