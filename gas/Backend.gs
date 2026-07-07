@@ -2746,7 +2746,6 @@ function handleTelegramWebhook(update) {
   );
 
   if (replyTo && !isTopicCreationReply) {
-    isReplyProcessed = true;
     let bookingId = extractBookingIdFromMessage_(replyTo);
     if (!bookingId) {
       const parentText = replyTo.caption || replyTo.text || "";
@@ -2754,6 +2753,7 @@ function handleTelegramWebhook(update) {
     }
     
     if (bookingId) {
+      isReplyProcessed = true;
       sendChatAction_(botToken, chatId, threadId, "typing");
       
       try {
@@ -2828,8 +2828,6 @@ function handleTelegramWebhook(update) {
       } catch (err) {
         replyTelegram_(botToken, chatId, threadId, "❌ Lỗi xử lý yêu cầu chỉnh sửa: " + escapeHtml_(err.message));
       }
-    } else {
-      replyTelegram_(botToken, chatId, threadId, "⚠️ Không tìm thấy Mã đặt bàn hợp lệ trong tin nhắn được trả lời.");
     }
   }
   
