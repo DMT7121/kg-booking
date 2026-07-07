@@ -1296,6 +1296,11 @@ function syncToCalendar(data, bookingId, billUrl, transferUrl) {
   
   // Avoid writing if hash hasn't changed (performance optimization)
   if (existing.last_synced_hash === currentHash) {
+    if (isCalendarSlotEmpty_(sheet, row, col, infoCol)) {
+      writeBookingBlock(sheet, row, col, data, bookingId, billUrl);
+      logLocationHistory(ss, bookingId, "RESTORE_LOCATION", dateStr, dateStr, tableStr, tableStr, existing.cell_range, existing.cell_range, "SUCCESS", "Khôi phục vị trí cũ bị xóa giá trị");
+      return { status: "SUCCESS", message: "Đã đồng bộ lại lịch đặt vào vị trí cũ thành công.", cellRange: existing.cell_range };
+    }
     return { status: "SUCCESS", message: "Lịch đã được đồng bộ (không đổi).", cellRange: existing.cell_range };
   }
   
