@@ -1345,6 +1345,15 @@ export const useAppStore = defineStore('app', () => {
             if (queueItem) {
               await removeFromQueue(queueItem.id)
             }
+            
+            // Also mark outbox item as synced (overwritten) if in postgres/dual_write mode
+            try {
+              const { markAsSynced } = await import('@/infrastructure/outbox/outbox')
+              await markAsSynced(localId, 'upsert')
+            } catch (err) {
+              console.warn('Failed to mark outbox item as synced:', err)
+            }
+
             activeConflicts.value = activeConflicts.value.filter(c => c.localBookingId !== localId)
             saveConflicts()
             await updateOfflineQueueCount()

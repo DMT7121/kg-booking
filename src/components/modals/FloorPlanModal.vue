@@ -24,6 +24,15 @@ const todayStr = computed(() => {
   return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`
 })
 
+// Dynamic date string of the booking, fallback to today if empty or invalid format
+const bookingDate = computed(() => {
+  const d = formStore.customer.date?.trim()
+  if (d && /^\d{2}\/\d{2}\/\d{4}$/.test(d)) {
+    return d
+  }
+  return todayStr.value
+})
+
 // Parse table string to array
 function parseTables(tablesStr: string | undefined): string[] {
   if (!tablesStr) return []
@@ -44,7 +53,7 @@ function getTableStatus(tableName: string) {
   // Find orders for today that include this table (excluding the booking currently being edited)
   const todayOrders = appStore.historyList.filter(o => 
     o.id !== formStore.id &&
-    o.parsedCustomer?.date === todayStr.value && 
+    o.parsedCustomer?.date === bookingDate.value && 
     isTableMatch(o.parsedCustomer?.tables, tableName)
   )
 
@@ -79,7 +88,7 @@ function getOccupyingDetails(tableName: string): string | null {
   if (!appStore.historyList) return null
   const todayOrders = appStore.historyList.filter(o => 
     o.id !== formStore.id &&
-    o.parsedCustomer?.date === todayStr.value && 
+    o.parsedCustomer?.date === bookingDate.value && 
     isTableMatch(o.parsedCustomer?.tables, tableName)
   )
   if (todayOrders.length > 0) {
@@ -165,7 +174,7 @@ function isSelected(table: string) {
 }
 
 // --- Drag & Drop xếp bàn ---
-const todayBookings = computed(() => {
+const targetDateBookings = computed(() => {
   if (!appStore.historyList) return []
   const groups = appStore.groupedHistory
   const result: any[] = []
@@ -173,7 +182,7 @@ const todayBookings = computed(() => {
     const order = group.latest
     if (!order.parsedCustomer) return
     const date = (order.parsedCustomer.date || '').trim()
-    if (date === todayStr.value) {
+    if (date === bookingDate.value) {
       result.push(order)
     }
   })
@@ -307,7 +316,7 @@ async function handleTableDrop(e: DragEvent, tableName: string) {
             </div>
             <div>
               <h2 class="text-lg font-black text-blue-900 uppercase tracking-tighter">Sơ đồ bàn</h2>
-              <p class="text-[10px] font-bold text-slate-400 mt-0.5 uppercase tracking-wider">Thời gian thực</p>
+              <p class="text-[10px] font-bold text-slate-400 mt-0.5 uppercase tracking-wider">Thời gian thực - Ngày {{ bookingDate }}</p>
             </div>
           </div>
           <button @click="closeFloorPlan" class="w-10 h-10 flex items-center justify-center text-slate-400 hover:bg-rose-50 hover:text-rose-500 rounded-full transition-colors active:scale-95 shadow-sm border border-slate-100 bg-white">
@@ -384,16 +393,16 @@ async function handleTableDrop(e: DragEvent, tableName: string) {
           <!-- Right side: Draggable Bookings Queue -->
           <div class="w-full lg:w-80 border-t lg:border-t-0 lg:border-l border-slate-200 bg-white flex flex-col shrink-0">
             <div class="p-3 border-b border-slate-100 bg-slate-50/50 flex justify-between items-center shrink-0">
-              <span class="font-black text-slate-800 text-[10px] uppercase tracking-widest flex items-center gap-1"><i class="fa-solid fa-list-check text-blue-500"></i> Hàng đợi xếp bàn (Hôm nay)</span>
-              <span class="px-2 py-0.5 bg-blue-50 text-blue-700 rounded-full text-[9px] font-black">{{ todayBookings.length }} đơn</span>
+              <span class="font-black text-slate-800 text-[10px] uppercase tracking-widest flex items-center gap-1"><i class="fa-solid fa-list-check text-blue-500"></i> Hàng đợi xếp bàn (Ngày {{ bookingDate }})</span>
+              <span class="px-2 py-0.5 bg-blue-50 text-blue-700 rounded-full text-[9px] font-black">{{ targetDateBookings.length }} đơn</span>
             </div>
             
             <div class="flex-1 overflow-y-auto custom-scrollbar p-3 space-y-2 max-h-[25vh] lg:max-h-none bg-slate-50/30">
-              <div v-if="todayBookings.length === 0" class="text-center py-8 text-slate-400 text-xs italic font-semibold">
-                Không có đơn đặt bàn hôm nay
+              <div v-if="targetDateBookings.length === 0" class="text-center py-8 text-slate-400 text-xs italic font-semibold">
+                Không có đơn đặt bàn ngày {{ bookingDate }}
               </div>
               <div 
-                v-for="bk in todayBookings" 
+                v-for="bk in targetDateBookings" 
                 :key="bk.id"
                 draggable="true"
                 @dragstart="handleBookingDragStart($event, bk)"

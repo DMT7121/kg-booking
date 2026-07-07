@@ -391,7 +391,6 @@ export async function runAsymmetricRace(request: RaceRequest): Promise<RaceResul
       checkCompleteFailure()
     }
 
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     function handleQualityFailure(err: any) {
       if (settled) return
       qualityError = err

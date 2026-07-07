@@ -28,11 +28,54 @@ watch(() => ui.selectedTimelineDate, (val) => {
   if (val) selectedKitchenDate.value = val
 })
 
-// Kitchen prepared local checkboxes
-const preparedItems = ref<Record<string, boolean>>(JSON.parse(localStorage.getItem('kg_kitchen_prepared') || '{}'))
-function togglePrepared(key: string) {
-  preparedItems.value[key] = !preparedItems.value[key]
-  localStorage.setItem('kg_kitchen_prepared', JSON.stringify(preparedItems.value))
+// Kitchen prepared status toggle via Cloud saveOrder
+async function togglePrepared(item: any) {
+  const order = appStore.historyList.find(o => o.id === item.orderId)
+  if (!order) return
+  
+  const updatedMenuItems = JSON.parse(JSON.stringify(order.menuItems || []))
+  if (updatedMenuItems[item.index]) {
+    updatedMenuItems[item.index].prepared = !updatedMenuItems[item.index].prepared
+  }
+  
+  const rawData = JSON.parse((order as any).data || '{}')
+  const originalMetadata = order.aiEngine ? { model_used: order.aiEngine } : null
+  
+  const payload = {
+    id: order.id,
+    customer: order.parsedCustomer,
+    items: updatedMenuItems,
+    staff: order.staff || { name: 'Admin', phone: '' },
+    deposit: order.deposit || { amount: order.depositAmount, isPaid: order.isDeposited },
+    total: order.totalAmount,
+    activeMenuSheet: rawData.activeMenuSheet || appStore.activeSheet || '',
+    aiMetadata: rawData.aiMetadata || originalMetadata,
+    warnings: rawData.warnings || [],
+    unresolvedItems: rawData.unresolvedItems || [],
+    version: (order.version || 1) + 1,
+    baseServerVersion: order.version || 1
+  }
+  
+  const optimisticOrder = {
+    ...order,
+    menuItems: updatedMenuItems,
+    version: payload.version,
+    isSyncing: true
+  }
+  appStore.setOptimisticOrder(optimisticOrder)
+  
+  try {
+    const res = await appStore.saveOrder(payload)
+    if (res && res.ok) {
+      appStore.markOrderSynced(order.id, { version: payload.version })
+      await appStore.loadHistory(true)
+    } else {
+      throw new Error(res?.message || 'Save failed')
+    }
+  } catch (err: any) {
+    appStore.markOrderFailed(order.id)
+    await appStore.loadHistory(true)
+  }
 }
 
 // Filters for Dish Report
@@ -180,44 +223,58 @@ const detailedDishes = computed(() => {
 // --- KITCHEN/BAR PREP GROUPING ---
 const kitchenBarItems = computed(() => {
   const targetDate = selectedKitchenDate.value
-  // Filter for unique latest version of bookings
   const groups = appStore.groupedHistory
   const activeOrders = Object.values(groups).map(g => g.latest).filter(o => o.parsedCustomer?.date === targetDate)
   
-  const kitchen: Record<string, { name: string, qty: number, tables: string[], notes: string[] }> = {}
-  const bar: Record<string, { name: string, qty: number, tables: string[], notes: string[] }> = {}
+  const kitchen: any[] = []
+  const bar: any[] = []
   
   activeOrders.forEach(order => {
     const table = order.parsedCustomer?.tables || 'Bàn ?'
+    const name = order.parsedCustomer?.name || 'Khách'
+    const time = order.parsedCustomer?.time || '--:--'
+    
     if (order.menuItems && Array.isArray(order.menuItems)) {
-      order.menuItems.forEach((item: any) => {
-        const name = item.name
-        if (!name) return
+      order.menuItems.forEach((item: any, index: number) => {
+        const itemName = item.name
+        if (!itemName) return
         const qty = Number(item.qty) || 0
         const note = item.note || item.notes || ''
+        const prepared = !!item.prepared
         
-        const norm = name.toLowerCase()
+        const norm = itemName.toLowerCase()
         const isDrink = ['bia', 'nuoc', 'nước', 'rượu', 'ruou', 'coca', 'pepsi', 'sprite', 'fanta', 'suoi', 'sữa', 'sua', 'tiger', 'heineken', 'sai gon', 'hanoi', 'trà', 'tra'].some(k => norm.includes(k))
         
-        const targetGroup = isDrink ? bar : kitchen
-        if (!targetGroup[name]) {
-          targetGroup[name] = { name, qty: 0, tables: [], notes: [] }
+        const prepItem = {
+          orderId: order.id,
+          customerName: name,
+          time,
+          tableName: table,
+          itemName,
+          qty,
+          note,
+          prepared,
+          index
         }
         
-        targetGroup[name].qty += qty
-        if (!targetGroup[name].tables.includes(table)) {
-          targetGroup[name].tables.push(table)
-        }
-        if (note && !targetGroup[name].notes.includes(note)) {
-          targetGroup[name].notes.push(note)
+        if (isDrink) {
+          bar.push(prepItem)
+        } else {
+          kitchen.push(prepItem)
         }
       })
     }
   })
   
+  const sorter = (a: any, b: any) => {
+    const timeCompare = a.time.localeCompare(b.time)
+    if (timeCompare !== 0) return timeCompare
+    return a.tableName.localeCompare(b.tableName)
+  }
+  
   return {
-    kitchen: Object.values(kitchen).sort((a, b) => b.qty - a.qty),
-    bar: Object.values(bar).sort((a, b) => b.qty - a.qty)
+    kitchen: kitchen.sort(sorter),
+    bar: bar.sort(sorter)
   }
 })
 
@@ -609,31 +666,34 @@ function triggerKitchenPrint() {
             </h3>
 
             <div class="space-y-3 flex-grow divide-y divide-slate-100">
-              <div v-for="item in kitchenBarItems.kitchen" :key="item.name" class="pt-3 flex items-start justify-between gap-3 group">
+              <div v-for="item in kitchenBarItems.kitchen" :key="item.orderId + '-' + item.index" class="pt-3 flex items-start justify-between gap-3 group">
                 <div class="flex items-start gap-3 flex-1 min-w-0">
                   <!-- Custom checkbox for prepared status -->
-                  <button @click="togglePrepared('kitchen-' + selectedKitchenDate + '-' + item.name)" 
+                  <button @click="togglePrepared(item)" 
                           class="w-5 h-5 rounded border flex items-center justify-center shrink-0 mt-0.5 transition-colors print:hidden"
-                          :class="preparedItems['kitchen-' + selectedKitchenDate + '-' + item.name] ? 'bg-emerald-500 border-emerald-500 text-white' : 'border-slate-300 hover:border-slate-400 bg-white'">
+                          :class="item.prepared ? 'bg-emerald-500 border-emerald-500 text-white' : 'border-slate-300 hover:border-slate-400 bg-white'">
                     <i class="fa-solid fa-check text-[10px]"></i>
                   </button>
                   <div class="min-w-0 flex-1">
                     <div class="font-extrabold text-[13px] text-slate-800" 
-                         :class="{ 'line-through text-slate-400 decoration-slate-400': preparedItems['kitchen-' + selectedKitchenDate + '-' + item.name] }">
-                      {{ item.name }}
+                         :class="{ 'line-through text-slate-400 decoration-slate-400': item.prepared }">
+                      {{ item.itemName }}
                     </div>
                     <div class="text-[10px] font-bold text-slate-400 mt-1 flex flex-wrap gap-1.5 items-center">
                       <span class="bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded flex items-center gap-0.5">
-                        <i class="fa-solid fa-chair text-[8px]"></i> Bàn: {{ item.tables.join(', ') }}
+                        <i class="fa-solid fa-chair text-[8px]"></i> Bàn: {{ item.tableName }} ({{ item.time }})
                       </span>
-                      <span v-for="(note, idx) in item.notes" :key="idx" class="bg-rose-50 text-rose-700 border border-rose-100 px-1.5 py-0.5 rounded font-black italic">
-                        ⭐ {{ note }}
+                      <span class="bg-blue-50 text-blue-700 px-1.5 py-0.5 rounded">
+                        Khách: {{ item.customerName }}
+                      </span>
+                      <span v-if="item.note" class="bg-rose-50 text-rose-700 border border-rose-100 px-1.5 py-0.5 rounded font-black italic">
+                        ⭐ {{ item.note }}
                       </span>
                     </div>
                   </div>
                 </div>
                 <div class="text-right shrink-0">
-                  <div class="font-black text-lg text-emerald-600" :class="{ 'text-slate-300 line-through': preparedItems['kitchen-' + selectedKitchenDate + '-' + item.name] }">
+                  <div class="font-black text-lg text-emerald-600" :class="{ 'text-slate-300 line-through': item.prepared }">
                     x{{ item.qty }}
                   </div>
                 </div>
@@ -652,30 +712,33 @@ function triggerKitchenPrint() {
             </h3>
 
             <div class="space-y-3 flex-grow divide-y divide-slate-100">
-              <div v-for="item in kitchenBarItems.bar" :key="item.name" class="pt-3 flex items-start justify-between gap-3 group">
+              <div v-for="item in kitchenBarItems.bar" :key="item.orderId + '-' + item.index" class="pt-3 flex items-start justify-between gap-3 group">
                 <div class="flex items-start gap-3 flex-1 min-w-0">
-                  <button @click="togglePrepared('bar-' + selectedKitchenDate + '-' + item.name)" 
+                  <button @click="togglePrepared(item)" 
                           class="w-5 h-5 rounded border flex items-center justify-center shrink-0 mt-0.5 transition-colors print:hidden"
-                          :class="preparedItems['bar-' + selectedKitchenDate + '-' + item.name] ? 'bg-blue-500 border-blue-500 text-white' : 'border-slate-300 hover:border-slate-400 bg-white'">
+                          :class="item.prepared ? 'bg-blue-500 border-blue-500 text-white' : 'border-slate-300 hover:border-slate-400 bg-white'">
                     <i class="fa-solid fa-check text-[10px]"></i>
                   </button>
                   <div class="min-w-0 flex-1">
                     <div class="font-extrabold text-[13px] text-slate-800" 
-                         :class="{ 'line-through text-slate-400 decoration-slate-400': preparedItems['bar-' + selectedKitchenDate + '-' + item.name] }">
-                      {{ item.name }}
+                         :class="{ 'line-through text-slate-400 decoration-slate-400': item.prepared }">
+                      {{ item.itemName }}
                     </div>
                     <div class="text-[10px] font-bold text-slate-400 mt-1 flex flex-wrap gap-1.5 items-center">
                       <span class="bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded flex items-center gap-0.5">
-                        <i class="fa-solid fa-chair text-[8px]"></i> Bàn: {{ item.tables.join(', ') }}
+                        <i class="fa-solid fa-chair text-[8px]"></i> Bàn: {{ item.tableName }} ({{ item.time }})
                       </span>
-                      <span v-for="(note, idx) in item.notes" :key="idx" class="bg-rose-50 text-rose-700 border border-rose-100 px-1.5 py-0.5 rounded font-black italic">
-                        ⭐ {{ note }}
+                      <span class="bg-blue-50 text-blue-700 px-1.5 py-0.5 rounded">
+                        Khách: {{ item.customerName }}
+                      </span>
+                      <span v-if="item.note" class="bg-rose-50 text-rose-700 border border-rose-100 px-1.5 py-0.5 rounded font-black italic">
+                        ⭐ {{ item.note }}
                       </span>
                     </div>
                   </div>
                 </div>
                 <div class="text-right shrink-0">
-                  <div class="font-black text-lg text-blue-600" :class="{ 'text-slate-300 line-through': preparedItems['bar-' + selectedKitchenDate + '-' + item.name] }">
+                  <div class="font-black text-lg text-blue-600" :class="{ 'text-slate-300 line-through': item.prepared }">
                     x{{ item.qty }}
                   </div>
                 </div>
