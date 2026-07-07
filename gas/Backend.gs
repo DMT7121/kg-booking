@@ -2657,7 +2657,8 @@ function handleTelegramWebhook(update) {
       return t.toString().replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
     };
 
-    if (callbackData.indexOf("confirm_create:") === 0) {
+    try {
+      if (callbackData.indexOf("confirm_create:") === 0) {
       const tempId = callbackData.substring("confirm_create:".length);
       const payloadStr = CacheService.getScriptCache().get(tempId);
       if (!payloadStr) {
@@ -2713,6 +2714,12 @@ function handleTelegramWebhook(update) {
       answerCallbackQuery_(botToken, callbackQuery.id, "Đã hủy yêu cầu.");
       return HtmlService.createHtmlOutput("Callback processed - canceled");
     }
+  } catch (err) {
+    logError_("Callback Error: " + err.message + "\nStack: " + err.stack);
+    answerCallbackQuery_(botToken, callbackQuery.id, "❌ Lỗi: " + err.message);
+    editTelegramMessageText_(botToken, chatId, messageId, "❌ <b>Lỗi xử lý yêu cầu:</b> " + escapeHtml_(err.message), null);
+    return HtmlService.createHtmlOutput("Callback error: " + err.message);
+  }
   }
 
   const msg = update.message;
@@ -3197,8 +3204,10 @@ function editTelegramMessageText_(botToken, chatId, messageId, text, replyMarkup
     text: text,
     parse_mode: "HTML"
   };
-  if (replyMarkup !== undefined) {
+  if (replyMarkup) {
     payload.reply_markup = replyMarkup;
+  } else if (replyMarkup === null) {
+    payload.reply_markup = { inline_keyboard: [] };
   }
   UrlFetchApp.fetch(url, {
     method: "post",
@@ -3726,4 +3735,14 @@ function escapeHtml_(text) {
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;");
+}
+
+function logError_(msg) {
+  try {
+    const ss = SpreadsheetApp.openById(CONFIG.SS_ID);
+    let sheet = ss.getSheetByName("Webhook_Logs");
+    if (sheet) {
+      sheet.appendRow([new Date().toISOString(), "ERROR", "", "", msg, ""]);
+    }
+  } catch(e) {}
 }
