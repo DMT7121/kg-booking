@@ -2627,6 +2627,9 @@ function testTelegramNotification(orderData) {
 // --- TELEGRAM WEBHOOK INCOMING EVENT HANDLERS ---
 
 function handleTelegramWebhook(update) {
+  // Clean up expired temp payloads from Script Properties
+  cleanExpiredTempPayloads_();
+
   // Log webhook event details to Webhook_Logs sheet for diagnostic purposes
   logWebhookEvent_(update);
 
@@ -2660,7 +2663,7 @@ function handleTelegramWebhook(update) {
     try {
       if (callbackData.indexOf("confirm_create:") === 0) {
       const tempId = callbackData.substring("confirm_create:".length);
-      const payloadStr = CacheService.getScriptCache().get(tempId);
+      const payloadStr = PropertiesService.getScriptProperties().getProperty(tempId);
       if (!payloadStr) {
         editTelegramMessageText_(botToken, chatId, messageId, "⚠️ <b>Phiên làm việc đã hết hạn (quá 10 phút) hoặc đơn đã được xác nhận tạo phiếu.</b>", null);
         return HtmlService.createHtmlOutput("Temp payload expired");
@@ -2682,7 +2685,7 @@ function handleTelegramWebhook(update) {
         return HtmlService.createHtmlOutput("Save failed");
       }
       
-      CacheService.getScriptCache().remove(tempId);
+      PropertiesService.getScriptProperties().deleteProperty(tempId);
       
       const c = payload.customer;
       const fmt = (n) => n ? n.toString().replace(/\B(?=(\d{3})+(?!\d))/g, '.') + 'đ' : '0đ';
@@ -2709,7 +2712,7 @@ function handleTelegramWebhook(update) {
     
     if (callbackData.indexOf("cancel_create:") === 0) {
       const tempId = callbackData.substring("cancel_create:".length);
-      CacheService.getScriptCache().remove(tempId);
+      PropertiesService.getScriptProperties().deleteProperty(tempId);
       editTelegramMessageText_(botToken, chatId, messageId, "❌ <b>ĐÃ HỦY YÊU CẦU ĐẶT BÀN.</b>", null);
       answerCallbackQuery_(botToken, callbackQuery.id, "Đã hủy yêu cầu.");
       return HtmlService.createHtmlOutput("Callback processed - canceled");
@@ -2763,7 +2766,23 @@ function handleTelegramWebhook(update) {
       isReplyProcessed = true;
       sendChatAction_(botToken, chatId, threadId, "typing");
       
+      let tempMsgId = null;
       try {
+        let pendingText = "⏳ <b>Ghi nhận cập nhật cho thông tin đặt bàn trước đó, em sẽ cập nhật ngay...</b>";
+        const cleanText = text.toLowerCase();
+        if (cleanText.indexOf("hủy") !== -1 || cleanText.indexOf("xóa") !== -1 || cleanText.indexOf("không ăn") !== -1) {
+          pendingText = "⏳ <b>Ghi nhận yêu cầu hủy bàn, em sẽ xử lý ngay...</b>";
+        } else if (cleanText.indexOf("dời") !== -1 || cleanText.indexOf("ngày") !== -1 || cleanText.indexOf("giờ") !== -1 || cleanText.indexOf("h") !== -1) {
+          pendingText = "⏳ <b>Ghi nhận thay đổi thời gian (ngày, giờ), em sẽ xử lý ngay...</b>";
+        } else if (cleanText.indexOf("cọc") !== -1 || cleanText.indexOf("tiền") !== -1) {
+          pendingText = "⏳ <b>Ghi nhận thay đổi tiền cọc, em sẽ xử lý ngay...</b>";
+        }
+        
+        const tempRes = replyTelegramWithResult_(botToken, chatId, threadId, pendingText);
+        if (tempRes && tempRes.result && tempRes.result.message_id) {
+          tempMsgId = tempRes.result.message_id;
+        }
+
         const order = getOrderById_(bookingId);
         if (!order) {
           throw new Error("Không tìm thấy đơn đặt bàn này trong Sheet.");
@@ -2777,6 +2796,7 @@ function handleTelegramWebhook(update) {
           const delRes = deleteOrderInternal_(bookingId);
           if (!delRes.ok) throw new Error(delRes.message || "Xóa thất bại.");
           
+          if (tempMsgId) deleteTelegramMessage_(botToken, chatId, tempMsgId);
           replyTelegram_(botToken, chatId, threadId, `🗑️ <b>ĐÃ HỦY ĐƠN ĐẶT BÀN THÀNH CÔNG!</b>\nKhách: <b>${escapeHtml(order.customer.name)}</b> | Bàn: <b>${escapeHtml(order.customer.tables)}</b>`);
           
           // Optionally edit parent message to show cancelled status
@@ -2827,12 +2847,14 @@ function handleTelegramWebhook(update) {
             '🆔 <b>Mã đặt bàn:</b> <code>' + bookingId + '</code>\n' +
             '👉 <a href="https://kg-booking.pages.dev/#/bill/' + bookingId + '">XEM PHIẾU ĐẶT ONLINE</a>' + imageLinkLine;
           
+          if (tempMsgId) deleteTelegramMessage_(botToken, chatId, tempMsgId);
           editTelegramText_(botToken, chatId, replyTo.message_id, confirmCaption);
           replyTelegram_(botToken, chatId, threadId, `✅ <b>Đã cập nhật đơn đặt bàn thành công!</b>\nKhách: <b>${escapeHtml(c.name)}</b> | Ngày: <b>${escapeHtml(c.date)}</b> | Bàn: <b>${escapeHtml(c.tables)}</b> | Cọc: <b>${fmt(updatedOrder.deposit.amount)}</b>`);
         } else {
           throw new Error("Không hiểu rõ chỉ thị chỉnh sửa. Vui lòng nhập rõ cú pháp ví dụ: 'Hủy bàn', 'Sửa tiền cọc 3TR', 'Dời sang 09/07/2026 - Bàn mới C5'.");
         }
       } catch (err) {
+        if (tempMsgId) deleteTelegramMessage_(botToken, chatId, tempMsgId);
         replyTelegram_(botToken, chatId, threadId, "❌ Lỗi xử lý yêu cầu chỉnh sửa: " + escapeHtml_(err.message));
       }
     }
@@ -2903,6 +2925,29 @@ function handleTelegramWebhook(update) {
       return HtmlService.createHtmlOutput("Status responded");
     }
 
+    // A.1. Handle help command
+    const isHelpCmd = text && (text.startsWith("/huongdan") || text.includes("@KGReservedBot_bot /huongdan") || text.startsWith("/help"));
+    if (isHelpCmd) {
+      const helpMsg = "📖 <b>HƯỚNG DẪN SỬ DỤNG BOT ĐẶT BÀN KING'S GRILL</b>\n" +
+        "━━━━━━━━━━━━━━━━━━━\n" +
+        "🤖 <b>1. LÊN PHIẾU ĐẶT BÀN MỚI</b>\n" +
+        "Gửi trực tiếp tin nhắn có chứa các thông tin đặt bàn vào nhóm/topic nhận đơn. Ví dụ:\n" +
+        "<i>Anh Trí 0901234567 ngày mai 18:30 đi 4 khách bàn A1 ăn Lẩu thái 1, cơm chiên 1, cọc 500k</i>\n" +
+        "👉 Bot sẽ tự động phân tích và gửi thẻ xác nhận. Anh/chị bấm <b>[✅ Xác nhận tạo]</b> để lưu vào Spreadsheet & Lịch Google.\n\n" +
+        "📝 <b>2. CẬP NHẬT / HỦY PHIẾU TIỆC CŨ</b>\n" +
+        "Nhấn <b>Trả lời (Reply)</b> vào tin nhắn đặt bàn cũ (hoặc tin nhắn báo thành công của Bot) và soạn nội dung thay đổi:\n" +
+        " - Đổi ngày/giờ: <i>Dời sang 09/07/2026 lúc 19h30</i>\n" +
+        " - Sửa bàn: <i>Đổi sang bàn C5</i>\n" +
+        " - Thêm/bớt món: <i>Thêm 1 cơm chiên hải sản, bớt 1 lẩu thái</i>\n" +
+        " - Sửa tiền cọc: <i>Sửa cọc 2TR</i> (hoặc 2000K, 2M)\n" +
+        " - Hủy bàn: <i>Hủy bàn này nha</i> hoặc <i>Khách không ăn nữa</i>\n\n" +
+        "📌 <b>3. LỆNH HỆ THỐNG</b>\n" +
+        " - <code>/status</code>: Kiểm tra trạng thái hoạt động của Bot\n" +
+        " - <code>/huongdan</code>: Xem hướng dẫn sử dụng này";
+      replyTelegram_(botToken, chatId, threadId, helpMsg);
+      return HtmlService.createHtmlOutput("Help responded");
+    }
+
     // If a topic is registered, ignore booking messages from other topics in the same group
     if (registeredAutoBookingTopicId && String(threadId || '') !== String(registeredAutoBookingTopicId)) {
       return HtmlService.createHtmlOutput("Ignored message outside target topic");
@@ -2929,7 +2974,7 @@ function handleTelegramWebhook(update) {
     }
 
     // D. Respond immediately to notify user and retrieve temporary message ID
-    const tempRes = replyTelegramWithResult_(botToken, chatId, threadId, "⏳ <b>Đã ghi nhận thông tin đặt bàn, đang xử lý tự động...</b>");
+    const tempRes = replyTelegramWithResult_(botToken, chatId, threadId, "⏳ <b>Dạ em đã nhận thông tin mới, em sẽ lên lịch ngay...</b>");
     const tempMsgId = (tempRes && tempRes.result && tempRes.result.message_id) ? tempRes.result.message_id : null;
 
     sendChatAction_(botToken, chatId, threadId, "typing");
@@ -2978,7 +3023,7 @@ function handleTelegramWebhook(update) {
       
       // Store payload in cache for 10 minutes
       const tempId = "temp_TG_" + Utilities.getUuid().substring(0, 8) + "_" + Date.now();
-      CacheService.getScriptCache().put(tempId, JSON.stringify(payload), 600);
+      PropertiesService.getScriptProperties().setProperty(tempId, JSON.stringify(payload));
       
       const c = parsedData.customer;
       const fmt = (n) => n ? n.toString().replace(/\B(?=(\d{3})+(?!\d))/g, '.') + 'đ' : '0đ';
@@ -3745,4 +3790,27 @@ function logError_(msg) {
       sheet.appendRow([new Date().toISOString(), "ERROR", "", "", msg, ""]);
     }
   } catch(e) {}
+}
+
+function cleanExpiredTempPayloads_() {
+  try {
+    const props = PropertiesService.getScriptProperties();
+    const keys = props.getKeys();
+    const now = Date.now();
+    const tenMinutes = 10 * 60 * 1000;
+    
+    for (let i = 0; i < keys.length; i++) {
+      const key = keys[i];
+      if (key.indexOf("temp_TG_") === 0) {
+        const parts = key.split('_');
+        const timestampStr = parts[parts.length - 1];
+        const timestamp = Number(timestampStr);
+        if (!isNaN(timestamp) && (now - timestamp > tenMinutes)) {
+          props.deleteProperty(key);
+        }
+      }
+    }
+  } catch (e) {
+    console.log("Cleanup temp payloads failed: " + e.message);
+  }
 }
