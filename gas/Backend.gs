@@ -2874,6 +2874,7 @@ function handleTelegramWebhook(update) {
     upsertSystemConfigRow_('telegram_topic_id', String(threadId || ''), 'string', 'global', false, 'Telegram Topic ID for Bot Bookings', 'bot');
     upsertSystemConfigRow_('telegramTopicId', String(threadId || ''), 'string', 'global', false, 'Telegram Topic ID for Bot Bookings (Camel)', 'bot');
     try { CacheService.getScriptCache().remove("system_config"); } catch(e) {}
+    registerBotCommands_(botToken);
     const replyMsg = "📢 <b>ĐĂNG KÝ TOPIC THÔNG BÁO THÀNH CÔNG!</b>\n" +
       "━━━━━━━━━━━━━━━━━━━\n" +
       "Kênh nhận thông báo đặt bàn đã được đặt tại Topic này (ID: " + (threadId || "Mặc định") + ").\n\n" +
@@ -2888,6 +2889,7 @@ function handleTelegramWebhook(update) {
     upsertSystemConfigRow_('telegram_auto_booking_topic_id', String(threadId || ''), 'string', 'global', false, 'Telegram Topic ID for Auto Booking', 'bot');
     upsertSystemConfigRow_('telegramAutoBookingTopicId', String(threadId || ''), 'string', 'global', false, 'Telegram Topic ID for Auto Booking (Camel)', 'bot');
     try { CacheService.getScriptCache().remove("system_config"); } catch(e) {}
+    registerBotCommands_(botToken);
     const replyMsg = "📥 <b>ĐĂNG KÝ TOPIC NHẬN ĐƠN THÀNH CÔNG!</b>\n" +
       "━━━━━━━━━━━━━━━━━━━\n" +
       "Kênh tự động ghi nhận đặt bàn đã được đặt tại Topic này (ID: " + (threadId || "Mặc định") + ").\n\n" +
@@ -3812,5 +3814,25 @@ function cleanExpiredTempPayloads_() {
     }
   } catch (e) {
     console.log("Cleanup temp payloads failed: " + e.message);
+  }
+}
+
+function registerBotCommands_(botToken) {
+  try {
+    const url = "https://api.telegram.org/bot" + botToken + "/setMyCommands";
+    const payload = {
+      commands: [
+        { command: "status", description: "Kiểm tra trạng thái kết nối bot" },
+        { command: "huongdan", description: "Xem hướng dẫn sử dụng đặt bàn" }
+      ]
+    };
+    UrlFetchApp.fetch(url, {
+      method: "post",
+      contentType: "application/json",
+      payload: JSON.stringify(payload),
+      muteHttpExceptions: true
+    });
+  } catch(e) {
+    console.log("Failed to register bot commands: " + e.message);
   }
 }
