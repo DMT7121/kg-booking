@@ -1354,10 +1354,7 @@ function getHistoryData() {
   } catch(e) { return { ok: false, message: "Lỗi tải lịch sử: " + e.message }; }
 }
 
-function deleteOrder(id, password, token) {
-  if (!checkAdminAccess_(token, password)) {
-    return { ok: false, message: "Từ chối truy cập! Yêu cầu mật khẩu Admin để xóa đơn." };
-  }
+function deleteOrderInternal_(id) {
   const spreadsheetId = CONFIG.SS_ID;
   const rangeName = CONFIG.SHEET_NAME_ORDERS + "!A:A";
   const response = Sheets.Spreadsheets.Values.get(spreadsheetId, rangeName);
@@ -1372,7 +1369,7 @@ function deleteOrder(id, password, token) {
   }
 
   if (foundRowIndex === -1) {
-    return { message: "Order Not Found" };
+    return { ok: false, message: "Order Not Found" };
   }
 
   const sheetId = getSheetId_(CONFIG.SHEET_NAME_ORDERS);
@@ -1388,14 +1385,27 @@ function deleteOrder(id, password, token) {
       }
     }];
     Sheets.Spreadsheets.batchUpdate({requests: requests}, spreadsheetId);
-    return { message: "Order Deleted" };
+  } else {
+    const ss = SpreadsheetApp.openById(CONFIG.SS_ID);
+    const sheet = ss.getSheetByName(CONFIG.SHEET_NAME_ORDERS);
+    sheet.deleteRow(foundRowIndex);
   }
-  
-  // Fallback to standard method if sheet ID couldn't be retrieved
-  const ss = SpreadsheetApp.openById(CONFIG.SS_ID);
-  const sheet = ss.getSheetByName(CONFIG.SHEET_NAME_ORDERS);
-  sheet.deleteRow(foundRowIndex);
-  return { message: "Order Deleted" };
+
+  try {
+    const calSs = SpreadsheetApp.openById(CONFIG.LINKED_CALENDAR_ID);
+    clearCalendarEntryById(calSs, id);
+  } catch (e) {
+    console.log("Failed to clear calendar on delete: " + e.message);
+  }
+
+  return { ok: true, message: "Order Deleted" };
+}
+
+function deleteOrder(id, password, token) {
+  if (!checkAdminAccess_(token, password)) {
+    return { ok: false, message: "Từ chối truy cập! Yêu cầu mật khẩu Admin để xóa đơn." };
+  }
+  return deleteOrderInternal_(id);
 }
 
 function getSheetId_(sheetName) {
@@ -2630,6 +2640,81 @@ function handleTelegramWebhook(update) {
     cache.put("processed_update_" + updateId, "true", 600); // 10 minutes cache
   }
 
+  // --- A. Callback Query Handler (Inline Buttons) ---
+  if (update && update.callback_query) {
+    const callbackQuery = update.callback_query;
+    const callbackData = callbackQuery.data;
+    const message = callbackQuery.message;
+    const chatId = message.chat.id;
+    const messageId = message.message_id;
+    const threadId = message.message_thread_id;
+    
+    const botToken = getBotToken_();
+    if (!botToken) return HtmlService.createHtmlOutput("Bot token not found in config");
+    
+    const escapeHtml = function(t) {
+      if (!t) return '';
+      return t.toString().replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    };
+
+    if (callbackData.indexOf("confirm_create:") === 0) {
+      const tempId = callbackData.substring("confirm_create:".length);
+      const payloadStr = CacheService.getScriptCache().get(tempId);
+      if (!payloadStr) {
+        editTelegramMessageText_(botToken, chatId, messageId, "⚠️ <b>Phiên làm việc đã hết hạn (quá 10 phút) hoặc đơn đã được xác nhận tạo phiếu.</b>", null);
+        return HtmlService.createHtmlOutput("Temp payload expired");
+      }
+      
+      let payload = null;
+      try {
+        payload = JSON.parse(payloadStr);
+      } catch (e) {
+        editTelegramMessageText_(botToken, chatId, messageId, "⚠️ <b>Lỗi phân tích dữ liệu tạm thời.</b>", null);
+        return HtmlService.createHtmlOutput("JSON parse error");
+      }
+      
+      // Save order
+      payload.skipNotification = false;
+      const saveResult = saveOrder(payload);
+      if (!saveResult || !saveResult.id) {
+        editTelegramMessageText_(botToken, chatId, messageId, "❌ <b>Lên phiếu thất bại: " + (saveResult ? saveResult.message : "Lưu dữ liệu lỗi") + "</b>", null);
+        return HtmlService.createHtmlOutput("Save failed");
+      }
+      
+      CacheService.getScriptCache().remove(tempId);
+      
+      const c = payload.customer;
+      const fmt = (n) => n ? n.toString().replace(/\B(?=(\d{3})+(?!\d))/g, '.') + 'đ' : '0đ';
+      const depStatus = payload.deposit.isPaid ? '✅ ĐÃ CỌC (' + fmt(payload.deposit.amount) + ')' : '⏳ CHỜ CỌC (' + fmt(payload.deposit.amount) + ')';
+      const depNoteLine = payload.deposit.note ? `\n💳 <b>Chi tiết cọc:</b> ${payload.deposit.note}` : "";
+      
+      const successCaption = '✅ <b>LÊN PHIẾU ĐẶT BÀN THÀNH CÔNG</b>\n' +
+        '━━━━━━━━━━━━━━━━━━━\n' +
+        '👤 <b>Khách hàng:</b> ' + escapeHtml(c.name || 'N/A') + '\n' +
+        '📱 <b>Số điện thoại:</b> ' + escapeHtml(c.phone || 'N/A') + '\n' +
+        '📅 <b>Thời gian:</b> ' + escapeHtml(c.date || '?') + ' | ⏰ ' + escapeHtml(c.time || '?') + '\n' +
+        '👥 <b>Số lượng:</b> ' + escapeHtml(c.pax || '?') + ' khách | 🪑 <b>Bàn:</b> ' + escapeHtml(c.tables || '?') + '\n' +
+        '🍽️ <b>Món ăn:</b> ' + (payload.items.map(i => i.name + ' x' + i.qty).join(', ') || 'Chưa đặt') + '\n' +
+        '💰 <b>Tổng tiền:</b> ' + fmt(payload.total) + '\n' +
+        '💳 <b>Trạng thái:</b> ' + depStatus + depNoteLine + '\n' +
+        '━━━━━━━━━━━━━━━━━━━\n' +
+        '🆔 <b>Mã đặt bàn:</b> <code>' + payload.id + '</code>\n' +
+        '👉 <a href="https://kg-booking.pages.dev/#/bill/' + payload.id + '">XEM PHIẾU ĐẶT ONLINE</a>';
+      
+      editTelegramMessageText_(botToken, chatId, messageId, successCaption, null);
+      answerCallbackQuery_(botToken, callbackQuery.id, "Đã lên phiếu thành công!");
+      return HtmlService.createHtmlOutput("Callback processed - order created");
+    }
+    
+    if (callbackData.indexOf("cancel_create:") === 0) {
+      const tempId = callbackData.substring("cancel_create:".length);
+      CacheService.getScriptCache().remove(tempId);
+      editTelegramMessageText_(botToken, chatId, messageId, "❌ <b>ĐÃ HỦY YÊU CẦU ĐẶT BÀN.</b>", null);
+      answerCallbackQuery_(botToken, callbackQuery.id, "Đã hủy yêu cầu.");
+      return HtmlService.createHtmlOutput("Callback processed - canceled");
+    }
+  }
+
   const msg = update.message;
   if (!msg) return HtmlService.createHtmlOutput("Not a message update");
   
@@ -2648,84 +2733,85 @@ function handleTelegramWebhook(update) {
       .replace(/>/g, '&gt;');
   };
 
-  // A. Check if this is a reply message to update deposit
+  // --- B. Check if this is a reply message to edit or delete or update deposit ---
   const replyTo = msg.reply_to_message;
   let isReplyProcessed = false;
   if (replyTo) {
-    const lowerText = text.toLowerCase();
-    const isDepositUpdate = lowerText.startsWith("cọc") || lowerText.startsWith("coc") || lowerText.includes("đã cọc") || lowerText.includes("da coc");
+    isReplyProcessed = true;
+    const bookingId = extractBookingIdFromMessage_(replyTo);
     
-    if (isDepositUpdate) {
-      isReplyProcessed = true;
-      // Extract booking ID using robust extraction
-      const bookingId = extractBookingIdFromMessage_(replyTo);
+    if (bookingId) {
+      sendChatAction_(botToken, chatId, threadId, "typing");
       
-      if (bookingId) {
-        sendChatAction_(botToken, chatId, threadId, "typing");
+      try {
+        const order = getOrderById_(bookingId);
+        if (!order) {
+          throw new Error("Không tìm thấy đơn đặt bàn này trong Sheet.");
+        }
         
-        try {
-          const order = getOrderById_(bookingId);
-          if (!order) {
-            throw new Error("Không tìm thấy đơn đặt bàn này trong Sheet.");
-          }
+        // Process reply instruction using Gemini!
+        const replyResult = parseReplyInstructionWithGemini_(order, text);
+        
+        if (replyResult.action === "delete") {
+          // Delete order without token check
+          const delRes = deleteOrderInternal_(bookingId);
+          if (!delRes.ok) throw new Error(delRes.message || "Xóa thất bại.");
           
-          let depAmount = 0;
-          const amountMatch = text.match(/(\d+[\.,]?\d*)\s*(tr|k|đ|d)/i) || text.match(/(\d+[\.,]?\d*)/);
-          if (amountMatch) {
-            let numStr = amountMatch[1].replace(',', '.');
-            let num = parseFloat(numStr);
-            const unit = amountMatch[2] ? amountMatch[2].toLowerCase() : "";
-            if (unit === "tr") {
-              depAmount = num * 1000000;
-            } else if (unit === "k") {
-              depAmount = num * 1000;
-            } else {
-              depAmount = num;
-            }
-          }
+          replyTelegram_(botToken, chatId, threadId, `🗑️ <b>ĐÃ HỦY ĐƠN ĐẶT BÀN THÀNH CÔNG!</b>\nKhách: <b>${escapeHtml(order.customer.name)}</b> | Bàn: <b>${escapeHtml(order.customer.tables)}</b>`);
           
-          order.deposit.isPaid = true;
-          order.deposit.amount = depAmount;
-          order.deposit.note = text;
-          order.deposit.time = new Date().toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' });
+          // Optionally edit parent message to show cancelled status
+          editTelegramText_(botToken, chatId, replyTo.message_id, `❌ <b>ĐƠN ĐẶT BÀN ĐÃ BỊ HỦY</b>\nKhách: ${escapeHtml(order.customer.name)} | Điện thoại: ${escapeHtml(order.customer.phone)}`);
+        } else if (replyResult.action === "update" && replyResult.data) {
+          const updatedOrder = replyResult.data;
           
-          order.skipNotification = true;
-          const saveResult = saveOrder(order);
+          // Preserve system attributes
+          updatedOrder.id = bookingId;
+          updatedOrder.version = (Number(order.version) || 1) + 1;
+          updatedOrder.staff = order.staff;
+          updatedOrder.billImage = order.billImage || "";
+          updatedOrder.customFileName = order.customFileName || ("TG_" + updatedOrder.customer.name);
+          updatedOrder.activeMenuSheet = order.activeMenuSheet;
+          
+          // Save updated order
+          updatedOrder.skipNotification = true; // Skip sending spam notifications
+          const saveResult = saveOrder(updatedOrder);
           if (!saveResult || !saveResult.id) {
-            throw new Error("Lưu cập nhật cọc thất bại.");
+            throw new Error("Cập nhật đơn đặt bàn thất bại.");
           }
           
-          const c = order.customer;
+          const c = updatedOrder.customer;
           const fmt = (n) => n ? n.toString().replace(/\B(?=(\d{3})+(?!\d))/g, '.') + 'đ' : '0đ';
-          const depStatus = '✅ ĐÃ CỌC (' + fmt(depAmount) + ' - ' + text + ')';
+          const depStatus = updatedOrder.deposit.isPaid ? '✅ ĐÃ CỌC (' + fmt(updatedOrder.deposit.amount) + ')' : '⏳ CHỜ CỌC (' + fmt(updatedOrder.deposit.amount) + ')';
+          const depNoteLine = updatedOrder.deposit.note ? `\n💳 <b>Chi tiết cọc:</b> ${updatedOrder.deposit.note}` : "";
           
           let imageLinkLine = '';
-          if (order.billImage && order.billImage.indexOf('http') === 0) {
-            imageLinkLine = '\n🖼️ <a href="' + order.billImage + '">XEM ẢNH PHIẾU ĐẶT (ONLINE)</a>';
+          if (updatedOrder.billImage && updatedOrder.billImage.indexOf('http') === 0) {
+            imageLinkLine = '\n🖼️ <a href="' + updatedOrder.billImage + '">XEM ẢNH PHIẾU ĐẶT (ONLINE)</a>';
           }
 
-          const confirmCaption = '✅ <b>LÊN PHIẾU ĐẶT BÀN THÀNH CÔNG</b>\n' +
+          const confirmCaption = '📝 <b>CẬP NHẬT PHIẾU ĐẶT BÀN THÀNH CÔNG</b>\n' +
             '━━━━━━━━━━━━━━━━━━━\n' +
             '👤 <b>Khách hàng:</b> ' + escapeHtml(c.name || 'N/A') + '\n' +
             '📱 <b>Số điện thoại:</b> ' + escapeHtml(c.phone || 'N/A') + '\n' +
             '📅 <b>Thời gian:</b> ' + escapeHtml(c.date || '?') + ' | ⏰ ' + escapeHtml(c.time || '?') + '\n' +
             '👥 <b>Số lượng:</b> ' + escapeHtml(c.pax || '?') + ' khách | 🪑 <b>Bàn:</b> ' + escapeHtml(c.tables || '?') + '\n' +
-            '🍽️ <b>Món ăn:</b> ' + (order.items.map(i => i.name + ' x' + i.qty).join(', ') || 'Chưa đặt') + '\n' +
-            '💰 <b>Tổng tiền:</b> ' + fmt(order.total) + '\n' +
-            '💳 <b>Trạng thái:</b> ' + depStatus + '\n' +
+            '🍽️ <b>Món ăn:</b> ' + (updatedOrder.items.map(i => i.name + ' x' + i.qty).join(', ') || 'Chưa đặt') + '\n' +
+            '💰 <b>Tổng tiền:</b> ' + fmt(updatedOrder.total) + '\n' +
+            '💳 <b>Trạng thái:</b> ' + depStatus + depNoteLine + '\n' +
             '━━━━━━━━━━━━━━━━━━━\n' +
             '🆔 <b>Mã đặt bàn:</b> <code>' + bookingId + '</code>\n' +
             '👉 <a href="https://kg-booking.pages.dev/#/bill/' + bookingId + '">XEM PHIẾU ĐẶT ONLINE</a>' + imageLinkLine;
           
           editTelegramText_(botToken, chatId, replyTo.message_id, confirmCaption);
-          
-          replyTelegram_(botToken, chatId, threadId, "✅ Đã xác nhận ĐÃ CỌC cho đơn khách " + escapeHtml(c.name) + " (" + fmt(depAmount) + " | " + escapeHtml(text) + ")");
-        } catch (err) {
-          replyTelegram_(botToken, chatId, threadId, "❌ Lỗi cập nhật cọc: " + err.message);
+          replyTelegram_(botToken, chatId, threadId, `✅ <b>Đã cập nhật đơn đặt bàn thành công!</b>\nKhách: <b>${escapeHtml(c.name)}</b> | Ngày: <b>${escapeHtml(c.date)}</b> | Bàn: <b>${escapeHtml(c.tables)}</b> | Cọc: <b>${fmt(updatedOrder.deposit.amount)}</b>`);
+        } else {
+          throw new Error("Không hiểu rõ chỉ thị chỉnh sửa. Vui lòng nhập rõ cú pháp ví dụ: 'Hủy bàn', 'Sửa tiền cọc 3TR', 'Dời sang 09/07/2026 - Bàn mới C5'.");
         }
-      } else {
-        replyTelegram_(botToken, chatId, threadId, "⚠️ Không tìm thấy Mã đặt bàn hợp lệ trong tin nhắn được trả lời.");
+      } catch (err) {
+        replyTelegram_(botToken, chatId, threadId, "❌ Lỗi xử lý yêu cầu chỉnh sửa: " + err.message);
       }
+    } else {
+      replyTelegram_(botToken, chatId, threadId, "⚠️ Không tìm thấy Mã đặt bàn hợp lệ trong tin nhắn được trả lời.");
     }
   }
   
@@ -2832,17 +2918,31 @@ function handleTelegramWebhook(update) {
         throw new Error("Không trích xuất được thông tin tên hoặc số điện thoại khách hàng.");
       }
       
-      const calculatedDepositAmount = autoCalcDeposit_(parsedData.customer, parsedData.items);
+      let isPaid = false;
+      let depositAmount = 0;
+      let depositNote = "";
+      
+      if (parsedData.deposit) {
+        isPaid = !!parsedData.deposit.isPaid;
+        depositAmount = Number(parsedData.deposit.amount) || 0;
+        depositNote = parsedData.deposit.note || "";
+      }
+      
+      // Fallback to auto calc if amount is 0 and isPaid is false
+      if (depositAmount === 0 && !isPaid) {
+        depositAmount = autoCalcDeposit_(parsedData.customer, parsedData.items);
+        depositNote = "Yêu cầu cọc (Bot)";
+      }
 
       const bookingId = "TG_" + Utilities.getUuid().substring(0, 8) + "_" + Date.now();
       const payload = {
         customer: parsedData.customer,
         items: parsedData.items || [],
         deposit: { 
-          isPaid: false, 
-          amount: calculatedDepositAmount, 
+          isPaid: isPaid, 
+          amount: depositAmount, 
           image: "",
-          note: "Yêu cầu cọc (Bot)"
+          note: depositNote
         },
         staff: { name: "Telegram Bot", phone: "" },
         id: bookingId,
@@ -2853,32 +2953,44 @@ function handleTelegramWebhook(update) {
         activeMenuSheet: activeMenuSheet
       };
       
+      // Store payload in cache for 10 minutes
+      const tempId = "temp_TG_" + Utilities.getUuid().substring(0, 8) + "_" + Date.now();
+      CacheService.getScriptCache().put(tempId, JSON.stringify(payload), 600);
+      
       const c = parsedData.customer;
-      const cleanChatIdStr = String(chatId).replace('-100', '');
-      const notificationTopicUrl = "https://t.me/c/" + cleanChatIdStr + "/" + (registeredTopicId || "1");
+      const fmt = (n) => n ? n.toString().replace(/\B(?=(\d{3})+(?!\d))/g, '.') + 'đ' : '0đ';
+      const depStatusText = isPaid ? `✅ ĐÃ CỌC (${fmt(depositAmount)})` : `⏳ CHỜ CỌC (${fmt(depositAmount)})`;
+      const depNoteText = depositNote ? `\n💳 <b>Ghi chú cọc:</b> ${depositNote}` : "";
       
-      const quickReply = "✅ <b>LÊN PHIẾU THÀNH CÔNG!</b>\n" +
-        "━━━━━━━━━━━━━━━━━━━\n" +
-        "👤 Khách hàng: <b>" + escapeHtml(c.name) + "</b> (" + escapeHtml(c.phone) + ")\n" +
-        "📅 Thời gian: " + escapeHtml(c.date) + " lúc " + escapeHtml(c.time) + "\n\n" +
-        "👉 Chi tiết phiếu đặt đã được gửi sang topic <a href='" + notificationTopicUrl + "'>Lịch đặt mới</a>.";
+      const confirmationText = '🤖 <b>XÁC NHẬN ĐƠN ĐẶT BÀN MỚI</b>\n' +
+        '━━━━━━━━━━━━━━━━━━━\n' +
+        '👤 <b>Khách hàng:</b> ' + escapeHtml(c.name || 'N/A') + '\n' +
+        '📱 <b>Số điện thoại:</b> ' + escapeHtml(c.phone || 'N/A') + '\n' +
+        '📅 <b>Thời gian:</b> ' + escapeHtml(c.date || '?') + ' | ⏰ ' + escapeHtml(c.time || '?') + '\n' +
+        '👥 <b>Số lượng:</b> ' + escapeHtml(c.pax || '?') + ' khách | 🪑 <b>Bàn:</b> ' + escapeHtml(c.tables || '?') + '\n' +
+        '🍽️ <b>Món ăn:</b> ' + (payload.items.map(i => i.name + ' x' + i.qty).join(', ') || 'Chưa đặt') + '\n' +
+        '💰 <b>Tổng tạm tính:</b> ' + fmt(payload.total) + '\n' +
+        '💳 <b>Trạng thái:</b> ' + depStatusText + depNoteText + '\n' +
+        '━━━━━━━━━━━━━━━━━━━\n' +
+        '💬 <b>Ghi chú:</b> <i>' + escapeHtml(c.note || 'Không có') + '</i>\n\n' +
+        '👉 Vui lòng nhấn nút dưới đây để xác nhận tạo phiếu:';
       
-      // A. Send quick acknowledgment in topic 96
-      replyTelegram_(botToken, chatId, threadId, quickReply);
+      const buttons = [
+        [
+          { text: "✅ Xác nhận tạo", callback_data: "confirm_create:" + tempId },
+          { text: "❌ Hủy bỏ", callback_data: "cancel_create:" + tempId }
+        ]
+      ];
       
-      // B. Save order to sheet & calendar in the background (skipNotification is false, so it triggers sendNotification_ to topic 1)
-      payload.skipNotification = false;
-      const saveResult = saveOrder(payload);
-      if (!saveResult || !saveResult.id) {
-        throw new Error(saveResult ? saveResult.message : "Lưu dữ liệu thất bại.");
-      }
+      // A. Send confirmation message with inline buttons
+      replyTelegramWithButtons_(botToken, chatId, threadId, confirmationText, buttons);
       
-      // E. Delete temporary message on success
+      // B. Delete temporary processing message
       if (tempMsgId) {
         deleteTelegramMessage_(botToken, chatId, tempMsgId);
       }
       
-      return HtmlService.createHtmlOutput("Order processed and replied");
+      return HtmlService.createHtmlOutput("Confirmation sent");
     } catch (err) {
       // F. Delete temporary message on error/failure
       if (tempMsgId) {
@@ -2906,6 +3018,167 @@ function handleTelegramWebhook(update) {
   }
   
   return HtmlService.createHtmlOutput("Ignored message outside target topic");
+}
+
+function parseReplyInstructionWithGemini_(existingOrderJson, instructionText) {
+  const apiKeys = getApiKeysFromConfig_();
+  const googleKeys = apiKeys['google'] || apiKeys['gemini'] || [];
+  if (googleKeys.length === 0) {
+    throw new Error("Chưa cấu hình API Key cho Google Gemini.");
+  }
+
+  const sysPrompt = `Bạn là Trợ lý Đặt bàn King's Grill.
+Bạn nhận được một đơn đặt bàn hiện tại dạng JSON và một yêu cầu chỉnh sửa (bằng tiếng Việt) từ nhân viên.
+Hãy phân tích yêu cầu chỉnh sửa và thực hiện một trong hai hành động sau:
+
+HÀNH ĐỘNG 1: Nếu yêu cầu là hủy bàn, xóa bàn, hủy đơn, không ăn nữa...
+Hãy trả về JSON chính xác như sau:
+{
+  "action": "delete"
+}
+
+HÀNH ĐỘNG 2: Nếu yêu cầu là chỉnh sửa (ví dụ: sửa tiền cọc, đổi ngày, đổi bàn, đổi giờ, thêm/bớt món, đổi số lượng khách...):
+Hãy cập nhật các trường tương ứng trong JSON cũ và trả về JSON mới đã cập nhật:
+{
+  "action": "update",
+  "data": { ...JSON đã được cập nhật các trường mới... }
+}
+
+LƯU Ý KHI CẬP NHẬT:
+1. Khi đổi ngày, hãy chuẩn hóa sang DD/MM/YYYY.
+2. Khi sửa tiền cọc (ví dụ: 'sửa cọc 3TR', 'sửa tiền cọc 3TR', 'cọc 3tr'):
+   - Cập nhật 'deposit.isPaid' = true
+   - Cập nhật 'deposit.amount' = 3000000
+   - Cập nhật 'deposit.note' = 'Cập nhật cọc 3TR' (hoặc nội dung yêu cầu)
+3. Giữ nguyên các thông tin khác của đơn hàng nếu không được yêu cầu thay đổi.
+4. Thời gian hiện tại của hệ thống để đối chiếu ngày tháng: ${new Date().toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' })}`;
+
+  const body = {
+    contents: [{
+      parts: [{
+        text: sysPrompt + "\n\nJSON hiện tại:\n" + JSON.stringify(existingOrderJson) + "\n\nYêu cầu từ nhân viên:\n" + instructionText
+      }]
+    }],
+    generationConfig: {
+      temperature: 0.1,
+      responseMimeType: "application/json"
+    }
+  };
+
+  const models = ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash-latest", "gemini-1.5-pro"];
+  let response = null;
+  let code = 0;
+  let resText = "";
+  let lastError = "";
+  let success = false;
+
+  for (let k = 0; k < googleKeys.length; k++) {
+    const key = googleKeys[k];
+    for (let i = 0; i < models.length; i++) {
+      const model = models[i];
+      const fetchUrl = "https://generativelanguage.googleapis.com/v1beta/models/" + model + ":generateContent?key=" + key;
+      try {
+        response = UrlFetchApp.fetch(fetchUrl, {
+          method: 'post',
+          contentType: 'application/json',
+          payload: JSON.stringify(body),
+          muteHttpExceptions: true
+        });
+        code = response.getResponseCode();
+        resText = response.getContentText();
+        if (code === 200) {
+          success = true;
+          break;
+        } else {
+          lastError = "Key #" + (k + 1) + " | Model " + model + " (HTTP " + code + "): " + resText;
+        }
+      } catch (err) {
+        lastError = "Key #" + (k + 1) + " | " + err.message;
+      }
+    }
+    if (success) {
+      break;
+    }
+  }
+
+  if (!success) {
+    throw new Error("Lỗi gọi Gemini API: " + lastError);
+  }
+
+  const resJson = JSON.parse(resText);
+  const candidates = resJson.candidates || [];
+  const contentText = candidates[0]?.content?.parts?.[0]?.text;
+  if (!contentText) {
+    throw new Error("Không nhận được nội dung phân tích từ Gemini.");
+  }
+
+  let cleanJsonText = contentText.trim();
+  if (cleanJsonText.startsWith("```")) {
+    cleanJsonText = cleanJsonText.replace(/^```json\s*/i, "").replace(/```$/, "").trim();
+  }
+  cleanJsonText = cleanJsonText.replace(/\/\/.*$/gm, "");
+  cleanJsonText = cleanJsonText.replace(/,\s*([\]}])/g, "$1");
+  
+  try {
+    return JSON.parse(cleanJsonText);
+  } catch (parseErr) {
+    throw new Error("JSON parsing failed: " + parseErr.message + "\nRaw: " + contentText);
+  }
+}
+
+function replyTelegramWithButtons_(botToken, chatId, threadId, text, buttons) {
+  const url = "https://api.telegram.org/bot" + botToken + "/sendMessage";
+  const payload = {
+    chat_id: chatId,
+    text: text,
+    parse_mode: "HTML",
+    reply_markup: {
+      inline_keyboard: buttons
+    }
+  };
+  if (threadId && String(threadId) !== "1") {
+    payload.message_thread_id = threadId;
+  }
+  const res = UrlFetchApp.fetch(url, {
+    method: "post",
+    contentType: "application/json",
+    payload: JSON.stringify(payload),
+    muteHttpExceptions: true
+  });
+  return JSON.parse(res.getContentText());
+}
+
+function editTelegramMessageText_(botToken, chatId, messageId, text, replyMarkup) {
+  const url = "https://api.telegram.org/bot" + botToken + "/editMessageText";
+  const payload = {
+    chat_id: chatId,
+    message_id: messageId,
+    text: text,
+    parse_mode: "HTML"
+  };
+  if (replyMarkup !== undefined) {
+    payload.reply_markup = replyMarkup;
+  }
+  UrlFetchApp.fetch(url, {
+    method: "post",
+    contentType: "application/json",
+    payload: JSON.stringify(payload),
+    muteHttpExceptions: true
+  });
+}
+
+function answerCallbackQuery_(botToken, callbackQueryId, text) {
+  const url = "https://api.telegram.org/bot" + botToken + "/answerCallbackQuery";
+  const payload = {
+    callback_query_id: callbackQueryId,
+    text: text
+  };
+  UrlFetchApp.fetch(url, {
+    method: "post",
+    contentType: "application/json",
+    payload: JSON.stringify(payload),
+    muteHttpExceptions: true
+  });
 }
 
 function getBotToken_() {
