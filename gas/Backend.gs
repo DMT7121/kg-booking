@@ -193,6 +193,7 @@ function doPost(e) {
         case "getAiCorrections": result = getAiCorrections(data.token); break;
         case "testTelegram": result = testTelegramNotification(data.data); break;
         case "getOrder": result = getOrderById(data.id); break;
+        case "syncBookingCalendar": result = syncBookingCalendar(data.id, data.token); break;
         
         default: result = { ok: false, message: "Unknown Action" };
       }
@@ -807,6 +808,18 @@ function validateLocationBelongsToBooking(sheet, startRow, startCol, endRow, end
   return false;
 }
 
+function isCalendarSlotEmpty_(sheet, row, col, infoCol) {
+  try {
+    const val = sheet.getRange(row, infoCol).getValue();
+    if (!val || String(val).trim() === "") {
+      return true;
+    }
+  } catch (e) {
+    console.log("Check slot empty error: " + e.message);
+  }
+  return false;
+}
+
 function findAvailableCalendarSlot(sheet, startCol, bookingId) {
   const infoCol = startCol + 1;
   const maxRow = 150;
@@ -1259,6 +1272,14 @@ function syncToCalendar(data, bookingId, billUrl, transferUrl) {
   const col = Number(existing.block_start_col);
   
   if (!validateLocationBelongsToBooking(sheet, row, col, row + 5, infoCol, bookingId)) {
+    // Check if the previous position is empty
+    if (isCalendarSlotEmpty_(sheet, row, col, infoCol)) {
+      writeBookingBlock(sheet, row, col, data, bookingId, billUrl);
+      updateBookingLocationIndex(ss, bookingId, sheetName, dateStr, tableStr, row, col, infoCol, currentHash, "ACTIVE", data, "Restored Previous Location");
+      logLocationHistory(ss, bookingId, "RESTORE_LOCATION", dateStr, dateStr, tableStr, tableStr, existing.cell_range, existing.cell_range, "SUCCESS", "Khôi phục vị trí cũ trống");
+      return { status: "SUCCESS", message: "Đã đồng bộ lại lịch đặt vào vị trí cũ thành công.", cellRange: existing.cell_range };
+    }
+    
     // Occupied or modified by user
     logLocationHistory(ss, bookingId, "UPDATE", dateStr, dateStr, tableStr, tableStr, existing.cell_range, "", "CONFLICT", "Vị trí cũ bị đè.");
     
@@ -3300,5 +3321,45 @@ function logWebhookEvent_(update) {
   } catch (e) {
     console.log("Failed to log webhook event: " + e.message);
   }
+}
+
+function syncBookingCalendar(id, token) {
+  if (!id) return { ok: false, message: "Thiếu ID lịch đặt." };
+  
+  const ss = SpreadsheetApp.openById(CONFIG.SS_ID);
+  const sheet = ss.getSheetByName(CONFIG.SHEET_NAME_ORDERS);
+  if (!sheet) return { ok: false, message: "Không tìm thấy sheet Orders." };
+  
+  const dataRange = sheet.getDataRange();
+  const values = dataRange.getValues();
+  
+  let foundRow = -1;
+  for (let i = 1; i < values.length; i++) {
+    if (values[i][0] === id) {
+      foundRow = i;
+      break;
+    }
+  }
+  
+  if (foundRow === -1) {
+    return { ok: false, message: "Không tìm thấy lịch đặt trong Orders." };
+  }
+  
+  const rowData = values[foundRow];
+  const jsonStr = rowData[4]; // Dữ Liệu Tổng Hợp (JSON)
+  const transferUrl = rowData[8]; // Link Ảnh Cọc (Drive)
+  const billUrl = rowData[9]; // Link Phiếu Đặt (Drive)
+  
+  let payload = null;
+  try {
+    payload = JSON.parse(jsonStr);
+  } catch (e) {
+    return { ok: false, message: "Lỗi phân tích dữ liệu JSON của lịch đặt." };
+  }
+  
+  if (!payload) return { ok: false, message: "Dữ liệu lịch đặt trống." };
+  
+  const syncResult = syncToCalendar(payload, id, billUrl, transferUrl);
+  return { ok: true, message: "Đã thực hiện đồng bộ lịch đặt.", syncResult: syncResult };
 }
 

@@ -84,6 +84,14 @@ export class DualWriteOrderRepository implements OrderRepository {
 
     return { ok: true, id, status: 'pending', message: 'Deletion queued in local outbox. Sync is pending...' }
   }
+
+  async syncBookingCalendar(id: string, token?: string): Promise<any> {
+    const mode = getBackendMode()
+    if (mode === 'gas' || mode === 'dual_write') {
+      return this.gas.syncBookingCalendar(id, token)
+    }
+    return { ok: true, message: 'Sync skipped (Not in GAS mode)' }
+  }
 }
 
 export class DualWriteMenuRepository implements MenuRepository {

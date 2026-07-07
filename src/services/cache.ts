@@ -143,19 +143,39 @@ export async function addToOfflineQueue(action: string, payload: any): Promise<v
   
   const deviceId = getOrCreateDeviceId()
   payload.deviceId = payload.deviceId || deviceId
-  payload.clientCreatedAt = payload.clientCreatedAt || new Date().toISOString()
-  payload.clientUpdatedAt = new Date().toISOString()
-  payload.syncStatus = 'pending'
   
-  const keySource = `${payload.deviceId}_${payload.id}_${payload.clientCreatedAt}`
-  payload.idempotencyKey = payload.idempotencyKey || simpleHash(keySource)
+  const existingIdx = queue.findIndex(q => q.action === action && q.payload.id === payload.id)
   
-  queue.push({
-    id: crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).substring(2),
-    action,
-    payload,
-    timestamp: Date.now()
-  })
+  if (existingIdx >= 0) {
+    const existing = queue[existingIdx]
+    payload.clientCreatedAt = existing.payload.clientCreatedAt || new Date().toISOString()
+    payload.clientUpdatedAt = new Date().toISOString()
+    payload.syncStatus = 'pending'
+    
+    const keySource = `${payload.deviceId}_${payload.id}_${payload.clientCreatedAt}`
+    payload.idempotencyKey = existing.payload.idempotencyKey || simpleHash(keySource)
+    
+    queue[existingIdx] = {
+      id: existing.id,
+      action,
+      payload,
+      timestamp: Date.now()
+    }
+  } else {
+    payload.clientCreatedAt = payload.clientCreatedAt || new Date().toISOString()
+    payload.clientUpdatedAt = new Date().toISOString()
+    payload.syncStatus = 'pending'
+    
+    const keySource = `${payload.deviceId}_${payload.id}_${payload.clientCreatedAt}`
+    payload.idempotencyKey = payload.idempotencyKey || simpleHash(keySource)
+    
+    queue.push({
+      id: crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).substring(2),
+      action,
+      payload,
+      timestamp: Date.now()
+    })
+  }
   await cacheSet(CK.OFFLINE_QUEUE, queue)
 }
 

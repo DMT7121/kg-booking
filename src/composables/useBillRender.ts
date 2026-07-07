@@ -186,6 +186,7 @@ function _createBillRender() {
 
       // Capture all formStore state locally before releasing UI / running background sync
       const orderId = formStore.id || generateBookingId()
+      formStore.id = orderId
       const orderVersion = formStore.version || 1
       const customer = JSON.parse(JSON.stringify(formStore.customer))
       const items = JSON.parse(JSON.stringify(formStore.items))

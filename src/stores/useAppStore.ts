@@ -1084,6 +1084,53 @@ export const useAppStore = defineStore('app', () => {
     return result
   }
 
+  async function syncBookingCalendar(id: string): Promise<any> {
+    uiStore.loading.is = true
+    uiStore.loading.msg = 'ĐANG ĐỒNG BỘ LỊCH...'
+    uiStore.connectionStatus = 'syncing'
+    try {
+      const res = await orderRepo.syncBookingCalendar?.(id, adminToken.value)
+      if (res && res.ok) {
+        let calendarMsg = 'Đồng bộ lịch thành công!'
+        let calendarType: 'success' | 'warning' | 'info' = 'success'
+        if (res.syncResult) {
+          const status = res.syncResult.status
+          const msg = res.syncResult.message
+          if (status === 'SUCCESS') {
+            calendarMsg = '📅 Đã tự động cập nhật sơ đồ lịch bàn.'
+            calendarType = 'success'
+          } else if (status === 'MOVED_DATE') {
+            calendarMsg = '📅 Khách đổi ngày - Đã xếp sang ngày mới.'
+            calendarType = 'success'
+          } else if (status === 'MOVED_TABLE') {
+            calendarMsg = '📅 Khách đổi bàn - Đã xếp sang bàn mới.'
+            calendarType = 'success'
+          } else if (status === 'CONFLICT') {
+            calendarMsg = '⚠️ Xung đột vị trí - Bàn đã bị trùng với tiệc khác cùng khung giờ.'
+            calendarType = 'warning'
+          } else if (status === 'NO_SLOT') {
+            calendarMsg = '⚠️ Hết chỗ trống hoặc không tìm thấy ngày trong sơ đồ lịch.'
+            calendarType = 'warning'
+          } else if (status === 'FAILED' || status === 'ERROR') {
+            calendarMsg = `❌ Lỗi đồng bộ lịch: ${msg || 'Không rõ nguyên nhân'}`
+            calendarType = 'warning'
+          }
+        }
+        uiStore.showToast(calendarMsg, calendarType, 5000)
+        await loadHistory(true)
+        return res
+      } else {
+        uiStore.showToast(res?.message || 'Lỗi đồng bộ lịch', 'error')
+        return res
+      }
+    } catch (e: any) {
+      uiStore.showToast('Lỗi kết nối đồng bộ lịch: ' + e.message, 'error')
+      return { ok: false, message: e.message }
+    } finally {
+      uiStore.loading.is = false
+    }
+  }
+
   async function updateRemoteConfig(onlyType?: 'staff' | 'bank') {
     let tokenVal = ''
     if (onlyType !== 'staff') {
@@ -1574,7 +1621,7 @@ export const useAppStore = defineStore('app', () => {
     selectBank, addBank, removeBank,
     addStaff, removeStaff,
     fetchRemoteConfig, updateRemoteConfig, verifyAdminSession,
-    currentUserRole, verifySession, saveOrder, deleteOrder, triggerAuditLog,
+    currentUserRole, verifySession, saveOrder, deleteOrder, syncBookingCalendar, triggerAuditLog,
     logout, handleInactivityTimeout,
     offlineQueueCount, updateOfflineQueueCount,
     scheduleMenuPrefetch, scheduleMenusPrecache,

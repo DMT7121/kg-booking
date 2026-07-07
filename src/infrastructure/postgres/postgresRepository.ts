@@ -176,6 +176,10 @@ export class PostgresOrderRepository implements OrderRepository {
       return { ok: false, message: e.message }
     }
   }
+
+  async syncBookingCalendar(id: string, token?: string): Promise<any> {
+    return { ok: true, message: 'Sync skipped (Not in GAS mode)' }
+  }
 }
 
 export class PostgresMenuRepository implements MenuRepository {

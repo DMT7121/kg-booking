@@ -26,6 +26,10 @@ export class GasOrderRepository implements OrderRepository {
   async deleteOrder(id: string, password?: string, token?: string): Promise<any> {
     return postGAS({ action: 'deleteOrder', id, password, token })
   }
+
+  async syncBookingCalendar(id: string, token?: string): Promise<any> {
+    return postGAS({ action: 'syncBookingCalendar', id, token })
+  }
 }
 
 export class GasMenuRepository implements MenuRepository {

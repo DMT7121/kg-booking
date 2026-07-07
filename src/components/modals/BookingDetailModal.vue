@@ -101,6 +101,15 @@ function handleViewBill() {
     ui.showAlert('Đã copy Link Bill', url)
   }
 }
+
+async function handleSyncCalendar() {
+  if (!ui.selectedBooking) return
+  haptic('medium')
+  const res = await appStore.syncBookingCalendar(ui.selectedBooking.id)
+  if (res && res.ok) {
+    close()
+  }
+}
 </script>
 
 <template>
@@ -188,6 +197,9 @@ function handleViewBill() {
         </button>
         <button @click="handleDelete" class="py-3.5 bg-red-50 text-red-600 border border-red-100 rounded-xl font-black text-xs uppercase shadow-sm hover:bg-red-100 active:scale-95 transition-all flex justify-center items-center gap-2">
           <i class="fa-solid fa-trash-can"></i> Xóa phiếu
+        </button>
+        <button @click="handleSyncCalendar" class="col-span-2 py-3.5 bg-indigo-600 text-white hover:bg-indigo-700 rounded-xl font-black text-xs uppercase shadow-lg shadow-indigo-900/20 active:scale-95 transition-all flex justify-center items-center gap-2">
+          <i class="fa-solid fa-rotate"></i> Đồng bộ lịch bàn (Spreadsheet)
         </button>
       </div>
 

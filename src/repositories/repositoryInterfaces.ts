@@ -22,6 +22,7 @@ export interface OrderRepository {
   saveOrder(data: any): Promise<any>
   saveOrdersBatch(payloads: any[]): Promise<any>
   deleteOrder(id: string, password?: string, token?: string): Promise<any>
+  syncBookingCalendar?(id: string, token?: string): Promise<any>
 }
 
 export interface MenuRepository {
