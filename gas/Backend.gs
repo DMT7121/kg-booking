@@ -2725,6 +2725,9 @@ function handleTelegramWebhook(update) {
   const botToken = getBotToken_();
   if (!botToken) return HtmlService.createHtmlOutput("Bot token not found in config");
 
+  const cfg = loadSystemConfig_();
+  const activeMenuSheet = cfg['default_menu_profile_id'] || "Menu";
+
   const escapeHtml = function(t) {
     if (!t) return '';
     return t.toString()
@@ -2754,7 +2757,7 @@ function handleTelegramWebhook(update) {
         }
         
         // Process reply instruction using Gemini!
-        const replyResult = parseReplyInstructionWithGemini_(order, text);
+        const replyResult = parseReplyInstructionWithGemini_(order, text, activeMenuSheet);
         
         if (replyResult.action === "delete") {
           // Delete order without token check
@@ -2812,7 +2815,7 @@ function handleTelegramWebhook(update) {
           throw new Error("Không hiểu rõ chỉ thị chỉnh sửa. Vui lòng nhập rõ cú pháp ví dụ: 'Hủy bàn', 'Sửa tiền cọc 3TR', 'Dời sang 09/07/2026 - Bàn mới C5'.");
         }
       } catch (err) {
-        replyTelegram_(botToken, chatId, threadId, "❌ Lỗi xử lý yêu cầu chỉnh sửa: " + err.message);
+        replyTelegram_(botToken, chatId, threadId, "❌ Lỗi xử lý yêu cầu chỉnh sửa: " + escapeHtml_(err.message));
       }
     } else {
       replyTelegram_(botToken, chatId, threadId, "⚠️ Không tìm thấy Mã đặt bàn hợp lệ trong tin nhắn được trả lời.");
@@ -2856,11 +2859,11 @@ function handleTelegramWebhook(update) {
   }
   
   // 2. Read registered chat ID and topic IDs from config
-  const cfg = loadSystemConfig_();
+  // Reuse cfg defined at top
   const registeredChatId = cfg['telegramChatId'];
   const registeredTopicId = cfg['telegramTopicId'];
   const registeredAutoBookingTopicId = cfg['telegramAutoBookingTopicId'] || cfg['telegram_auto_booking_topic_id'] || registeredTopicId;
-  const activeMenuSheet = cfg['default_menu_profile_id'] || "Menu";
+  // Reuse activeMenuSheet defined at top
   
   // 3. Process booking text if it matches the registered group and topic
   if (registeredChatId && String(chatId) === String(registeredChatId)) {
@@ -3012,7 +3015,7 @@ function handleTelegramWebhook(update) {
         const errMsg = "❌ <b>LỖI XỬ LÝ ĐẶT BÀN</b>\n" +
           "━━━━━━━━━━━━━━━━━━━\n" +
           "Hệ thống gặp sự cố khi lưu phiếu đặt bàn.\n" +
-          "Chi tiết: <i>" + err.message + "</i>\n\n" +
+          "Chi tiết: <i>" + escapeHtml_(err.message) + "</i>\n\n" +
           "👉 Anh/chị vui lòng kiểm tra lại cấu hình hoặc lên phiếu thủ công qua Webapp.";
         replyTelegram_(botToken, chatId, threadId, errMsg);
       }
@@ -3024,15 +3027,22 @@ function handleTelegramWebhook(update) {
   return HtmlService.createHtmlOutput("Ignored message outside target topic");
 }
 
-function parseReplyInstructionWithGemini_(existingOrderJson, instructionText) {
+function parseReplyInstructionWithGemini_(existingOrderJson, instructionText, activeMenuSheet) {
   const apiKeys = getApiKeysFromConfig_();
   const googleKeys = apiKeys['google'] || apiKeys['gemini'] || [];
   if (googleKeys.length === 0) {
     throw new Error("Chưa cấu hình API Key cho Google Gemini.");
   }
 
+  // Load active menu to build dynamic prompt
+  const menuData = getMenuData(activeMenuSheet);
+  let menuContext = "Không có thực đơn.";
+  if (menuData && menuData.ok && Array.isArray(menuData.data)) {
+    menuContext = menuData.data.map(i => `- ${i.name}: ${i.price}đ`).join('\n');
+  }
+
   const sysPrompt = `Bạn là Trợ lý Đặt bàn King's Grill.
-Bạn nhận được một đơn đặt bàn hiện tại dạng JSON và một yêu cầu chỉnh sửa (bằng tiếng Việt) từ nhân viên.
+Bạn nhận được một đơn đặt bàn hiện tại dạng JSON, danh sách thực đơn nhà hàng, và một yêu cầu chỉnh sửa (bằng tiếng Việt) từ nhân viên.
 Hãy phân tích yêu cầu chỉnh sửa và thực hiện một trong hai hành động sau:
 
 HÀNH ĐỘNG 1: Nếu yêu cầu là hủy bàn, xóa bàn, hủy đơn, không ăn nữa...
@@ -3045,17 +3055,35 @@ HÀNH ĐỘNG 2: Nếu yêu cầu là chỉnh sửa (ví dụ: sửa tiền cọ
 Hãy cập nhật các trường tương ứng trong JSON cũ và trả về JSON mới đã cập nhật:
 {
   "action": "update",
-  "data": { ...JSON đã được cập nhật các trường mới... }
+  "data": { ...JSON đã được cập nhật ... }
 }
 
-LƯU Ý KHI CẬP NHẬT:
-1. Khi đổi ngày, hãy chuẩn hóa sang DD/MM/YYYY.
-2. Khi sửa tiền cọc (ví dụ: 'sửa cọc 3TR', 'sửa tiền cọc 3TR', 'cọc 3tr'):
+LƯU Ý QUAN TRỌNG KHI CẬP NHẬT (ACTION = "UPDATE"):
+1. Định dạng của trường "items" bắt buộc phải giữ nguyên cấu trúc mảng đối tượng:
+   [
+     {
+       "name": "Tên món ăn chính xác từ thực đơn",
+       "qty": số lượng (kiểu số nguyên),
+       "price": đơn giá (kiểu số nguyên)
+     }
+   ]
+   Tuyệt đối KHÔNG sử dụng tên thuộc tính khác như "quantity". Phải luôn sử dụng "qty".
+2. Khi thêm món ăn mới:
+   - Hãy đối chiếu tên món người dùng viết với thực đơn ở dưới để lấy tên chính xác và đơn giá 'price'.
+   - Nếu món ăn đã tồn tại sẵn trong đơn cũ, hãy tăng số lượng 'qty' tương ứng hoặc cập nhật theo yêu cầu.
+3. Khi xóa món ăn: Xóa món đó khỏi mảng 'items'.
+4. Sau khi thay đổi 'items', hãy tính toán lại trường 'total' bằng tổng (qty * price) của tất cả món trong 'items'.
+5. Khi đổi ngày, hãy chuẩn hóa sang DD/MM/YYYY.
+6. Khi sửa tiền cọc (ví dụ: 'sửa cọc 3TR', 'sửa tiền cọc 3TR', 'cọc 3tr'):
    - Cập nhật 'deposit.isPaid' = true
    - Cập nhật 'deposit.amount' = 3000000
    - Cập nhật 'deposit.note' = 'Cập nhật cọc 3TR' (hoặc nội dung yêu cầu)
-3. Giữ nguyên các thông tin khác của đơn hàng nếu không được yêu cầu thay đổi.
-4. Thời gian hiện tại của hệ thống để đối chiếu ngày tháng: ${new Date().toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' })}`;
+7. Giữ nguyên các thông tin khác của đơn hàng (như khách hàng, ghi chú) nếu không được yêu cầu thay đổi.
+
+Thực đơn nhà hàng để đối chiếu giá và tên món ăn:
+${menuContext}
+
+Thời gian hiện tại của hệ thống để đối chiếu ngày tháng: ${new Date().toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' })}`;
 
   const body = {
     contents: [{
@@ -3683,3 +3711,10 @@ function findBookingIdByParentMessageText_(text) {
   return "";
 }
 
+function escapeHtml_(text) {
+  if (!text) return "";
+  return text.toString()
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+}
