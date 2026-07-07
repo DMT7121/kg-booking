@@ -2738,7 +2738,11 @@ function handleTelegramWebhook(update) {
   let isReplyProcessed = false;
   if (replyTo) {
     isReplyProcessed = true;
-    const bookingId = extractBookingIdFromMessage_(replyTo);
+    let bookingId = extractBookingIdFromMessage_(replyTo);
+    if (!bookingId) {
+      const parentText = replyTo.caption || replyTo.text || "";
+      bookingId = findBookingIdByParentMessageText_(parentText);
+    }
     
     if (bookingId) {
       sendChatAction_(botToken, chatId, threadId, "typing");
@@ -3639,5 +3643,43 @@ function syncBookingCalendar(id, token) {
   
   const syncResult = syncToCalendar(payload, id, billUrl, transferUrl);
   return { ok: true, message: "Đã thực hiện đồng bộ lịch đặt.", syncResult: syncResult };
+}
+
+function findBookingIdByParentMessageText_(text) {
+  if (!text) return "";
+  
+  // Clean text slightly to find consecutive digits
+  const cleanText = text.replace(/[\s\-\.]/g, "");
+  const phoneMatch = cleanText.match(/0\d{9,10}/) || cleanText.match(/\d{9,11}/);
+  
+  const ss = SpreadsheetApp.openById(CONFIG.SS_ID);
+  const sheet = ss.getSheetByName(CONFIG.SHEET_NAME_ORDERS);
+  if (!sheet) return "";
+  const values = sheet.getDataRange().getValues();
+  
+  if (phoneMatch) {
+    const rawPhone = phoneMatch[0];
+    const phoneSuffix = rawPhone.substring(rawPhone.length - 9);
+    
+    for (let i = values.length - 1; i >= 1; i--) {
+      const orderPhone = String(values[i][3] || "");
+      const cleanOrderPhone = orderPhone.replace(/\D/g, "");
+      if (cleanOrderPhone.endsWith(phoneSuffix)) {
+        return values[i][0];
+      }
+    }
+  }
+  
+  // Name match fallback
+  for (let i = values.length - 1; i >= 1; i--) {
+    const orderName = String(values[i][2] || "").trim();
+    if (orderName && orderName.length > 2) {
+      if (text.toLowerCase().indexOf(orderName.toLowerCase()) !== -1) {
+        return values[i][0];
+      }
+    }
+  }
+
+  return "";
 }
 
