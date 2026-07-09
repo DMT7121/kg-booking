@@ -6,7 +6,7 @@ import { useAppStore } from '@/stores/useAppStore'
 import { useConfigStore } from '@/stores/useConfigStore'
 import { useBillRender } from '@/composables/useBillRender'
 import { useForm } from '@/composables/useForm'
-import { formatVND } from '@/utils'
+import { formatVND, isIOS, isAndroid } from '@/utils'
 
 const ui = useUIStore()
 const formStore = useFormStore()
@@ -149,7 +149,7 @@ function shareCurrentBill() {
   }
   const url = `${window.location.origin}${window.location.pathname}#/bill/${id}`
   
-  if (navigator.share) {
+  if ((isIOS || isAndroid) && navigator.share) {
     navigator.share({
       title: 'Phiếu Đặt Bàn - King\'s Grill',
       text: `Phiếu đặt bàn của ${formStore.customer.name}`,
@@ -594,9 +594,9 @@ function openZaloChat() {
                   <i class="fa-solid fa-vault text-[10px]"></i> 1. Quy định về đặt cọc
                 </div>
                 <div class="text-blue-950 text-[13px] font-bold leading-relaxed space-y-1.5 pl-4">
-                  <p>• Mức cọc tối thiểu là <span class="bg-blue-100/80 text-blue-950 px-2 py-0.5 rounded-lg font-black text-[13px]">500.000đ/bàn</span>. Với phiếu đặt có thức ăn, mức cọc bằng <span class="bg-blue-100/80 text-blue-950 px-2 py-0.5 rounded-lg font-black text-[13px]">1/3 tổng tiền thức ăn đặt trước</span>.</p>
+                  <p>• Mức cọc tối thiểu là <span class="text-blue-900 font-black underline decoration-blue-500 decoration-2 underline-offset-4">500.000đ/bàn</span>. Với phiếu đặt có thức ăn, mức cọc bằng <span class="text-blue-900 font-black underline decoration-blue-500 decoration-2 underline-offset-4">1/3 tổng tiền thức ăn đặt trước</span>.</p>
                   <p>• Hình thức trả cọc: Tiền cọc sẽ được <span class="text-emerald-700 font-black underline decoration-2 underline-offset-2">trừ vào bill khi thanh toán</span> hoặc <span class="text-emerald-700 font-black underline decoration-2 underline-offset-2">hoàn lại bằng tiền mặt</span>.</p>
-                  <p>• Yêu cầu đặt cọc: Quý khách vui lòng <span class="bg-rose-50 text-rose-650 border border-rose-200/80 px-2 py-0.5 rounded-lg font-black text-[13px] inline-block shadow-sm">đặt cọc đúng theo số tiền ghi trên phiếu</span>.</p>
+                  <p>• Yêu cầu đặt cọc: Quý khách vui lòng <span class="text-rose-700 font-black underline decoration-rose-500 decoration-2 underline-offset-4">đặt cọc đúng theo số tiền ghi trên phiếu</span>.</p>
                 </div>
               </div>
 
@@ -610,7 +610,7 @@ function openZaloChat() {
                 </div>
                 <div class="text-slate-800 text-[13px] font-bold leading-relaxed space-y-1.5 pl-4">
                   <p>• <strong>Giá món chênh lệch:</strong> Giá một số món có thể được cập nhật mới và chênh lệch so với thực đơn online. Nếu cần kiểm tra, quý khách có thể yêu cầu nhân viên cập nhật và phản hồi lại.</p>
-                  <p>• <strong>Giá chưa bao gồm thuế:</strong> Giá trên thực đơn chưa bao gồm VAT. Thuế suất áp dụng: <span class="bg-amber-100 text-amber-950 px-1.5 py-0.5 rounded font-black text-[13px]">8%</span> đối với món ăn, đồ uống pha chế; <span class="bg-amber-100 text-amber-950 px-1.5 py-0.5 rounded font-black text-[13px]">10%</span> đối với bia, rượu và đồ uống có ga đóng lon.</p>
+                  <p>• <strong>Giá chưa bao gồm thuế:</strong> Giá trên thực đơn chưa bao gồm VAT. Thuế suất áp dụng: <span class="text-amber-800 font-black underline decoration-amber-500 decoration-2 underline-offset-4">8%</span> đối với món ăn, đồ uống pha chế; <span class="text-amber-800 font-black underline decoration-amber-500 decoration-2 underline-offset-4">10%</span> đối với bia, rượu và đồ uống có ga đóng lon.</p>
                   <p>• <strong>Thời gian lên thức ăn:</strong> Với món đặt trước, nhà hàng sẽ ưu tiên chuẩn bị nguyên liệu và sơ chế trước. Khi quý khách yêu cầu lên món, nhà hàng sẽ xác nhận lại một lần trước khi chế biến. Thời gian lên món dự kiến sẽ từ <span class="text-rose-600 font-black">10–30 phút</span>, theo tình hình thực tế tại thời điểm tổ chức.</p>
                 </div>
               </div>

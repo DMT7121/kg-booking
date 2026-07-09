@@ -2,7 +2,7 @@ import { ref, nextTick } from 'vue'
 import { useFormStore } from '@/stores/useFormStore'
 import { useAppStore } from '@/stores/useAppStore'
 import { useUIStore } from '@/stores/useUIStore'
-import { stripAccents, resizeImage, loadLibrary, isIOS, isAndroid, isMobile, generateBookingId } from '@/utils'
+import { stripAccents, resizeImage, loadLibrary, isIOS, isAndroid, generateBookingId } from '@/utils'
 import { fetchWithRetry } from '@/services/api'
 import { smartUploadImage } from '@/services/r2'
 import { useAI } from '@/composables/useAI'
@@ -474,7 +474,7 @@ function _createBillRender() {
     const blob = new Blob([arr], { type: 'image/jpeg' })
 
     // --- Strategy 1: Web Share API (works great on mobile) ---
-    if (isMobile && navigator.share && navigator.canShare) {
+    if ((isIOS || isAndroid) && navigator.share && navigator.canShare) {
       try {
         const file = new File([blob], filename, { type: 'image/jpeg' })
         const shareData = { files: [file], title: filename }
