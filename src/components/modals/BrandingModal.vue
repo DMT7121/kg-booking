@@ -16,7 +16,11 @@ const themes = [
   { id: 'gold', color: '#da981d', name: 'Vàng Cát' },
   { id: 'teal', color: '#14b8a6', name: 'Teal' },
   { id: 'rose', color: '#e11d48', name: 'Hoa Hồng' },
-  { id: 'cyberpunk', color: '#c000c0', name: 'Neon' }
+  { id: 'cyberpunk', color: '#c000c0', name: 'Neon' },
+  { id: 'gradient-sunset', color: 'linear-gradient(135deg, #ea580c, #db2777)', name: 'Sunset' },
+  { id: 'gradient-ocean', color: 'linear-gradient(135deg, #0891b2, #1d4ed8)', name: 'Ocean' },
+  { id: 'gradient-cosmic', color: 'linear-gradient(135deg, #9333ea, #f43f5e)', name: 'Cosmic' },
+  { id: 'gradient-aurora', color: 'linear-gradient(135deg, #059669, #115e59)', name: 'Aurora' }
 ]
 </script>
 
@@ -63,7 +67,7 @@ const themes = [
               :class="configStore.branding.theme === t.id ? 'bg-white shadow-sm border border-slate-200' : 'hover:bg-slate-100 border border-transparent'">
               <div class="w-7 h-7 rounded-full shadow-inner border-2 flex items-center justify-center transition-all"
                 :class="configStore.branding.theme === t.id ? 'border-slate-800 scale-110 shadow' : 'border-white'"
-                :style="{ backgroundColor: t.color }">
+                :style="{ background: t.color }">
                 <i v-if="configStore.branding.theme === t.id" class="fa-solid fa-check text-white text-[9px]"></i>
               </div>
               <span class="text-[9px] font-black text-slate-600 uppercase tracking-wider text-center truncate w-full">{{ t.name }}</span>
