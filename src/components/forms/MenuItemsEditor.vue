@@ -88,6 +88,74 @@ function updateItemPrice(index: number, valStr: string) {
   const num = cleanStr ? parseInt(cleanStr, 10) : 0
   formStore.items[index].price = isNaN(num) ? 0 : num
 }
+const selectedCategory = ref('TẤT CẢ')
+
+const CATEGORIES = [
+  { name: 'TẤT CẢ', keywords: [] },
+  { name: 'NƯỚNG/THỊT', keywords: ['nướng', 'tảng', 'ba chỉ', 'bò', 'heo', 'gà', 'thịt', 'dẻ sườn', 'sườn', 'chim', 'khay'] },
+  { name: 'LẨU/SÚP', keywords: ['lẩu', 'súp', 'canh', 'mì', 'miến', 'cháo', 'tokbokki'] },
+  { name: 'ĐỒ UỐNG', keywords: ['bia', 'nước', 'cola', 'sprite', 'sữa', 'trà', 'rượu', 'chanh', 'tiger', 'heineken'] }
+]
+
+const popularMenuItems = computed(() => {
+  if (!appStore.historyList) return []
+  const counts: Record<string, number> = {}
+  appStore.historyList.forEach((order: any) => {
+    if (order.menuItems) {
+      order.menuItems.forEach((item: any) => {
+        const name = item.name.toUpperCase().trim()
+        counts[name] = (counts[name] || 0) + (item.qty || 1)
+      })
+    }
+  })
+  return Object.entries(counts)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 8)
+    .map(([name]) => {
+      const match = appStore.menuList.find((i: any) => i.name.toUpperCase().trim() === name)
+      return match || { name, price: 0 }
+    })
+})
+
+const filteredSuggestions = computed(() => {
+  let list = itemSuggestions.value
+  
+  const q = ui.focusIdx !== null ? (formStore.items[ui.focusIdx]?.name || '') : ''
+  if (!q) {
+    if (selectedCategory.value === 'TẤT CẢ') {
+      return popularMenuItems.value
+    }
+    const cat = CATEGORIES.find(c => c.name === selectedCategory.value)
+    if (cat) {
+      return appStore.menuList.filter((item: any) => 
+        cat.keywords.some(kw => item.name.toLowerCase().includes(kw))
+      ).slice(0, 15)
+    }
+  }
+  
+  if (selectedCategory.value !== 'TẤT CẢ') {
+    const cat = CATEGORIES.find(c => c.name === selectedCategory.value)
+    if (cat) {
+      list = list.filter((item: any) => 
+        cat.keywords.some(kw => item.name.toLowerCase().includes(kw))
+      )
+    }
+  }
+  return list
+})
+
+function highlightMatch(name: string, index: number): string {
+  const query = formStore.items[index]?.name || ''
+  if (!query) return name
+  const escapedQuery = query.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&')
+  const reg = new RegExp(`(${escapedQuery})`, 'gi')
+  return name.replace(reg, '<mark class="bg-yellow-200 text-slate-900 rounded px-0.5 font-black">$1</mark>')
+}
+
+function clearItemName(index: number) {
+  formStore.items[index].name = ''
+  onSearchInput(index)
+}
 </script>
 
 <template>
@@ -153,13 +221,58 @@ function updateItemPrice(index: number, valStr: string) {
             </div>
             
             <div class="relative flex-grow">
-              <input v-model="item.name" @input="onSearchInput(index)" @blur="handleItemBlur" @focus="handleInputFocus" class="w-full font-black text-blue-900 text-base md:text-sm border-b-2 border-slate-100 focus:border-blue-900 outline-none pb-2 uppercase placeholder-slate-300 transition-colors" placeholder="NHẬP TÊN MÓN...">
-              <ul v-if="ui.focusIdx === index && itemSuggestions.length > 0" class="absolute top-full left-0 right-0 bg-white border border-slate-200 rounded-2xl shadow-2xl max-h-60 overflow-y-auto z-50 mt-2 p-2 scroll-smooth custom-scrollbar">
-                <li v-for="s in itemSuggestions" :key="s.id" @mousedown.prevent="selectMenuItem(s, index)" class="p-3 hover:bg-blue-50 cursor-pointer flex justify-between items-center rounded-xl transition-colors border-b last:border-0 border-slate-50 min-h-[44px]">
-                  <span class="font-black text-slate-700 text-xs md:text-sm uppercase">{{ s.name }}</span>
-                  <span class="text-[11px] text-blue-600 font-black tracking-tighter bg-blue-50/50 px-2 py-1 rounded-md">{{ formatVND(s.price) }}</span>
-                </li>
-              </ul>
+              <div class="relative w-full">
+                <input 
+                  v-model="item.name" 
+                  @input="onSearchInput(index)" 
+                  @blur="handleItemBlur" 
+                  @focus="handleInputFocus" 
+                  class="w-full font-black text-blue-900 text-base md:text-sm border-b-2 border-slate-100 focus:border-blue-900 outline-none pb-2 pr-8 uppercase placeholder-slate-300 transition-colors" 
+                  placeholder="NHẬP TÊN MÓN..."
+                >
+                <button 
+                  v-if="item.name" 
+                  @click.prevent="clearItemName(index)" 
+                  class="absolute right-1 top-1 w-6 h-6 rounded-full flex items-center justify-center text-slate-400 hover:text-slate-650 hover:bg-slate-100 transition-all active:scale-90"
+                >
+                  <i class="fa-solid fa-circle-xmark text-sm"></i>
+                </button>
+              </div>
+
+              <div v-if="ui.focusIdx === index" class="absolute top-full left-0 right-0 bg-white border border-slate-200 rounded-2xl shadow-2xl max-h-[320px] overflow-hidden z-50 mt-2 flex flex-col">
+                <!-- Category Tabs inside Dropdown -->
+                <div class="flex gap-1.5 p-2 bg-slate-50 border-b border-slate-100 overflow-x-auto no-scrollbar shrink-0">
+                  <button
+                    v-for="cat in CATEGORIES"
+                    :key="cat.name"
+                    @mousedown.prevent="selectedCategory = cat.name"
+                    class="px-2.5 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider transition-all cursor-pointer"
+                    :class="selectedCategory === cat.name ? 'bg-blue-900 text-white shadow-sm' : 'bg-white text-slate-500 border border-slate-200 hover:bg-slate-100'"
+                  >
+                    {{ cat.name }}
+                  </button>
+                </div>
+                
+                <!-- Suggestions List -->
+                <ul class="flex-grow overflow-y-auto p-1.5 scroll-smooth custom-scrollbar">
+                  <div v-if="filteredSuggestions.length === 0" class="text-center py-6 text-slate-400 text-xs italic font-semibold">
+                    Không tìm thấy món phù hợp...
+                  </div>
+                  
+                  <li 
+                    v-for="s in filteredSuggestions" 
+                    :key="s.name" 
+                    @mousedown.prevent="selectMenuItem(s, index)" 
+                    class="p-2.5 hover:bg-blue-50 cursor-pointer flex justify-between items-center rounded-xl transition-colors border-b last:border-0 border-slate-50 min-h-[44px]"
+                  >
+                    <div class="flex flex-col">
+                      <span class="font-black text-slate-700 text-xs uppercase" v-html="highlightMatch(s.name, index)"></span>
+                      <span v-if="s.desc" class="text-[9px] font-medium text-slate-400 truncate max-w-[200px] mt-0.5">{{ s.desc }}</span>
+                    </div>
+                    <span class="text-[11px] text-blue-600 font-black tracking-tighter bg-blue-50/50 px-2 py-1 rounded-md">{{ formatVND(s.price) }}</span>
+                  </li>
+                </ul>
+              </div>
             </div>
           </div>
 

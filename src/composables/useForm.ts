@@ -38,7 +38,7 @@ function _createForm() {
     uiStore.focusIdx = idx
     const q = formStore.items[idx].name
     if (!q) { itemSuggestions.value = []; return }
-    itemSuggestions.value = miniSearch.search(q, { fuzzy: 0.2, prefix: true }).slice(0, 8)
+    itemSuggestions.value = miniSearch.search(q, { fuzzy: 0.2, prefix: true }).slice(0, 30)
   }
 
   function selectMenuItem(s: any, idx: number) {
