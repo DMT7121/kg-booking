@@ -348,52 +348,53 @@ function _createBillRender() {
               appStore.setOptimisticOrder(optimisticOrder)
             }
 
-            if (!navigator.onLine) {
-              throw new Error('Device offline')
-            }
-
             uiStore.connectionStatus = 'syncing'
             const result = await appStore.saveOrder(payload)
 
             if (result?.ok) {
-              uiStore.connectionStatus = 'online'
-              // Mark synced in local store
-              appStore.markOrderSynced(orderId, result.data || {})
-
-              // Display detailed calendar sync status to user
-              let calendarMsg = ''
-              let calendarType: 'success' | 'warning' | 'info' = 'success'
-              if (result.calendarSync) {
-                const status = result.calendarSync.status
-                const msg = result.calendarSync.message
-                if (status === 'SUCCESS') {
-                  calendarMsg = '📅 Đã tự động cập nhật sơ đồ lịch bàn.'
-                  calendarType = 'success'
-                } else if (status === 'MOVED_DATE') {
-                  calendarMsg = '📅 Khách đổi ngày - Đã thu hồi ô cũ và xếp sang ngày mới.'
-                  calendarType = 'success'
-                } else if (status === 'MOVED_TABLE') {
-                  calendarMsg = '📅 Khách đổi bàn - Đã thu hồi bàn cũ và xếp sang bàn mới.'
-                  calendarType = 'success'
-                } else if (status === 'CONFLICT') {
-                  calendarMsg = '⚠️ Xung đột vị trí - Bàn đã bị trùng với tiệc khác cùng khung giờ.'
-                  calendarType = 'warning'
-                } else if (status === 'NO_SLOT') {
-                  calendarMsg = '⚠️ Hết chỗ trống hoặc không tìm thấy ngày trong sơ đồ lịch.'
-                  calendarType = 'warning'
-                } else if (status === 'FAILED' || status === 'ERROR') {
-                  calendarMsg = `❌ Lỗi đồng bộ lịch: ${msg || 'Không rõ nguyên nhân'}`
-                  calendarType = 'warning'
-                }
-              }
-
-              if (calendarMsg) {
-                uiStore.showToast(calendarMsg, calendarType, 5000)
+              if (result.status === 'pending') {
+                uiStore.connectionStatus = 'error'
+                uiStore.showToast('⚠️ Lưu cục bộ OK — Chờ mạng để đồng bộ', 'warning', 5000)
               } else {
-                const syncMsg = saveType === 'save'
-                  ? '☁️ Đồng bộ Cloud hoàn tất!'
-                  : '☁️ Đã đồng bộ ngầm thành công'
-                uiStore.showToast(syncMsg, 'success', 2000)
+                uiStore.connectionStatus = 'online'
+                // Mark synced in local store
+                appStore.markOrderSynced(orderId, result.data || {})
+
+                // Display detailed calendar sync status to user
+                let calendarMsg = ''
+                let calendarType: 'success' | 'warning' | 'info' = 'success'
+                if (result.calendarSync) {
+                  const status = result.calendarSync.status
+                  const msg = result.calendarSync.message
+                  if (status === 'SUCCESS') {
+                    calendarMsg = '📅 Đã tự động cập nhật sơ đồ lịch bàn.'
+                    calendarType = 'success'
+                  } else if (status === 'MOVED_DATE') {
+                    calendarMsg = '📅 Khách đổi ngày - Đã thu hồi ô cũ và xếp sang ngày mới.'
+                    calendarType = 'success'
+                  } else if (status === 'MOVED_TABLE') {
+                    calendarMsg = '📅 Khách đổi bàn - Đã thu hồi bàn cũ và xếp sang bàn mới.'
+                    calendarType = 'success'
+                  } else if (status === 'CONFLICT') {
+                    calendarMsg = '⚠️ Xung đột vị trí - Bàn đã bị trùng với tiệc khác cùng khung giờ.'
+                    calendarType = 'warning'
+                  } else if (status === 'NO_SLOT') {
+                    calendarMsg = '⚠️ Hết chỗ trống hoặc không tìm thấy ngày trong sơ đồ lịch.'
+                    calendarType = 'warning'
+                  } else if (status === 'FAILED' || status === 'ERROR') {
+                    calendarMsg = `❌ Lỗi đồng bộ lịch: ${msg || 'Không rõ nguyên nhân'}`
+                    calendarType = 'warning'
+                  }
+                }
+
+                if (calendarMsg) {
+                  uiStore.showToast(calendarMsg, calendarType, 5000)
+                } else {
+                  const syncMsg = saveType === 'save'
+                    ? '☁️ Đồng bộ Cloud hoàn tất!'
+                    : '☁️ Đã đồng bộ ngầm thành công'
+                  uiStore.showToast(syncMsg, 'success', 2000)
+                }
               }
 
               // Refresh history in background
@@ -404,47 +405,10 @@ function _createBillRender() {
           } catch (err: any) {
             console.error('[BG Sync] Failed:', err.message)
             uiStore.connectionStatus = 'error'
-            uiStore.showToast('⚠️ Lưu cục bộ OK — Chờ mạng để đồng bộ', 'warning', 5000)
+            uiStore.showToast('❌ Không thể lưu đơn: ' + err.message, 'error', 5000)
             
             // Mark failed/not syncing locally
             appStore.markOrderFailed(orderId)
-
-            // Fallback: Rebuild payload with offline parameters
-            const lowRes = isSaveOnly ? '' : (highResBase64 ? await resizeImage(highResBase64, 1600, 0.92, 'image/webp') : '')
-            const offlinePayload = {
-              customer: customer,
-              items: items,
-              deposit: { ...depositInfo, image: depositImage },
-              staff: staff,
-              id: orderId,
-              version: orderVersion,
-              total: calculatedTotalsFinal,
-              billImage: lowRes,
-              customFileName: dynamicFileName,
-              oldBillFileId: oldBillFileId,
-              smartIndex: {
-                customerName: customer.name,
-                customerPhone: customer.phone,
-                customerTable: customer.tables,
-                bookingDate: customer.date,
-                totalAmount: calculatedTotalsFinal,
-                itemsCount: items.length,
-                isDeposited: depositIsPaid,
-                staff: staff.name,
-                aiEngine: aiEngine,
-                timestamp: new Date().toISOString()
-              },
-              renderPdf: saveType === 'pdf',
-              imageSource: 'base64',
-              activeMenuSheet: activeSheet
-            }
-
-            // Add to offline queue for later sync
-            await addToOfflineQueue('saveOrder', offlinePayload)
-            appStore.updateOfflineQueueCount()
-            
-            // Reload history to reflect offline state
-            appStore.loadHistory(true)
           }
         }
 

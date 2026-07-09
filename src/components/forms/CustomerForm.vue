@@ -83,6 +83,52 @@ function getDayAfterTomorrowStr() {
   d.setDate(d.getDate() + 2)
   return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`
 }
+
+const tableConflictWarning = computed(() => {
+  const tableStr = formStore.customer.tables
+  const date = formStore.customer.date
+  const time = formStore.customer.time
+  if (!tableStr || !date || !time) return null
+
+  const tables = tableStr.split(/[\s,]+/).map(t => t.trim().toUpperCase()).filter(Boolean)
+  if (tables.length === 0) return null
+
+  // Scan all history records for conflicts (except the current one)
+  const todayOrders = appStore.historyList.filter(o => 
+    o.id !== formStore.id &&
+    o.parsedCustomer?.date === date && 
+    tables.some(tableName => {
+      if (!o.parsedCustomer?.tables) return false
+      const oTables = o.parsedCustomer.tables.split(/[\s,]+/).map(t => t.trim().toUpperCase()).filter(Boolean)
+      return oTables.includes(tableName)
+    })
+  )
+
+  if (todayOrders.length === 0) return null
+
+  const [targetH, targetM] = time.split(':').map(Number)
+  const targetTime = new Date()
+  targetTime.setHours(targetH, targetM, 0, 0)
+
+  for (const order of todayOrders) {
+    const oTime = order.parsedCustomer?.time
+    if (!oTime) continue
+    
+    const [hh, mm] = oTime.split(':').map(Number)
+    const orderTime = new Date()
+    orderTime.setHours(hh, mm, 0, 0)
+    
+    const diffMs = orderTime.getTime() - targetTime.getTime()
+    const diffMins = Math.abs(diffMs) / (1000 * 60)
+
+    // Conflict window is +/- 2 hours
+    if (diffMins < 120) {
+      return `Trùng bàn với khách "${order.parsedCustomer?.name || 'Khác'}" lúc ${oTime}`
+    }
+  }
+
+  return null
+})
 </script>
 
 <template>
@@ -222,6 +268,10 @@ function getDayAfterTomorrowStr() {
           <button @click.prevent="ui.showFloorPlan = true" class="w-10 h-10 bg-blue-50 text-blue-600 hover:bg-blue-100 rounded-xl border border-blue-100 flex items-center justify-center transition-colors active:scale-95 shrink-0" title="Mở sơ đồ bàn">
             <i class="fa-solid fa-border-all text-lg"></i>
           </button>
+        </div>
+        <div v-if="tableConflictWarning" class="text-[9px] text-red-500 font-extrabold mt-1 leading-normal flex items-start gap-1">
+          <i class="fa-solid fa-circle-exclamation shrink-0 mt-0.5 animate-bounce"></i>
+          <span>{{ tableConflictWarning }}</span>
         </div>
       </div>
     </div>

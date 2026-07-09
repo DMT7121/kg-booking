@@ -298,56 +298,62 @@ function goToTomorrowTimeline() {
                   </button>
                 </div>
 
-                <AIInputPanel />
+                <div class="grid grid-cols-1 lg:grid-cols-12 gap-4 items-start">
+                  <!-- Left side: AI Input and Progress -->
+                  <div class="lg:col-span-5 space-y-3">
+                    <AIInputPanel />
 
-                <!-- Smart Checklist Widget -->
-                <div class="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm space-y-3">
-                  <div class="flex items-center justify-between cursor-pointer" @click="showChecklist = !showChecklist">
-                    <div class="flex items-center gap-2">
-                      <i class="fa-solid fa-list-check text-blue-600 text-sm"></i>
-                      <span class="font-black text-slate-800 text-[11px] uppercase tracking-widest">Tiến độ hoàn thiện phiếu</span>
-                      <span class="px-2 py-0.5 rounded-full text-[10px] font-black" :class="checklistPercent === 100 ? 'bg-green-100 text-green-700' : 'bg-blue-50 text-blue-700'">
-                        {{ checklistPercent }}%
-                      </span>
-                    </div>
-                    <i class="fa-solid text-slate-400 text-xs transition-transform" :class="showChecklist ? 'fa-chevron-up' : 'fa-chevron-down'"></i>
-                  </div>
-                  
-                  <div v-show="showChecklist" class="space-y-2 pt-2 border-t border-slate-100 transition-all duration-300">
-                    <!-- Progress Bar -->
-                    <div class="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
-                      <div class="bg-gradient-to-r from-blue-500 to-indigo-600 h-full transition-all duration-500" :style="{ width: `${checklistPercent}%` }"></div>
-                    </div>
-                    
-                    <div class="grid grid-cols-2 gap-2 text-xs pt-1">
-                      <div v-for="item in checklistItems" :key="item.name" class="flex items-center gap-2 p-2 rounded-xl border transition-all" :class="item.done ? 'bg-green-50/40 border-green-100 text-green-700 font-bold' : 'bg-slate-50/45 border-slate-100 text-slate-400 font-semibold'">
-                        <i class="fa-solid" :class="item.done ? 'fa-circle-check text-green-500' : 'fa-circle text-slate-300'"></i>
-                        <span>{{ item.name }}</span>
+                    <!-- Smart Checklist Widget -->
+                    <div class="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm space-y-3">
+                      <div class="flex items-center justify-between cursor-pointer" @click="showChecklist = !showChecklist">
+                        <div class="flex items-center gap-2">
+                          <i class="fa-solid fa-list-check text-blue-600 text-sm"></i>
+                          <span class="font-black text-slate-800 text-[11px] uppercase tracking-widest">Tiến độ hoàn thiện phiếu</span>
+                          <span class="px-2 py-0.5 rounded-full text-[10px] font-black" :class="checklistPercent === 100 ? 'bg-green-100 text-green-700' : 'bg-blue-50 text-blue-700'">
+                            {{ checklistPercent }}%
+                          </span>
+                        </div>
+                        <i class="fa-solid text-slate-400 text-xs transition-transform" :class="showChecklist ? 'fa-chevron-up' : 'fa-chevron-down'"></i>
+                      </div>
+                      
+                      <div v-show="showChecklist" class="space-y-2 pt-2 border-t border-slate-100 transition-all duration-300">
+                        <!-- Progress Bar -->
+                        <div class="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
+                          <div class="bg-gradient-to-r from-blue-500 to-indigo-600 h-full transition-all duration-500" :style="{ width: `${checklistPercent}%` }"></div>
+                        </div>
+                        
+                        <div class="grid grid-cols-2 gap-2 text-xs pt-1">
+                          <div v-for="item in checklistItems" :key="item.name" class="flex items-center gap-2 p-2 rounded-xl border transition-all" :class="item.done ? 'bg-green-50/40 border-green-100 text-green-700 font-bold' : 'bg-slate-50/45 border-slate-100 text-slate-400 font-semibold'">
+                            <i class="fa-solid" :class="item.done ? 'fa-circle-check text-green-500' : 'fa-circle text-slate-300'"></i>
+                            <span>{{ item.name }}</span>
+                          </div>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                </div>
 
-                <!-- Smart Warning Widget -->
-                <div v-if="hasSoftWarning" class="bg-amber-50/90 border border-amber-300 rounded-2xl p-4 shadow-sm space-y-2">
-                  <div class="flex items-center gap-2 text-amber-800 font-black uppercase text-xs">
-                    <i class="fa-solid fa-triangle-exclamation text-amber-500 text-sm"></i>
-                    Cảnh báo phân tích AI
+                    <!-- Smart Warning Widget -->
+                    <div v-if="hasSoftWarning" class="bg-amber-50/90 border border-amber-300 rounded-2xl p-4 shadow-sm space-y-2">
+                      <div class="flex items-center gap-2 text-amber-800 font-black uppercase text-xs">
+                        <i class="fa-solid fa-triangle-exclamation text-amber-500 text-sm"></i>
+                        Cảnh báo phân tích AI
+                      </div>
+                      <ul class="list-disc pl-4 text-xs text-amber-700 space-y-1">
+                        <li v-if="formStore.aiMetadata && typeof formStore.aiMetadata.confidence_score === 'number' && formStore.aiMetadata.confidence_score < 0.8">
+                          Đo độ tin cậy AI thấp ({{ Math.round(formStore.aiMetadata.confidence_score * 100) }}%). Vui lòng kiểm tra lại.
+                        </li>
+                        <li v-for="(warn, idx) in formStore.warnings" :key="idx">
+                          {{ warn }}
+                        </li>
+                      </ul>
+                    </div>
                   </div>
-                  <ul class="list-disc pl-4 text-xs text-amber-700 space-y-1">
-                    <li v-if="formStore.aiMetadata && typeof formStore.aiMetadata.confidence_score === 'number' && formStore.aiMetadata.confidence_score < 0.8">
-                      Đo độ tin cậy AI thấp ({{ Math.round(formStore.aiMetadata.confidence_score * 100) }}%). Vui lòng kiểm tra lại.
-                    </li>
-                    <li v-for="(warn, idx) in formStore.warnings" :key="idx">
-                      {{ warn }}
-                    </li>
-                  </ul>
-                </div>
 
-                <div class="space-y-4">
-                  <CustomerForm />
-                  <DepositManager />
-                  <MenuItemsEditor />
+                  <!-- Right side: Manual input forms -->
+                  <div class="lg:col-span-7 space-y-4">
+                    <CustomerForm />
+                    <DepositManager />
+                    <MenuItemsEditor />
+                  </div>
                 </div>
               </div>
 

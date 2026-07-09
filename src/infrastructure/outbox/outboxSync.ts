@@ -6,10 +6,15 @@ const pgRepo = new PostgresOrderRepository()
 let isSyncing = false
 
 async function syncToSheets(item: outbox.DecryptedOutboxItem): Promise<boolean> {
+  const cleanPayload = JSON.parse(JSON.stringify(item.payload))
+  if (cleanPayload && cleanPayload.deposit && cleanPayload.deposit.image === '__OFFLINE_IMAGE_BUFFER_REF__') {
+    cleanPayload.deposit.image = ''
+  }
+
   const sheetsPayload = {
     action: item.action === 'upsert' ? 'saveOrder' : 'deleteOrder',
     id: item.id,
-    data: item.payload,
+    data: cleanPayload,
     idempotencyKey: item.idempotencyKey
   }
   
@@ -159,7 +164,11 @@ export async function triggerSync(): Promise<void> {
           // Postgres mode: sync only to Postgres
           let res = { ok: true, message: '' }
           if (item.action === 'upsert') {
-            const payload = { ...item.payload, idempotencyKey: item.idempotencyKey }
+            const cleanPayload = JSON.parse(JSON.stringify(item.payload))
+            if (cleanPayload && cleanPayload.deposit && cleanPayload.deposit.image === '__OFFLINE_IMAGE_BUFFER_REF__') {
+              cleanPayload.deposit.image = ''
+            }
+            const payload = { ...cleanPayload, idempotencyKey: item.idempotencyKey }
             res = await pgRepo.saveOrder(payload, token)
           } else if (item.action === 'delete') {
             res = await pgRepo.deleteOrder(item.id, undefined, token)
@@ -173,7 +182,11 @@ export async function triggerSync(): Promise<void> {
           // Dual Write mode: sync to both Postgres and Google Sheets sequentially
           let pgOk = false
           if (item.action === 'upsert') {
-            const payload = { ...item.payload, idempotencyKey: item.idempotencyKey }
+            const cleanPayload = JSON.parse(JSON.stringify(item.payload))
+            if (cleanPayload && cleanPayload.deposit && cleanPayload.deposit.image === '__OFFLINE_IMAGE_BUFFER_REF__') {
+              cleanPayload.deposit.image = ''
+            }
+            const payload = { ...cleanPayload, idempotencyKey: item.idempotencyKey }
             const res = await pgRepo.saveOrder(payload, token)
             pgOk = res && res.ok
           } else if (item.action === 'delete') {
@@ -205,6 +218,11 @@ export async function triggerSync(): Promise<void> {
       
       if (success) {
         await outbox.markAsSynced(item.id, item.action)
+        
+        // Trigger background image upload if an offline image exists in buffer
+        if (item.action === 'upsert' && item.payload?.deposit?.image === '__OFFLINE_IMAGE_BUFFER_REF__') {
+          uploadImageInBackground(item.id, item.payload, mode, token).catch(() => {})
+        }
       }
       
       pendingItems = await outbox.getPendingItems()
@@ -215,16 +233,85 @@ export async function triggerSync(): Promise<void> {
     isSyncing = false
     try {
       const { getActivePinia } = await import('pinia')
-      if (getActivePinia()) {
-        const { useAppStore } = await import('@/stores/useAppStore')
-        const store = useAppStore()
-        if (store && typeof store.updateOfflineQueueCount === 'function') {
-          await store.updateOfflineQueueCount()
+        if (getActivePinia()) {
+          const { useAppStore } = await import('@/stores/useAppStore')
+          const store = useAppStore()
+          if (store) {
+            if (typeof store.updateOfflineQueueCount === 'function') {
+              await store.updateOfflineQueueCount()
+            }
+            if (typeof store.loadHistory === 'function') {
+              await store.loadHistory(true)
+            }
+          }
         }
-      }
     } catch (err) {
       console.warn('[Outbox Sync] Failed to update offline queue count in store:', err)
     }
+  }
+}
+
+async function uploadImageInBackground(id: string, payload: any, mode: string, token?: string) {
+  try {
+    const imageBase64 = await outbox.getImageFromBuffer(id)
+    if (!imageBase64) return
+
+    console.log(`[Outbox Background Sync] Syncing image for order ${id}...`)
+
+    // Restore image to payload
+    const imagePayload = JSON.parse(JSON.stringify(payload))
+    if (!imagePayload.deposit) imagePayload.deposit = {}
+    imagePayload.deposit.image = imageBase64
+
+    // 1. Sync to Sheets if sheets or dual mode
+    if (mode === 'gas' || mode === 'dual_write') {
+      const sheetsPayload = {
+        action: 'saveOrder',
+        id: id,
+        data: imagePayload,
+        idempotencyKey: crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).substring(2)
+      }
+      const gatewayUrl = import.meta.env.VITE_API_URL || '/api'
+      const gasFallbackUrl = import.meta.env.VITE_GAS_URL ||
+        'https://script.google.com/macros/s/AKfycbxzjio4sat5fWoUncPgp8SfjoGqfGxW5vFoDgkHvBI3OKVWIaszsAaUt0LE2fCHtkCFsA/exec'
+      const sharedSecret = import.meta.env.VITE_APP_SHARED_SECRET || ''
+      const bodyStr = JSON.stringify(sheetsPayload)
+      
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+      if (sharedSecret) {
+        headers['Authorization'] = `Bearer ${sharedSecret}`
+      }
+      
+      let sheetsOk = false
+      try {
+        const res = await fetch(gatewayUrl, { method: 'POST', headers, body: bodyStr })
+        if (res.ok) {
+          const data = await res.json()
+          if (data && data.ok) sheetsOk = true
+        }
+      } catch {}
+
+      if (!sheetsOk) {
+        try {
+          await fetch(gasFallbackUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+            body: bodyStr
+          })
+        } catch {}
+      }
+    }
+
+    // 2. Sync to Postgres if postgres or dual mode
+    if (mode === 'postgres' || mode === 'dual_write') {
+      await pgRepo.saveOrder(imagePayload, token)
+    }
+
+    // Clean up buffered image after successful backend sync
+    await outbox.deleteImageFromBuffer(id)
+    console.log(`[Outbox Background Sync] Image sync successful & purged for order ${id}.`)
+  } catch (err: any) {
+    console.warn(`[Outbox Background Sync] Image sync failed for order ${id}:`, err.message)
   }
 }
 

@@ -7,10 +7,11 @@ import {
   cacheHistory, getCachedHistory,
   cacheMenu, getCachedMenu, deleteCachedMenu,
   cacheMenuSheets, getCachedMenuSheets,
-  cacheIsFresh, getOfflineQueue, removeFromQueue
+  cacheIsFresh, getOfflineQueue, removeFromQueue, clearOfflineQueue
 } from '@/services/cache'
 import { fetchWithRetry } from '@/infrastructure/gas/gasClient'
 import { getPendingItems } from '@/infrastructure/outbox/outbox'
+import { triggerSync as triggerOutboxSync } from '@/infrastructure/outbox/outboxSync'
 import { 
   DualWriteOrderRepository as GasOrderRepository, 
   DualWriteMenuRepository as GasMenuRepository, 
@@ -622,7 +623,7 @@ export const useAppStore = defineStore('app', () => {
       console.error('Fetch Sheets Error', e)
     }
 
-    processOfflineQueue()
+    triggerOutboxSync()
   }
 
   async function switchMenu(sheetName: string) {
@@ -961,6 +962,25 @@ export const useAppStore = defineStore('app', () => {
     return getRoleFromToken(adminToken.value)
   })
 
+  function maskPii(data: any) {
+    if (!data) return data
+    try {
+      const clone = JSON.parse(JSON.stringify(data))
+      if (typeof clone === 'object') {
+        if (clone.customer_name) clone.customer_name = '***'
+        if (clone.parsedCustomer) {
+          if (clone.parsedCustomer.name) clone.parsedCustomer.name = '***'
+          if (clone.parsedCustomer.phone) clone.parsedCustomer.phone = '***'
+        }
+        if (clone.phone_number) clone.phone_number = '***'
+        if (clone.phone) clone.phone = '***'
+      }
+      return clone
+    } catch (e) {
+      return data
+    }
+  }
+
   async function triggerAuditLog(action: string, targetType?: string, targetId?: string, before?: any, after?: any) {
     try {
       const userAgent = navigator.userAgent
@@ -972,8 +992,8 @@ export const useAppStore = defineStore('app', () => {
         action,
         target_type: targetType,
         target_id: targetId,
-        before_json: before ? JSON.parse(JSON.stringify(before)) : null,
-        after_json: after ? JSON.parse(JSON.stringify(after)) : null,
+        before_json: before ? maskPii(before) : null,
+        after_json: after ? maskPii(after) : null,
         ip_hash: ipHash,
         user_agent_hash: uaHash
       }
@@ -1278,22 +1298,10 @@ export const useAppStore = defineStore('app', () => {
   const offlineQueueCount = ref(0)
   async function updateOfflineQueueCount() {
     try {
-      const queue = await getOfflineQueue()
-      let count = queue.length
-      
-      const mode = import.meta.env.VITE_BACKEND_MODE || 'postgres'
-      if (mode === 'postgres' || mode === 'dual_write') {
-        try {
-          const pendingOutbox = await getPendingItems()
-          count += pendingOutbox.length
-        } catch (err) {
-          console.warn('Failed to read outbox queue:', err)
-        }
-      }
-      
-      offlineQueueCount.value = count
+      const pendingOutbox = await getPendingItems()
+      offlineQueueCount.value = pendingOutbox.length
     } catch (e) {
-      console.warn('Failed to read offline queue:', e)
+      console.warn('Failed to read outbox queue:', e)
     }
   }
 
@@ -1307,6 +1315,23 @@ export const useAppStore = defineStore('app', () => {
       }
     } catch (e) {
       console.warn('Failed to pre-hydrate history cache:', e)
+    }
+
+    // Migrate any legacy offline queue items to the new unified outbox
+    try {
+      const legacyQueue = await getOfflineQueue()
+      if (legacyQueue && legacyQueue.length > 0) {
+        console.info(`[Offline Queue Migration] Migrating ${legacyQueue.length} items to new outbox...`)
+        const { addToOutbox } = await import('@/infrastructure/outbox/outbox')
+        for (const item of legacyQueue) {
+          const outboxAction = item.action === 'saveOrder' ? 'upsert' : 'delete'
+          await addToOutbox(item.payload.id || item.id, outboxAction, item.payload)
+        }
+        await clearOfflineQueue()
+        console.info('[Offline Queue Migration] Migration completed successfully.')
+      }
+    } catch (e) {
+      console.warn('Failed to migrate legacy offline queue:', e)
     }
 
     fetchRemoteConfig()
@@ -1388,203 +1413,7 @@ export const useAppStore = defineStore('app', () => {
     }
   }
 
-  const offlineItemStatuses = ref<Record<string, { status: OfflineQueueItemStatus; retries: number; lastAttempt?: number }>>({})
-  let isProcessingOfflineQueue = false
 
-  async function processOfflineQueue() {
-    if (isProcessingOfflineQueue) return
-    isProcessingOfflineQueue = true
-
-    try {
-      const queue = await getOfflineQueue()
-      offlineQueueCount.value = queue.length
-      if (queue.length === 0) return
-
-      queue.forEach(item => {
-        if (!offlineItemStatuses.value[item.id]) {
-          offlineItemStatuses.value[item.id] = { status: 'pending', retries: 0 }
-        }
-      })
-
-      const pendingItems = queue.filter(item => {
-        const state = offlineItemStatuses.value[item.id]
-        if (state.status === 'synced' || state.status === 'conflict' || state.status === 'failed') return false
-        
-        if (state.status === 'deferred') {
-          const backoff = Math.min(30000, 1000 * Math.pow(2, state.retries))
-          if (Date.now() - (state.lastAttempt || 0) < backoff) {
-            return false
-          }
-        }
-        return true
-      })
-
-      if (pendingItems.length === 0) return
-
-      uiStore.showToast(`Đang đồng bộ ${pendingItems.length} đơn offline...`, 'info')
-      await loadHistory(true)
-
-      // 1. Separate 'saveOrder' items from other actions
-      const saveOrderItems = pendingItems.filter(item => item.action === 'saveOrder')
-      const otherItems = pendingItems.filter(item => item.action !== 'saveOrder')
-
-      const batchToSync: typeof saveOrderItems = []
-
-      // 2. Perform conflict detection on 'saveOrder' items first
-      for (const item of saveOrderItems) {
-        const state = offlineItemStatuses.value[item.id]
-        state.lastAttempt = Date.now()
-        const payload = item.payload
-        const localId = payload.id
-
-        let conflictType: BookingConflict['type'] | null = null
-        let serverSnapshot: any = null
-
-        const existingServerBooking = historyList.value.find(h => h.id === localId)
-        if (existingServerBooking) {
-          const baseVersion = payload.baseServerVersion ?? payload.version ?? 1
-          const serverVersion = existingServerBooking.version ?? 1
-          if (serverVersion > baseVersion) {
-            conflictType = 'version_mismatch'
-          }
-        }
-
-        if (!conflictType) {
-          const date = payload.customer.date
-          const time = payload.customer.time
-          const tables = payload.customer.tables || ''
-
-          const hasConflict = hasTimeConflictIndexed({ id: localId, date, time, tables })
-          if (hasConflict) {
-            conflictType = 'table_time_overlap'
-            serverSnapshot = historyList.value.find(h => {
-              if (h.id === localId) return false
-              return hasTimeConflict(
-                { date, time, tables },
-                { date: h.parsedCustomer.date, time: h.parsedCustomer.time || '', tables: h.parsedCustomer.tables || '' }
-              )
-            })
-          }
-        }
-
-        if (conflictType) {
-          state.status = 'conflict'
-          const newConflict: BookingConflict = {
-            localBookingId: localId,
-            serverBookingId: serverSnapshot?.id,
-            type: conflictType,
-            severity: 'blocking',
-            localSnapshot: payload,
-            serverSnapshot,
-            detectedAt: new Date().toISOString()
-          }
-
-          if (!activeConflicts.value.some(c => c.localBookingId === localId)) {
-            activeConflicts.value.push(newConflict)
-            saveConflicts()
-          }
-          uiStore.showToast(`Phát hiện xung đột đồng bộ cho đơn của ${payload.customer.name}!`, 'warning', 6000)
-        } else {
-          batchToSync.push(item)
-        }
-      }
-
-      // 3. Batch sync non-conflicting saveOrder items using saveOrdersBatch
-      if (batchToSync.length > 0) {
-        batchToSync.forEach(item => {
-          offlineItemStatuses.value[item.id].status = 'syncing'
-        })
-
-        try {
-          const controller = new AbortController()
-          const tId = setTimeout(() => controller.abort(), 15000) // 15s timeout for batch
-
-          const payloads = batchToSync.map(item => item.payload)
-          const res = await orderRepo.saveOrdersBatch(payloads)
-          clearTimeout(tId)
-
-          if (res?.ok && Array.isArray(res.results)) {
-            for (let i = 0; i < batchToSync.length; i++) {
-              const item = batchToSync[i]
-              const state = offlineItemStatuses.value[item.id]
-              const result = res.results[i]
-              if (result && result.ok) {
-                state.status = 'synced'
-                
-                // Trigger audit logs for each successfully batch-saved item
-                const beforeOrder = item.payload.id ? historyList.value.find(h => h.id === item.payload.id) : null
-                await triggerAuditLog(
-                  beforeOrder ? 'booking:update' : 'booking:create',
-                  'booking',
-                  result.id || item.payload.id,
-                  beforeOrder ? beforeOrder.parsedCustomer : null,
-                  item.payload.customer || item.payload.data?.customer || item.payload
-                )
-
-                await removeFromQueue(item.id)
-              } else {
-                state.status = 'failed'
-                console.warn('[OfflineQueue] Batch sync rejected sub-item:', item.id, result)
-              }
-            }
-            await updateOfflineQueueCount()
-          } else {
-            throw new Error(res?.message || 'Invalid batch response')
-          }
-        } catch (e: any) {
-          console.warn('[OfflineQueue] Exception processing batch sync:', e)
-          batchToSync.forEach(item => {
-            const state = offlineItemStatuses.value[item.id]
-            const isNetworkOrTimeout = e.name === 'AbortError' || e.message?.includes('fetch') || e.message?.includes('network')
-            if (isNetworkOrTimeout && state.retries < 3) {
-              state.status = 'deferred'
-              state.retries++
-            } else {
-              state.status = 'failed'
-            }
-          })
-        }
-      }
-
-      // 4. Process non-saveOrder items concurrently (e.g. config updates, deletes, alias saves)
-      if (otherItems.length > 0) {
-        await runWithConcurrencyLimit(otherItems, 2, async (item) => {
-          const state = offlineItemStatuses.value[item.id]
-          state.status = 'syncing'
-          state.lastAttempt = Date.now()
-
-          try {
-            const payload = item.payload
-            const controller = new AbortController()
-            const tId = setTimeout(() => controller.abort(), 8000)
-
-            const res = await fetchWithRetry({ action: item.action, data: payload }, 1, controller.signal)
-            clearTimeout(tId)
-
-            if (res?.ok) {
-              state.status = 'synced'
-              await removeFromQueue(item.id)
-              await updateOfflineQueueCount()
-            } else {
-              state.status = 'failed'
-              console.warn('[OfflineQueue] Server sync rejected other item:', item.id, res)
-            }
-          } catch (e: any) {
-            const isNetworkOrTimeout = e.name === 'AbortError' || e.message?.includes('fetch') || e.message?.includes('network')
-            if (isNetworkOrTimeout && state.retries < 3) {
-              state.status = 'deferred'
-              state.retries++
-            } else {
-              state.status = 'failed'
-            }
-            console.warn('[OfflineQueue] Exception processing other item:', item.id, e)
-          }
-        })
-      }
-    } finally {
-      isProcessingOfflineQueue = false
-    }
-  }
 
   function logout() {
     uiStore.showToast('Đang đăng xuất và xóa phiên làm việc...', 'info')
@@ -1602,7 +1431,7 @@ export const useAppStore = defineStore('app', () => {
 
   window.addEventListener('online', () => {
     uiStore.showToast('Đã có mạng lại, đang đồng bộ dữ liệu...', 'info')
-    processOfflineQueue()
+    triggerOutboxSync()
     fetchSheets()
     fetchMenu()
     loadHistory(true)

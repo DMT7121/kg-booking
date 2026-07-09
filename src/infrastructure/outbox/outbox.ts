@@ -2,6 +2,24 @@ import { get as idbGet, set as idbSet } from 'idb-keyval'
 
 const OUTBOX_KEY_NAME = 'kg_outbox_encryption_key'
 const OUTBOX_ITEMS_STORE = 'kg_outbox_items'
+const OUTBOX_IMAGES_STORE = 'kg_outbox_images'
+
+export async function saveImageToBuffer(id: string, imageBase64: string): Promise<void> {
+  const images = (await idbGet<Record<string, string>>(OUTBOX_IMAGES_STORE)) || {}
+  images[id] = imageBase64
+  await idbSet(OUTBOX_IMAGES_STORE, images)
+}
+
+export async function getImageFromBuffer(id: string): Promise<string | null> {
+  const images = (await idbGet<Record<string, string>>(OUTBOX_IMAGES_STORE)) || {}
+  return images[id] || null
+}
+
+export async function deleteImageFromBuffer(id: string): Promise<void> {
+  const images = (await idbGet<Record<string, string>>(OUTBOX_IMAGES_STORE)) || {}
+  delete images[id]
+  await idbSet(OUTBOX_IMAGES_STORE, images)
+}
 
 export interface OutboxItem {
   id: string
@@ -69,8 +87,21 @@ async function saveOutboxRawItems(items: OutboxItem[]): Promise<void> {
 }
 
 export async function addToOutbox(id: string, action: 'upsert' | 'delete', payload: any): Promise<string> {
+  // Clone payload to avoid modifying the caller's reference
+  const clonedPayload = JSON.parse(JSON.stringify(payload))
+
+  let depositImage: string | null = null
+  if (clonedPayload && clonedPayload.deposit && clonedPayload.deposit.image) {
+    depositImage = clonedPayload.deposit.image
+    clonedPayload.deposit.image = '__OFFLINE_IMAGE_BUFFER_REF__'
+  }
+  
+  if (depositImage) {
+    await saveImageToBuffer(id, depositImage)
+  }
+
   const key = await getOrCreateOutboxKey()
-  const { ciphertext, iv } = await encryptData(JSON.stringify(payload), key)
+  const { ciphertext, iv } = await encryptData(JSON.stringify(clonedPayload), key)
   
   const items = await getOutboxRawItems()
   const existingIdx = items.findIndex(item => item.id === id && item.action === action && !item.synced)

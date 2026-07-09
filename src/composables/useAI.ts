@@ -462,11 +462,12 @@ export function useAI() {
     }
   }
 
-  async function processAI() {
+  async function processAI(options?: { force?: boolean }) {
     if (!formStore.rawInput && !formStore.aiImage) {
       return uiStore.showToast('Vui lòng nhập dữ liệu hoặc chụp ảnh!', 'warning')
     }
 
+    const force = options?.force ?? false
     logStore.startNewSession('Phân tích AI')
     logStore.addLog(`Bắt đầu xử lý tin nhắn/ảnh đặt bàn...`)
 
@@ -599,7 +600,7 @@ export function useAI() {
         }
       }
 
-      if (!isBypassed) {
+      if (!isBypassed && !force) {
         const cached = await getCachedAIResponse<any>(cacheKey, {
           menuFingerprint,
           correctionFingerprint
@@ -618,7 +619,7 @@ export function useAI() {
         }
       }
 
-      if (!finalParsedResult && type === 'text') {
+      if (!finalParsedResult && type === 'text' && !force) {
         const { extractEntitiesFromInput, querySemanticCache } = await import('@/services/ai/semanticCache')
         const newEntities = extractEntitiesFromInput(ruleBasedResult, hardEntities)
         

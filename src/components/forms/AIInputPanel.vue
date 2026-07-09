@@ -26,7 +26,7 @@ const hasWarnings = computed(() => {
   return Object.values(confs).some((c: any) => c && c.needs_review)
 })
 
-async function handleAnalyze() {
+async function handleAnalyze(force = false) {
   if (isProcessing.value) {
     abortActiveAIRequest()
     ui.showToast('Đã hủy yêu cầu phân tích AI!', 'warning')
@@ -35,8 +35,8 @@ async function handleAnalyze() {
   }
   isProcessing.value = true
   try {
-    ui.showToast('Đang phân tích dữ liệu...', 'info')
-    await processAI()
+    ui.showToast(force ? 'Đang phân tích lại (Bỏ qua Cache)...' : 'Đang phân tích dữ liệu...', 'info')
+    await processAI({ force })
   } catch (err: any) {
     if (err.name === 'AbortError') {
       ui.showToast('Đã hủy phân tích!', 'warning')
@@ -243,6 +243,57 @@ function onDrop(e: DragEvent) {
   const f = e.dataTransfer?.files?.[0]
   if (f) processImage(f)
 }
+
+const clipboardPillText = ref('')
+const showClipboardPill = ref(false)
+
+async function checkClipboard() {
+  try {
+    if (!navigator.clipboard || !navigator.clipboard.readText) return
+    const text = await navigator.clipboard.readText()
+    if (!text || !text.trim() || text.trim() === formStore.rawInput?.trim()) {
+      showClipboardPill.value = false
+      return
+    }
+
+    const normalized = text.toLowerCase()
+    const isBookingText = 
+      normalized.includes('đặt bàn') || 
+      normalized.includes('đặt lịch') ||
+      normalized.includes('anh') ||
+      normalized.includes('chị') ||
+      normalized.includes('khách') ||
+      /\b\d{9,11}\b/.test(normalized) ||
+      /\b\d{1,2}[-/]\d{1,2}\b/.test(normalized)
+
+    if (isBookingText && text.trim().length > 10) {
+      clipboardPillText.value = text.trim()
+      showClipboardPill.value = true
+    } else {
+      showClipboardPill.value = false
+    }
+  } catch (err) {
+    showClipboardPill.value = false
+  }
+}
+
+function importFromClipboard() {
+  if (clipboardPillText.value) {
+    formStore.rawInput = clipboardPillText.value
+    showClipboardPill.value = false
+    ui.showToast('📋 Đã nạp tin nhắn từ Bộ nhớ tạm!', 'success')
+    handleAnalyze()
+  }
+}
+
+onMounted(() => {
+  window.addEventListener('focus', checkClipboard)
+  setTimeout(checkClipboard, 500)
+})
+
+onUnmounted(() => {
+  window.removeEventListener('focus', checkClipboard)
+})
 </script>
 
 <template>
@@ -265,6 +316,24 @@ function onDrop(e: DragEvent) {
       <h3 class="font-black text-white text-[9px] uppercase tracking-widest flex items-center gap-2"><i class="fa-solid fa-wand-sparkles text-yellow-300"></i> AI Core v7.0</h3>
       <span class="text-[8px] px-2 py-0.5 bg-white text-blue-700 rounded-full font-black uppercase shadow-sm border border-white/50" :class="{'animate-pulse': ui.listening}">{{ ui.listening ? 'LISTENING...' : 'SMART ROUTING ON' }}</span>
     </div>
+
+    <!-- Clipboard Toast Pill -->
+    <transition name="fade">
+      <div v-if="showClipboardPill && clipboardPillText" class="mb-3 p-2.5 bg-yellow-400 text-slate-900 rounded-xl flex items-center justify-between gap-3 text-xs font-black shadow-lg relative z-20 border border-yellow-500">
+        <div class="flex items-center gap-1.5 min-w-0">
+          <i class="fa-solid fa-clipboard text-sm shrink-0"></i>
+          <span class="truncate">Phát hiện: "{{ clipboardPillText }}"</span>
+        </div>
+        <div class="flex items-center gap-1.5 shrink-0">
+          <button @click.prevent="importFromClipboard" class="px-2.5 py-1.5 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-[9px] font-black uppercase tracking-wider transition-all select-none cursor-pointer">
+            NẠP NHANH
+          </button>
+          <button @click.prevent="showClipboardPill = false" class="text-slate-700 hover:text-slate-900 text-xs px-1.5 select-none cursor-pointer">
+            ✕
+          </button>
+        </div>
+      </div>
+    </transition>
 
     <div class="space-y-2 relative z-10 text-white">
       <div class="relative">
@@ -300,7 +369,7 @@ function onDrop(e: DragEvent) {
       </div>
     </div>
 
-    <button @click="handleAnalyze" class="w-full mt-3 py-3 rounded-xl font-black text-sm shadow-lg border flex justify-center items-center gap-2 active:scale-95 transition-all min-h-[48px] active-effect cursor-pointer"
+    <button @click="handleAnalyze(false)" class="w-full mt-3 py-3 rounded-xl font-black text-sm shadow-lg border flex justify-center items-center gap-2 active:scale-95 transition-all min-h-[48px] active-effect cursor-pointer"
       :class="isProcessing ? 'bg-red-500 hover:bg-red-600 text-white border-red-600' : 'bg-white hover:bg-slate-50 text-blue-700 border-white/50'">
       <i v-if="isProcessing" class="fa-solid fa-spinner animate-spin"></i>
       <i v-else class="fa-solid fa-rocket"></i>
@@ -319,6 +388,17 @@ function onDrop(e: DragEvent) {
         <span class="px-2.5 py-1 bg-blue-50 text-blue-700 rounded-full text-[9px] font-black uppercase tracking-wider border border-blue-100">
           Độ tin cậy: {{ Math.round((formStore.parsedAiResult.confidence?.overall || 0) * 100) }}%
         </span>
+      </div>
+
+      <!-- Cache Hit Alert & Re-analyze Button -->
+      <div v-if="formStore.aiMetadata && formStore.aiMetadata.mode === 'cache-hit'" class="p-3 bg-blue-50 border border-blue-200 rounded-2xl flex items-center justify-between gap-3 text-blue-800 text-[11.5px] font-bold">
+        <div class="flex items-center gap-2">
+          <i class="fa-solid fa-clock-rotate-left text-blue-500 text-sm"></i>
+          <span>Kết quả được tải từ Cache.</span>
+        </div>
+        <button @click.prevent="handleAnalyze(true)" class="px-2.5 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-[9px] font-black uppercase tracking-wider transition-all border border-blue-700 cursor-pointer shadow-sm active:scale-95 flex items-center gap-1">
+          <i class="fa-solid fa-arrows-rotate"></i> Phân tích lại
+        </button>
       </div>
       
       <!-- Metrics Info Pill -->

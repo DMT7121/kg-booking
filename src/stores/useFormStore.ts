@@ -2,6 +2,7 @@ import { defineStore } from 'pinia'
 import { reactive, ref, computed, watch } from 'vue'
 import { stripAccents, cleanPhoneNumber, generateBookingId } from '@/utils'
 import { ALCOHOL_KEYS, DRINK_KEYS } from '@/utils/constants'
+import { useUIStore } from './useUIStore'
 
 export interface MenuItem {
   name: string
@@ -43,6 +44,7 @@ export interface AIMetadata {
   latency: string
   confidence_score?: number
   confidences?: Record<string, { value: any; confidence: number; source_text: string; needs_review: boolean }>
+  mode?: string
 }
 
 export const useFormStore = defineStore('form', () => {
@@ -196,7 +198,6 @@ export const useFormStore = defineStore('form', () => {
     })
   }
 
-  // --- Reset Form ---
   function $reset() {
     id.value = generateBookingId()
     version.value = 1
@@ -215,6 +216,16 @@ export const useFormStore = defineStore('form', () => {
     parsedAiResult.value = null
     billUrl.value = ''
     clearDraft()
+
+    // Reset UI bound variables to prevent carryover cache bugs
+    try {
+      const uiStore = useUIStore()
+      uiStore.tempTable.zone = 'A'
+      uiStore.tempTable.number = ''
+      uiStore.selectedBooking = null
+    } catch (e) {
+      console.warn('UIStore not initialized yet during reset:', e)
+    }
   }
 
   return {

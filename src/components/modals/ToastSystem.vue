@@ -15,7 +15,7 @@ const ui = useUIStore()
           </div>
           <div class="pr-6">
             <div class="font-black text-[13px] uppercase tracking-widest text-blue-900 mb-1 leading-none mt-1">{{ t.title }}</div>
-            <div class="text-[11px] text-slate-500 font-bold leading-snug" v-html="t.msg"></div>
+            <div class="text-[11px] text-slate-500 font-bold leading-snug">{{ t.msg }}</div>
           </div>
         </div>
         <div class="absolute bottom-0 left-0 h-1.5 transition-all" :class="{ 'bg-emerald-400': t.type === 'success', 'bg-rose-400': t.type === 'error', 'bg-amber-400': t.type === 'warning', 'bg-blue-400': t.type === 'info' }" :style="{ width: t.progress + '%' }"></div>
