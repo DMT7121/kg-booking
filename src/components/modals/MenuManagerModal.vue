@@ -58,7 +58,7 @@ const enhancedMenuList = computed(() => {
     list = list.filter(item => 
       item.name.toLowerCase().includes(q) || 
       (item.cleanName && item.cleanName.toLowerCase().includes(q)) ||
-      (item.acronym && item.acronym.toLowerCase().includes(q))
+      (item.acronym && String(item.acronym).toLowerCase().includes(q))
     )
   }
 
