@@ -152,6 +152,14 @@ export const isMobile = typeof navigator !== 'undefined' && (
   (navigator.maxTouchPoints > 0 && window.innerWidth < 1024)
 )
 
+/** Detect Windows, Mac, or Linux Desktop */
+export const isDesktop = typeof navigator !== 'undefined' && (
+  /Windows/i.test(navigator.userAgent) ||
+  (/Macintosh/i.test(navigator.userAgent) && !(navigator.maxTouchPoints > 1)) ||
+  (/Linux/i.test(navigator.userAgent) && !/Android/i.test(navigator.userAgent))
+)
+
+
 /** HTML escape to prevent XSS attacks */
 export const escapeHtml = (unsafe: string): string => {
   if (!unsafe) return ''

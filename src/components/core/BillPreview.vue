@@ -6,7 +6,7 @@ import { useAppStore } from '@/stores/useAppStore'
 import { useConfigStore } from '@/stores/useConfigStore'
 import { useBillRender } from '@/composables/useBillRender'
 import { useForm } from '@/composables/useForm'
-import { formatVND, isIOS, isAndroid } from '@/utils'
+import { formatVND, isIOS, isAndroid, isDesktop } from '@/utils'
 
 const ui = useUIStore()
 const formStore = useFormStore()
@@ -149,7 +149,7 @@ function shareCurrentBill() {
   }
   const url = `${window.location.origin}${window.location.pathname}#/bill/${id}`
   
-  if ((isIOS || isAndroid) && navigator.share) {
+  if (!isDesktop && navigator.share) {
     navigator.share({
       title: 'Phiếu Đặt Bàn - King\'s Grill',
       text: `Phiếu đặt bàn của ${formStore.customer.name}`,

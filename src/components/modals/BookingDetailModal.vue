@@ -4,7 +4,7 @@ import { useForm } from '@/composables/useForm'
 import { useAppStore } from '@/stores/useAppStore'
 import * as api from '@/services/api'
 import { haptic } from '@/composables/useGestures'
-import { isIOS, isAndroid } from '@/utils'
+import { isIOS, isAndroid, isDesktop } from '@/utils'
 
 const ui = useUIStore()
 const appStore = useAppStore()
@@ -92,7 +92,7 @@ async function handlePending() {
 function handleViewBill() {
   if (!ui.selectedBooking) return
   const url = `${window.location.origin}${window.location.pathname}?id=${ui.selectedBooking.id}`
-  if ((isIOS || isAndroid) && navigator.share) {
+  if (!isDesktop && navigator.share) {
     navigator.share({
       title: 'Bill - ' + (ui.selectedBooking.parsedCustomer?.name || ''),
       url: url
