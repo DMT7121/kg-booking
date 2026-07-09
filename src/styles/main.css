@@ -1072,3 +1072,70 @@ html.dark-theme .dashboard-card {
   border-color: #1e293b !important;
 }
 
+/* --- AMBIENT CANVAS & GLASSMORPHISM --- */
+.ambient-canvas {
+  position: relative;
+  background: linear-gradient(135deg, var(--bg-grad-1, #f1f5f9), var(--bg-grad-2, #e2e8f0));
+  background-size: 200% 200%;
+  animation: ambient-drift 18s ease infinite;
+  transition: --bg-grad-1 2s ease, --bg-grad-2 2s ease;
+}
+
+@keyframes ambient-drift {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+.ambient-dawn {
+  --bg-grad-1: #fed7aa; /* peach/orange */
+  --bg-grad-2: #ffe4e6; /* rose */
+}
+.ambient-day {
+  --bg-grad-1: #e0f2fe; /* cyan */
+  --bg-grad-2: #f0fdf4; /* mint green */
+}
+.ambient-dusk {
+  --bg-grad-1: #fdba74; /* orange warm */
+  --bg-grad-2: #fae8ff; /* purple soft */
+}
+.ambient-night {
+  --bg-grad-1: #0f172a; /* midnight navy */
+  --bg-grad-2: #1e1b4b; /* indigo deep */
+}
+
+/* Premium glassmorphic panel overlay styling */
+.glass-panel {
+  background: rgba(255, 255, 255, 0.72) !important;
+  backdrop-filter: blur(20px) saturate(180%) !important;
+  -webkit-backdrop-filter: blur(20px) saturate(180%) !important;
+  border: 1px solid rgba(255, 255, 255, 0.45) !important;
+  box-shadow: 0 24px 64px -16px rgba(15, 23, 42, 0.12) !important;
+}
+
+html.dark-theme .glass-panel {
+  background: rgba(15, 23, 42, 0.72) !important;
+  backdrop-filter: blur(20px) saturate(160%) !important;
+  -webkit-backdrop-filter: blur(20px) saturate(160%) !important;
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+  box-shadow: 0 24px 64px -16px rgba(0, 0, 0, 0.4) !important;
+}
+
+/* 3D isometric table button effects */
+.table-3d-btn {
+  transform: perspective(600px) rotateX(12deg) rotateY(-3deg) rotateZ(1deg);
+  box-shadow: 0 4px 0 rgba(0, 0, 0, 0.12), 0 8px 16px rgba(0, 0, 0, 0.06);
+  transition: all 0.25s cubic-bezier(0.25, 0.8, 0.25, 1);
+}
+
+.table-3d-btn:hover {
+  transform: perspective(600px) rotateX(8deg) rotateY(-2deg) rotateZ(1deg) translateY(-4px);
+  box-shadow: 0 8px 0 rgba(0, 0, 0, 0.08), 0 16px 24px rgba(0, 0, 0, 0.12);
+}
+
+.table-3d-btn:active {
+  transform: perspective(600px) rotateX(15deg) rotateY(-4deg) rotateZ(1deg) translateY(2px);
+  box-shadow: 0 2px 0 rgba(0, 0, 0, 0.16), 0 4px 8px rgba(0, 0, 0, 0.08);
+}
+
+

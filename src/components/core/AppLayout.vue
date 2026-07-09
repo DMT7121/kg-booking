@@ -246,6 +246,149 @@ function executeCommand(cmd: string) {
   }
 }
 
+// --- Voice Recognition Setup ---
+const isListening = ref(false)
+const voiceStatus = ref('')
+let recognition: any = null
+
+if (typeof window !== 'undefined') {
+  const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
+  if (SpeechRecognition) {
+    recognition = new SpeechRecognition()
+    recognition.continuous = false
+    recognition.lang = 'vi-VN'
+    recognition.interimResults = false
+
+    recognition.onstart = () => {
+      isListening.value = true
+      voiceStatus.value = 'Đang lắng nghe giọng nói của bạn...'
+    }
+
+    recognition.onerror = (e: any) => {
+      console.error('[Speech] Error:', e.error)
+      isListening.value = false
+      voiceStatus.value = ''
+      ui.showToast('Không nghe rõ hoặc trình duyệt chặn mic!', 'warning')
+    }
+
+    recognition.onend = () => {
+      isListening.value = false
+    }
+
+    recognition.onresult = (event: any) => {
+      const resultText = event.results[0][0].transcript
+      voiceStatus.value = `Đã nhận diện: "${resultText}"`
+      searchQuery.value = resultText
+      
+      // Parse Voice Commands
+      parseVoiceCommand(resultText)
+    }
+  }
+}
+
+function toggleVoiceSearch() {
+  if (!recognition) {
+    ui.showToast('Trình duyệt không hỗ trợ nhận diện giọng nói!', 'warning')
+    return
+  }
+  if (isListening.value) {
+    recognition.stop()
+  } else {
+    recognition.start()
+  }
+}
+
+function stopListening() {
+  if (recognition) {
+    recognition.stop()
+  }
+  isListening.value = false
+  voiceStatus.value = ''
+}
+
+function parseVoiceCommand(text: string) {
+  const lowerText = text.toLowerCase().trim()
+  
+  // 1. Navigation Commands
+  if (lowerText.includes('đi tới') || lowerText.includes('chuyển sang') || lowerText.includes('mở tab')) {
+    if (lowerText.includes('bảng điều khiển') || lowerText.includes('dashboard')) {
+      ui.tab = 'dashboard'
+      ui.showToast('Đã chuyển sang Bảng điều khiển', 'success')
+      ui.showCommandPalette = false
+      return
+    }
+    if (lowerText.includes('lịch biểu') || lowerText.includes('timeline') || lowerText.includes('lịch trình')) {
+      ui.tab = 'timeline'
+      ui.showToast('Đã chuyển sang Lịch biểu', 'success')
+      ui.showCommandPalette = false
+      return
+    }
+    if (lowerText.includes('danh sách') || lowerText.includes('lịch sử') || lowerText.includes('history')) {
+      ui.tab = 'history'
+      ui.showToast('Đã chuyển sang Danh sách lịch sử', 'success')
+      ui.showCommandPalette = false
+      return
+    }
+    if (lowerText.includes('tạo phiếu') || lowerText.includes('tạo đơn') || lowerText.includes('lịch mới')) {
+      ui.tab = 'create'
+      formStore.$reset()
+      ui.showToast('Đã mở form Tạo lịch mới', 'success')
+      ui.showCommandPalette = false
+      return
+    }
+    if (lowerText.includes('cài đặt') || lowerText.includes('settings')) {
+      ui.showSettingsHub = true
+      ui.showToast('Đã mở menu Cài đặt', 'success')
+      ui.showCommandPalette = false
+      return
+    }
+  }
+
+  // 2. Prefill Booking Form Commands
+  // Pattern: "xếp bàn VIP1 cho khách Nguyễn Văn A lúc 7 giờ tối"
+  if (lowerText.includes('xếp bàn') || lowerText.includes('đặt bàn') || lowerText.includes('chọn bàn')) {
+    // Find table name (e.g. VIP1, A12, B3)
+    const tableMatch = text.match(/\b([a-zA-Z]+\d+)\b/)
+    if (tableMatch) {
+      const tableVal = tableMatch[1].toUpperCase()
+      formStore.customer.tables = tableVal
+      const zone = tableVal.match(/^([A-Z]+)/i)?.[1]?.toUpperCase() || ''
+      const number = tableVal.replace(zone, '')
+      ui.tempTable.zone = zone
+      ui.tempTable.number = number
+    }
+    
+    // Find time name (e.g. 19:30 or 19h30)
+    const timeMatch = text.match(/\b(\d{1,2})[:h](\d{2})\b/)
+    if (timeMatch) {
+      const hh = timeMatch[1].padStart(2, '0')
+      const mm = timeMatch[2].padStart(2, '0')
+      formStore.customer.time = `${hh}:${mm}`
+    } else {
+      // e.g. "7 giờ tối" -> 19:00, "8 giờ sáng" -> 08:00
+      const hourMatch = text.match(/\b(\d{1,2})\s*giờ\b/)
+      if (hourMatch) {
+        let hr = parseInt(hourMatch[1])
+        if (lowerText.includes('tối') || lowerText.includes('chiều')) {
+          if (hr < 12) hr += 12
+        }
+        formStore.customer.time = `${String(hr).padStart(2, '0')}:00`
+      }
+    }
+
+    // Find pax number
+    const paxMatch = text.match(/\b(\d+)\s*người\b/) || text.match(/\b(\d+)\s*khách\b/)
+    if (paxMatch) {
+      formStore.customer.pax = paxMatch[1]
+    }
+
+    // Navigate to create tab
+    ui.tab = 'create'
+    ui.showCommandPalette = false
+    ui.showToast('🎙️ Đã điền sẵn thông tin từ giọng nói!', 'success', 4000)
+  }
+}
+
 function handleResultClick(order: any) {
   ui.showCommandPalette = false
   searchQuery.value = ''
@@ -267,11 +410,18 @@ function handleGlobalKeydown(e: KeyboardEvent) {
     }
   }
 }
+const ambientTheme = computed(() => {
+  const hour = new Date().getHours()
+  if (hour >= 5 && hour < 9) return 'ambient-dawn'
+  if (hour >= 9 && hour < 17) return 'ambient-day'
+  if (hour >= 17 && hour < 20) return 'ambient-dusk'
+  return 'ambient-night'
+})
 </script>
 
 <template>
-  <div class="min-h-screen h-[100dvh] md:h-auto overflow-hidden bg-slate-100 flex items-center justify-center font-sans text-slate-800">
-    <div id="app-root" class="w-full max-w-[480px] lg:max-w-[1200px] xl:max-w-[1440px] 2xl:max-w-[1680px] h-[100dvh] md:h-[96vh] md:max-h-none md:rounded-[2rem] md:shadow-2xl flex flex-col relative overflow-hidden bg-white border border-slate-200 transition-all duration-300" v-cloak>
+  <div class="min-h-screen h-[100dvh] md:h-auto overflow-hidden ambient-canvas flex items-center justify-center font-sans text-slate-800 p-0 md:p-4 transition-all duration-500" :class="ambientTheme">
+    <div id="app-root" class="w-full max-w-[480px] lg:max-w-[1200px] xl:max-w-[1440px] 2xl:max-w-[1680px] h-[100dvh] md:h-[96vh] md:max-h-none md:rounded-[2.5rem] flex flex-col relative overflow-hidden glass-panel transition-all duration-300" v-cloak>
 
     <!-- GLOBAL PROGRESS BAR -->
     <div class="fixed top-0 left-0 h-[3px] bg-blue-500 z-[999999] transition-all duration-300 ease-out shadow-[0_0_10px_rgba(59,130,246,0.5)]" 
@@ -575,10 +725,24 @@ function handleGlobalKeydown(e: KeyboardEvent) {
               id="palette-search"
               v-model="searchQuery"
               class="flex-1 bg-transparent border-none outline-none font-bold text-slate-800 text-sm placeholder-slate-400"
-              placeholder="Tìm tên, SĐT, số bàn hoặc gõ lệnh /..."
+              placeholder="Tìm tên, SĐT, số bàn hoặc nói 'Xếp bàn A1 lúc 19:00'..."
               autocomplete="off"
             >
+            <button
+              @click="toggleVoiceSearch"
+              class="w-9 h-9 rounded-xl flex items-center justify-center transition-all cursor-pointer shadow-sm border border-slate-200"
+              :class="isListening ? 'bg-red-500 text-white animate-pulse' : 'bg-white text-slate-400 hover:text-slate-600'"
+              title="Điều khiển bằng giọng nói"
+            >
+              <i class="fa-solid fa-microphone"></i>
+            </button>
             <kbd class="hidden md:inline-flex items-center gap-0.5 px-2 py-0.5 rounded border border-slate-200 bg-white text-[10px] font-bold text-slate-400 shadow-sm">ESC</kbd>
+          </div>
+
+          <!-- Voice Status Bar -->
+          <div v-if="voiceStatus" class="px-4 py-2 bg-blue-50 border-b border-blue-100 text-[10px] font-black text-blue-700 uppercase tracking-widest flex items-center justify-between">
+            <span class="animate-pulse">🎙️ {{ voiceStatus }}</span>
+            <button @click="stopListening" class="text-blue-500 hover:text-blue-700 font-bold uppercase tracking-widest text-[9px] cursor-pointer">Dừng nghe</button>
           </div>
 
           <!-- Content Area -->

@@ -352,12 +352,12 @@ async function handleTableDrop(e: DragEvent, tableName: string) {
                   @dragover.prevent="handleTableDragOver($event, table)"
                   @dragleave="handleTableDragLeave(table)"
                   @drop="handleTableDrop($event, table)"
-                  class="relative h-16 rounded-2xl flex flex-col items-center justify-center gap-0.5 font-black transition-all active:scale-95 shadow-sm overflow-hidden"
+                  class="table-3d-btn relative h-16 rounded-2xl flex flex-col items-center justify-center gap-0.5 font-black overflow-hidden"
                   :class="{
-                    'bg-blue-500 text-white border-b-4 border-blue-700 shadow-blue-500/30 scale-105': isSelected(table),
-                    'bg-emerald-50 text-emerald-700 border-b-4 border-emerald-200 hover:bg-emerald-100': !isSelected(table) && getTableStatus(table) === 'available',
-                    'bg-amber-100 text-amber-700 border-b-4 border-amber-300': !isSelected(table) && getTableStatus(table) === 'reserved',
-                    'bg-rose-100 text-rose-700 border-b-4 border-rose-300': !isSelected(table) && getTableStatus(table) === 'occupied',
+                    'bg-blue-500 text-white border-b-[6px] border-blue-700 shadow-lg shadow-blue-500/35 scale-105': isSelected(table),
+                    'bg-emerald-50 text-emerald-700 border-b-[6px] border-emerald-250 hover:bg-emerald-100 shadow-sm shadow-emerald-500/5': !isSelected(table) && getTableStatus(table) === 'available',
+                    'bg-amber-100 text-amber-700 border-b-[6px] border-amber-350 shadow-sm shadow-amber-500/5': !isSelected(table) && getTableStatus(table) === 'reserved',
+                    'bg-rose-100 text-rose-700 border-b-[6px] border-rose-350 shadow-sm shadow-rose-500/5': !isSelected(table) && getTableStatus(table) === 'occupied',
                     'border-2 border-dashed border-blue-600 ring-2 ring-blue-100': isOriginalTable(table) && !isSelected(table),
                     'scale-110 ring-4 ring-yellow-400 bg-yellow-100 border-yellow-500 text-yellow-800': activeTableDragTarget === table
                   }"

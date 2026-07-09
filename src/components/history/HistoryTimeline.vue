@@ -145,14 +145,27 @@ function triggerDatePicker() {
   }
 }
 
+const activeZone = ref('A')
+const activeZoneTables = computed(() => {
+  const count = activeZone.value === 'A' ? 22 : activeZone.value === 'C' ? 16 : activeZone.value === 'B' ? 10 : 8
+  return Array.from({ length: count }, (_, i) => `${activeZone.value}${i + 1}`)
+})
+
 // Timeline Data Mapping
-// A booking belongs to a cell if its date matches and its time starts with the hour, and its zone matches.
+// A booking belongs to a cell if its date matches and its time starts with the hour, and its tables match.
 const timelineData = computed(() => {
-  const grid: Record<string, Record<string, any>> = {} // grid[time][zone] = booking
+  const grid: Record<string, Record<string, any>> = {} // grid[hour][table] = booking
   HOURS.forEach(h => {
     grid[h] = {}
-    ZONES.forEach(z => {
-      grid[h][z] = null
+    const allTables: string[] = []
+    ;['A', 'B', 'C', 'D', 'E'].forEach(z => {
+      const count = z === 'A' ? 22 : z === 'C' ? 16 : z === 'B' ? 10 : 8
+      for (let i = 1; i <= count; i++) {
+        allTables.push(`${z}${i}`)
+      }
+    })
+    allTables.forEach((t: string) => {
+      grid[h][t] = null
     })
   })
 
@@ -165,29 +178,21 @@ const timelineData = computed(() => {
     if (date !== selectedDateStr.value) return
 
     const time = (order.parsedCustomer.time || '').trim()
-    const tables = (order.parsedCustomer.tables || '').trim()
-    
+    const tablesStr = (order.parsedCustomer.tables || '').trim()
+    if (!tablesStr) return
+
+    const tables = tablesStr.split(/[\s,]+/).map((t: string) => t.trim().toUpperCase()).filter(Boolean)
+
     // Find closest hour slot
     const hourPrefix = time ? time.split(':')[0].padStart(2, '0') : ''
     let matchHour = HOURS.find(h => h.startsWith(hourPrefix))
     if (!matchHour) return
 
-    // Find zone. Simple logic: check if 'tables' contains 'A', 'B', etc.
-    let matchZone = ''
-    if (tables.toUpperCase().includes('A')) matchZone = 'Khu A'
-    else if (tables.toUpperCase().includes('B')) matchZone = 'Khu B'
-    else if (tables.toUpperCase().includes('C')) matchZone = 'Khu C'
-    else if (tables.toUpperCase().includes('D')) matchZone = 'Khu D'
-    else if (tables.toUpperCase().includes('E')) matchZone = 'Khu E'
-    else {
-      // If no explicit zone, try to fit in the first available slot? 
-      // For now, if no explicit zone, we can't place it accurately on this specific grid, 
-      // but let's assign it to 'Khu A' as fallback if empty, or just skip.
-    }
-
-    if (matchZone && grid[matchHour]) {
-      grid[matchHour][matchZone] = order
-    }
+    tables.forEach((t: string) => {
+      if (grid[matchHour]) {
+        grid[matchHour][t] = order
+      }
+    })
   })
 
   return grid
@@ -233,14 +238,16 @@ function openBookingDetail(booking: any) {
   ui.showBookingDetailModal = true
 }
 
-function prefillBooking(zone: string, time: string) {
+function prefillBooking(table: string, time: string) {
   formStore.customer.time = time
   formStore.customer.date = selectedDateStr.value
-  const cleanZone = zone.replace('Khu ', '')
-  ui.tempTable.zone = cleanZone
-  formStore.customer.tables = cleanZone
+  const zone = table.match(/^([A-Z]+)/i)?.[1]?.toUpperCase() || ''
+  ui.tempTable.zone = zone
+  const number = table.replace(zone, '')
+  ui.tempTable.number = number
+  formStore.customer.tables = table
   ui.tab = 'create'
-  ui.showToast(`Đã điền sẵn bàn ${cleanZone} lúc ${time}`, 'success')
+  ui.showToast(`Đã điền sẵn bàn ${table} lúc ${time}`, 'success')
 }
 
 function getStaff(order: any) {
@@ -253,11 +260,11 @@ function getStaff(order: any) {
 }
 
 // --- Drag & Drop handlers ---
-const activeDragTarget = ref<{ hour: string; zone: string } | null>(null)
+const activeDragTarget = ref<{ hour: string; table: string } | null>(null)
 const draggedBookingId = ref<string | null>(null)
 
-function isDropTarget(hour: string, zone: string): boolean {
-  return activeDragTarget.value?.hour === hour && activeDragTarget.value?.zone === zone
+function isDropTarget(hour: string, table: string): boolean {
+  return activeDragTarget.value?.hour === hour && activeDragTarget.value?.table === table
 }
 
 function handleDragStart(e: DragEvent, booking: any) {
@@ -269,19 +276,19 @@ function handleDragStart(e: DragEvent, booking: any) {
   }
 }
 
-function handleDragOver(e: DragEvent, hour: string, zone: string) {
+function handleDragOver(e: DragEvent, hour: string, table: string) {
   e.preventDefault()
-  if (timelineData.value[hour][zone]) return
-  activeDragTarget.value = { hour, zone }
+  if (timelineData.value[hour][table]) return
+  activeDragTarget.value = { hour, table }
 }
 
-function handleDragLeave(e: DragEvent, hour: string, zone: string) {
-  if (activeDragTarget.value?.hour === hour && activeDragTarget.value?.zone === zone) {
+function handleDragLeave(e: DragEvent, hour: string, table: string) {
+  if (activeDragTarget.value?.hour === hour && activeDragTarget.value?.table === table) {
     activeDragTarget.value = null
   }
 }
 
-async function handleDrop(e: DragEvent, hour: string, zone: string) {
+async function handleDrop(e: DragEvent, hour: string, table: string) {
   e.preventDefault()
   activeDragTarget.value = null
   
@@ -292,49 +299,20 @@ async function handleDrop(e: DragEvent, hour: string, zone: string) {
   const order = appStore.historyList.find(o => o.id === bookingId)
   if (!order) return
   
-  if (timelineData.value[hour][zone]) {
-    ui.showToast('Vị trí này đã có khách đặt bàn!', 'warning')
+  if (timelineData.value[hour][table]) {
+    ui.showToast('Vị trí bàn này đã có khách đặt vào giờ này!', 'warning')
     return
   }
   
-  const cleanZone = zone.replace('Khu ', '')
-  const oldTime = order.parsedCustomer?.time || '--:--'
-  const oldTable = order.parsedCustomer?.tables || 'Chưa xếp'
-  
   ui.loading.is = true
   ui.loading.msg = `Đang chuyển bàn của ${order.parsedCustomer?.name}...`
-  ui.loading.subMsg = `${oldTime} (${oldTable}) → ${hour} (Khu ${cleanZone})`
+  ui.loading.subMsg = `${order.parsedCustomer?.time || ''} (${order.parsedCustomer?.tables || ''}) → ${hour} (Bàn ${table})`
   
   try {
-    const zoneTables = Array.from({length: zone === 'Khu A' ? 22 : zone === 'Khu C' ? 16 : zone === 'Khu B' ? 10 : 8}, (_, i) => `${cleanZone}${i+1}`)
-    const occupiedTablesInNewSlot = new Set<string>()
-    const targetDate = order.parsedCustomer?.date
-    
-    appStore.historyList.forEach(o => {
-      if (o.id === bookingId) return
-      if (o.parsedCustomer?.date !== targetDate) return
-      
-      const parseTimeToMinutes = (tStr: string) => {
-        if (!tStr) return 0
-        const parts = tStr.split(':').map(Number)
-        return parts[0] * 60 + parts[1]
-      }
-      
-      const oTime = parseTimeToMinutes(o.parsedCustomer?.time || '')
-      const targetTime = parseTimeToMinutes(hour)
-      
-      if (Math.abs(oTime - targetTime) < 120) {
-        const tables = (o.parsedCustomer?.tables || '').split(/[\s,]+/).map(t => t.trim().toUpperCase()).filter(Boolean)
-        tables.forEach(t => occupiedTablesInNewSlot.add(t))
-      }
-    })
-    
-    const freeTable = zoneTables.find(t => !occupiedTablesInNewSlot.has(t)) || cleanZone
-    
     const updatedCustomer = {
       ...order.parsedCustomer,
       time: hour,
-      tables: freeTable
+      tables: table
     }
     
     const rawData = JSON.parse((order as any).data || '{}')
@@ -366,14 +344,14 @@ async function handleDrop(e: DragEvent, hour: string, zone: string) {
     const res = await appStore.saveOrder(payload)
     if (res && res.ok) {
       appStore.markOrderSynced(order.id, { version: payload.version })
-      ui.showToast(`Đã chuyển lịch của ${order.parsedCustomer?.name} sang ${hour} Bàn ${freeTable}!`, 'success')
+      ui.showToast(`Đã xếp ${order.parsedCustomer?.name} vào Bàn ${table} lúc ${hour}!`, 'success')
       await appStore.loadHistory(true)
     } else {
       throw new Error(res?.message || 'Save failed')
     }
   } catch (err: any) {
     appStore.markOrderFailed(order.id)
-    ui.showToast(`Lỗi chuyển lịch: ${err.message}`, 'error')
+    ui.showToast(`Lỗi chuyển bàn: ${err.message}`, 'error')
     await appStore.loadHistory(true)
   } finally {
     ui.loading.is = false
@@ -446,77 +424,89 @@ async function handleDrop(e: DragEvent, hour: string, zone: string) {
       </div>
     </div>
 
+    <!-- Zone Selector Tabs -->
+    <div class="px-4 py-2.5 bg-white border-b border-slate-200 flex flex-wrap gap-2 shrink-0 z-10 shadow-sm">
+      <button 
+        v-for="z in ['A', 'B', 'C', 'D', 'E']" 
+        :key="z"
+        @click="activeZone = z"
+        class="px-4 py-2 rounded-xl font-black text-xs uppercase tracking-wider transition-all cursor-pointer"
+        :class="activeZone === z ? 'bg-blue-900 text-white shadow-md shadow-blue-900/10' : 'bg-slate-50 text-slate-500 border border-slate-200 hover:bg-slate-100'"
+      >
+        Khu {{ z }}
+      </button>
+    </div>
+
     <!-- Timeline Grid Container -->
     <div class="flex-grow w-full overflow-auto bg-slate-50 relative custom-scrollbar p-0 md:p-2 box-border">
-      <div class="min-w-[700px] bg-white shadow-sm border border-slate-100 flex flex-col rounded-xl">
+      <div class="min-w-[1200px] bg-white shadow-sm border border-slate-100 flex flex-col rounded-xl">
         
         <!-- Header Row -->
         <div class="flex bg-blue-950 text-white sticky top-0 z-30 shadow-md">
-          <div class="w-20 flex-shrink-0 py-3 text-center font-bold text-xs uppercase tracking-widest border-r border-white/10 sticky left-0 bg-blue-950 z-40">Giờ</div>
-          <div v-for="z in ZONES" :key="z" class="flex-1 py-3 text-center font-bold text-xs border-r border-white/10 last:border-0">{{ z }}</div>
+          <div class="w-20 flex-shrink-0 py-3 text-center font-bold text-xs uppercase tracking-widest border-r border-white/10 sticky left-0 bg-blue-950 z-40">Bàn</div>
+          <div v-for="h in HOURS" :key="h" class="flex-1 py-3 text-center font-bold text-xs border-r border-white/10 last:border-0 min-w-[100px]">{{ h }}</div>
         </div>
 
-        <!-- Time Rows -->
+        <!-- Table Rows -->
         <div class="flex flex-col relative z-10">
-          <div v-for="h in HOURS" :key="h" class="flex border-b border-slate-100 last:border-0">
-            <!-- Hour Column -->
+          <div v-for="t in activeZoneTables" :key="t" class="flex border-b border-slate-100 last:border-0">
+            <!-- Table Name Column -->
             <div class="w-20 flex-shrink-0 flex flex-col items-center justify-center py-4 border-r border-slate-100 bg-slate-50/95 backdrop-blur-md sticky left-0 z-20 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">
-              <span class="font-black text-slate-800 text-sm">{{ h }}</span>
-              <span class="text-[10px] font-bold text-slate-400 uppercase">{{ getAmPm(h) }}</span>
+              <span class="font-black text-slate-800 text-sm">{{ t }}</span>
             </div>
             
-            <!-- Zone Columns -->
+            <!-- Hour Columns -->
             <div 
-              v-for="z in ZONES" 
-              :key="z" 
-              class="flex-1 p-2 border-r border-slate-100 last:border-0 flex items-center justify-center min-h-[110px] transition-all duration-200"
-              :class="{'border-2 border-dashed border-blue-500 bg-blue-50/40 scale-95 shadow-inner rounded-xl': isDropTarget(h, z)}"
-              @dragover.prevent="handleDragOver($event, h, z)"
-              @dragleave="handleDragLeave($event, h, z)"
-              @drop="handleDrop($event, h, z)"
+              v-for="h in HOURS" 
+              :key="h" 
+              class="flex-1 p-1.5 border-r border-slate-100 last:border-0 flex items-center justify-center min-w-[100px] min-h-[90px] transition-all duration-200"
+              :class="{'border-2 border-dashed border-blue-500 bg-blue-50/40 scale-95 shadow-inner rounded-xl': isDropTarget(h, t)}"
+              @dragover.prevent="handleDragOver($event, h, t)"
+              @dragleave="handleDragLeave($event, h, t)"
+              @drop="handleDrop($event, h, t)"
             >
-              <template v-if="timelineData[h][z]">
+              <template v-if="timelineData[h][t]">
                 <!-- Booked Slot -->
                 <div 
-                  @click="openBookingDetail(timelineData[h][z])"
+                  @click="openBookingDetail(timelineData[h][t])"
                   draggable="true"
-                  @dragstart="handleDragStart($event, timelineData[h][z])"
-                  class="w-full h-full rounded-xl flex flex-col items-center justify-start p-2 text-center shadow-sm border cursor-pointer active:scale-95 transition-transform relative overflow-hidden select-none hover:shadow-md cursor-grab active:cursor-grabbing"
-                  :class="timelineData[h][z].isDeposited ? 'bg-blue-50 border-blue-200 text-blue-900 hover:bg-blue-100' : 'bg-rose-50 border-rose-200 text-rose-700 hover:bg-rose-100'"
+                  @dragstart="handleDragStart($event, timelineData[h][t])"
+                  class="w-full h-full rounded-xl flex flex-col items-center justify-start p-1.5 text-center shadow-sm border cursor-pointer active:scale-95 transition-transform relative overflow-hidden select-none hover:shadow-md cursor-grab active:cursor-grabbing"
+                  :class="timelineData[h][t].isDeposited ? 'bg-blue-50 border-blue-200 text-blue-900 hover:bg-blue-100' : 'bg-rose-50 border-rose-200 text-rose-700 hover:bg-rose-100'"
                 >
                   <!-- Table Badge -->
-                  <div v-if="timelineData[h][z].parsedCustomer?.tables" class="absolute top-1 right-1 px-1.5 py-0.5 rounded-full text-[8.5px] font-black shadow-[0_2px_4px_rgba(0,0,0,0.05)] border" :class="timelineData[h][z].isDeposited ? 'bg-white text-blue-700 border-blue-100' : 'bg-white text-rose-700 border-rose-100'">
-                    {{ timelineData[h][z].parsedCustomer?.tables.replace('Khu ', '').replace('Khu', '') }}
+                  <div v-if="timelineData[h][t].parsedCustomer?.tables" class="absolute top-1 right-1 px-1.5 py-0.5 rounded-full text-[8.5px] font-black shadow-[0_2px_4px_rgba(0,0,0,0.05)] border bg-white text-slate-700 border-slate-200">
+                    {{ t }}
                   </div>
 
                   <!-- Customer Name -->
-                  <div class="font-black text-[11px] leading-tight line-clamp-1 break-all w-full pr-4 mt-1">{{ timelineData[h][z].parsedCustomer?.name }}</div>
+                  <div class="font-black text-[11px] leading-tight line-clamp-1 break-all w-full pr-4 mt-1">{{ timelineData[h][t].parsedCustomer?.name }}</div>
                   
                   <!-- Phone Number -->
-                  <div v-if="timelineData[h][z].parsedCustomer?.phone" class="text-[9px] font-bold opacity-75 mt-0.5">
-                    {{ timelineData[h][z].parsedCustomer?.phone }}
+                  <div v-if="timelineData[h][t].parsedCustomer?.phone" class="text-[9px] font-bold opacity-75 mt-0.5">
+                    {{ timelineData[h][t].parsedCustomer?.phone }}
                   </div>
 
                   <!-- Pax & Party Type -->
                   <div class="text-[10px] font-bold opacity-80 mt-1 flex flex-col items-center">
-                    <span>{{ timelineData[h][z].parsedCustomer?.pax }} người</span>
-                    <span v-if="timelineData[h][z].parsedCustomer?.type" class="text-[8.5px] font-semibold opacity-70 mt-0.5 px-1.5 py-[1px] bg-black/5 rounded text-inherit">
-                      {{ timelineData[h][z].parsedCustomer?.type }}
+                    <span>{{ timelineData[h][t].parsedCustomer?.pax }} người</span>
+                    <span v-if="timelineData[h][t].parsedCustomer?.type" class="text-[8.5px] font-semibold opacity-70 mt-0.5 px-1.5 py-[1px] bg-black/5 rounded text-inherit">
+                      {{ timelineData[h][t].parsedCustomer?.type }}
                     </span>
                   </div>
                   
                   <!-- Staff Received -->
-                  <div v-if="getStaff(timelineData[h][z])" class="mt-auto pt-1 border-t w-full text-center" :class="timelineData[h][z].isDeposited ? 'border-blue-200/50' : 'border-rose-200/50'">
+                  <div v-if="getStaff(timelineData[h][t])" class="mt-auto pt-1 border-t w-full text-center" :class="timelineData[h][t].isDeposited ? 'border-blue-200/50' : 'border-rose-200/50'">
                     <div class="text-[8.5px] font-bold opacity-75 truncate w-full flex items-center justify-center gap-1">
-                      <i class="fa-solid fa-user-tag opacity-70"></i> {{ getStaff(timelineData[h][z]) }}
+                      <i class="fa-solid fa-user-tag opacity-70"></i> {{ getStaff(timelineData[h][t]) }}
                     </div>
                   </div>
                 </div>
               </template>
               <template v-else>
                 <!-- Empty Slot -->
-                <div @click="prefillBooking(z, h)" class="w-10 h-10 rounded-xl bg-emerald-50/50 border border-emerald-100 flex items-center justify-center text-emerald-400 opacity-60 cursor-pointer hover:bg-emerald-100 transition-colors">
-                  <i class="fa-solid fa-chair text-lg"></i>
+                <div @click="prefillBooking(t, h)" class="w-8 h-8 rounded-lg bg-emerald-50/50 border border-emerald-100 flex items-center justify-center text-emerald-400 opacity-60 cursor-pointer hover:bg-emerald-100 transition-colors">
+                  <i class="fa-solid fa-chair text-sm"></i>
                 </div>
               </template>
             </div>
