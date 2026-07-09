@@ -22,6 +22,7 @@ const showAllMenus = ref(false)
 // Add/Edit Dish States
 const viewMode = ref('grid') // 'list' | 'grid'
 const selectedCategory = ref('')
+const searchQuery = ref('')
 const selectedDish = ref<any>(null)
 
 // Mock data for UI presentation
@@ -35,7 +36,7 @@ const mockMenus = [
 
 // Enhance menuList with mock images and categories
 const enhancedMenuList = computed(() => {
-  return appStore.menuList.map((item, index) => {
+  let list = appStore.menuList.map((item, index) => {
     const cat = mockCategories[index % mockCategories.length]
     return {
       ...item,
@@ -45,6 +46,23 @@ const enhancedMenuList = computed(() => {
       inUse: index % 3 === 0
     }
   })
+
+  // Filter by selectedCategory
+  if (selectedCategory.value) {
+    list = list.filter(item => item.category === selectedCategory.value)
+  }
+
+  // Filter by searchQuery
+  if (searchQuery.value.trim()) {
+    const q = searchQuery.value.trim().toLowerCase()
+    list = list.filter(item => 
+      item.name.toLowerCase().includes(q) || 
+      (item.cleanName && item.cleanName.toLowerCase().includes(q)) ||
+      (item.acronym && item.acronym.toLowerCase().includes(q))
+    )
+  }
+
+  return list
 })
 
 
@@ -318,7 +336,7 @@ async function handleDishImageUpload(event: Event) {
           <div class="flex flex-col sm:flex-row items-center gap-3 mb-5 shrink-0">
             <div class="flex-1 w-full relative min-w-0">
               <i class="fa-solid fa-magnifying-glass absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400"></i>
-              <input type="text" placeholder="Tìm kiếm món ăn..." class="w-full pl-10 pr-4 py-2.5 bg-white border border-slate-200 rounded-xl text-sm font-medium text-slate-700 focus:outline-none focus:border-blue-500 shadow-sm transition-all truncate">
+              <input v-model="searchQuery" type="text" placeholder="Tìm kiếm món ăn..." class="w-full pl-10 pr-4 py-2.5 bg-white border border-slate-200 rounded-xl text-sm font-medium text-slate-700 focus:outline-none focus:border-blue-500 shadow-sm transition-all truncate">
             </div>
             <div class="w-full sm:w-auto shrink-0">
               <select v-model="selectedCategory" class="w-full sm:w-auto px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-sm font-bold text-slate-600 focus:outline-none focus:border-blue-500 shadow-sm appearance-none pr-9 relative bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIGZpbGw9Im5vbmUiIHZpZXdCb3g9IjAgMCAyNCAyNCIgc3Ryb2tlLXdpZHRoPSIyIiBzdHJva2U9IiM2NDc0OGIiPjxwYXRoIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgc3Ryb2tlLWxpbmVqb2luPSJyb3VuZCIgZD0iTTE5IDlsLTcgNy03LTciLz48L3N2Zz4=')] bg-[length:16px_16px] bg-[right_12px_center] bg-no-repeat truncate">
