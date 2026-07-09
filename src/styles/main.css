@@ -1138,4 +1138,50 @@ html.dark-theme .glass-panel {
   box-shadow: 0 2px 0 rgba(0, 0, 0, 0.16), 0 4px 8px rgba(0, 0, 0, 0.08);
 }
 
+/* Dynamic glowing background orbs */
+.orb {
+  position: absolute;
+  width: 450px;
+  height: 450px;
+  border-radius: 50%;
+  filter: blur(120px);
+  opacity: 0.35;
+  mix-blend-mode: screen;
+  animation: orb-float 22s infinite alternate ease-in-out;
+  pointer-events: none;
+}
+
+html.dark-theme .orb {
+  opacity: 0.18;
+}
+
+.orb-1 {
+  background: radial-gradient(circle, rgba(99, 102, 241, 0.5) 0%, transparent 80%);
+  top: -10%;
+  left: 5%;
+  animation-duration: 20s;
+}
+
+.orb-2 {
+  background: radial-gradient(circle, rgba(236, 72, 153, 0.4) 0%, transparent 80%);
+  bottom: -10%;
+  right: 5%;
+  animation-duration: 26s;
+  animation-delay: -5s;
+}
+
+.orb-3 {
+  background: radial-gradient(circle, rgba(168, 85, 247, 0.4) 0%, transparent 80%);
+  top: 35%;
+  left: 55%;
+  animation-duration: 24s;
+  animation-delay: -10s;
+}
+
+@keyframes orb-float {
+  0% { transform: translate(0, 0) scale(1); }
+  50% { transform: translate(100px, 80px) scale(1.2); }
+  100% { transform: translate(-60px, -100px) scale(0.85); }
+}
+
 

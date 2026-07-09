@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { sound } from '@/utils/audio'
 import { useUIStore } from '@/stores/useUIStore'
 import { useFormStore } from '@/stores/useFormStore'
 import { useAppStore } from '@/stores/useAppStore'
@@ -410,6 +411,14 @@ function handleGlobalKeydown(e: KeyboardEvent) {
     }
   }
 }
+watch(() => ui.tab, () => {
+  sound.playPop()
+})
+
+watch(() => ui.activeSettingModal, (val) => {
+  if (val) sound.playPop()
+})
+
 const ambientTheme = computed(() => {
   const hour = new Date().getHours()
   if (hour >= 5 && hour < 9) return 'ambient-dawn'
@@ -421,7 +430,14 @@ const ambientTheme = computed(() => {
 
 <template>
   <div class="min-h-screen h-[100dvh] md:h-auto overflow-hidden ambient-canvas flex items-center justify-center font-sans text-slate-800 p-0 md:p-4 transition-all duration-500" :class="ambientTheme">
-    <div id="app-root" class="w-full max-w-[480px] lg:max-w-[1200px] xl:max-w-[1440px] 2xl:max-w-[1680px] h-[100dvh] md:h-[96vh] md:max-h-none md:rounded-[2.5rem] flex flex-col relative overflow-hidden glass-panel transition-all duration-300" v-cloak>
+    <!-- Glowing background orbs -->
+    <div class="absolute inset-0 overflow-hidden pointer-events-none z-0">
+      <div class="orb orb-1"></div>
+      <div class="orb orb-2"></div>
+      <div class="orb orb-3"></div>
+    </div>
+    
+    <div id="app-root" class="w-full max-w-[480px] lg:max-w-[1200px] xl:max-w-[1440px] 2xl:max-w-[1680px] h-[100dvh] md:h-[96vh] md:max-h-none md:rounded-[2.5rem] flex flex-col relative z-10 overflow-hidden glass-panel transition-all duration-300" v-cloak>
 
     <!-- GLOBAL PROGRESS BAR -->
     <div class="fixed top-0 left-0 h-[3px] bg-blue-500 z-[999999] transition-all duration-300 ease-out shadow-[0_0_10px_rgba(59,130,246,0.5)]" 
