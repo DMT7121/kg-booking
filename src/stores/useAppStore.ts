@@ -53,6 +53,7 @@ export interface HistoryOrder {
   aiEngine?: string
   isSyncing?: boolean
   isCared?: boolean
+  activeMenuSheet?: string
 }
 
 export interface BookingConflict {
@@ -130,6 +131,35 @@ function rebuildBookingTimeIndex(history: HistoryOrder[]) {
     dateList.push(normalized)
   })
 }
+
+function normalizePayloadToHistoryOrder(id: string, payload: any): HistoryOrder {
+  const customer = payload.customer || payload.parsedCustomer || {}
+  const deposit = payload.deposit || {}
+  
+  return {
+    id: id,
+    timestamp: payload.timestamp || new Date().toISOString(),
+    parsedCustomer: {
+      name: customer.name || '',
+      phone: customer.phone || '',
+      date: customer.date || '',
+      time: customer.time || '',
+      pax: String(customer.pax || ''),
+      tables: customer.tables || '',
+      type: customer.type || 'Ăn thường',
+      note: customer.note || ''
+    },
+    menuItems: payload.menuItems || [],
+    totalAmount: typeof payload.totalAmount === 'number' ? payload.totalAmount : 0,
+    depositAmount: typeof deposit.amount === 'number' ? deposit.amount : (typeof payload.depositAmount === 'number' ? payload.depositAmount : 0),
+    isDeposited: typeof deposit.isPaid === 'boolean' ? deposit.isPaid : (typeof payload.isDeposited === 'boolean' ? payload.isDeposited : false),
+    transferImage: deposit.image || payload.transferImage || '',
+    staff: payload.staff || null,
+    activeMenuSheet: payload.activeMenuSheet || payload.activeSheet || null,
+    isSyncing: payload.isSyncing ?? false
+  }
+}
+
 
 export function hasTimeConflictIndexed(
   a: { id?: string; date: string; time: string; tables: string },
@@ -449,10 +479,18 @@ export const useAppStore = defineStore('app', () => {
         cacheHistory(data.data || [])
       } else {
         uiStore.connectionStatus = hasCache ? 'online' : 'error'
+        if (hasCache && cached) {
+          historyList.value = cached
+          rebuildBookingTimeIndex(cached)
+        }
       }
     } catch (e) {
       console.error(e)
       uiStore.connectionStatus = hasCache ? 'online' : 'error'
+      if (hasCache && cached) {
+        historyList.value = cached
+        rebuildBookingTimeIndex(cached)
+      }
       if (hasCache && !silent) uiStore.showToast('Đang dùng dữ liệu offline', 'info')
     }
   }
@@ -1075,15 +1113,25 @@ export const useAppStore = defineStore('app', () => {
   }
 
   async function saveOrder(data: any): Promise<any> {
-    const beforeOrder = data.id ? historyList.value.find(h => h.id === data.id) : null
+    const orderData = data.id ? data : (data.data ? data.data : data)
+    const orderId = orderData.id || crypto.randomUUID()
+    const beforeOrder = orderId ? historyList.value.find(h => h.id === orderId) : null
+    
     const result = await orderRepo.saveOrder(data)
+    
     if (result.ok) {
+      const normalized = normalizePayloadToHistoryOrder(orderId, orderData)
+      if (result.status === 'pending') {
+        normalized.isSyncing = true
+      }
+      setOptimisticOrder(normalized)
+
       await triggerAuditLog(
         beforeOrder ? 'booking:update' : 'booking:create',
         'booking',
-        result.id || data.id,
+        orderId,
         beforeOrder ? beforeOrder.parsedCustomer : null,
-        data.customer || data.data?.customer || data
+        orderData.customer || orderData.parsedCustomer || orderData
       )
     }
     return result
@@ -1093,6 +1141,11 @@ export const useAppStore = defineStore('app', () => {
     const beforeOrder = historyList.value.find(h => h.id === id)
     const result = await orderRepo.deleteOrder(id, password, token)
     if (result.ok) {
+      const list = historyList.value.filter((i: any) => i.id !== id)
+      historyList.value = list
+      rebuildBookingTimeIndex(list)
+      await cacheHistory(list)
+
       await triggerAuditLog(
         'booking:delete',
         'booking',
