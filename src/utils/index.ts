@@ -140,10 +140,15 @@ export const formatSetNote = (str: string): string => {
 
 /** Detect iOS device */
 export const isIOS = typeof navigator !== 'undefined' &&
+  !/Windows|Win32|Win64/i.test(navigator.userAgent) &&
+  !(typeof navigator.platform === 'string' && /Win/i.test(navigator.platform)) &&
   (/iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1))
 
 /** Detect Android device */
-export const isAndroid = typeof navigator !== 'undefined' && /Android/i.test(navigator.userAgent)
+export const isAndroid = typeof navigator !== 'undefined' &&
+  !/Windows|Win32|Win64/i.test(navigator.userAgent) &&
+  !(typeof navigator.platform === 'string' && /Win/i.test(navigator.platform)) &&
+  /Android/i.test(navigator.userAgent)
 
 /** Detect any mobile device (iOS, Android, tablets, WebViews) */
 export const isMobile = typeof navigator !== 'undefined' && (

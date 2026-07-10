@@ -92,7 +92,7 @@ async function handlePending() {
 function handleViewBill() {
   if (!ui.selectedBooking) return
   const url = `${window.location.origin}${window.location.pathname}?id=${ui.selectedBooking.id}`
-  if (!isDesktop && navigator.share) {
+  if ((isIOS || isAndroid) && navigator.share) {
     navigator.share({
       title: 'Bill - ' + (ui.selectedBooking.parsedCustomer?.name || ''),
       url: url

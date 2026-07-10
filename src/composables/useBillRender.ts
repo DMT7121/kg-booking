@@ -144,7 +144,17 @@ function _createBillRender() {
           await Promise.all(imgs.map(async (img) => {
             if (!img.src || img.src.startsWith('data:')) return
             try {
-              const r = await fetch(img.src)
+              let fetchUrl = img.src
+              // Use our Cloudflare worker as a proxy, or fall back to wsrv.nl
+              if (img.src.startsWith('http') && !img.src.includes(window.location.host)) {
+                const r2Url = import.meta.env.VITE_R2_URL || ''
+                if (r2Url) {
+                  fetchUrl = `${r2Url}/proxy?url=${encodeURIComponent(img.src)}`
+                } else {
+                  fetchUrl = `https://wsrv.nl/?url=${encodeURIComponent(img.src)}`
+                }
+              }
+              const r = await fetch(fetchUrl)
               const blob = await r.blob()
               const base64 = await new Promise<string>((res) => {
                 const reader = new FileReader()
@@ -152,7 +162,10 @@ function _createBillRender() {
                 reader.readAsDataURL(blob)
               })
               img.src = base64
-            } catch (e) { img.style.display = 'none' } // Hide if CORS blocked
+            } catch (e) {
+              console.warn('[useBillRender] Failed to inline image:', img.src, e)
+              img.style.display = 'none'
+            }
           }))
         } catch (e) {}
 
@@ -438,7 +451,7 @@ function _createBillRender() {
     const blob = new Blob([arr], { type: 'image/jpeg' })
 
     // --- Strategy 1: Web Share API (works great on mobile) ---
-    if (!isDesktop && navigator.share && navigator.canShare) {
+    if ((isIOS || isAndroid) && navigator.share && navigator.canShare) {
       try {
         const file = new File([blob], filename, { type: 'image/jpeg' })
         const shareData = { files: [file], title: filename }

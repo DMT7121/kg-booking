@@ -9,6 +9,13 @@ const app = createApp(App)
 
 // Tự động update Service Worker khi có phiên bản mới
 registerSW({ immediate: true })
+
+if (typeof navigator !== 'undefined' && 'serviceWorker' in navigator) {
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    window.location.reload()
+  })
+}
+
 const pinia = createPinia()
 app.use(pinia)
 app.mount('#app')

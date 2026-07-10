@@ -558,6 +558,33 @@ function saveOrder(p) {
     }
   }
 
+  // Deduplicate: find by phone suffix (last 9 digits) and event date if not found by ID
+  if (foundRowIndex === -1 && p.customer && p.customer.phone && p.customer.date) {
+    const cleanPhone = String(p.customer.phone).replace(/\D/g, "");
+    if (cleanPhone) {
+      const phoneSuffix = cleanPhone.substring(Math.max(0, cleanPhone.length - 9));
+      const targetDate = String(p.customer.date).trim();
+      
+      for (let i = 1; i < values.length; i++) {
+        const orderPhone = String(values[i][3] || "").replace(/\D/g, "");
+        if (orderPhone.endsWith(phoneSuffix)) {
+          let orderDate = "";
+          try {
+            const orderData = JSON.parse(values[i][4]);
+            orderDate = String(orderData.customer?.date || "").trim();
+          } catch(e) {}
+          
+          if (orderDate === targetDate) {
+            foundRowIndex = i + 1;
+            bookingId = values[i][0]; // Keep existing ID from Sheet
+            p.id = bookingId; // Update payload ID to match
+            break;
+          }
+        }
+      }
+    }
+  }
+
   const isNew = (foundRowIndex === -1);
   const createdAt = isNew ? new Date().toISOString() : (values[foundRowIndex - 1][1] || new Date().toISOString());
   const updatedAt = new Date().toISOString();
@@ -669,9 +696,37 @@ function saveOrdersBatch(payloads) {
       p.billUrl = billUrl;
       if(transferUrl) p.deposit.image = transferUrl;
 
-      const bookingId = p.id || Utilities.getUuid();
+      let bookingId = p.id || Utilities.getUuid();
       
       let foundRowIndex = idToRowMap[bookingId] || -1;
+
+      // Deduplicate: find by phone suffix (last 9 digits) and event date if not found by ID
+      if (foundRowIndex === -1 && p.customer && p.customer.phone && p.customer.date) {
+        const cleanPhone = String(p.customer.phone).replace(/\D/g, "");
+        if (cleanPhone) {
+          const phoneSuffix = cleanPhone.substring(Math.max(0, cleanPhone.length - 9));
+          const targetDate = String(p.customer.date).trim();
+          
+          for (let i = 1; i < values.length; i++) {
+            const orderPhone = String(values[i][3] || "").replace(/\D/g, "");
+            if (orderPhone.endsWith(phoneSuffix)) {
+              let orderDate = "";
+              try {
+                const orderData = JSON.parse(values[i][4]);
+                orderDate = String(orderData.customer?.date || "").trim();
+              } catch(e) {}
+              
+              if (orderDate === targetDate) {
+                bookingId = values[i][0]; // Keep existing ID from Sheet
+                p.id = bookingId; // Update payload ID to match
+                foundRowIndex = idToRowMap[bookingId] || (i + 1);
+                break;
+              }
+            }
+          }
+        }
+      }
+      
       const isNew = (foundRowIndex === -1);
       
       let createdAt;
@@ -1205,6 +1260,7 @@ function syncToCalendar(data, bookingId, billUrl, transferUrl) {
     if (!tpl) return { status: "FAILED", message: "Không tìm thấy sheet template " + CONFIG.TEMPLATE_SHEET_NAME };
     sheet = tpl.copyTo(ss).setName(sheetName);
     sheet.showSheet();
+    sheet.getRange("G1").setValue(dateStr);
   }
   
   const tableStr = data.customer.tables || "";

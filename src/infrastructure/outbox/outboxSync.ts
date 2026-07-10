@@ -121,7 +121,7 @@ export async function triggerSync(): Promise<void> {
                 const time = customerData.time
                 const tables = customerData.tables || ''
                 
-                const hasConflict = hasTimeConflictIndexed({ id: localId, date, time, tables })
+                const hasConflict = hasTimeConflictIndexed({ id: localId, date, time, tables, phone: customerData.phone || '' })
                 if (hasConflict) {
                   conflictType = 'table_time_overlap'
                 }

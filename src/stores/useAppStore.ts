@@ -82,6 +82,7 @@ export interface NormalizedBookingTime {
   startMinutes: number;
   endMinutes: number;
   status: string;
+  phone?: string;
 }
 
 const bookingTimeIndex = new Map<string, NormalizedBookingTime[]>()
@@ -120,7 +121,8 @@ function rebuildBookingTimeIndex(history: HistoryOrder[]) {
       tables,
       startMinutes,
       endMinutes,
-      status: customer.type || ''
+      status: customer.type || '',
+      phone: customer.phone || ''
     }
     
     let dateList = bookingTimeIndex.get(dateKey)
@@ -162,7 +164,7 @@ function normalizePayloadToHistoryOrder(id: string, payload: any): HistoryOrder 
 
 
 export function hasTimeConflictIndexed(
-  a: { id?: string; date: string; time: string; tables: string },
+  a: { id?: string; date: string; time: string; tables: string; phone?: string },
   bufferMinutes = 120
 ): boolean {
   const dateKey = (a.date || '').trim()
@@ -192,6 +194,19 @@ export function hasTimeConflictIndexed(
   
   for (const other of candidates) {
     if (a.id && other.bookingId === a.id) continue
+    
+    // Deduplicate: same customer should not conflict with itself (e.g. self update/duplicate from offline sync)
+    if (a.phone && other.phone) {
+      const cleanPhoneA = String(a.phone).replace(/\D/g, "")
+      const cleanPhoneOther = String(other.phone).replace(/\D/g, "")
+      if (cleanPhoneA && cleanPhoneOther) {
+        const suffixA = cleanPhoneA.substring(Math.max(0, cleanPhoneA.length - 9))
+        const suffixOther = cleanPhoneOther.substring(Math.max(0, cleanPhoneOther.length - 9))
+        if (suffixA === suffixOther) {
+          continue
+        }
+      }
+    }
     
     // Check table overlap
     const hasCommonTable = tablesA.some(t => other.tables.includes(t))

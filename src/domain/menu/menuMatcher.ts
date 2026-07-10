@@ -218,7 +218,9 @@ export function scoreAndMatchMenu(
     // 5. Word / Token overlap
     const overlap = inputTokens.filter(t => mTokens.some(mt => mt.includes(t) || t.includes(mt))).length
     if (overlap > 0) {
-      const overlapScore = (overlap / Math.max(inputTokens.length, 1)) * 0.7
+      const menuOverlapRatio = overlap / Math.max(mTokens.length, 1)
+      const inputOverlapRatio = overlap / Math.max(inputTokens.length, 1)
+      const overlapScore = menuOverlapRatio * 0.75 + inputOverlapRatio * 0.15
       if (overlapScore > score) {
         score = Math.max(score, overlapScore)
         reasons.push('token_overlap')

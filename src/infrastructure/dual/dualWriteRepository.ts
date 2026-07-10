@@ -57,17 +57,52 @@ export class DualWriteOrderRepository implements OrderRepository {
       data.data.id = orderId
     }
 
-    // 1. Add order to local IndexedDB outbox
-    await outbox.addToOutbox(orderId, 'upsert', data)
-    
-    // 2. Trigger asynchronous synchronization
-    triggerOutboxSync()
+    const mode = getBackendMode()
+    let token = ''
+    try {
+      const { getActivePinia } = await import('pinia')
+      if (getActivePinia()) {
+        const { useAppStore } = await import('@/stores/useAppStore')
+        token = useAppStore().adminToken || ''
+      }
+    } catch {}
 
-    return { ok: true, id: orderId, status: 'pending', message: 'Order queued in local outbox. Sync is pending...' }
+    if (mode === 'gas') {
+      return this.gas.saveOrder(data)
+    }
+    if (mode === 'postgres') {
+      return this.pg.saveOrder(data, token)
+    }
+
+    // Dual Write mode
+    const pgRes = await this.pg.saveOrder(data, token)
+    if (!pgRes.ok) {
+      return pgRes
+    }
+    const gasRes = await this.gas.saveOrder(data)
+    return gasRes
   }
 
   async saveOrdersBatch(payloads: any[]): Promise<any> {
     const results = []
+    const mode = getBackendMode()
+    let token = ''
+    try {
+      const { getActivePinia } = await import('pinia')
+      if (getActivePinia()) {
+        const { useAppStore } = await import('@/stores/useAppStore')
+        token = useAppStore().adminToken || ''
+      }
+    } catch {}
+
+    if (mode === 'gas') {
+      return this.gas.saveOrdersBatch(payloads)
+    }
+    if (mode === 'postgres') {
+      return this.pg.saveOrdersBatch(payloads)
+    }
+
+    // Dual Write mode
     for (const p of payloads) {
       const res = await this.saveOrder(p)
       results.push(res)
@@ -76,13 +111,32 @@ export class DualWriteOrderRepository implements OrderRepository {
   }
 
   async deleteOrder(id: string, password?: string, token?: string): Promise<any> {
-    // 1. Add delete action to local IndexedDB outbox
-    await outbox.addToOutbox(id, 'delete', { id })
-    
-    // 2. Trigger asynchronous synchronization
-    triggerOutboxSync()
+    const mode = getBackendMode()
+    let resolvedToken = token || ''
+    if (!resolvedToken) {
+      try {
+        const { getActivePinia } = await import('pinia')
+        if (getActivePinia()) {
+          const { useAppStore } = await import('@/stores/useAppStore')
+          resolvedToken = useAppStore().adminToken || ''
+        }
+      } catch {}
+    }
 
-    return { ok: true, id, status: 'pending', message: 'Deletion queued in local outbox. Sync is pending...' }
+    if (mode === 'gas') {
+      return this.gas.deleteOrder(id, password, resolvedToken)
+    }
+    if (mode === 'postgres') {
+      return this.pg.deleteOrder(id, password, resolvedToken)
+    }
+
+    // Dual Write mode
+    const pgRes = await this.pg.deleteOrder(id, password, resolvedToken)
+    if (!pgRes.ok) {
+      return pgRes
+    }
+    const gasRes = await this.gas.deleteOrder(id, password, resolvedToken)
+    return gasRes
   }
 
   async syncBookingCalendar(id: string, token?: string): Promise<any> {

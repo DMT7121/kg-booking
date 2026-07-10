@@ -49,6 +49,28 @@ export default {
     const path = url.pathname;
 
     try {
+      // --- CORS PROXY: GET /proxy?url=... ---
+      if (request.method === 'GET' && path === '/proxy') {
+        const targetUrl = url.searchParams.get('url');
+        if (!targetUrl) {
+          return new Response('Missing url parameter', { status: 400, headers: corsHeaders });
+        }
+        try {
+          const r = await fetch(targetUrl, {
+            headers: {
+              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+              'Referer': new URL(targetUrl).origin
+            }
+          });
+          const headers = new Headers(corsHeaders);
+          headers.set('Content-Type', r.headers.get('Content-Type') || 'application/octet-stream');
+          headers.set('Cache-Control', 'public, max-age=86400');
+          return new Response(r.body, { headers, status: r.status });
+        } catch (fetchErr) {
+          return new Response(`Proxy fetch failed: ${fetchErr.message}`, { status: 502, headers: corsHeaders });
+        }
+      }
+
       // --- UPLOAD: POST /upload ---
       if (request.method === 'POST' && path === '/upload') {
         const body = await request.json();

@@ -149,7 +149,7 @@ function shareCurrentBill() {
   }
   const url = `${window.location.origin}${window.location.pathname}#/bill/${id}`
   
-  if (!isDesktop && navigator.share) {
+  if ((isIOS || isAndroid) && navigator.share) {
     navigator.share({
       title: 'Phiếu Đặt Bàn - King\'s Grill',
       text: `Phiếu đặt bàn của ${formStore.customer.name}`,
