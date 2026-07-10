@@ -170,10 +170,37 @@ function _createForm() {
     return `KG ${n} ${p} ${idSuf}`.trim()
   })
 
-  const qrImageUrl = computed(() => {
-    const b = appStore.currentBank
-    return `https://img.vietqr.io/image/${b.bankId}-${b.number}-${b.template}.png?amount=${formStore.deposit.amount}&addInfo=${encodeURIComponent(depositTransferContent.value)}&accountName=${encodeURIComponent(b.owner)}`
-  })
+  const qrImageUrl = ref('')
+
+  watch(
+    () => [appStore.currentBank, formStore.deposit.amount, depositTransferContent.value],
+    async () => {
+      const b = appStore.currentBank
+      if (!b || !b.number) {
+        qrImageUrl.value = ''
+        return
+      }
+
+      try {
+        const { generateVietQRText } = await import('@/utils/vietqr')
+        const { generateQRCodeDataURL } = await import('@/utils/qrcode')
+
+        const emvcoText = generateVietQRText(
+          b.bankId || '',
+          b.number || '',
+          formStore.deposit.amount || 0,
+          depositTransferContent.value || '',
+          b.owner || ''
+        )
+
+        qrImageUrl.value = await generateQRCodeDataURL(emvcoText)
+      } catch (err) {
+        console.error('[useForm] Failed to generate local QR code:', err)
+        qrImageUrl.value = ''
+      }
+    },
+    { immediate: true, deep: true }
+  )
 
   // --- Validation ---
   function validateForm(): boolean {

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, computed, onUnmounted } from 'vue'
+import { ref, onMounted, computed, onUnmounted, watch } from 'vue'
 import { getOrderById, getConfig } from '@/services/api'
 import LuckyWheel from './LuckyWheel.vue'
 import { stripAccents } from '@/utils'
@@ -127,6 +127,39 @@ const calculatedTotals = computed(() => {
   
   return { sub, vat8, vat10, final }
 })
+
+const qrImageUrl = ref('')
+
+watch(
+  () => [activeBank.value, order.value?.depositAmount, depositTransferContent.value],
+  async () => {
+    const b = activeBank.value
+    const depositAmount = order.value?.depositAmount || 0
+    if (!b || !b.number) {
+      qrImageUrl.value = ''
+      return
+    }
+
+    try {
+      const { generateVietQRText } = await import('@/utils/vietqr')
+      const { generateQRCodeDataURL } = await import('@/utils/qrcode')
+
+      const emvcoText = generateVietQRText(
+        b.bankId || '',
+        b.number || '',
+        depositAmount,
+        depositTransferContent.value || '',
+        b.owner || ''
+      )
+
+      qrImageUrl.value = await generateQRCodeDataURL(emvcoText)
+    } catch (err) {
+      console.error('[PublicBill] Failed to generate local QR code:', err)
+      qrImageUrl.value = ''
+    }
+  },
+  { immediate: true, deep: true }
+)
 
 // --- Countdown Logic ---
 const countdownText = ref('')
@@ -497,7 +530,7 @@ onUnmounted(() => { if (timer) clearInterval(timer) })
             <h3 class="font-black text-[10px] text-blue-800 uppercase tracking-widest mb-3 text-center">QUÉT MÃ ĐỂ ĐẶT CỌC</h3>
             <div class="flex flex-col items-center gap-3">
               <div class="bg-white p-2 rounded-xl shadow-sm border border-blue-100">
-                <img :src="`https://img.vietqr.io/image/${activeBank.bankId}-${activeBank.number}-${activeBank.template || 'compact'}.png?amount=${order.depositAmount}&addInfo=${encodeURIComponent(depositTransferContent)}&accountName=${encodeURIComponent(activeBank.owner)}`"
+                <img :src="qrImageUrl"
                   class="w-40 h-40 object-contain rounded-lg" alt="QR Code" loading="lazy">
               </div>
               <div class="w-full text-center">
