@@ -27,7 +27,16 @@ async function downloadBillImage() {
     await Promise.all(imgs.map(async (img) => {
       if (!img.src || img.src.startsWith('data:')) return
       try {
-        const r = await fetch(img.src)
+        let fetchUrl = img.src
+        if (img.src.startsWith('http') && !img.src.includes(window.location.host)) {
+          const r2Url = import.meta.env.VITE_R2_URL || ''
+          if (r2Url) {
+            fetchUrl = `${r2Url}/proxy?url=${encodeURIComponent(img.src)}`
+          } else {
+            fetchUrl = `https://wsrv.nl/?url=${encodeURIComponent(img.src)}`
+          }
+        }
+        const r = await fetch(fetchUrl)
         const blob = await r.blob()
         const base64 = await new Promise<string>((res) => {
           const reader = new FileReader()
@@ -37,6 +46,7 @@ async function downloadBillImage() {
         img.src = base64
       } catch (e) {
         // Silently skip image inline if CORS blocked
+        console.warn('[PublicBill] Failed to inline image:', img.src, e)
       }
     }))
 
@@ -128,38 +138,12 @@ const calculatedTotals = computed(() => {
   return { sub, vat8, vat10, final }
 })
 
-const qrImageUrl = ref('')
-
-watch(
-  () => [activeBank.value, order.value?.depositAmount, depositTransferContent.value],
-  async () => {
-    const b = activeBank.value
-    const depositAmount = order.value?.depositAmount || 0
-    if (!b || !b.number) {
-      qrImageUrl.value = ''
-      return
-    }
-
-    try {
-      const { generateVietQRText } = await import('@/utils/vietqr')
-      const { generateQRCodeDataURL } = await import('@/utils/qrcode')
-
-      const emvcoText = generateVietQRText(
-        b.bankId || '',
-        b.number || '',
-        depositAmount,
-        depositTransferContent.value || '',
-        b.owner || ''
-      )
-
-      qrImageUrl.value = await generateQRCodeDataURL(emvcoText)
-    } catch (err) {
-      console.error('[PublicBill] Failed to generate local QR code:', err)
-      qrImageUrl.value = ''
-    }
-  },
-  { immediate: true, deep: true }
-)
+const qrImageUrl = computed(() => {
+  const b = activeBank.value
+  if (!b || !b.number || !order.value) return ''
+  const depositAmount = order.value.depositAmount || 0
+  return `https://img.vietqr.io/image/${b.bankId}-${b.number}-${b.template || 'compact'}.png?amount=${depositAmount}&addInfo=${encodeURIComponent(depositTransferContent.value)}&accountName=${encodeURIComponent(b.owner || '')}`
+})
 
 // --- Countdown Logic ---
 const countdownText = ref('')
