@@ -1155,6 +1155,57 @@ export function extractByRules(normalizedText: string) {
     event_date = dateMatch[0]
   }
 
+  const today = new Date()
+  const formatDateStrLocal = (d: Date) => {
+    const dd = String(d.getDate()).padStart(2, '0')
+    const mm = String(d.getMonth() + 1).padStart(2, '0')
+    const yyyy = d.getFullYear()
+    return `${dd}/${mm}/${yyyy}`
+  }
+
+  // Parse relative date patterns first
+  if (!event_date) {
+    const relativePatterns = [
+      { regex: /\b(hom nay|nay|toi nay|chieu nay)\b/gi, offset: 0 },
+      { regex: /\b(ngay mai|mai|chieu mai|toi mai)\b/gi, offset: 1 },
+      { regex: /\b(ngay mot|mot|ngay kia)\b/gi, offset: 2 }
+    ]
+    for (const { regex, offset } of relativePatterns) {
+      if (regex.test(clean)) {
+        const targetDate = new Date(today)
+        targetDate.setDate(today.getDate() + offset)
+        event_date = formatDateStrLocal(targetDate)
+        break
+      }
+    }
+  }
+
+  // Parse weekday relative date patterns next
+  if (!event_date) {
+    const weekdayRegex = /\b(chu\s*nhat|cn|thu\s*hai|t2|thu\s*ba|t3|thu\s*tu|t4|thu\s*nam|t5|thu\s*sau|t6|thu\s*bay|t7|thu\s*2|thu\s*3|thu\s*4|thu\s*5|thu\s*6|thu\s*7)\b(?:\s+(tuan\s+)?(nay|sau))?/gi
+    let weekdayMatch
+    weekdayRegex.lastIndex = 0
+    if ((weekdayMatch = weekdayRegex.exec(clean)) !== null) {
+      const wIndex = getWeekdayIndex(weekdayMatch[1])
+      if (wIndex !== -1) {
+        const currentDay = today.getDay()
+        const vnToday = currentDay === 0 ? 7 : currentDay
+        const vnTarget = wIndex === 0 ? 7 : wIndex
+        let diff = vnTarget - vnToday
+        if (diff < 0) {
+          diff += 7
+        }
+        const modifier = weekdayMatch[3] ? weekdayMatch[3].toLowerCase() : ''
+        if (modifier === 'sau' && (vnTarget - vnToday) >= 0) {
+          diff += 7
+        }
+        const targetDate = new Date(today)
+        targetDate.setDate(today.getDate() + diff)
+        event_date = formatDateStrLocal(targetDate)
+      }
+    }
+  }
+
   if (!event_date && event_time) {
     const timeMatch = event_time.match(/^(\d{2}):(\d{2})$/)
     if (timeMatch) {
@@ -1175,10 +1226,7 @@ export function extractByRules(normalizedText: string) {
         // Tomorrow
         targetDate.setDate(todayDate.getDate() + 1)
       }
-      const dd = String(targetDate.getDate()).padStart(2, '0')
-      const mm = String(targetDate.getMonth() + 1).padStart(2, '0')
-      const yyyy = targetDate.getFullYear()
-      event_date = `${dd}/${mm}/${yyyy}`
+      event_date = formatDateStrLocal(targetDate)
     }
   }
 

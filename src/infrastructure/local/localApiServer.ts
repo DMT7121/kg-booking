@@ -351,8 +351,8 @@ export async function handleLocalApi(req: http.IncomingMessage, res: http.Server
           ok: true,
           keysStatus: status,
           defaults: {
-            text: 'llama-3.3-70b-versatile',
-            vision: 'gemini-2.0-flash'
+            text: 'gemini-2.5-flash',
+            vision: 'gemini-2.5-flash'
           }
         }
         break

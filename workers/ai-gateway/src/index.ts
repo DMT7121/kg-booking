@@ -548,7 +548,7 @@ export default {
 };
 
 async function executeAIRequest(payload: any, env: Env): Promise<string> {
-  const { model, provider, sysPrompt, userPrompt, image, jsonMode, maxOutputTokens, temperature } = payload;
+  const { model, provider, sysPrompt, userPrompt, image, jsonMode, responseSchema, maxOutputTokens, temperature } = payload;
 
   let apiKey = '';
   let targetUrl = '';
@@ -581,6 +581,9 @@ async function executeAIRequest(payload: any, env: Env): Promise<string> {
         ...(jsonMode ? { responseMimeType: 'application/json' } : {})
       }
     };
+    if (jsonMode && responseSchema) {
+      body.generationConfig.responseSchema = responseSchema;
+    }
   } else {
     if (provider === 'groq') {
       apiKey = env.GROQ_API_KEY || '';
@@ -624,7 +627,19 @@ async function executeAIRequest(payload: any, env: Env): Promise<string> {
     };
 
     if (jsonMode) {
-      body.response_format = { type: 'json_object' };
+      const noSchemaProviders = ['pollinations', 'huggingface'];
+      if (responseSchema && !noSchemaProviders.includes(provider.toLowerCase())) {
+        body.response_format = {
+          type: 'json_schema',
+          json_schema: {
+            name: 'booking_extraction',
+            strict: true,
+            schema: responseSchema
+          }
+        };
+      } else {
+        body.response_format = { type: 'json_object' };
+      }
     }
   }
 

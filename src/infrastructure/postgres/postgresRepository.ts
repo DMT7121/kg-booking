@@ -416,7 +416,7 @@ export class PostgresSettingsRepository implements SettingsRepository {
   }
 
   async getAiRuntimeConfig(): Promise<any> {
-    return { ok: true, defaults: { text: 'llama-3.3-70b-versatile', vision: 'gemini-2.0-flash' } }
+    return { ok: true, defaults: { text: 'gemini-2.5-flash', vision: 'gemini-2.5-flash' } }
   }
 
   async upsertSystemConfig(key: string, value: any, options?: any, token?: string): Promise<any> {

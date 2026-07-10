@@ -91,17 +91,17 @@ export const useConfigStore = defineStore('config', () => {
   const isVaultUnlocked = ref(false)
   const vaultUnlockMode = ref<'device' | 'passphrase' | null>(null)
 
-  const defaultsObj = JSON.parse(localStorage.getItem(CACHE_KEYS.DEFAULTS) || '{"text":"llama-3.3-70b-versatile", "vision":"gemini-2.0-flash","aiWorkflowMode":"direct"}')
+  const defaultsObj = JSON.parse(localStorage.getItem(CACHE_KEYS.DEFAULTS) || '{"text":"gemini-2.5-flash", "vision":"gemini-2.5-flash","aiWorkflowMode":"direct"}')
   if (!defaultsObj.aiWorkflowMode) defaultsObj.aiWorkflowMode = 'direct'
 
   // Validate and sanitize active model selections
   const validTextIds = AI_MODELS.filter(m => m.type === 'text').map(m => m.id)
   const validVisionIds = AI_MODELS.filter(m => m.type === 'vision').map(m => m.id)
   if (!validTextIds.includes(defaultsObj.text)) {
-    defaultsObj.text = 'llama-3.3-70b-versatile'
+    defaultsObj.text = 'gemini-2.5-flash'
   }
   if (!validVisionIds.includes(defaultsObj.vision)) {
-    defaultsObj.vision = 'gemini-2.0-flash'
+    defaultsObj.vision = 'gemini-2.5-flash'
   }
 
   const defaults = reactive(defaultsObj)

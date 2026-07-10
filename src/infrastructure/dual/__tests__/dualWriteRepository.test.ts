@@ -96,35 +96,30 @@ describe('DualWriteOrderRepository Tests', () => {
     expect(mockGasRepo.getHistory).not.toHaveBeenCalled()
   })
 
-  it('should queue to outbox and return immediate success when saving in dual_write mode', async () => {
+  it('should write directly to pg and gas and return success when saving in dual_write mode', async () => {
     vi.stubEnv('VITE_BACKEND_MODE', 'dual_write')
     const testData = { id: 'test-id', customer: { name: 'A', phone: '09' } }
+    mockPgRepo.saveOrder.mockResolvedValue({ ok: true, id: 'test-id' })
+    mockGasRepo.saveOrder.mockResolvedValue({ ok: true, id: 'test-id', message: 'Saved to GAS' })
 
     const res = await repository.saveOrder(testData)
 
     expect(res.ok).toBe(true)
     expect(res.id).toBe('test-id')
-    expect(res.message).toContain('queued in local outbox')
-
-    // Verify it was added to the outbox list
-    const pending = await outbox.getPendingItems()
-    expect(pending.length).toBe(1)
-    expect(pending[0].id).toBe('test-id')
+    expect(mockPgRepo.saveOrder).toHaveBeenCalledWith(testData, '')
+    expect(mockGasRepo.saveOrder).toHaveBeenCalledWith(testData)
   })
 
-  it('should queue to outbox and return immediate success when deleting in dual_write mode', async () => {
+  it('should delete directly from pg and gas and return success when deleting in dual_write mode', async () => {
     vi.stubEnv('VITE_BACKEND_MODE', 'dual_write')
+    mockPgRepo.deleteOrder.mockResolvedValue({ ok: true, id: 'test-id' })
+    mockGasRepo.deleteOrder.mockResolvedValue({ ok: true, id: 'test-id', message: 'Deleted from GAS' })
 
     const res = await repository.deleteOrder('test-id')
 
     expect(res.ok).toBe(true)
     expect(res.id).toBe('test-id')
-    expect(res.message).toContain('Deletion queued in local outbox')
-
-    // Verify it was added to the outbox list
-    const pending = await outbox.getPendingItems()
-    expect(pending.length).toBe(1)
-    expect(pending[0].id).toBe('test-id')
-    expect(pending[0].action).toBe('delete')
+    expect(mockPgRepo.deleteOrder).toHaveBeenCalledWith('test-id', undefined, '')
+    expect(mockGasRepo.deleteOrder).toHaveBeenCalledWith('test-id', undefined, '')
   })
 })
