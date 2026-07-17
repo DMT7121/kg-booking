@@ -548,8 +548,8 @@ function openZaloChat() {
               
               <div class="flex gap-4 md:gap-8 items-center justify-center flex-wrap md:flex-nowrap">
                 <!-- QR Code -->
-                <div class="flex-shrink-0 bg-white p-3 rounded-2xl shadow-sm border border-slate-200 relative">
-                  <img :src="qrImageUrl" class="w-40 h-40 object-contain rounded-xl" alt="QR Code" loading="lazy">
+                <div class="flex-shrink-0 relative">
+                  <img :src="qrImageUrl" class="w-60 h-60 object-contain rounded-2xl shadow-md border border-slate-200" alt="QR Code" loading="lazy">
                   <div class="absolute inset-0 flex items-center justify-center pointer-events-none">
                     <div class="bg-white rounded-full p-1 shadow-md">
                       <i class="fa-solid fa-shield-check text-green-500 text-2xl"></i>

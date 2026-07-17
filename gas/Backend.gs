@@ -136,7 +136,8 @@ function doPost(e) {
       "uploadMenuImage", "uploadDishImage", "saveConfig", "saveApiKey", 
       "deleteApiKey", "saveApiKeys", "saveAiApiConfig", "saveMenuAlias", 
       "deleteMenuAlias", "logAiCorrection", "upsertSystemConfig", 
-      "upsertSystemConfigBatch", "mergeSystemConfig", "restoreSystemConfigBackup"
+      "upsertSystemConfigBatch", "mergeSystemConfig", "restoreSystemConfigBackup",
+      "updateOrderImages"
     ];
     
     const isWrite = writeActions.indexOf(action) !== -1;
@@ -194,6 +195,7 @@ function doPost(e) {
         case "testTelegram": result = testTelegramNotification(data.data); break;
         case "getOrder": result = getOrderById(data.id); break;
         case "syncBookingCalendar": result = syncBookingCalendar(data.id, data.token); break;
+        case "updateOrderImages": result = updateOrderImages(data.bookingId, data.billUrl, data.transferUrl); break;
         
         default: result = { ok: false, message: "Unknown Action" };
       }
@@ -1364,6 +1366,77 @@ function syncToCalendar(data, bookingId, billUrl, transferUrl) {
   updateBookingLocationIndex(ss, bookingId, sheetName, dateStr, tableStr, row, col, infoCol, currentHash, "ACTIVE", data, "Updated");
   logLocationHistory(ss, bookingId, "UPDATE", dateStr, dateStr, tableStr, tableStr, existing.cell_range, existing.cell_range, "SUCCESS", "Cập nhật thành công");
   return { status: "SUCCESS", message: "Cập nhật lịch thành công.", cellRange: existing.cell_range };
+}
+
+function updateOrderImages(bookingId, billUrl, transferUrl) {
+  const ss = SpreadsheetApp.openById(CONFIG.SS_ID);
+  
+  // 1. Update the row in the "Orders" sheet
+  const ordersSheet = ss.getSheetByName(CONFIG.SHEET_NAME_ORDERS);
+  if (!ordersSheet) return { ok: false, message: "Orders sheet not found" };
+  
+  const dataRange = ordersSheet.getDataRange();
+  const values = dataRange.getValues();
+  let orderRowIndex = -1;
+  for (let i = 1; i < values.length; i++) {
+    if (values[i][0] === bookingId) {
+      orderRowIndex = i + 1;
+      break;
+    }
+  }
+  
+  if (orderRowIndex === -1) {
+    return { ok: false, message: "Order not found in Orders sheet" };
+  }
+  
+  // Update columns: Column I (9th col) is Link Ảnh Cọc, Column J (10th col) is Link Phiếu Đặt
+  if (transferUrl) {
+    ordersSheet.getRange(orderRowIndex, 9).setValue(transferUrl);
+  }
+  if (billUrl) {
+    ordersSheet.getRange(orderRowIndex, 10).setValue(billUrl);
+  }
+  
+  // Update JSON data in Column E (5th col)
+  const jsonVal = ordersSheet.getRange(orderRowIndex, 5).getValue();
+  try {
+    const orderData = JSON.parse(jsonVal);
+    if (billUrl) {
+      orderData.billUrl = billUrl;
+      orderData.billImage = billUrl;
+    }
+    if (transferUrl) {
+      if (!orderData.deposit) orderData.deposit = {};
+      orderData.deposit.image = transferUrl;
+    }
+    ordersSheet.getRange(orderRowIndex, 5).setValue(JSON.stringify(orderData));
+  } catch (e) {
+    console.log("Error updating JSON in Orders: " + e.message);
+  }
+  
+  // 2. Update Calendar location cell if active
+  const calSs = SpreadsheetApp.openById(CONFIG.LINKED_CALENDAR_ID);
+  const existing = findExistingBookingLocation(calSs, bookingId);
+  if (existing && existing.location_status === "ACTIVE") {
+    const calendarSheetName = existing.calendar_sheet_name;
+    const blockStartRow = Number(existing.block_start_row);
+    const blockStartCol = Number(existing.block_start_col);
+    const infoCol = blockStartCol + 1;
+    
+    const calSheet = calSs.getSheetByName(calendarSheetName);
+    if (calSheet) {
+      if (validateLocationBelongsToBooking(calSheet, blockStartRow, blockStartCol, blockStartRow + 5, infoCol, bookingId)) {
+        const customerName = existing.customer_name || "Khách";
+        const safeName = customerName.replace(/"/g, '""');
+        if (billUrl) {
+          const cell = calSheet.getRange(blockStartRow, infoCol);
+          cell.setValue(`=HYPERLINK("${billUrl}";"${safeName}")`);
+        }
+      }
+    }
+  }
+  
+  return { ok: true, message: "Order images updated successfully" };
 }
 
 function getHistoryData() {

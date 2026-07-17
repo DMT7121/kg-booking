@@ -106,7 +106,9 @@ function _createBillRender() {
     let highResBase64 = ""
 
     try {
-      if (!isSaveOnly) {
+      // Always try to render html2canvas to upload bill image to R2/Drive,
+      // but do not crash the save action if it fails when user only requested a save.
+      try {
         if (typeof html2canvas === 'undefined') {
           await loadLibrary('https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js')
         }
@@ -195,6 +197,11 @@ function _createBillRender() {
         highResBase64 = canvas.toDataURL('image/jpeg', 0.85)
 
         if (highResBase64.length < 500) throw new Error('Render ảnh thất bại (File quá nhỏ). Vui lòng thử lại.')
+      } catch (renderErr: any) {
+        console.warn('[useBillRender] Canvas rendering failed:', renderErr.message)
+        if (!isSaveOnly) {
+          throw renderErr // Rethrow to show error toast if user explicitly triggered file export
+        }
       }
 
       // Capture all formStore state locally before releasing UI / running background sync
@@ -291,78 +298,81 @@ function _createBillRender() {
         // Fire-and-forget background task
         const runBackgroundSync = async () => {
           try {
-            let billUploadUrl = ""
-            let billUploadSource = "base64"
-            let lowResBase64 = ""
+            // Task 1: Uploading images (in parallel with saving order)
+            const uploadPromise = (async () => {
+              let billUploadUrl = ""
+              let billUploadSource = "base64"
+              let uploadedReceiptUrl = depositImage
 
-            // 1. Process bill image optimization & upload in background
-            if (!isSaveOnly && highResBase64) {
-              // Resize to 1600px width with 0.92 quality WebP to ensure maximum text sharpness and fast upload
-              lowResBase64 = await resizeImage(highResBase64, 1600, 0.92, 'image/webp')
-              
-              // Smart upload bill image
-              const billUpload = await smartUploadImage(
-                lowResBase64,
-                `${dynamicFileName}.webp`,
-                orderId
-              )
-              billUploadUrl = billUpload.url
-              billUploadSource = billUpload.source
+              // 1. Process bill image optimization & upload in background
+              if (highResBase64) {
+                try {
+                  const lowResBase64 = await resizeImage(highResBase64, 1600, 0.92, 'image/webp')
+                  const billUpload = await smartUploadImage(
+                    lowResBase64,
+                    `${dynamicFileName}.webp`,
+                    orderId
+                  )
+                  if (billUpload.ok && billUpload.url) {
+                    billUploadUrl = billUpload.url
+                    billUploadSource = billUpload.source
+                    cacheBillImage(orderId, lowResBase64)
+                  }
+                } catch (err) {
+                  console.warn('[BG Sync] Failed to process/upload bill image:', err)
+                }
+              }
 
-              // Cache bill image locally for offline preview
-              cacheBillImage(orderId, lowResBase64)
-            }
+              // 2. Process receipt upload in background (if it is base64)
+              if (depositImage && depositImage.includes('base64')) {
+                try {
+                  const receiptUpload = await smartUploadImage(
+                    depositImage,
+                    `CK_${customer.name}_${Date.now()}.jpg`,
+                    orderId
+                  )
+                  if (receiptUpload.ok && receiptUpload.url) {
+                    uploadedReceiptUrl = receiptUpload.url
+                  }
+                } catch (err) {
+                  console.warn('[BG Sync] Failed to upload receipt image:', err)
+                }
+              }
 
-            // 2. Process receipt upload in background (if it is base64)
-            let uploadedReceiptUrl = depositImage
-            if (depositImage && depositImage.includes('base64')) {
-              const receiptUpload = await smartUploadImage(
-                depositImage,
-                `CK_${customer.name}_${Date.now()}.jpg`,
-                orderId
-              )
-              uploadedReceiptUrl = receiptUpload.url
-            }
+              return { billUploadUrl, billUploadSource, uploadedReceiptUrl }
+            })()
 
-            // 3. Build payload with updated URLs
-            const metadata = {
-              customerName: customer.name,
-              customerPhone: customer.phone,
-              customerTable: customer.tables,
-              bookingDate: customer.date,
-              totalAmount: calculatedTotalsFinal,
-              itemsCount: items.length,
-              isDeposited: depositIsPaid,
-              staff: staff.name,
-              aiEngine: aiEngine,
-              timestamp: new Date().toISOString()
-            }
-
-            const payload: any = {
+            // Task 2: First-phase Save payload (fast payload without base64 images)
+            const fastPayload: any = {
               customer: customer,
               items: items,
-              deposit: { ...depositInfo, image: uploadedReceiptUrl },
+              deposit: { ...depositInfo, image: depositImage.startsWith('http') ? depositImage : '' },
               staff: staff,
               id: orderId,
               version: orderVersion,
               total: calculatedTotalsFinal,
-              billImage: billUploadSource === 'r2' ? billUploadUrl : (isSaveOnly ? '' : lowResBase64),
+              billImage: '', // Blank initially for fast save
               customFileName: dynamicFileName,
               oldBillFileId: oldBillFileId,
-              smartIndex: metadata,
+              smartIndex: {
+                customerName: customer.name,
+                customerPhone: customer.phone,
+                customerTable: customer.tables,
+                bookingDate: customer.date,
+                totalAmount: calculatedTotalsFinal,
+                itemsCount: items.length,
+                isDeposited: depositIsPaid,
+                staff: staff.name,
+                aiEngine: aiEngine,
+                timestamp: new Date().toISOString()
+              },
               renderPdf: saveType === 'pdf',
-              imageSource: billUploadSource,
+              imageSource: 'base64',
               activeMenuSheet: activeSheet
             }
 
-            // Update optimistic order with uploaded transferImage URL
-            if (uploadedReceiptUrl !== depositImage) {
-              optimisticOrder.transferImage = uploadedReceiptUrl
-              appStore.setOptimisticOrder(optimisticOrder)
-            }
-
             uiStore.connectionStatus = 'syncing'
-            const result = await appStore.saveOrder(payload)
+            const result = await appStore.saveOrder(fastPayload)
 
             if (result?.ok) {
               if (result.status === 'pending') {
@@ -407,6 +417,28 @@ function _createBillRender() {
                     ? '☁️ Đồng bộ Cloud hoàn tất!'
                     : '☁️ Đã đồng bộ ngầm thành công'
                   uiStore.showToast(syncMsg, 'success', 2000)
+                }
+              }
+
+              // Await image upload completion in background
+              const uploads = await uploadPromise
+
+              // Phase 2: Update images on GAS once uploaded
+              if (uploads.billUploadUrl || uploads.uploadedReceiptUrl !== depositImage) {
+                try {
+                  const { updateOrderImages } = await import('@/services/api')
+                  const updateRes = await updateOrderImages(
+                    orderId,
+                    uploads.billUploadUrl,
+                    uploads.uploadedReceiptUrl !== depositImage ? uploads.uploadedReceiptUrl : ''
+                  )
+                  if (updateRes?.ok) {
+                    console.log('[BG Sync] Successfully updated order images on GAS')
+                    optimisticOrder.transferImage = uploads.uploadedReceiptUrl
+                    appStore.setOptimisticOrder(optimisticOrder)
+                  }
+                } catch (updateErr) {
+                  console.warn('[BG Sync] Failed to update image links on GAS:', updateErr)
                 }
               }
 

@@ -229,4 +229,10 @@ export async function getAiCorrections(token?: string): Promise<any> {
   return postGAS({ action: 'getAiCorrections', token })
 }
 
+/** Update order images on GAS */
+export async function updateOrderImages(bookingId: string, billUrl: string, transferUrl: string): Promise<any> {
+  return fetchWithRetry({ action: 'updateOrderImages', bookingId, billUrl, transferUrl })
+}
+
+
 

@@ -513,9 +513,9 @@ onUnmounted(() => { if (timer) clearInterval(timer) })
           <div v-if="!order.isDeposited && order.depositAmount > 0 && activeBank" class="bg-blue-50 border border-blue-100 rounded-2xl p-4 mb-4">
             <h3 class="font-black text-[10px] text-blue-800 uppercase tracking-widest mb-3 text-center">QUÉT MÃ ĐỂ ĐẶT CỌC</h3>
             <div class="flex flex-col items-center gap-3">
-              <div class="bg-white p-2 rounded-xl shadow-sm border border-blue-100">
+              <div class="flex-shrink-0 relative">
                 <img :src="qrImageUrl"
-                  class="w-40 h-40 object-contain rounded-lg" alt="QR Code" loading="lazy">
+                  class="w-52 h-52 object-contain rounded-2xl shadow-md border border-slate-200" alt="QR Code" loading="lazy">
               </div>
               <div class="w-full text-center">
                 <span class="text-[9px] font-bold text-blue-600 uppercase block mb-0.5">Nội dung chuyển khoản (bắt buộc)</span>

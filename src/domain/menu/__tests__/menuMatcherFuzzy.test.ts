@@ -52,4 +52,23 @@ describe('Upgraded Menu Matcher Tests', () => {
     // "lau ca" matches both "Lẩu Cá Kèo" and "Lẩu Cá Tầm" almost equally
     expect(res.needsReview).toBe(true)
   })
+
+  it('should match cơm chiên cá mặn variations to cơm chiên cá mặn chà bông ớt hiểm (cay)', () => {
+    const customMenu = [
+      { name: 'Cơm chiên cá mặn chà bông ớt hiểm (cay)', price: 150000 },
+      { name: 'Cơm chiên hải sản', price: 160000 }
+    ]
+    const inputs = [
+      'cơm chiên cá mặn',
+      'com chien ca man',
+      'com chien ca man cha bong',
+      'com chien ca man ớt hiểm'
+    ]
+    for (const input of inputs) {
+      const res = scoreAndMatchMenu(input, null, customMenu, [])
+      expect(res.match).not.toBeNull()
+      expect(res.match.name).toBe('Cơm chiên cá mặn chà bông ớt hiểm (cay)')
+      expect(res.needsReview).toBe(false)
+    }
+  })
 })

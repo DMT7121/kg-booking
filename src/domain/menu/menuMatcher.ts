@@ -35,6 +35,7 @@ export function normalizeSynonyms(name: string): string {
     { pattern: /\bnăm(?:\s+heo)?\b/gi, replacement: 'nầm heo' },
     { pattern: /\bmực\s+sữa\b/gi, replacement: 'mực trứng' },
     { pattern: /\blẩu\s+thái\s+hải\s+sản\b/gi, replacement: 'lẩu thái hs' },
+    { pattern: /\b(cơm\s+chiên\s+cá\s+mặn|com\s+chien\s+ca\s+man)(\s+(chà\s+bông|cha\s+bong|ớt\s+hiểm|ot\s+hiem|cay))*\b/gi, replacement: 'cơm chiên cá mặn chà bông ớt hiểm (cay)' },
   ]
   let normalized = name
   for (const r of replacements) {
