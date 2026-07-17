@@ -104,103 +104,113 @@ function _createBillRender() {
     const dynamicFileName = constructFileName()
     const isSaveOnly = formStore.saveType === 'save'
     let highResBase64 = ""
+    let billClone: HTMLElement | null = null
+
+    // Clone the bill-render element synchronously before any UI/tab/state changes
+    try {
+      const originalElement = document.getElementById('bill-render')
+      if (originalElement) {
+        billClone = originalElement.cloneNode(true) as HTMLElement
+      }
+    } catch (e) {
+      console.warn('[useBillRender] Failed to clone bill-render element:', e)
+    }
 
     try {
-      // Always try to render html2canvas to upload bill image to R2/Drive,
-      // but do not crash the save action if it fails when user only requested a save.
-      try {
-        if (typeof html2canvas === 'undefined') {
-          await loadLibrary('https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js')
-        }
-        await document.fonts.ready
-
-        const currentScrollX = window.scrollX
-        const currentScrollY = window.scrollY
-        window.scrollTo(0, 0)
-
-        const originalElement = document.getElementById('bill-render')
-        if (!originalElement) throw new Error('Không tìm thấy phiếu đặt. Vui lòng thử lại.')
-
-        // ALWAYS clone bill to avoid any scroll offset, transform clipping, or hidden state issues
-        const container = document.createElement('div')
-        container.id = 'sandbox-container'
-        // FIX iOS SAFARI BUG: Do not use left:-9999px. Use opacity:0.01 instead to force WebKit rendering
-        container.style.cssText = 'position:fixed;top:0;left:0;width:800px;z-index:-9999;visibility:visible;opacity:0.01;pointer-events:none;'
-        const clone = originalElement.cloneNode(true) as HTMLElement
-        clone.id = 'bill-render' // Keep ID so all #bill-render CSS rules apply to the clone
-        clone.style.cssText = 'position:static !important;transform:none !important;margin:0;width:800px;min-height:100px;left:auto !important;top:auto !important;'
-        
-        const originalId = originalElement.id
-        originalElement.id = 'bill-render-original' // Temporarily rename original to avoid ID collision
-
-        container.appendChild(clone)
-        document.body.appendChild(container)
-        const elementToRender = clone
-        
-        // Wait for fonts, images, and layout to settle
-        await new Promise(r => setTimeout(r, isIOS ? 150 : 50))
-
-        // Inline all images to avoid CORS/taint issues which crash the render on PC
+      // ONLY run synchronous rendering if it is NOT a save-only operation (i.e. user wants to export PDF, Image, Print, or Copy)
+      if (!isSaveOnly) {
         try {
-          const imgs = Array.from(elementToRender.querySelectorAll('img'))
-          await Promise.all(imgs.map(async (img) => {
-            if (!img.src || img.src.startsWith('data:')) return
-            try {
-              let fetchUrl = img.src
-              // Use our Cloudflare worker as a proxy, or fall back to wsrv.nl
-              if (img.src.startsWith('http') && !img.src.includes(window.location.host)) {
-                const r2Url = import.meta.env.VITE_R2_URL || ''
-                if (r2Url) {
-                  fetchUrl = `${r2Url}/proxy?url=${encodeURIComponent(img.src)}`
-                } else {
-                  fetchUrl = `https://wsrv.nl/?url=${encodeURIComponent(img.src)}`
+          if (typeof html2canvas === 'undefined') {
+            await loadLibrary('https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js')
+          }
+          await document.fonts.ready
+
+          const currentScrollX = window.scrollX
+          const currentScrollY = window.scrollY
+          window.scrollTo(0, 0)
+
+          const originalElement = document.getElementById('bill-render')
+          if (!originalElement) throw new Error('Không tìm thấy phiếu đặt. Vui lòng thử lại.')
+
+          // ALWAYS clone bill to avoid any scroll offset, transform clipping, or hidden state issues
+          const container = document.createElement('div')
+          container.id = 'sandbox-container'
+          // FIX iOS SAFARI BUG: Do not use left:-9999px. Use opacity:0.01 instead to force WebKit rendering
+          container.style.cssText = 'position:fixed;top:0;left:0;width:800px;z-index:-9999;visibility:visible;opacity:0.01;pointer-events:none;'
+          const clone = billClone ? (billClone.cloneNode(true) as HTMLElement) : (originalElement.cloneNode(true) as HTMLElement)
+          clone.id = 'bill-render' // Keep ID so all #bill-render CSS rules apply to the clone
+          clone.style.cssText = 'position:static !important;transform:none !important;margin:0;width:800px;min-height:100px;left:auto !important;top:auto !important;'
+          
+          const originalId = originalElement.id
+          originalElement.id = 'bill-render-original' // Temporarily rename original to avoid ID collision
+
+          container.appendChild(clone)
+          document.body.appendChild(container)
+          const elementToRender = clone
+          
+          // Wait for fonts, images, and layout to settle
+          await new Promise(r => setTimeout(r, isIOS ? 150 : 50))
+
+          // Inline all images to avoid CORS/taint issues which crash the render on PC
+          try {
+            const imgs = Array.from(elementToRender.querySelectorAll('img'))
+            await Promise.all(imgs.map(async (img) => {
+              if (!img.src || img.src.startsWith('data:')) return
+              try {
+                let fetchUrl = img.src
+                // Use our Cloudflare worker as a proxy, or fall back to wsrv.nl
+                if (img.src.startsWith('http') && !img.src.includes(window.location.host)) {
+                  const r2Url = import.meta.env.VITE_R2_URL || ''
+                  if (r2Url) {
+                    fetchUrl = `${r2Url}/proxy?url=${encodeURIComponent(img.src)}`
+                  } else {
+                    fetchUrl = `https://wsrv.nl/?url=${encodeURIComponent(img.src)}`
+                  }
                 }
+                const r = await fetch(fetchUrl)
+                const blob = await r.blob()
+                const base64 = await new Promise<string>((res) => {
+                  const reader = new FileReader()
+                  reader.onloadend = () => res(reader.result as string)
+                  reader.readAsDataURL(blob)
+                })
+                img.src = base64
+              } catch (e) {
+                console.warn('[useBillRender] Failed to inline image:', img.src, e)
+                img.style.display = 'none'
               }
-              const r = await fetch(fetchUrl)
-              const blob = await r.blob()
-              const base64 = await new Promise<string>((res) => {
-                const reader = new FileReader()
-                reader.onloadend = () => res(reader.result as string)
-                reader.readAsDataURL(blob)
-              })
-              img.src = base64
-            } catch (e) {
-              console.warn('[useBillRender] Failed to inline image:', img.src, e)
-              img.style.display = 'none'
-            }
-          }))
-        } catch (e) {}
+            }))
+          } catch (e) {}
 
-        let canvas: HTMLCanvasElement | null = null
+          let canvas: HTMLCanvasElement | null = null
 
-        // Wait for rendering pipeline
-        await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)))
+          // Wait for rendering pipeline
+          await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)))
 
-        // Render fixed high-quality scale directly (siêu nhanh)
-        try {
-          canvas = await html2canvas(elementToRender, {
-            scale: 2, useCORS: true, logging: false,
-            backgroundColor: '#ffffff', width: 800, windowWidth: 800,
-            ignoreElements: (el: Element) => el.classList.contains('no-print') || (el as HTMLElement).style?.display === 'none'
-          })
-        } catch (e) {
-          console.error('H2C Error', e)
-          canvas = null
-        }
+          // Render fixed high-quality scale directly (siêu nhanh)
+          try {
+            canvas = await html2canvas(elementToRender, {
+              scale: 2, useCORS: true, logging: false,
+              backgroundColor: '#ffffff', width: 800, windowWidth: 800,
+              ignoreElements: (el: Element) => el.classList.contains('no-print') || (el as HTMLElement).style?.display === 'none'
+            })
+          } catch (e) {
+            console.error('H2C Error', e)
+            canvas = null
+          }
 
-        if (container) document.body.removeChild(container)
-        originalElement.id = originalId // restore original ID
-        window.scrollTo(currentScrollX, currentScrollY)
+          if (container) document.body.removeChild(container)
+          originalElement.id = originalId // restore original ID
+          window.scrollTo(currentScrollX, currentScrollY)
 
-        if (!canvas) throw new Error('Render ảnh thất bại. Vui lòng chuyển sang tab Bill rồi thử lại.')
+          if (!canvas) throw new Error('Render ảnh thất bại. Vui lòng chuyển sang tab Bill rồi thử lại.')
 
-        highResBase64 = canvas.toDataURL('image/jpeg', 0.85)
+          highResBase64 = canvas.toDataURL('image/jpeg', 0.85)
 
-        if (highResBase64.length < 500) throw new Error('Render ảnh thất bại (File quá nhỏ). Vui lòng thử lại.')
-      } catch (renderErr: any) {
-        console.warn('[useBillRender] Canvas rendering failed:', renderErr.message)
-        if (!isSaveOnly) {
-          throw renderErr // Rethrow to show error toast if user explicitly triggered file export
+          if (highResBase64.length < 500) throw new Error('Render ảnh thất bại (File quá nhỏ). Vui lòng thử lại.')
+        } catch (renderErr: any) {
+          console.warn('[useBillRender] Canvas rendering failed:', renderErr.message)
+          throw renderErr
         }
       }
 
@@ -247,7 +257,7 @@ function _createBillRender() {
         uiStore.loading.is = false
         setTimeout(() => { window.print() }, 300)
       } else if (saveType === 'save') {
-        // For "save only", show brief loading then release immediately (Optimistic UI)
+        // For "save only", release UI immediately (Optimistic UI - 0ms delay!)
         uiStore.loading.is = false
         uiStore.tab = 'history'
         uiStore.showToast('💾 Đang lưu ngầm lên Google Sheets...', 'info', 3000)
@@ -304,10 +314,81 @@ function _createBillRender() {
               let billUploadSource = "base64"
               let uploadedReceiptUrl = depositImage
 
-              // 1. Process bill image optimization & upload in background
-              if (highResBase64) {
+              let currentHighRes = highResBase64
+
+              // If it's a save-only operation, render the canvas fully in the background
+              if (!currentHighRes && billClone) {
                 try {
-                  const lowResBase64 = await resizeImage(highResBase64, 1600, 0.92, 'image/webp')
+                  if (typeof html2canvas === 'undefined') {
+                    await loadLibrary('https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js')
+                  }
+                  await document.fonts.ready
+
+                  // Append clone to body sandbox container
+                  const container = document.createElement('div')
+                  container.id = 'sandbox-container-bg'
+                  container.style.cssText = 'position:fixed;top:0;left:0;width:800px;z-index:-9999;visibility:visible;opacity:0.01;pointer-events:none;'
+                  
+                  const clone = billClone.cloneNode(true) as HTMLElement
+                  clone.id = 'bill-render'
+                  clone.style.cssText = 'position:static !important;transform:none !important;margin:0;width:800px;min-height:100px;left:auto !important;top:auto !important;'
+                  
+                  container.appendChild(clone)
+                  document.body.appendChild(container)
+
+                  // Wait for fonts and inline images
+                  await new Promise(r => setTimeout(r, 100))
+
+                  // Inline images inside the clone
+                  try {
+                    const imgs = Array.from(clone.querySelectorAll('img'))
+                    await Promise.all(imgs.map(async (img) => {
+                      if (!img.src || img.src.startsWith('data:')) return
+                      try {
+                        let fetchUrl = img.src
+                        if (img.src.startsWith('http') && !img.src.includes(window.location.host)) {
+                          const r2Url = import.meta.env.VITE_R2_URL || ''
+                          if (r2Url) {
+                            fetchUrl = `${r2Url}/proxy?url=${encodeURIComponent(img.src)}`
+                          } else {
+                            fetchUrl = `https://wsrv.nl/?url=${encodeURIComponent(img.src)}`
+                          }
+                        }
+                        const r = await fetch(fetchUrl)
+                        const blob = await r.blob()
+                        const base64 = await new Promise<string>((res) => {
+                          const reader = new FileReader()
+                          reader.onloadend = () => res(reader.result as string)
+                          reader.readAsDataURL(blob)
+                        })
+                        img.src = base64
+                      } catch (e) {
+                        img.style.display = 'none'
+                      }
+                    }))
+                  } catch (e) {}
+
+                  // Render fixed scale 2
+                  const canvas = await html2canvas(clone, {
+                    scale: 2, useCORS: true, logging: false,
+                    backgroundColor: '#ffffff', width: 800, windowWidth: 800,
+                    ignoreElements: (el: Element) => el.classList.contains('no-print') || (el as HTMLElement).style?.display === 'none'
+                  })
+
+                  if (container) document.body.removeChild(container)
+
+                  if (canvas) {
+                    currentHighRes = canvas.toDataURL('image/jpeg', 0.85)
+                  }
+                } catch (err: any) {
+                  console.warn('[BG Sync] Failed to render html2canvas in background:', err.message)
+                }
+              }
+
+              // 1. Process bill image optimization & upload in background
+              if (currentHighRes) {
+                try {
+                  const lowResBase64 = await resizeImage(currentHighRes, 1600, 0.92, 'image/webp')
                   const billUpload = await smartUploadImage(
                     lowResBase64,
                     `${dynamicFileName}.webp`,
