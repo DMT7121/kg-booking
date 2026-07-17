@@ -1369,6 +1369,20 @@ function syncToCalendar(data, bookingId, billUrl, transferUrl) {
 }
 
 function updateOrderImages(bookingId, billUrl, transferUrl) {
+  // Support base64 fallback to Drive upload if R2 is not configured
+  if (transferUrl && transferUrl.indexOf("base64") !== -1) {
+    const driveUpload = uploadImageToDrive(transferUrl, "Receipt_" + bookingId + "_" + Date.now() + ".jpg");
+    if (driveUpload && driveUpload.url) {
+      transferUrl = driveUpload.url;
+    }
+  }
+  if (billUrl && billUrl.indexOf("base64") !== -1) {
+    const driveUpload = uploadImageToDrive(billUrl, "Bill_" + bookingId + "_" + Date.now() + ".jpg");
+    if (driveUpload && driveUpload.url) {
+      billUrl = driveUpload.url;
+    }
+  }
+
   const ss = SpreadsheetApp.openById(CONFIG.SS_ID);
   
   // 1. Update the row in the "Orders" sheet

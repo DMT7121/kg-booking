@@ -313,7 +313,7 @@ function _createBillRender() {
                     `${dynamicFileName}.webp`,
                     orderId
                   )
-                  if (billUpload.ok && billUpload.url) {
+                  if (billUpload.url) {
                     billUploadUrl = billUpload.url
                     billUploadSource = billUpload.source
                     cacheBillImage(orderId, lowResBase64)
@@ -331,7 +331,7 @@ function _createBillRender() {
                     `CK_${customer.name}_${Date.now()}.jpg`,
                     orderId
                   )
-                  if (receiptUpload.ok && receiptUpload.url) {
+                  if (receiptUpload.url) {
                     uploadedReceiptUrl = receiptUpload.url
                   }
                 } catch (err) {
