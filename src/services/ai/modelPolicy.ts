@@ -26,17 +26,20 @@ export function getModelPolicy(model: AIModel): ModelPolicy {
   let maxOutputTokens = 800
   let temperature = 0.1
 
-  // Set Tiers
-  if (provider === 'groq' || provider === 'cerebras') {
-    tier = 'TIER_0_FAST'
-    defaultTimeoutMs = 6000
-    // Cerebras doesn't officially enforce custom JSON schemas via parameters sometimes, but supports standard JSON mode
-    if (provider === 'groq' && (modelId.includes('3.3') || modelId.includes('3.1'))) {
+  // Set Tiers - Check Vision models first so Vision OCR timeouts apply correctly regardless of provider
+  if (model.type === 'vision') {
+    tier = 'TIER_3_OCR'
+    defaultTimeoutMs = (modelId.includes('90b') || modelId.includes('pro') || modelId.includes('large') || modelId.includes('72b')) ? 25000 : 15000
+    maxOutputTokens = 1500
+    if (provider === 'groq' || provider === 'google') {
       supportsJsonSchema = true
     }
-  } else if (model.type === 'vision') {
-    tier = 'TIER_3_OCR'
-    defaultTimeoutMs = 15000
+  } else if (provider === 'groq' || provider === 'cerebras') {
+    tier = 'TIER_0_FAST'
+    defaultTimeoutMs = 6000
+    if (provider === 'groq' && (modelId.includes('3.3') || modelId.includes('3.1') || modelId.includes('3.2'))) {
+      supportsJsonSchema = true
+    }
   } else if (modelId.includes('pro') || modelId.includes('large')) {
     tier = 'TIER_2_QUALITY'
     defaultTimeoutMs = 12000
@@ -44,13 +47,13 @@ export function getModelPolicy(model: AIModel): ModelPolicy {
 
   // Adjust specific properties
   if (provider === 'pollinations' || provider === 'huggingface') {
-    supportsJsonMode = false // Don't use structured output params, use prompt instructions instead
+    supportsJsonMode = false
     defaultTimeoutMs = 8000
   }
 
   if (provider === 'google') {
-    supportsJsonSchema = true // Gemini supports responseSchema
-    defaultTimeoutMs = 10000
+    supportsJsonSchema = true
+    if (model.type !== 'vision') defaultTimeoutMs = 12000
   }
 
   return {

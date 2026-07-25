@@ -79,8 +79,31 @@ export class DualWriteOrderRepository implements OrderRepository {
     if (!pgRes.ok) {
       return pgRes
     }
-    const gasRes = await this.gas.saveOrder(data)
-    return gasRes
+
+    try {
+      const gasRes = await this.gas.saveOrder(data)
+      if (gasRes && gasRes.ok) {
+        return gasRes
+      }
+      const errMsg = gasRes?.message || 'GAS write failed'
+      console.warn(`[DualWrite] Postgres succeeded, but GAS write failed (${errMsg}). Queueing to Outbox for async sync...`)
+      await outbox.addToOutbox(orderId, 'upsert', data)
+      triggerOutboxSync()
+      return { 
+        ok: true, 
+        syncStatus: 'deferred_to_outbox', 
+        message: 'Lưu CSDL thành công. Đơn hàng sẽ tự động đồng bộ ngầm sang Google Sheets.' 
+      }
+    } catch (gasErr: any) {
+      console.warn('[DualWrite] GAS exception, queueing to Outbox:', gasErr.message)
+      await outbox.addToOutbox(orderId, 'upsert', data)
+      triggerOutboxSync()
+      return { 
+        ok: true, 
+        syncStatus: 'deferred_to_outbox', 
+        message: 'Lưu CSDL thành công. Đơn hàng sẽ tự động đồng bộ ngầm sang Google Sheets.' 
+      }
+    }
   }
 
   async saveOrdersBatch(payloads: any[]): Promise<any> {
@@ -135,8 +158,22 @@ export class DualWriteOrderRepository implements OrderRepository {
     if (!pgRes.ok) {
       return pgRes
     }
-    const gasRes = await this.gas.deleteOrder(id, password, resolvedToken)
-    return gasRes
+
+    try {
+      const gasRes = await this.gas.deleteOrder(id, password, resolvedToken)
+      if (gasRes && gasRes.ok) {
+        return gasRes
+      }
+      console.warn(`[DualWrite] Postgres delete succeeded, but GAS delete failed. Queueing delete to Outbox...`)
+      await outbox.addToOutbox(id, 'delete', { id })
+      triggerOutboxSync()
+      return { ok: true, syncStatus: 'deferred_to_outbox', message: 'Đã xóa CSDL. Lệnh xóa Google Sheets sẽ được đồng bộ ngầm.' }
+    } catch (gasErr: any) {
+      console.warn('[DualWrite] GAS delete exception, queueing to Outbox:', gasErr.message)
+      await outbox.addToOutbox(id, 'delete', { id })
+      triggerOutboxSync()
+      return { ok: true, syncStatus: 'deferred_to_outbox', message: 'Đã xóa CSDL. Lệnh xóa Google Sheets sẽ được đồng bộ ngầm.' }
+    }
   }
 
   async syncBookingCalendar(id: string, token?: string): Promise<any> {

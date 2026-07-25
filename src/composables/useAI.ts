@@ -38,6 +38,7 @@ import type { HardEntities } from '@/domain/ai/ruleEngine'
 import { classifyAIInput } from '@/domain/ai/inputClassifier'
 import { evaluateBookingBypass } from '@/domain/booking/bookingCompletenessGate'
 import { analyzeBookingLocally } from '@/services/ai/localFirstBookingAnalyzer'
+import { preprocessOcrImage } from '@/services/ai/visionProcessor'
 import { buildDynamicPrompt } from '@/domain/ai/promptBuilder'
 import type { PromptProfile } from '@/domain/ai/promptBuilder'
 import { retrieveMenuCandidates } from '@/domain/menu/menuCandidateRetriever'
@@ -557,13 +558,32 @@ export function useAI() {
 
       ruleBasedResult = extractByRules(promptText)
       hardEntities = extractHardEntities(promptText)
+      const localAnalysis = analyzeBookingLocally(promptText)
+
+      // ⚡ Instant Optimistic UI Pre-fill (0ms perceived latency for customer fields)
+      if (type === 'text' && (localAnalysis.customerName.value || localAnalysis.phone.value || localAnalysis.bookingDate.value)) {
+        const optimisticResult = {
+          customer: {
+            name: localAnalysis.customerName.value || ruleBasedResult.customer_name || '',
+            phone: localAnalysis.phone.value || ruleBasedResult.phone || ''
+          },
+          booking: {
+            event_date: localAnalysis.bookingDate.value || ruleBasedResult.event_date || '',
+            event_time: localAnalysis.bookingTime.value || ruleBasedResult.event_time || '',
+            guest_count: localAnalysis.guestCount.value || ruleBasedResult.guest_count || null,
+            table_number: ruleBasedResult.table_code || '',
+            need: localAnalysis.partyType.value || ruleBasedResult.booking_need || 'Ăn thường'
+          }
+        }
+        fillBookingFormSafely(optimisticResult, { mode: 'customer' })
+        logStore.addLog(`[Optimistic UI] Đã nhận diện nhanh thông tin khách hàng từ Rule Engine (0ms perceived latency)...`, 'info')
+      }
 
       let finalParsedResult: any = null
       let routingInfo: any = null
       let isBypassed = false
 
       if (type === 'text' && flags.enableLocalFirstBypass && classification.shouldTryLocalFirst) {
-        const localAnalysis = analyzeBookingLocally(promptText)
         const bypass = evaluateBookingBypass(
           localAnalysis,
           hasImage,
@@ -645,23 +665,6 @@ export function useAI() {
 
       if (!finalParsedResult) {
         logStore.addLog(`Bắt đầu chạy pipeline gọi AI...`)
-        
-        logStore.addLog(`[Optimistic UI] Tự động điền nhanh các thông tin cơ bản trích xuất được từ Rule Engine...`)
-        const optimisticResult = {
-          customer: {
-            name: ruleBasedResult.customer_name || '',
-            phone: ruleBasedResult.phone || ''
-          },
-          booking: {
-            event_date: ruleBasedResult.event_date || '',
-            event_time: ruleBasedResult.event_time || '',
-            guest_count: ruleBasedResult.guest_count || null,
-            table_number: ruleBasedResult.table_code || '',
-            need: ruleBasedResult.booking_need || 'Ăn thường'
-          }
-        }
-        fillBookingFormSafely(optimisticResult, { mode: 'customer' })
-        uiStore.showToast('⚡ Đã nhận diện nhanh thông tin khách hàng...', 'info')
 
         const corrections = appStore.aiCorrections || []
         const appliedCorrections: Record<string, string> = {}
@@ -730,10 +733,11 @@ export function useAI() {
           conversationContext: '',
           currentDateTime: currentDateTimeStr,
           locale: 'vi-VN',
-          aiCorrections: appStore.aiCorrections
+          aiCorrections: appStore.aiCorrections,
+          menuAliases: appStore.menuAliases
         })
 
-        const optimizedImg = formStore.aiImage ? await resizeImage(formStore.aiImage, 1120) : null
+        const optimizedImg = formStore.aiImage ? await preprocessOcrImage(formStore.aiImage, { maxDimension: 1280, enhanceContrast: true }) : null
         
         let routerResponse: any = null
         try {

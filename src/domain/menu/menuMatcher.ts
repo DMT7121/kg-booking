@@ -2,6 +2,19 @@ import { stripAccents, formatSetNote } from '@/utils'
 import { SETS } from '@/utils/constants'
 import { parseDishItems } from '@/domain/ai/ruleEngine'
 
+export const COOKING_METHODS = [
+  'nuong', 'xao', 'lau', 'hap', 'chien', 'sot', 'ne', 'rang', 'luoc', 'kho', 'tai', 'nom', 'goi', 'nau', 'rang me', 'sapo', 'sa te'
+]
+
+export const MAIN_INGREDIENTS = [
+  'bo', 'ga', 'ech', 'muc', 'tom', 'ca', 'heo', 'nam', 'vit', 'de', 'ghe', 'cua', 'oc', 'bach hoa', 'suon', 'chim', 'so', 'hau'
+]
+
+function hasWordToken(text: string, keyword: string): boolean {
+  const regex = new RegExp(`\\b${keyword}\\b`, 'i')
+  return regex.test(text)
+}
+
 export function extractPortionSize(rawName: string): number | null {
   const clean = stripAccents(rawName).toLowerCase()
   const match = clean.match(/\b(5|10)\s*(?:con|c)\b/i)
@@ -18,12 +31,9 @@ export function getMenuPortionSize(menuName: string): number | null {
 
 export function getBaseDishName(name: string): string {
   let clean = stripAccents(name).toLowerCase().trim()
-  // Remove "5 con", "10 con", "5con", "10con"
   clean = clean.replace(/\b(5|10)\s*con\b/gi, '')
   clean = clean.replace(/\b(5|10)con\b/gi, '')
-  // Remove "nho", "lon"
   clean = clean.replace(/\b(nho|lon)\b/gi, '')
-  // Trim extra spaces
   return clean.replace(/\s+/g, ' ').trim()
 }
 
@@ -35,6 +45,7 @@ export function normalizeSynonyms(name: string): string {
     { pattern: /\bnăm(?:\s+heo)?\b/gi, replacement: 'nầm heo' },
     { pattern: /\bmực\s+sữa\b/gi, replacement: 'mực trứng' },
     { pattern: /\blẩu\s+thái\s+hải\s+sản\b/gi, replacement: 'lẩu thái hs' },
+    { pattern: /\btrứng\s+bách\s+thảo\b/gi, replacement: 'trứng bắc thảo' },
     { pattern: /\b(cơm\s+chiên\s+cá\s+mặn|com\s+chien\s+ca\s+man)(\s+(chà\s+bông|cha\s+bong|ớt\s+hiểm|ot\s+hiem|cay))*\b/gi, replacement: 'cơm chiên cá mặn chà bông ớt hiểm (cay)' },
   ]
   let normalized = name
@@ -196,14 +207,14 @@ export function scoreAndMatchMenu(
     // 2. Alias match
     const aliasMatch = menuAliases.find((a: any) => stripAccents(a.alias).toLowerCase().trim() === clean)
     if (aliasMatch && aliasMatch.dishName === m.name) {
-      score = Math.max(score, 0.95)
+      score = Math.max(score, 0.98)
       reasons.push('alias_match')
     }
     
     // 3. Synonym matching
     const dynamicSynonymMatch = menuAliases.find((a: any) => a.dishName === m.name && stripAccents(a.alias).toLowerCase().trim() === clean)
     if (dynamicSynonymMatch) {
-      score = Math.max(score, 0.90)
+      score = Math.max(score, 0.95)
       reasons.push('synonym_match')
     }
     
@@ -245,6 +256,32 @@ export function scoreAndMatchMenu(
       score += 0.10
       reasons.push('category_boost')
     }
+
+    // 7.5 Dish Attribute & Method Conflict Penalty
+    // Uses word boundary matching so partial words like "sot" don't falsely match "so"
+    if (score < 1.0 && !reasons.includes('alias_match') && !reasons.includes('synonym_match')) {
+      const inputMethods = COOKING_METHODS.filter(method => hasWordToken(clean, method))
+      const menuMethods = COOKING_METHODS.filter(method => hasWordToken(mClean, method))
+      
+      if (inputMethods.length > 0 && menuMethods.length > 0) {
+        const hasMethodOverlap = inputMethods.some(im => menuMethods.includes(im))
+        if (!hasMethodOverlap) {
+          score -= 0.45
+          risks.push('cooking_method_conflict')
+        }
+      }
+
+      const inputIngredients = MAIN_INGREDIENTS.filter(ing => hasWordToken(clean, ing))
+      const menuIngredients = MAIN_INGREDIENTS.filter(ing => hasWordToken(mClean, ing))
+      
+      if (inputIngredients.length > 0 && menuIngredients.length > 0) {
+        const hasIngredientOverlap = inputIngredients.some(ii => menuIngredients.includes(ii))
+        if (!hasIngredientOverlap) {
+          score -= 0.50
+          risks.push('ingredient_conflict')
+        }
+      }
+    }
     
     // 8. Unavailable/disabled penalty
     if (m.status === 'unavailable' || m.available === false) {
@@ -269,19 +306,19 @@ export function scoreAndMatchMenu(
     
     if (candidates.length > 1) {
       const runnerUp = candidates[1]
-      if (best.score - runnerUp.score < 0.08) {
+      if (best.score - runnerUp.score < 0.12) {
         needsReview = true
       }
     }
-    if (best.score < 0.78) {
+    if (best.score < 0.82) {
       needsReview = true
     }
 
     let matchType: 'exact' | 'alias' | 'acronym' | 'fuzzy' | 'none' = 'fuzzy'
-    if (best.score >= 0.95) {
-      matchType = 'exact'
-    } else if (best.reasons.includes('alias_match') || best.reasons.includes('synonym_match')) {
+    if (best.reasons.includes('alias_match') || best.reasons.includes('synonym_match')) {
       matchType = 'alias'
+    } else if (best.reasons.includes('exact_match') || best.score >= 0.98) {
+      matchType = 'exact'
     }
 
     return {
@@ -360,11 +397,6 @@ export function matchMenuItems(
     }
   }
 
-  const attributes = ['trung muoi', 'tieu', 'pho mai', 'mo hanh', 'cay', 'lau', 'nuong', 'xao', 'hap']
-  const SETS: Record<string, string> = {
-    'SUM VAY 1': 'Set sum vầy [1]'
-  }
-
   return expandedItems.map((item) => {
     let rawName = (item.raw_name || item.name || '').trim()
     const qtyMatch = rawName.match(/(?:[x\*])\s*(\d+)\s*$/i)
@@ -396,7 +428,7 @@ export function matchMenuItems(
       
       if (logCallback) {
         const reviewText = needsReview ? ' (Cần duyệt lại)' : ''
-        logCallback(`[Khớp món] "${rawName}" -> "${match.name}" (Độ tin cậy: ${Math.round(confidence * 100)}%${reviewText})`, confidence < 0.75 ? 'warning' : 'success')
+        logCallback(`[Khớp món] "${rawName}" -> "${match.name}" (Độ tin cậy: ${Math.round(confidence * 100)}%${reviewText})`, confidence < 0.82 ? 'warning' : 'success')
       }
 
       return {
@@ -415,7 +447,7 @@ export function matchMenuItems(
         needs_review: needsReview,
         matchType,
         match_type: matchType,
-        warning: confidence < 0.75 ? 'dish_fuzzy_match_low_confidence' : undefined
+        warning: confidence < 0.82 ? 'dish_fuzzy_match_low_confidence' : undefined
       }
     } else {
       if (logCallback) logCallback(`[Khớp món] Không tìm thấy món khớp cho "${rawName}"`, 'error')

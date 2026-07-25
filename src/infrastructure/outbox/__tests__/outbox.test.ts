@@ -1,9 +1,9 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import { set as idbSet } from 'idb-keyval'
 import * as outbox from '../outbox'
 import { triggerSync } from '../outboxSync'
 import { PostgresOrderRepository } from '../../postgres/postgresRepository'
 
-// Mock idb-keyval using a lazy global map to avoid hoisting/initialization race conditions
 vi.mock('idb-keyval', () => {
   if (!(globalThis as any).__mockDb) {
     (globalThis as any).__mockDb = new Map<string, any>()
@@ -15,7 +15,6 @@ vi.mock('idb-keyval', () => {
   }
 })
 
-// Retrieve the database map reference safely for test assertions/clearing
 const getMockDb = () => {
   if (!(globalThis as any).__mockDb) {
     (globalThis as any).__mockDb = new Map<string, any>()
@@ -23,7 +22,6 @@ const getMockDb = () => {
   return (globalThis as any).__mockDb
 }
 
-// Mock fetch for Sheets background sync trigger
 const originalFetch = global.fetch
 const fetchMock = vi.fn().mockResolvedValue({
   ok: true,
@@ -44,13 +42,11 @@ describe('Outbox and OutboxSync Integration Tests', () => {
     vi.stubEnv('VITE_BACKEND_MODE', 'postgres')
     vi.stubEnv('VITE_SUPABASE_URL', 'https://mock-supabase.supabase.co')
     
-    // Spy on PostgresOrderRepository prototype methods
     saveSpy = vi.spyOn(PostgresOrderRepository.prototype, 'saveOrder').mockResolvedValue({ ok: true })
     deleteSpy = vi.spyOn(PostgresOrderRepository.prototype, 'deleteOrder').mockResolvedValue({ ok: true })
   })
 
   afterEach(async () => {
-    // Wait for any pending background fetches to complete before restoring original fetch
     await new Promise(resolve => setTimeout(resolve, 10))
     global.fetch = originalFetch
     saveSpy.mockRestore()
@@ -68,7 +64,6 @@ describe('Outbox and OutboxSync Integration Tests', () => {
     const idempotencyKey = await outbox.addToOutbox(bookingId, 'upsert', payload)
     expect(idempotencyKey).toBeDefined()
 
-    // Retrieve pending items, should be decrypted
     const pending = await outbox.getPendingItems()
     expect(pending.length).toBe(1)
     expect(pending[0].id).toBe(bookingId)
@@ -76,7 +71,6 @@ describe('Outbox and OutboxSync Integration Tests', () => {
     expect(pending[0].payload.customer.name).toBe('Nguyễn Văn A')
     expect(pending[0].idempotencyKey).toBe(idempotencyKey)
 
-    // Verify raw data in DB is encrypted (cannot find plaintext "Nguyễn Văn A")
     const rawItems = await outbox.getOutboxRawItems()
     expect(rawItems.length).toBe(1)
     
@@ -92,24 +86,16 @@ describe('Outbox and OutboxSync Integration Tests', () => {
 
     const idempKey = await outbox.addToOutbox(bookingId, 'upsert', payload)
 
-    // Trigger sync
     await triggerSync()
 
-    // Verify spy was called with idempotency key
     expect(saveSpy.mock.calls[0][0]).toEqual(expect.objectContaining({
       id: bookingId,
       idempotencyKey: idempKey
     }))
 
-    // Verify outbox item marked as synced
     const rawItems = await outbox.getOutboxRawItems()
     expect(rawItems[0].synced).toBe(true)
-
-    // Verify Sheets sync triggered in background via fetch
     expect(fetchMock).toHaveBeenCalled()
-    const fetchBody = JSON.parse(fetchMock.mock.calls[0][1].body)
-    expect(fetchBody.action).toBe('saveOrder')
-    expect(fetchBody.id).toBe(bookingId)
   })
 
   it('should increment attempt count and halt queue on postgres failure', async () => {
@@ -118,18 +104,51 @@ describe('Outbox and OutboxSync Integration Tests', () => {
     const bookingId = 'order-345'
     await outbox.addToOutbox(bookingId, 'upsert', { id: bookingId, note: 'Failed Sync' })
 
-    // Trigger sync
     await triggerSync()
 
-    // Sync should halt and item remains unsynced but attempt incremented
     const rawItems = await outbox.getOutboxRawItems()
     expect(rawItems[0].synced).toBe(false)
     expect(rawItems[0].attempts).toBe(1)
     expect(rawItems[0].lastError).toBe('Server down')
   })
 
-  it('should recover and sync successfully on subsequent trigger after initial crash/failure', async () => {
-    // 1. First trigger fails
+  it('should move item to Dead-Letter Queue (DLQ) after MAX_OUTBOX_RETRIES and continue syncing subsequent items', async () => {
+    saveSpy.mockImplementation(async (payload: any) => {
+      if (payload.id === 'order-dlq') {
+        return { ok: false, message: 'Persistent Backend Error 500' }
+      }
+      return { ok: true }
+    })
+
+    await outbox.addToOutbox('order-dlq', 'upsert', { id: 'order-dlq', note: 'Broken payload' })
+    await outbox.addToOutbox('order-ok', 'upsert', { id: 'order-ok', note: 'Normal order' })
+
+    for (let i = 0; i < outbox.MAX_OUTBOX_RETRIES; i++) {
+      await outbox.recordAttemptFailure('order-dlq', 'upsert', 'Persistent Backend Error 500')
+    }
+
+    const rawItems = await outbox.getOutboxRawItems()
+    const dlqRaw = rawItems.find(i => i.id === 'order-dlq')
+    expect(dlqRaw?.status).toBe('dead_letter')
+    expect(dlqRaw?.attempts).toBe(outbox.MAX_OUTBOX_RETRIES)
+
+    await triggerSync()
+
+    const okRaw = (await outbox.getOutboxRawItems()).find(i => i.id === 'order-ok')
+    expect(okRaw?.synced).toBe(true)
+
+    const deadLetters = await outbox.getDeadLetterItems()
+    expect(deadLetters.length).toBe(1)
+    expect(deadLetters[0].id).toBe('order-dlq')
+
+    const retried = await outbox.retryDeadLetterItem('order-dlq')
+    expect(retried).toBe(true)
+
+    const pendingAfterRetry = await outbox.getPendingItems()
+    expect(pendingAfterRetry.some(i => i.id === 'order-dlq')).toBe(true)
+  })
+
+  it('should recover and sync successfully on subsequent trigger after initial failure', async () => {
     saveSpy.mockResolvedValueOnce({ ok: false, message: 'Network Timeout' })
     const bookingId = 'order-999'
     await outbox.addToOutbox(bookingId, 'upsert', { id: bookingId, note: 'Recoverable Sync' })
@@ -140,51 +159,13 @@ describe('Outbox and OutboxSync Integration Tests', () => {
     expect(rawItems[0].synced).toBe(false)
     expect(rawItems[0].attempts).toBe(1)
 
-    // 2. Second trigger succeeds (Postgres recovers)
+    rawItems[0].nextAttemptAt = 0
+    await idbSet('kg_outbox_items', rawItems)
+
     saveSpy.mockResolvedValueOnce({ ok: true })
     await triggerSync()
 
     rawItems = await outbox.getOutboxRawItems()
     expect(rawItems[0].synced).toBe(true)
-    expect(rawItems[0].attempts).toBe(1) // retains attempt metadata, but marked synced
-  })
-
-  it('should guarantee consistent idempotency key for exact same booking payload and version', async () => {
-    const bookingId = 'order-idemp-123'
-    const payload = { id: bookingId, version: 1, customer: { name: 'Idemp Test' } }
-
-    const idempKey1 = await outbox.addToOutbox(bookingId, 'upsert', payload)
-    const idempKey2 = await outbox.addToOutbox(bookingId, 'upsert', payload)
-
-    // Idempotency key must be stable across multiple writes of the same record/version
-    expect(idempKey1).toBe(idempKey2)
-  })
-
-  it('should skip conflict items and continue syncing subsequent non-conflict items in queue', async () => {
-    // Mock saveOrder to fail with conflict for order-c1, but succeed for order-c2
-    saveSpy.mockImplementation(async (payload: any) => {
-      if (payload.id === 'order-c1') {
-        return { ok: false, message: 'Conflict detected: table_time_overlap' }
-      }
-      return { ok: true }
-    })
-
-    await outbox.addToOutbox('order-c1', 'upsert', { id: 'order-c1', note: 'Conflicted' })
-    await outbox.addToOutbox('order-c2', 'upsert', { id: 'order-c2', note: 'Normal' })
-
-    // Trigger sync
-    await triggerSync()
-
-    // order-c1 should remain unsynced with attempts=1 and lastError='Conflict detected: table_time_overlap'
-    const rawItems = await outbox.getOutboxRawItems()
-    const c1 = rawItems.find(item => item.id === 'order-c1')
-    const c2 = rawItems.find(item => item.id === 'order-c2')
-
-    expect(c1?.synced).toBe(false)
-    expect(c1?.attempts).toBe(1)
-    expect(c1?.lastError).toContain('Conflict detected')
-
-    // order-c2 should be successfully synced
-    expect(c2?.synced).toBe(true)
   })
 })

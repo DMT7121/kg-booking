@@ -6,7 +6,6 @@ interface CooldownInfo {
   reason: string
 }
 
-// In-memory model cooldown state
 const cooldownMap: Record<string, CooldownInfo> = {}
 
 export type ProviderFailureKind =
@@ -28,7 +27,6 @@ export interface ProviderHealthState {
   lastFailureKind?: ProviderFailureKind
 }
 
-// In-memory provider health state
 const providerHealthMap: Record<string, ProviderHealthState> = {}
 
 export interface GatewayHealthState {
@@ -39,7 +37,6 @@ export interface GatewayHealthState {
   lastFailureKind?: string
 }
 
-// In-memory gateway health state
 const gatewayHealthMap: Record<string, GatewayHealthState> = {}
 
 export type PersistedCircuitState = {
@@ -86,7 +83,6 @@ export async function hydrateCircuitState(): Promise<void> {
     const state = await idbGet<PersistedCircuitState>(CIRCUIT_STATE_DB_KEY)
     if (state && state.schemaVersion === 1) {
       const now = Date.now()
-      // Hydrate models
       if (state.models) {
         Object.entries(state.models).forEach(([modelId, info]) => {
           if (info.expiry > now) {
@@ -94,7 +90,6 @@ export async function hydrateCircuitState(): Promise<void> {
           }
         })
       }
-      // Hydrate providers
       if (state.providers) {
         Object.entries(state.providers).forEach(([provider, pState]) => {
           if (pState.cooldownUntil && pState.cooldownUntil > now) {
@@ -110,7 +105,6 @@ export async function hydrateCircuitState(): Promise<void> {
           }
         })
       }
-      // Hydrate gateways
       if (state.gateways) {
         Object.entries(state.gateways).forEach(([gateway, gState]) => {
           if (gState.cooldownUntil && gState.cooldownUntil > now) {
@@ -133,12 +127,8 @@ export async function hydrateCircuitState(): Promise<void> {
   }
 }
 
-// Auto-hydrate on load
 hydrateCircuitState()
 
-/**
- * Gets or initializes the health state for a provider
- */
 export function getProviderHealth(provider: string): ProviderHealthState {
   if (!providerHealthMap[provider]) {
     providerHealthMap[provider] = {
@@ -149,7 +139,6 @@ export function getProviderHealth(provider: string): ProviderHealthState {
   }
   const state = providerHealthMap[provider]
   
-  // Transition open -> half_open when cooldown expires
   if (state.status === 'open' && state.cooldownUntil && Date.now() > state.cooldownUntil) {
     state.status = 'half_open'
     console.info(`[Circuit Breaker] Provider [${provider}] transitioned to HALF_OPEN. Cooldown expired.`)
@@ -157,17 +146,11 @@ export function getProviderHealth(provider: string): ProviderHealthState {
   return state
 }
 
-/**
- * Checks if a provider's circuit is open (cooling down)
- */
 export function isProviderCircuitOpen(provider: string): boolean {
   const state = getProviderHealth(provider)
   return state.status === 'open'
 }
 
-/**
- * Reports a successful model call for a provider, closing its circuit
- */
 export function reportProviderSuccess(provider: string, latencyMs?: number): void {
   const state = getProviderHealth(provider)
   state.consecutiveFailures = 0
@@ -180,9 +163,6 @@ export function reportProviderSuccess(provider: string, latencyMs?: number): voi
   saveStateToDB()
 }
 
-/**
- * Reports a failed model call for a provider, potentially opening its circuit
- */
 export function reportProviderFailure(provider: string, kind: ProviderFailureKind, errorMsg: string): void {
   const state = getProviderHealth(provider)
   state.consecutiveFailures++
@@ -193,24 +173,19 @@ export function reportProviderFailure(provider: string, kind: ProviderFailureKin
   let shouldOpen = false
 
   if (kind === 'auth_error') {
-    // Auth error: make it unavailable indefinitely for this session (e.g. 15 minutes)
     cooldownDuration = 15 * 60 * 1000
     shouldOpen = true
     console.warn(`[Circuit Breaker] Provider [${provider}] auth error. Opening circuit immediately.`)
   } else if (kind === 'rate_limited') {
-    // Rate limited: open immediately, cooldown 60s
     cooldownDuration = 60 * 1000
     shouldOpen = true
     console.warn(`[Circuit Breaker] Provider [${provider}] rate limited. Opening circuit immediately.`)
   } else {
-    // timeout, network_error, server_error, invalid_payload
-    // Open circuit after 3 consecutive failures
     if (state.consecutiveFailures >= 3 || state.status === 'half_open') {
       shouldOpen = true
-      // Exponential backoff: 30s, 60s, 120s... up to 5 minutes
       const failuresOverThree = Math.max(0, state.consecutiveFailures - 3)
       const multiplier = Math.min(10, Math.pow(2, failuresOverThree))
-      cooldownDuration = 30 * 1000 * multiplier // 30s base * multiplier
+      cooldownDuration = 30 * 1000 * multiplier
       console.warn(`[Circuit Breaker] Provider [${provider}] consecutive failure count: ${state.consecutiveFailures}. Opening circuit.`)
     }
   }
@@ -223,12 +198,6 @@ export function reportProviderFailure(provider: string, kind: ProviderFailureKin
   saveStateToDB()
 }
 
-/**
- * Puts a model into cooldown state
- * @param modelId The ID of the model to cooldown
- * @param durationMs Duration in milliseconds
- * @param reason Reason for cooldown (e.g., "HTTP 429 Rate Limit")
- */
 export function cooldownModel(modelId: string, durationMs: number, reason: string): void {
   const expiry = Date.now() + durationMs
   cooldownMap[modelId] = { expiry, reason }
@@ -236,11 +205,6 @@ export function cooldownModel(modelId: string, durationMs: number, reason: strin
   saveStateToDB()
 }
 
-/**
- * Checks if a model is currently in cooldown
- * @param modelId The ID of the model to check
- * @returns true if the model is in cooldown, false otherwise
- */
 export function isModelCooldown(modelId: string): boolean {
   const info = cooldownMap[modelId]
   if (!info) return false
@@ -253,11 +217,6 @@ export function isModelCooldown(modelId: string): boolean {
   return true
 }
 
-/**
- * Gets the remaining cooldown time in seconds
- * @param modelId The ID of the model
- * @returns Remaining seconds or 0 if not in cooldown
- */
 export function getRemainingCooldown(modelId: string): number {
   const info = cooldownMap[modelId]
   if (!info) return 0
@@ -271,19 +230,11 @@ export function getRemainingCooldown(modelId: string): number {
   return Math.ceil(remainingMs / 1000)
 }
 
-/**
- * Gets the reason for the model's cooldown
- * @param modelId The ID of the model
- * @returns The cooldown reason string, or null
- */
 export function getCooldownReason(modelId: string): string | null {
   if (!isModelCooldown(modelId)) return null
   return cooldownMap[modelId]?.reason || null
 }
 
-/**
- * Returns a list of all models currently in cooldown
- */
 export function getActiveCooldowns(): Array<{ modelId: string; remainingSeconds: number; reason: string }> {
   const list: Array<{ modelId: string; remainingSeconds: number; reason: string }> = []
   for (const modelId in cooldownMap) {
@@ -299,9 +250,6 @@ export function getActiveCooldowns(): Array<{ modelId: string; remainingSeconds:
   return list
 }
 
-/**
- * Clears all active cooldowns, resetting the circuit breaker
- */
 export function clearAllCooldowns(): void {
   for (const key in cooldownMap) {
     delete cooldownMap[key]
@@ -316,11 +264,6 @@ export function clearAllCooldowns(): void {
   saveStateToDB()
 }
 
-/**
- * Helper to automatically classify model errors and apply appropriate cooldown duration
- * @param modelId Model ID that failed
- * @param error Error object or message
- */
 export function handleModelFailure(modelId: string, error: any): void {
   const errMsg = String(error?.message || error || '').toLowerCase()
   let durationMs = 0
@@ -332,9 +275,11 @@ export function handleModelFailure(modelId: string, error: any): void {
     errMsg.includes('rate limit') || 
     errMsg.includes('quota') || 
     errMsg.includes('resource_exhausted') ||
-    errMsg.includes('too many requests')
+    errMsg.includes('too many requests') ||
+    errMsg.includes('lock timeout') ||
+    errMsg.includes('script lock')
   ) {
-    durationMs = 5 * 60 * 1000 // 5 minutes for rate limits
+    durationMs = 5 * 60 * 1000
     reason = 'HTTP 429 Rate Limit / Quota Exceeded'
     failureKind = 'rate_limited'
   } else if (
@@ -343,7 +288,7 @@ export function handleModelFailure(modelId: string, error: any): void {
     errMsg.includes('decommissioned') || 
     errMsg.includes('no longer supported')
   ) {
-    durationMs = 15 * 60 * 1000 // 15 minutes for missing/dead models
+    durationMs = 15 * 60 * 1000
     reason = 'HTTP 404 Model Not Found or Decommissioned'
     failureKind = 'server_error'
   } else if (
@@ -354,11 +299,11 @@ export function handleModelFailure(modelId: string, error: any): void {
     errMsg.includes('invalid api key')
   ) {
     if (errMsg.includes('turnstile') || errMsg.includes('missing turnstile token')) {
-      durationMs = 1 * 60 * 1000 // 1 minute for transient issues
+      durationMs = 1 * 60 * 1000
       reason = 'Cloudflare Turnstile block'
       failureKind = 'network_error'
     } else {
-      durationMs = 15 * 60 * 1000 // 15 minutes for key issues
+      durationMs = 15 * 60 * 1000
       reason = 'HTTP 401/403 Invalid API Key / Unauthorized'
       failureKind = 'auth_error'
     }
@@ -368,14 +313,14 @@ export function handleModelFailure(modelId: string, error: any): void {
     errMsg.includes('balance') || 
     errMsg.includes('billing')
   ) {
-    durationMs = 15 * 60 * 1000 // 15 minutes for billing issues
+    durationMs = 15 * 60 * 1000
     reason = 'HTTP 402 Payment Required / Balance Exhausted'
     failureKind = 'auth_error'
   } else if (
     errMsg.includes('timeout') || 
     errMsg.includes('abort')
   ) {
-    durationMs = 1 * 60 * 1000 // 1 minute for transient timeouts
+    durationMs = 1 * 60 * 1000
     reason = 'Request Timeout'
     failureKind = 'timeout'
   } else if (
@@ -383,7 +328,7 @@ export function handleModelFailure(modelId: string, error: any): void {
     errMsg.includes('validation') ||
     errMsg.includes('invalid output format')
   ) {
-    durationMs = 30 * 1000 // 30s cooldown for format issues
+    durationMs = 30 * 1000
     reason = 'Invalid JSON Schema / Output Validation Failure'
     failureKind = 'invalid_payload'
   } else if (
@@ -391,7 +336,7 @@ export function handleModelFailure(modelId: string, error: any): void {
     errMsg.includes('network') ||
     errMsg.includes('fetch')
   ) {
-    durationMs = 1 * 60 * 1000 // 1 minute for network/CORS issues
+    durationMs = 1 * 60 * 1000
     reason = 'Network Connection / CORS Error'
     failureKind = 'network_error'
   }
@@ -400,7 +345,6 @@ export function handleModelFailure(modelId: string, error: any): void {
     cooldownModel(modelId, durationMs, reason)
   }
 
-  // Provider-level tracking
   const model = AI_MODELS.find(m => m.id === modelId)
   if (model) {
     reportProviderFailure(model.provider, failureKind, reason || errMsg)
@@ -446,9 +390,10 @@ export function reportGatewayFailure(gateway: string, kind: string, errorMsg: st
   state.consecutiveFailures++
   state.lastFailureKind = kind
   
-  const cooldownDuration = 30 * 1000 // 30s cooldown
+  const isLockContention = /lock|timeout|script lock|concurrent|exceeded/i.test(errorMsg)
+  const cooldownDuration = isLockContention ? 15 * 1000 : 30 * 1000
   state.status = 'open'
   state.cooldownUntil = Date.now() + cooldownDuration
-  console.warn(`[Circuit Breaker] Gateway [${gateway}] circuit OPEN. Cooldown for 30s. Reason: ${errorMsg}`)
+  console.warn(`[Circuit Breaker] Gateway [${gateway}] circuit OPEN. Cooldown for ${Math.round(cooldownDuration / 1000)}s. Reason: ${errorMsg}`)
   saveStateToDB()
 }
