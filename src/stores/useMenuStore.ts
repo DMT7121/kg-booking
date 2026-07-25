@@ -384,13 +384,11 @@ function selectBestDefaultSheet(sheets: string[], defaultProfileId = ''): string
     if (cached && cached.length > 0) {
       const cleanCached = cached.filter(s => !/alias/i.test(s))
       menuSheets.value = cleanCached.length > 0 ? cleanCached : cached
-      if (!menuSheets.value.includes(activeSheet.value) || menuList.value.length === 0) {
-        const target = selectBestDefaultSheet(menuSheets.value, defaultMenuProfileId.value)
-        if (target) {
-          activeSheet.value = target
-          localStorage.setItem(CACHE_KEYS.MENU_SHEET, target)
-          fetchMenu(target)
-        }
+      const target = selectBestDefaultSheet(menuSheets.value, defaultMenuProfileId.value)
+      if (target) {
+        activeSheet.value = target
+        localStorage.setItem(CACHE_KEYS.MENU_SHEET, target)
+        fetchMenu(target)
       }
       scheduleMenusPrecache(menuSheets.value, { reason: 'app-startup-cache' })
     }
@@ -403,13 +401,11 @@ function selectBestDefaultSheet(sheets: string[], defaultProfileId = ''): string
         menuSheets.value = finalSheets
         await cacheMenuSheets(finalSheets)
         
-        if (!finalSheets.includes(activeSheet.value) || menuList.value.length === 0) {
-          const target = selectBestDefaultSheet(finalSheets, defaultMenuProfileId.value)
-          if (target) {
-            activeSheet.value = target
-            localStorage.setItem(CACHE_KEYS.MENU_SHEET, target)
-            await fetchMenu(target)
-          }
+        const target = selectBestDefaultSheet(finalSheets, defaultMenuProfileId.value)
+        if (target) {
+          activeSheet.value = target
+          localStorage.setItem(CACHE_KEYS.MENU_SHEET, target)
+          await fetchMenu(target)
         }
         scheduleMenusPrecache(finalSheets, { reason: 'app-startup-network' })
       } else if (menuSheets.value.length === 0) {
