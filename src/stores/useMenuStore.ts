@@ -397,7 +397,7 @@ function selectBestDefaultSheet(sheets: string[], defaultProfileId = ''): string
 
     try {
       const data = await menuRepo.getMenuSheets()
-      if (data.ok && data.sheets && data.sheets.length > 0) {
+      if (data && data.ok && data.sheets && data.sheets.length > 0) {
         const cleanSheets = data.sheets.filter((s: string) => !/alias/i.test(s))
         const finalSheets = cleanSheets.length > 0 ? cleanSheets : data.sheets
         menuSheets.value = finalSheets
@@ -412,9 +412,22 @@ function selectBestDefaultSheet(sheets: string[], defaultProfileId = ''): string
           }
         }
         scheduleMenusPrecache(finalSheets, { reason: 'app-startup-network' })
+      } else if (menuSheets.value.length === 0) {
+        menuSheets.value = ['MENU2026', 'Menu - Set']
+        const target = selectBestDefaultSheet(menuSheets.value, defaultMenuProfileId.value)
+        activeSheet.value = target
+        localStorage.setItem(CACHE_KEYS.MENU_SHEET, target)
+        await fetchMenu(target)
       }
     } catch (e) {
       console.error('Fetch Sheets Error', e)
+      if (menuSheets.value.length === 0) {
+        menuSheets.value = ['MENU2026', 'Menu - Set']
+        const target = selectBestDefaultSheet(menuSheets.value, defaultMenuProfileId.value)
+        activeSheet.value = target
+        localStorage.setItem(CACHE_KEYS.MENU_SHEET, target)
+        await fetchMenu(target)
+      }
     }
   }
 
