@@ -178,6 +178,7 @@ async function postGASDirect(payload: Record<string, any>, signal?: AbortSignal,
       method: 'POST',
       headers: { 'Content-Type': 'text/plain;charset=utf-8' },
       body: JSON.stringify(payload),
+      redirect: 'follow',
       signal
     })
     if (!res.ok) throw new Error(`GAS fallback HTTP error! status: ${res.status}`)

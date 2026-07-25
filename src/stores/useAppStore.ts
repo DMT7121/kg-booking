@@ -30,12 +30,16 @@ export const useAppStore = defineStore('app', () => {
   const bankStaffStore = useBankStaffStore()
 
   return {
-    // --- Order & History Domain ---
-    historyList: orderStore.historyList,
-    groupedHistory: orderStore.groupedHistory,
-    filteredHistory: orderStore.filteredHistory,
-    activeConflicts: orderStore.activeConflicts,
-    offlineQueueCount: orderStore.offlineQueueCount,
+    // --- Order & History Domain (Getters/Setters preserve 100% Vue reactivity across stores) ---
+    get historyList() { return orderStore.historyList },
+    set historyList(val) { orderStore.historyList = val },
+    get groupedHistory() { return orderStore.groupedHistory },
+    get filteredHistory() { return orderStore.filteredHistory },
+    get activeConflicts() { return orderStore.activeConflicts },
+    set activeConflicts(val) { orderStore.activeConflicts = val },
+    get offlineQueueCount() { return orderStore.offlineQueueCount },
+    set offlineQueueCount(val) { orderStore.offlineQueueCount = val },
+    
     getCrmStatus: orderStore.getCrmStatus,
     computeDiff: orderStore.computeDiff,
     setOptimisticOrder: orderStore.setOptimisticOrder,
@@ -50,19 +54,26 @@ export const useAppStore = defineStore('app', () => {
     updateOfflineQueueCount: orderStore.updateOfflineQueueCount,
 
     // --- Menu Domain ---
-    menuList: menuStore.menuList,
-    menuDetails: menuStore.menuDetails,
-    menuImages: menuStore.menuImages,
-    dishImages: menuStore.dishImages,
-    menuSheets: menuStore.menuSheets,
-    activeSheet: menuStore.activeSheet,
-    newMenuName: menuStore.newMenuName,
-    newMenuContent: menuStore.newMenuContent,
-    defaultMenuProfileId: menuStore.defaultMenuProfileId,
-    menuAliases: menuStore.menuAliases,
-    aiCorrections: menuStore.aiCorrections,
-    menuFingerprint: menuStore.menuFingerprint,
-    correctionFingerprint: menuStore.correctionFingerprint,
+    get menuList() { return menuStore.menuList },
+    set menuList(val) { menuStore.menuList = val },
+    get menuDetails() { return menuStore.menuDetails },
+    set menuDetails(val) { menuStore.menuDetails = val },
+    get menuImages() { return menuStore.menuImages },
+    get dishImages() { return menuStore.dishImages },
+    get menuSheets() { return menuStore.menuSheets },
+    set menuSheets(val) { menuStore.menuSheets = val },
+    get activeSheet() { return menuStore.activeSheet },
+    set activeSheet(val) { menuStore.activeSheet = val },
+    get newMenuName() { return menuStore.newMenuName },
+    set newMenuName(val) { menuStore.newMenuName = val },
+    get newMenuContent() { return menuStore.newMenuContent },
+    set newMenuContent(val) { menuStore.newMenuContent = val },
+    get defaultMenuProfileId() { return menuStore.defaultMenuProfileId },
+    get menuAliases() { return menuStore.menuAliases },
+    get aiCorrections() { return menuStore.aiCorrections },
+    get menuFingerprint() { return menuStore.menuFingerprint },
+    get correctionFingerprint() { return menuStore.correctionFingerprint },
+    
     loadMenuAliases: menuStore.loadMenuAliases,
     saveAlias: (alias: string, dishName: string) => menuStore.saveAlias(alias, dishName, adminStore.adminToken),
     deleteAlias: (alias: string) => menuStore.deleteAlias(alias, adminStore.adminToken),
@@ -83,14 +94,17 @@ export const useAppStore = defineStore('app', () => {
     scheduleMenusPrecache: menuStore.scheduleMenusPrecache,
 
     // --- Bank & Staff Config Domain ---
-    bankList: bankStaffStore.bankList,
-    selectedBankIndex: bankStaffStore.selectedBankIndex,
-    defaultBankAccountIndex: bankStaffStore.defaultBankAccountIndex,
-    newBank: bankStaffStore.newBank,
-    currentBank: bankStaffStore.currentBank,
-    staffList: bankStaffStore.staffList,
-    newStaff: bankStaffStore.newStaff,
-    showPortalMinigames: bankStaffStore.showPortalMinigames,
+    get bankList() { return bankStaffStore.bankList },
+    get selectedBankIndex() { return bankStaffStore.selectedBankIndex },
+    set selectedBankIndex(val) { bankStaffStore.selectedBankIndex = val },
+    get defaultBankAccountIndex() { return bankStaffStore.defaultBankAccountIndex },
+    get newBank() { return bankStaffStore.newBank },
+    get currentBank() { return bankStaffStore.currentBank },
+    get staffList() { return bankStaffStore.staffList },
+    get newStaff() { return bankStaffStore.newStaff },
+    get showPortalMinigames() { return bankStaffStore.showPortalMinigames },
+    set showPortalMinigames(val) { bankStaffStore.showPortalMinigames = val },
+    
     selectBank: bankStaffStore.selectBank,
     setDefaultBankAccount: bankStaffStore.setDefaultBankAccount,
     addBank: bankStaffStore.addBank,
@@ -102,17 +116,16 @@ export const useAppStore = defineStore('app', () => {
     updateRemoteConfig: bankStaffStore.updateRemoteConfig,
 
     // --- Admin & Security Domain ---
-    adminToken: adminStore.adminToken,
-    adminExpiresAt: adminStore.adminExpiresAt,
-    currentUserRole: adminStore.currentUserRole,
-    isAdminSettingsUnlocked: adminStore.isAdminSettingsUnlocked,
+    get adminToken() { return adminStore.adminToken },
+    set adminToken(val) { adminStore.adminToken = val },
+    get adminExpiresAt() { return adminStore.adminExpiresAt },
+    get currentUserRole() { return adminStore.currentUserRole },
+    get isAdminSettingsUnlocked() { return adminStore.isAdminSettingsUnlocked },
     unlockAdminSettings: adminStore.unlockAdminSettings,
     lockAdminSettings: adminStore.lockAdminSettings,
-    verifyAdminSession: adminStore.verifyAdminSession,
-    verifySession: adminStore.verifySession,
     logout: adminStore.logout,
     handleInactivityTimeout: adminStore.handleInactivityTimeout,
-    triggerAuditLog: adminStore.triggerAuditLog,
-    maskPii: adminStore.maskPii
+    verifyAdminSession: adminStore.verifyAdminSession,
+    verifySession: adminStore.verifySession
   }
 })
