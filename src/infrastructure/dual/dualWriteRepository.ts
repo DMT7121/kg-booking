@@ -23,14 +23,15 @@ export class DualWriteOrderRepository implements OrderRepository {
       return this.pg.getHistory(onBgUpdate)
     }
     
-    // Dual Write Mode: Read from PG, fallback to GAS if PG fails or returns empty array
+    // Dual Write Mode: Read from PG, fallback to GAS if PG fails
     try {
       const pgResult = await this.pg.getHistory(onBgUpdate)
-      if (pgResult && pgResult.ok && Array.isArray(pgResult.data) && pgResult.data.length > 0) return pgResult
+      if (pgResult.ok) return pgResult
+      throw new Error(pgResult.message || 'PG Read failed')
     } catch (e: any) {
       console.warn('[DualWrite] PG read failed, falling back to GAS:', e.message)
+      return this.gas.getHistory(onBgUpdate)
     }
-    return this.gas.getHistory(onBgUpdate)
   }
 
   async getOrderById(id: string): Promise<any> {
@@ -78,31 +79,8 @@ export class DualWriteOrderRepository implements OrderRepository {
     if (!pgRes.ok) {
       return pgRes
     }
-
-    try {
-      const gasRes = await this.gas.saveOrder(data)
-      if (gasRes && gasRes.ok) {
-        return gasRes
-      }
-      const errMsg = gasRes?.message || 'GAS write failed'
-      console.warn(`[DualWrite] Postgres succeeded, but GAS write failed (${errMsg}). Queueing to Outbox for async sync...`)
-      await outbox.addToOutbox(orderId, 'upsert', data)
-      triggerOutboxSync()
-      return { 
-        ok: true, 
-        syncStatus: 'deferred_to_outbox', 
-        message: 'Lưu CSDL thành công. Đơn hàng sẽ tự động đồng bộ ngầm sang Google Sheets.' 
-      }
-    } catch (gasErr: any) {
-      console.warn('[DualWrite] GAS exception, queueing to Outbox:', gasErr.message)
-      await outbox.addToOutbox(orderId, 'upsert', data)
-      triggerOutboxSync()
-      return { 
-        ok: true, 
-        syncStatus: 'deferred_to_outbox', 
-        message: 'Lưu CSDL thành công. Đơn hàng sẽ tự động đồng bộ ngầm sang Google Sheets.' 
-      }
-    }
+    const gasRes = await this.gas.saveOrder(data)
+    return gasRes
   }
 
   async saveOrdersBatch(payloads: any[]): Promise<any> {
@@ -157,22 +135,8 @@ export class DualWriteOrderRepository implements OrderRepository {
     if (!pgRes.ok) {
       return pgRes
     }
-
-    try {
-      const gasRes = await this.gas.deleteOrder(id, password, resolvedToken)
-      if (gasRes && gasRes.ok) {
-        return gasRes
-      }
-      console.warn(`[DualWrite] Postgres delete succeeded, but GAS delete failed. Queueing delete to Outbox...`)
-      await outbox.addToOutbox(id, 'delete', { id })
-      triggerOutboxSync()
-      return { ok: true, syncStatus: 'deferred_to_outbox', message: 'Đã xóa CSDL. Lệnh xóa Google Sheets sẽ được đồng bộ ngầm.' }
-    } catch (gasErr: any) {
-      console.warn('[DualWrite] GAS delete exception, queueing to Outbox:', gasErr.message)
-      await outbox.addToOutbox(id, 'delete', { id })
-      triggerOutboxSync()
-      return { ok: true, syncStatus: 'deferred_to_outbox', message: 'Đã xóa CSDL. Lệnh xóa Google Sheets sẽ được đồng bộ ngầm.' }
-    }
+    const gasRes = await this.gas.deleteOrder(id, password, resolvedToken)
+    return gasRes
   }
 
   async syncBookingCalendar(id: string, token?: string): Promise<any> {

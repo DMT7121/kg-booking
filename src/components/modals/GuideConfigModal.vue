@@ -3,7 +3,7 @@ import { ref } from 'vue'
 import { useUIStore } from '@/stores/useUIStore'
 
 const ui = useUIStore()
-const activeTab = ref('version') // 'version' | 'general' | 'ai' | 'bot' | 'offline' | 'faq'
+const activeTab = ref('general') // 'general' | 'ai' | 'offline' | 'faq'
 </script>
 
 <template>
@@ -14,20 +14,14 @@ const activeTab = ref('version') // 'version' | 'general' | 'ai' | 'bot' | 'offl
         <i class="fa-solid fa-arrow-left text-xl"></i>
       </button>
       <div class="text-center flex-1">
-        <h2 class="text-lg font-black text-blue-900">Hướng dẫn & Phiên bản v2.2</h2>
-        <p class="text-[10px] font-bold text-slate-400 mt-0.5 uppercase tracking-wider">Cẩm nang vận hành & Nhật ký cập nhật Apex</p>
+        <h2 class="text-lg font-black text-blue-900">Hướng dẫn sử dụng</h2>
+        <p class="text-[10px] font-bold text-slate-400 mt-0.5 uppercase tracking-wider">Cẩm nang vận hành hệ thống</p>
       </div>
       <div class="w-10 h-10"></div>
     </div>
 
     <!-- Navigation Tabs -->
     <div class="flex border-b border-slate-100 bg-white shrink-0 overflow-x-auto scrollbar-none flex-nowrap">
-      <button 
-        @click="activeTab = 'version'" 
-        :class="['flex-1 min-w-[110px] py-3 text-xs font-black uppercase tracking-wider text-center border-b-2 transition-all whitespace-nowrap', activeTab === 'version' ? 'border-amber-500 text-amber-700 bg-amber-50/40' : 'border-transparent text-slate-400 hover:text-slate-600']"
-      >
-        <i class="fa-solid fa-sparkles mr-1 text-amber-500"></i> Bản v2.2 Apex
-      </button>
       <button 
         @click="activeTab = 'general'" 
         :class="['flex-1 min-w-[90px] py-3 text-xs font-black uppercase tracking-wider text-center border-b-2 transition-all whitespace-nowrap', activeTab === 'general' ? 'border-blue-900 text-blue-900 bg-blue-50/20' : 'border-transparent text-slate-400 hover:text-slate-600']"
@@ -63,91 +57,6 @@ const activeTab = ref('version') // 'version' | 'general' | 'ai' | 'bot' | 'offl
     <!-- Scrollable Content -->
     <div class="flex-1 overflow-y-auto custom-scrollbar bg-slate-50 md:bg-white p-4">
       <div class="max-w-2xl mx-auto w-full space-y-6 pb-20">
-
-        <!-- TAB 0: Version Release Notes v2.2 Apex -->
-        <div v-if="activeTab === 'version'" class="space-y-5">
-          <div class="bg-gradient-to-r from-amber-500 via-orange-500 to-red-500 rounded-3xl p-5 text-white shadow-xl relative overflow-hidden">
-            <div class="absolute right-0 bottom-0 opacity-10 translate-y-4 translate-x-4"><i class="fa-solid fa-rocket text-9xl"></i></div>
-            <div class="inline-block px-2.5 py-0.5 rounded-full bg-white/20 text-[10px] font-black uppercase tracking-widest mb-2 backdrop-blur-sm">Bản phát hành Apex 2026</div>
-            <h3 class="text-xl font-black uppercase tracking-wide mb-1.5 flex items-center gap-2">KING's GRILL Manager AI v2.2 Apex</h3>
-            <p class="text-xs text-amber-100 font-medium leading-relaxed font-semibold">Tổng hợp tất cả các tính năng nâng cấp đột phá về AI, OCR Vision, Chống nhầm món, Tự học tự động và Hiệu năng $O(1)$.</p>
-          </div>
-
-          <div class="space-y-4">
-            <!-- Feature 1 -->
-            <div class="bg-white rounded-3xl p-5 border border-slate-100 shadow-sm space-y-2">
-              <div class="flex items-center gap-2 text-blue-900 font-black text-sm">
-                <div class="w-8 h-8 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center shrink-0">
-                  <i class="fa-solid fa-eye text-sm"></i>
-                </div>
-                1. Engine Multimodal AI OCR Vision Siêu Cấp
-              </div>
-              <ul class="space-y-1.5 text-xs text-slate-600 font-semibold pl-10 list-disc">
-                <li>Bổ sung 4 mô hình Vision AI mới: <code class="bg-slate-100 px-1 py-0.5 rounded text-blue-700 font-bold">Llama 3.2 90B Vision</code> (Groq), <code class="bg-slate-100 px-1 py-0.5 rounded text-blue-700 font-bold">Gemini 2.0 Pro</code> (Google), <code class="bg-slate-100 px-1 py-0.5 rounded text-blue-700 font-bold">Qwen 2 VL 72B</code> (Free Vision) & <code class="bg-slate-100 px-1 py-0.5 rounded text-blue-700 font-bold">Pixtral 12B</code>.</li>
-                <li><strong>Canvas Preprocessing & Contrast Enhancement:</strong> Tự động tăng độ tương phản và lọc nhiễu ảnh chụp màn hình chat mờ, cuống phiếu tiệc viết tay hoặc hóa đơn thiếu sáng.</li>
-                <li>Bóc tách bảng kê hóa đơn tự động thành danh sách món có số lượng và đơn giá.</li>
-              </ul>
-            </div>
-
-            <!-- Feature 2 -->
-            <div class="bg-white rounded-3xl p-5 border border-slate-100 shadow-sm space-y-2">
-              <div class="flex items-center gap-2 text-slate-800 font-black text-sm">
-                <div class="w-8 h-8 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center shrink-0">
-                  <i class="fa-solid fa-shield-halved text-sm"></i>
-                </div>
-                2. Engine Chống Nhầm Món & Phân Tách Phương Pháp Chế Biến
-              </div>
-              <ul class="space-y-1.5 text-xs text-slate-600 font-semibold pl-10 list-disc">
-                <li>Phân tách phương pháp chế biến (<code class="bg-slate-100 px-1 text-purple-700 font-bold">nướng, xào, lẩu, hấp, chiên, sốt, né</code>,...) và nguyên liệu chính (<code class="bg-slate-100 px-1 text-purple-700 font-bold">bò, gà, ếch, mực, tôm, cá, heo, nầm</code>,...).</li>
-                <li>Áp dụng điểm phạt xung đột <code class="text-rose-600 font-black">-0.45</code> khi tên món bị lệch phương pháp (ví dụ: "Bò xào" không bao giờ bị nhầm sang "Bò nướng").</li>
-                <li>Nâng ngưỡng tự động chấp nhận an toàn lên <strong>0.82</strong> và siết chặt cảnh báo khi có món cạnh tranh suýt soát.</li>
-              </ul>
-            </div>
-
-            <!-- Feature 3 -->
-            <div class="bg-white rounded-3xl p-5 border border-slate-100 shadow-sm space-y-2">
-              <div class="flex items-center gap-2 text-slate-800 font-black text-sm">
-                <div class="w-8 h-8 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0">
-                  <i class="fa-solid fa-brain text-sm"></i>
-                </div>
-                3. Vòng Lặp Tự Học Tự Động (Auto-Learning Feedback Loop)
-              </div>
-              <ul class="space-y-1.5 text-xs text-slate-600 font-semibold pl-10 list-disc">
-                <li>Tự động ghi nhớ khi nhân viên sửa tên món trên UI: Cặp từ khóa <code class="bg-emerald-50 text-emerald-800 font-bold">[Tên khách nhắn/AI đoán sai] ➔ [Món chuẩn thực đơn]</code> được lưu tự động vào bộ từ viết tắt <code class="font-mono text-emerald-700">menuAliases</code> & <code class="font-mono text-emerald-700">aiCorrections</code>.</li>
-                <li>Lần sau khách nhắn lại từ viết tắt đó, hệ thống sẽ khớp <strong>chính xác 100% ngay trong 0ms</strong>.</li>
-              </ul>
-            </div>
-
-            <!-- Feature 4 -->
-            <div class="bg-white rounded-3xl p-5 border border-slate-100 shadow-sm space-y-2">
-              <div class="flex items-center gap-2 text-slate-800 font-black text-sm">
-                <div class="w-8 h-8 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center shrink-0">
-                  <i class="fa-solid fa-bolt text-sm"></i>
-                </div>
-                4. Tối Ưu Chỉ Mục $O(1)$ & Kiến Trúc Modular Store
-              </div>
-              <ul class="space-y-1.5 text-xs text-slate-600 font-semibold pl-10 list-disc">
-                <li>Chuyển đổi thuật toán tra cứu trùng lịch từ $O(N)$ sang <strong>chỉ mục $O(1)$ Incremental Map</strong>, giữ giao diện mượt mà tuyệt đối kể cả khi có hàng nghìn đơn lịch sử.</li>
-                <li>Phân tách monolithic Store thành 4 miền chuyên biệt (<code class="font-mono text-indigo-700">useOrderStore</code>, <code class="font-mono text-indigo-700">useMenuStore</code>, <code class="font-mono text-indigo-700">useAdminStore</code>, <code class="font-mono text-indigo-700">useBankStaffStore</code>).</li>
-              </ul>
-            </div>
-
-            <!-- Feature 5 -->
-            <div class="bg-white rounded-3xl p-5 border border-slate-100 shadow-sm space-y-2">
-              <div class="flex items-center gap-2 text-slate-800 font-black text-sm">
-                <div class="w-8 h-8 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center shrink-0">
-                  <i class="fa-solid fa-inbox text-sm"></i>
-                </div>
-                5. Outbox Dead-Letter Queue & GAS Lock Contention Resilience
-              </div>
-              <ul class="space-y-1.5 text-xs text-slate-600 font-semibold pl-10 list-disc">
-                <li>Quản lý hàng đợi Outbox với 5 lần thử lại tự động, phân lập dữ liệu lỗi vào Dead-Letter Queue (DLQ) không làm gián đoạn luồng đồng bộ.</li>
-                <li>Bảo vệ thao tác người dùng khi Google Apps Script bị bận lock timeout: Tự động hoãn đơn vào Outbox ngầm, không báo lỗi ảo.</li>
-              </ul>
-            </div>
-
-          </div>
-        </div>
 
         <!-- TAB 1: General Flow -->
         <div v-if="activeTab === 'general'" class="space-y-5">

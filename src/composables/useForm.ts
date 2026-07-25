@@ -31,45 +31,14 @@ function _createForm() {
 
   watch(() => appStore.menuList, (nl) => {
     miniSearch.removeAll()
-    if (nl && nl.length) miniSearch.addAll(nl.map((i: any, idx: number) => ({ id: idx, ...i })))
-  }, { deep: true, immediate: true })
+    if (nl.length) miniSearch.addAll(nl.map((i: any, idx: number) => ({ id: idx, ...i })))
+  }, { deep: true })
 
   function onSearchInput(idx: number) {
     uiStore.focusIdx = idx
-    const q = (formStore.items[idx]?.name || '').trim()
-    if (!q) {
-      itemSuggestions.value = []
-      return
-    }
-
-    const msResults = miniSearch.search(q, { fuzzy: 0.2, prefix: true })
-    const matchedList: any[] = []
-    const seen = new Set<string>()
-
-    msResults.forEach(r => {
-      const item = appStore.menuList[r.id]
-      if (item && !seen.has(item.name)) {
-        seen.add(item.name)
-        matchedList.push(item)
-      }
-    })
-
-    const cleanQ = stripAccents(q.toLowerCase())
-    appStore.menuList.forEach((item: any) => {
-      if (matchedList.length >= 30) return
-      if (seen.has(item.name)) return
-      
-      const cleanName = item.cleanName || stripAccents((item.name || '').toLowerCase())
-      const acronym = (item.acronym || '').toLowerCase()
-      const rawName = (item.name || '').toLowerCase()
-
-      if (cleanName.includes(cleanQ) || acronym.includes(cleanQ) || rawName.includes(q.toLowerCase())) {
-        seen.add(item.name)
-        matchedList.push(item)
-      }
-    })
-
-    itemSuggestions.value = matchedList.slice(0, 30)
+    const q = formStore.items[idx].name
+    if (!q) { itemSuggestions.value = []; return }
+    itemSuggestions.value = miniSearch.search(q, { fuzzy: 0.2, prefix: true }).slice(0, 30)
   }
 
   function selectMenuItem(s: any, idx: number) {

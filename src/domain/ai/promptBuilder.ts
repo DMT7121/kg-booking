@@ -21,7 +21,6 @@ export interface PromptBuildInput {
   currentDateTime: string
   locale: 'vi-VN'
   aiCorrections?: any[]
-  menuAliases?: any[]
   currentField?: string
 }
 
@@ -42,7 +41,6 @@ export function buildDynamicPrompt(input: PromptBuildInput): PromptBuildResult {
     conversationContext = '',
     currentDateTime,
     aiCorrections = [],
-    menuAliases = [],
     currentField = ''
   } = input
 
@@ -60,6 +58,7 @@ export function buildDynamicPrompt(input: PromptBuildInput): PromptBuildResult {
         .map(c => `- Món: "${c.itemName}" (Thực đơn: ${c.menuName})`)
         .join('\n')
       sysPrompt = sysPrompt.replace('{{MENU_CANDIDATES}}', candidatesText)
+      // If template did not have the placeholder, append it
       if (!sysPrompt.includes(candidatesText)) {
         sysPrompt += `\n\n{{MENU_CANDIDATES}}\nDanh sách các món ăn ứng viên trong thực đơn:\n${candidatesText}`
       }
@@ -97,22 +96,10 @@ export function buildDynamicPrompt(input: PromptBuildInput): PromptBuildResult {
     omittedSections.push('FEW_SHOT_CORRECTIONS')
   }
 
-  // 4.5 Handle Custom Restaurant Dish Aliases
-  if (menuAliases && menuAliases.length > 0) {
-    const aliasRules = menuAliases
-      .slice(0, 15)
-      .map(a => `- Từ viết tắt/ngố: "${a.alias}" ➔ Món chuẩn: "${a.dishName}"`)
-      .join('\n')
-    sysPrompt += `\n\n=== QUY TẮC CHUYỂN ĐỔI TỪ VIẾT TẮT / BỘ TỰ HỌC THỰC ĐƠN ===\n${aliasRules}`
-    includedSections.push('MENU_ALIASES')
-  } else {
-    omittedSections.push('MENU_ALIASES')
-  }
-
   // 5. Construct User Prompt
   const userPrompt = `Hãy trích xuất thông tin đặt bàn từ văn bản này:\n\n"${userText}"`
 
-  // 6. Estimate Token Size
+  // 6. Estimate Token Size (Simple character-based heuristics: ~4 chars per token)
   const totalChars = sysPrompt.length + userPrompt.length
   const estimatedInputTokens = Math.ceil(totalChars / 4)
 

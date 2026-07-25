@@ -128,6 +128,7 @@ export async function triggerSync(): Promise<void> {
               }
               
               if (conflictType) {
+                // Register conflict in activeConflicts store array
                 if (!store.activeConflicts.some((c: any) => c.localBookingId === localId)) {
                   store.activeConflicts.push({
                     type: conflictType as any,
@@ -146,18 +147,21 @@ export async function triggerSync(): Promise<void> {
             if (e.message?.startsWith('Conflict detected:')) {
               throw e
             }
+            // Ignore other dynamic import errors or active pinia instance errors to prevent blocking execution
             console.warn('[Outbox Sync] Warning: could not verify conflict check:', e.message)
           }
         }
 
         // 2. Perform database write operations based on resolved backend mode
         if (mode === 'gas') {
+          // GAS mode: sync to Google Sheets synchronously
           const sheetsOk = await syncToSheets(item)
           if (!sheetsOk) {
             throw new Error('Failed to save to Google Sheets')
           }
           success = true
         } else if (mode === 'postgres') {
+          // Postgres mode: sync only to Postgres
           let res = { ok: true, message: '' }
           if (item.action === 'upsert') {
             const cleanPayload = JSON.parse(JSON.stringify(item.payload))
@@ -175,6 +179,7 @@ export async function triggerSync(): Promise<void> {
             throw new Error(res?.message || 'Postgres operation failed')
           }
         } else if (mode === 'dual_write') {
+          // Dual Write mode: sync to both Postgres and Google Sheets sequentially
           let pgOk = false
           if (item.action === 'upsert') {
             const cleanPayload = JSON.parse(JSON.stringify(item.payload))
@@ -202,18 +207,19 @@ export async function triggerSync(): Promise<void> {
         console.error(`[Outbox Sync] Failed to sync item ${item.id}:`, err.message)
         await outbox.recordAttemptFailure(item.id, item.action, err.message)
         
-        pendingItems = await outbox.getPendingItems()
-        
-        if (err.message?.startsWith('Conflict detected:') || item.attempts + 1 >= outbox.MAX_OUTBOX_RETRIES) {
+        if (err.message?.startsWith('Conflict detected:')) {
+          pendingItems = await outbox.getPendingItems()
           continue
         }
         
+        // Halt processing to avoid loop hammering
         break 
       }
       
       if (success) {
         await outbox.markAsSynced(item.id, item.action)
         
+        // Trigger background image upload if an offline image exists in buffer
         if (item.action === 'upsert' && item.payload?.deposit?.image === '__OFFLINE_IMAGE_BUFFER_REF__') {
           uploadImageInBackground(item.id, item.payload, mode, token).catch(() => {})
         }
@@ -227,18 +233,18 @@ export async function triggerSync(): Promise<void> {
     isSyncing = false
     try {
       const { getActivePinia } = await import('pinia')
-      if (getActivePinia()) {
-        const { useAppStore } = await import('@/stores/useAppStore')
-        const store = useAppStore()
-        if (store) {
-          if (typeof store.updateOfflineQueueCount === 'function') {
-            await store.updateOfflineQueueCount()
-          }
-          if (typeof store.loadHistory === 'function') {
-            await store.loadHistory(true)
+        if (getActivePinia()) {
+          const { useAppStore } = await import('@/stores/useAppStore')
+          const store = useAppStore()
+          if (store) {
+            if (typeof store.updateOfflineQueueCount === 'function') {
+              await store.updateOfflineQueueCount()
+            }
+            if (typeof store.loadHistory === 'function') {
+              await store.loadHistory(true)
+            }
           }
         }
-      }
     } catch (err) {
       console.warn('[Outbox Sync] Failed to update offline queue count in store:', err)
     }
@@ -252,10 +258,12 @@ async function uploadImageInBackground(id: string, payload: any, mode: string, t
 
     console.log(`[Outbox Background Sync] Syncing image for order ${id}...`)
 
+    // Restore image to payload
     const imagePayload = JSON.parse(JSON.stringify(payload))
     if (!imagePayload.deposit) imagePayload.deposit = {}
     imagePayload.deposit.image = imageBase64
 
+    // 1. Sync to Sheets if sheets or dual mode
     if (mode === 'gas' || mode === 'dual_write') {
       const sheetsPayload = {
         action: 'saveOrder',
@@ -294,10 +302,12 @@ async function uploadImageInBackground(id: string, payload: any, mode: string, t
       }
     }
 
+    // 2. Sync to Postgres if postgres or dual mode
     if (mode === 'postgres' || mode === 'dual_write') {
       await pgRepo.saveOrder(imagePayload, token)
     }
 
+    // Clean up buffered image after successful backend sync
     await outbox.deleteImageFromBuffer(id)
     console.log(`[Outbox Background Sync] Image sync successful & purged for order ${id}.`)
   } catch (err: any) {
@@ -305,10 +315,12 @@ async function uploadImageInBackground(id: string, payload: any, mode: string, t
   }
 }
 
+// Watch network online event
 if (typeof window !== 'undefined' && import.meta.env.MODE !== 'test') {
   window.addEventListener('online', () => {
     triggerSync()
   })
+  // Trigger once on startup if online
   if (navigator.onLine) {
     triggerSync()
   }

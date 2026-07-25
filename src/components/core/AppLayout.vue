@@ -104,6 +104,7 @@ onMounted(() => {
   ui.isVoiceSupported = 'webkitSpeechRecognition' in window || 'SpeechRecognition' in window
 
   appStore.fetchSheets()
+  appStore.fetchMenu()
   appStore.loadHistory(true)
   appStore.fetchRemoteConfig()
   configStore.hydrateAiRuntimeConfig()

@@ -14,7 +14,7 @@ const l1ApiCache = new Map<string, { data: any; timestamp: number }>()
 const inFlightGasRequests = new Map<string, Promise<any>>()
 
 function isSuccessfulResponse(res: any): boolean {
-  return !!(res && typeof res === 'object' && res.ok === true)
+  return res && typeof res === 'object' && res.ok === true
 }
 
 export function clearL1ApiCache(): void {
@@ -34,24 +34,21 @@ export async function fetchWithStaleWhileRevalidate<T>(
 
   // 1. Check L1 Memory Cache
   const cachedL1 = l1ApiCache.get(key)
-  if (cachedL1 && isSuccessfulResponse(cachedL1.data)) {
+  if (cachedL1) {
     const isStale = (now - cachedL1.timestamp) > ttlMs
     if (!isStale) {
       return cachedL1.data as T
     }
+    // Stale: trigger background fetch and return stale data
     triggerBackgroundFetch(key, fetcher, onBgUpdate)
     return cachedL1.data as T
-  } else if (cachedL1) {
-    l1ApiCache.delete(key)
   }
 
   // 2. Check L2 IndexedDB Cache
   let cachedL2: { data: T; timestamp: number } | null = null
   try {
     const val = await idbGet<{ data: T; timestamp: number }>(`kg_api_cache_${key}`)
-    if (val && isSuccessfulResponse(val.data)) {
-      cachedL2 = val
-    }
+    cachedL2 = val ?? null
   } catch (err) {
     console.warn('[API Cache] L2 read failed:', key, err)
   }
@@ -129,7 +126,9 @@ async function postGASDirect(payload: Record<string, any>, signal?: AbortSignal,
     // Pinia not yet initialized, skip UI tracking
   }
 
-  const useWorker = !isGatewayCircuitOpen('cloudflare_edge')
+  const isGasMode = import.meta.env.VITE_BACKEND_MODE === 'gas'
+  const useLocalProxy = import.meta.env.DEV && API_URL.startsWith('/api')
+  const useWorker = (useLocalProxy || !isGasMode) && !isGatewayCircuitOpen('cloudflare_edge')
 
   try {
     if (useWorker) {
@@ -178,7 +177,6 @@ async function postGASDirect(payload: Record<string, any>, signal?: AbortSignal,
       method: 'POST',
       headers: { 'Content-Type': 'text/plain;charset=utf-8' },
       body: JSON.stringify(payload),
-      redirect: 'follow',
       signal
     })
     if (!res.ok) throw new Error(`GAS fallback HTTP error! status: ${res.status}`)

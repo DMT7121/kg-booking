@@ -155,9 +155,6 @@ function goToTomorrowTimeline() {
         <div class="min-w-0">
           <h1 class="font-black text-sm tracking-widest leading-none text-white uppercase flex items-center gap-1.5 drop-shadow-sm" style="font-family: 'Be Vietnam Pro', sans-serif;">
             KING'S GRILL
-            <span @click="ui.openConfig('guide')" class="cursor-pointer bg-gradient-to-r from-amber-500 to-orange-500 text-white text-[8px] font-black px-1.5 py-0.5 rounded shadow-sm hover:scale-105 transition-all flex items-center gap-1">
-              v2.2 Apex
-            </span>
             <span class="w-2 h-2 rounded-full bg-green-400 animate-pulse shadow-[0_0_8px_rgba(74,222,128,0.8)] shrink-0"></span>
           </h1>
           <div class="flex items-center gap-1.5 mt-1">

@@ -216,46 +216,52 @@ function doPost(e) {
 
 // --- PHẦN 2: MENU ---
 function getMenuSheets() {
+  try {
+    const cached = CacheService.getScriptCache().get("menu_sheets");
+    if (cached) return JSON.parse(cached);
+  } catch(e) {}
+
   const ss = SpreadsheetApp.openById(CONFIG.SS_ID);
-  const menuSheets = ss.getSheets()
-    .map(s => s.getName())
-    .filter(n => {
-      const lower = n.toLowerCase();
-      return (lower.includes("menu") || lower.includes("thực đơn") || lower.includes("thuc don")) && 
-             !lower.includes("alias") && 
-             !lower.includes("config") && 
-             !lower.includes("order") && 
-             !lower.includes("correction");
-    });
-  
-  const result = { ok: true, sheets: menuSheets.length > 0 ? menuSheets : ["MENU2026"] };
+  const menuSheets = ss.getSheets().map(s => s.getName()).filter(n => n.toLowerCase().includes("menu"));
+  const result = { ok: true, sheets: menuSheets };
+  try {
+    CacheService.getScriptCache().put("menu_sheets", JSON.stringify(result), 21600); // cache 6 hours
+  } catch(e) {}
   return result;
 }
 
 function getMenuData(sheetName) {
+  const targetSheet = sheetName || "Menu";
+  const cacheKey = "menu_data_" + targetSheet.replace(/\s+/g, "_");
+  try {
+    const cached = CacheService.getScriptCache().get(cacheKey);
+    if (cached) return JSON.parse(cached);
+  } catch(e) {}
+
   const ss = SpreadsheetApp.openById(CONFIG.SS_ID);
   let target = sheetName;
-  if (!target || target === "Menu" || target.toLowerCase().includes("alias")) {
-    target = "MENU2026";
+  if (!target) {
+    const firstMenu = ss.getSheets().find(s => s.getName().toLowerCase().includes("menu"));
+    target = firstMenu ? firstMenu.getName() : "Menu";
   }
   let sheet = ss.getSheetByName(target);
   if (!sheet && target) {
     sheet = ss.getSheets().find(s => s.getName().toLowerCase() === target.toLowerCase());
   }
   if (!sheet) {
-    sheet = ss.getSheets().find(s => s.getName().toLowerCase().includes("2026") || s.getName().toLowerCase().includes("menu"));
+    sheet = ss.getSheets().find(s => s.getName().toLowerCase().includes("menu"));
   }
   if (!sheet) return { ok: false, message: "Sheet not found", data: [] };
   try {
     const rows = sheet.getRange("A2:E").getValues().filter(r => r[0]);
     const menu = rows.map(r => ({
-      name: String(r[0]).trim(),
-      price: Number(r[1]) || 0,
-      acronym: String(r[2] || '').trim(),
-      cleanName: String(r[3] || '').trim(),
-      desc: String(r[4] || "").trim()
-    })).filter(m => m.name);
-    return { ok: true, data: menu };
+      name: r[0], price: Number(r[1]) || 0, acronym: r[2], cleanName: r[3], desc: r[4] || ""
+    }));
+    const result = { ok: true, data: menu };
+    try {
+      CacheService.getScriptCache().put(cacheKey, JSON.stringify(result), 21600); // cache 6 hours
+    } catch(e) {}
+    return result;
   } catch (e) {
     return { ok: false, message: "Lỗi tải Menu: " + e.message, data: [] };
   }
