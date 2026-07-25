@@ -14,10 +14,7 @@ const l1ApiCache = new Map<string, { data: any; timestamp: number }>()
 const inFlightGasRequests = new Map<string, Promise<any>>()
 
 function isSuccessfulResponse(res: any): boolean {
-  if (!res || typeof res !== 'object' || res.ok !== true) return false
-  if (Array.isArray(res.sheets) && res.sheets.length === 0) return false
-  if (Array.isArray(res.data) && res.data.length === 0) return false
-  return true
+  return !!(res && typeof res === 'object' && res.ok === true)
 }
 
 export function clearL1ApiCache(): void {
