@@ -90,14 +90,16 @@ function ignoreResult() {
   ui.showToast('⚠️ Đã bỏ qua kết quả AI!', 'warning')
 }
 
-function getConfidenceColorClass(val: number) {
-  if (val >= 0.8) return 'text-emerald-600 bg-emerald-50 border-emerald-200'
-  if (val >= 0.5) return 'text-amber-605 bg-amber-50 border-amber-250 ring-2 ring-amber-300/40'
+function getConfidenceColorClass(val: number | string | null | undefined) {
+  const num = typeof val === 'number' ? val : parseFloat(String(val || 0))
+  if (num >= 0.8) return 'text-emerald-600 bg-emerald-50 border-emerald-200'
+  if (num >= 0.5) return 'text-amber-605 bg-amber-50 border-amber-250 ring-2 ring-amber-300/40'
   return 'text-rose-600 bg-rose-50 border-rose-200 ring-2 ring-rose-300/40'
 }
 
-function getFieldClass(fieldKey: string, confVal: number) {
-  const isDirty = formStore.parsedAiResult?.needs_review_fields?.includes(fieldKey) || confVal < 0.75
+function getFieldClass(fieldKey: string, confVal: number | string | null | undefined) {
+  const num = typeof confVal === 'number' ? confVal : parseFloat(String(confVal || 0))
+  const isDirty = formStore.parsedAiResult?.needs_review_fields?.includes(fieldKey) || num < 0.75
   if (isDirty) {
     return 'border-amber-400 bg-amber-50/50 ring-4 ring-amber-500/10 animate-pulse-subtle'
   }
@@ -212,7 +214,7 @@ onUnmounted(() => {
   window.removeEventListener('global-image-paste', handleGlobalImagePaste as EventListener)
 })
 
-function formatPriceWithDots(val: any): string {
+function formatPriceWithDots(val: number | string | null | undefined): string {
   if (val === undefined || val === null || val === '') return ''
   const cleanStr = String(val).replace(/\./g, '')
   const num = parseInt(cleanStr, 10)
@@ -220,11 +222,14 @@ function formatPriceWithDots(val: any): string {
   return num.toLocaleString('de-DE')
 }
 
-function updateItemUnitPrice(index: number, valStr: string) {
+function updateItemUnitPrice(index: number | string, valStr: string) {
   if (!formStore.parsedAiResult?.menu_items) return
   const cleanStr = valStr.replace(/\./g, '')
   const num = cleanStr ? parseInt(cleanStr, 10) : 0
-  formStore.parsedAiResult.menu_items[index].unit_price = isNaN(num) ? 0 : num
+  const idx = typeof index === 'number' ? index : parseInt(String(index), 10)
+  if (!isNaN(idx) && formStore.parsedAiResult.menu_items[idx]) {
+    formStore.parsedAiResult.menu_items[idx].unit_price = isNaN(num) ? 0 : num
+  }
 }
 
 // --- Drag & Drop ---

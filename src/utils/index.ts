@@ -21,8 +21,11 @@ export const stripAccents = (s: string | any): string => {
 
 
 /** Format number to VND currency string */
-export const formatVND = (v: number): string =>
-  new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(v)
+export const formatVND = (v: number | string | null | undefined): string => {
+  if (v === null || v === undefined || v === '') return '0 ₫'
+  const num = typeof v === 'number' ? v : parseFloat(String(v).replace(/[^\d.-]/g, ''))
+  return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(isNaN(num) ? 0 : num)
+}
 
 /** Safe JSON parse - extracts JSON object from text (handles markdown fences, escaped chars) */
 export const parseJSON = <T = any>(t: string | object): T | null => {
