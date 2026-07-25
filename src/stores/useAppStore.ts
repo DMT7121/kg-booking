@@ -1,4 +1,5 @@
 import { defineStore } from 'pinia'
+import { computed } from 'vue'
 import { useOrderStore } from './useOrderStore'
 import { useMenuStore } from './useMenuStore'
 import { useAdminStore } from './useAdminStore'
@@ -30,15 +31,21 @@ export const useAppStore = defineStore('app', () => {
   const bankStaffStore = useBankStaffStore()
 
   return {
-    // --- Order & History Domain (Getters/Setters preserve 100% Vue reactivity across stores) ---
-    get historyList() { return orderStore.historyList },
-    set historyList(val) { orderStore.historyList = val },
-    get groupedHistory() { return orderStore.groupedHistory },
-    get filteredHistory() { return orderStore.filteredHistory },
-    get activeConflicts() { return orderStore.activeConflicts },
-    set activeConflicts(val) { orderStore.activeConflicts = val },
-    get offlineQueueCount() { return orderStore.offlineQueueCount },
-    set offlineQueueCount(val) { orderStore.offlineQueueCount = val },
+    // --- Order & History Domain (Computed wrappers guarantee 100% Vue reactivity tracking) ---
+    historyList: computed({
+      get: () => orderStore.historyList,
+      set: (val) => { orderStore.historyList = val }
+    }),
+    groupedHistory: computed(() => orderStore.groupedHistory),
+    filteredHistory: computed(() => orderStore.filteredHistory),
+    activeConflicts: computed({
+      get: () => orderStore.activeConflicts,
+      set: (val) => { orderStore.activeConflicts = val }
+    }),
+    offlineQueueCount: computed({
+      get: () => orderStore.offlineQueueCount,
+      set: (val) => { orderStore.offlineQueueCount = val }
+    }),
     
     getCrmStatus: orderStore.getCrmStatus,
     computeDiff: orderStore.computeDiff,
@@ -54,25 +61,37 @@ export const useAppStore = defineStore('app', () => {
     updateOfflineQueueCount: orderStore.updateOfflineQueueCount,
 
     // --- Menu Domain ---
-    get menuList() { return menuStore.menuList },
-    set menuList(val) { menuStore.menuList = val },
-    get menuDetails() { return menuStore.menuDetails },
-    set menuDetails(val) { menuStore.menuDetails = val },
-    get menuImages() { return menuStore.menuImages },
-    get dishImages() { return menuStore.dishImages },
-    get menuSheets() { return menuStore.menuSheets },
-    set menuSheets(val) { menuStore.menuSheets = val },
-    get activeSheet() { return menuStore.activeSheet },
-    set activeSheet(val) { menuStore.activeSheet = val },
-    get newMenuName() { return menuStore.newMenuName },
-    set newMenuName(val) { menuStore.newMenuName = val },
-    get newMenuContent() { return menuStore.newMenuContent },
-    set newMenuContent(val) { menuStore.newMenuContent = val },
-    get defaultMenuProfileId() { return menuStore.defaultMenuProfileId },
-    get menuAliases() { return menuStore.menuAliases },
-    get aiCorrections() { return menuStore.aiCorrections },
-    get menuFingerprint() { return menuStore.menuFingerprint },
-    get correctionFingerprint() { return menuStore.correctionFingerprint },
+    menuList: computed({
+      get: () => menuStore.menuList,
+      set: (val) => { menuStore.menuList = val }
+    }),
+    menuDetails: computed({
+      get: () => menuStore.menuDetails,
+      set: (val) => { menuStore.menuDetails = val }
+    }),
+    menuImages: computed(() => menuStore.menuImages),
+    dishImages: computed(() => menuStore.dishImages),
+    menuSheets: computed({
+      get: () => menuStore.menuSheets,
+      set: (val) => { menuStore.menuSheets = val }
+    }),
+    activeSheet: computed({
+      get: () => menuStore.activeSheet,
+      set: (val) => { menuStore.activeSheet = val }
+    }),
+    newMenuName: computed({
+      get: () => menuStore.newMenuName,
+      set: (val) => { menuStore.newMenuName = val }
+    }),
+    newMenuContent: computed({
+      get: () => menuStore.newMenuContent,
+      set: (val) => { menuStore.newMenuContent = val }
+    }),
+    defaultMenuProfileId: computed(() => menuStore.defaultMenuProfileId),
+    menuAliases: computed(() => menuStore.menuAliases),
+    aiCorrections: computed(() => menuStore.aiCorrections),
+    menuFingerprint: computed(() => menuStore.menuFingerprint),
+    correctionFingerprint: computed(() => menuStore.correctionFingerprint),
     
     loadMenuAliases: menuStore.loadMenuAliases,
     saveAlias: (alias: string, dishName: string) => menuStore.saveAlias(alias, dishName, adminStore.adminToken),
@@ -94,16 +113,20 @@ export const useAppStore = defineStore('app', () => {
     scheduleMenusPrecache: menuStore.scheduleMenusPrecache,
 
     // --- Bank & Staff Config Domain ---
-    get bankList() { return bankStaffStore.bankList },
-    get selectedBankIndex() { return bankStaffStore.selectedBankIndex },
-    set selectedBankIndex(val) { bankStaffStore.selectedBankIndex = val },
-    get defaultBankAccountIndex() { return bankStaffStore.defaultBankAccountIndex },
-    get newBank() { return bankStaffStore.newBank },
-    get currentBank() { return bankStaffStore.currentBank },
-    get staffList() { return bankStaffStore.staffList },
-    get newStaff() { return bankStaffStore.newStaff },
-    get showPortalMinigames() { return bankStaffStore.showPortalMinigames },
-    set showPortalMinigames(val) { bankStaffStore.showPortalMinigames = val },
+    bankList: computed(() => bankStaffStore.bankList),
+    selectedBankIndex: computed({
+      get: () => bankStaffStore.selectedBankIndex,
+      set: (val) => { bankStaffStore.selectedBankIndex = val }
+    }),
+    defaultBankAccountIndex: computed(() => bankStaffStore.defaultBankAccountIndex),
+    newBank: computed(() => bankStaffStore.newBank),
+    currentBank: computed(() => bankStaffStore.currentBank),
+    staffList: computed(() => bankStaffStore.staffList),
+    newStaff: computed(() => bankStaffStore.newStaff),
+    showPortalMinigames: computed({
+      get: () => bankStaffStore.showPortalMinigames,
+      set: (val) => { bankStaffStore.showPortalMinigames = val }
+    }),
     
     selectBank: bankStaffStore.selectBank,
     setDefaultBankAccount: bankStaffStore.setDefaultBankAccount,
@@ -116,11 +139,13 @@ export const useAppStore = defineStore('app', () => {
     updateRemoteConfig: bankStaffStore.updateRemoteConfig,
 
     // --- Admin & Security Domain ---
-    get adminToken() { return adminStore.adminToken },
-    set adminToken(val) { adminStore.adminToken = val },
-    get adminExpiresAt() { return adminStore.adminExpiresAt },
-    get currentUserRole() { return adminStore.currentUserRole },
-    get isAdminSettingsUnlocked() { return adminStore.isAdminSettingsUnlocked },
+    adminToken: computed({
+      get: () => adminStore.adminToken,
+      set: (val) => { adminStore.adminToken = val }
+    }),
+    adminExpiresAt: computed(() => adminStore.adminExpiresAt),
+    currentUserRole: computed(() => adminStore.currentUserRole),
+    isAdminSettingsUnlocked: computed(() => adminStore.isAdminSettingsUnlocked),
     unlockAdminSettings: adminStore.unlockAdminSettings,
     lockAdminSettings: adminStore.lockAdminSettings,
     logout: adminStore.logout,

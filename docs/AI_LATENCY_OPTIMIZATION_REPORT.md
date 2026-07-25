@@ -1,7 +1,7 @@
 # Báo cáo tối ưu hóa Latency AI (AI Latency Optimization Report)
 
 Dự án: `kg-booking`
-Ngày chạy benchmark: 26/7/2026 04:53:46
+Ngày chạy benchmark: 26/7/2026 05:14:04
 
 ## 1. Tóm tắt kết quả (Executive Summary)
 
@@ -9,9 +9,9 @@ Dưới đây là bảng so sánh hiệu năng của AI Pipeline cũ (Baseline) 
 
 | Chỉ số hiệu năng | Pipeline Cũ (Ước tính Baseline) | Pipeline Mới (Thực tế Benchmark) | Cải thiện (%) | Trạng thái |
 | :--- | :---: | :---: | :---: | :---: |
-| **Độ trễ trung bình toàn bộ (p50)** | 1.8s - 3.5s | **0.324s** (324.4ms) | **~75% - 85%** | **Vượt mục tiêu** (< 1.0s) |
-| **Độ trễ Fast-path (Bypass LLM)** | 1.8s | **18.79ms** | **> 99%** | **Cực kỳ ấn tượng** (5-20ms) |
-| **Độ trễ Slow-path (LLM)** | 2.5s - 3.5s | **0.528s** (528.13ms) | **~65%** | **Đạt mục tiêu** (< 1.0s) |
+| **Độ trễ trung bình toàn bộ (p50)** | 1.8s - 3.5s | **0.325s** (324.76ms) | **~75% - 85%** | **Vượt mục tiêu** (< 1.0s) |
+| **Độ trễ Fast-path (Bypass LLM)** | 1.8s | **19.48ms** | **> 99%** | **Cực kỳ ấn tượng** (5-20ms) |
+| **Độ trễ Slow-path (LLM)** | 2.5s - 3.5s | **0.528s** (528.28ms) | **~65%** | **Đạt mục tiêu** (< 1.0s) |
 | **Tỷ lệ Bypass LLM cục bộ** | 0.0% | **40%** | **+40%** | **Đạt chỉ tiêu** (40% - 60%) |
 | **Tiết kiệm Token đầu vào** | 0% (3500 tokens) | **Giảm 96.03%** | **Giảm 96.03%** | **Đạt chỉ tiêu** (60% - 80%) |
 | **Độ chính xác trích xuất (Accuracy)**| ~92.0% | **100%** | **Giữ nguyên/Tăng nhẹ**| **An toàn & Tin cậy** |
@@ -20,36 +20,36 @@ Dưới đây là bảng so sánh hiệu năng của AI Pipeline cũ (Baseline) 
 
 | ID | Văn bản đầu vào | Phân loại | Bypass LLM | Độ trễ (ms) | Tiết kiệm Token | Độ chính xác |
 | :--- | :--- | :--- | :---: | :---: | :---: | :---: |
-| `simple_01` | *"Đặt bàn 5 người tối mai 7h, liên hệ chị Vy 0901234..."* | `simple_booking` | ✅ Yes | 170.58ms | 100% | ✅ PASS |
-| `simple_02` | *"Ban oi dat ban giup minh vao 19:30 ngay 20/06/2026..."* | `simple_booking` | ✅ Yes | 30.44ms | 100% | ✅ PASS |
-| `missing_date` | *"Đặt bàn 10 người lúc 18:00, liên hệ anh Nam 091234..."* | `booking_with_missing_fields` | ✅ Yes | 6.65ms | 100% | ✅ PASS |
-| `missing_time` | *"Đặt bàn ngày mai cho 6 người, liên hệ chị Mai 0933..."* | `booking_with_missing_fields` | ❌ No | 605.62ms | 94.8% | ✅ PASS |
-| `missing_phone` | *"Đặt bàn 4 người tối nay 19:00, tên Minh"* | `booking_with_missing_fields` | ❌ No | 603.28ms | 94.9% | ✅ PASS |
-| `menu_01` | *"Đặt bàn 5 người 19:00 tối mai. Cho e set Sum Vầy [..."* | `simple_booking` | ❌ No | 603.46ms | 95.6% | ✅ PASS |
-| `menu_02` | *"Cho e order 2 ba chỉ bò Mỹ, 1 nạc vai heo và 1 lẩu..."* | `booking_with_menu` | ❌ No | 454.18ms | 91.2% | ✅ PASS |
-| `ambiguous_time` | *"Đặt bàn lúc rảnh tối mai cho 8 người nha chị, sđt ..."* | `simple_booking` | ❌ No | 604.54ms | 95.6% | ✅ PASS |
-| `ambiguous_ref` | *"Cho em đặt lại bàn như hôm trước nha chị, 6 người ..."* | `complex_conversation` | ❌ No | 603.56ms | 95.6% | ✅ PASS |
-| `spelling_error` | *"Dặt bàng 4 nguoi luc 19h toi nay, sdt 0905555555 t..."* | `simple_booking` | ✅ Yes | 2.44ms | 100% | ✅ PASS |
-| `noise_numbers` | *"Đặt bàn cho 5 người tối nay lúc 20h. Sđt liên hệ 0..."* | `booking_with_menu` | ❌ No | 451.1ms | 93.3% | ✅ PASS |
-| `simple_03` | *"Anh Thanh 0982223344 dat ban 8 nguoi 18:30 ngay 21..."* | `simple_booking` | ✅ Yes | 2.12ms | 100% | ✅ PASS |
-| `simple_04` | *"Chi Linh dat ban 12 nguoi luc 11:30 trua mai. Sdt ..."* | `simple_booking` | ✅ Yes | 1.35ms | 100% | ✅ PASS |
-| `missing_name` | *"Dat ban 4 nguoi 19h30 toi nay sdt 0987111222"* | `simple_booking` | ❌ No | 600.78ms | 95.8% | ✅ PASS |
-| `menu_03` | *"Nhom minh di 10 nguoi, book ban luc 19:00 ngay mai..."* | `booking_with_menu` | ❌ No | 452.75ms | 91.4% | ✅ PASS |
-| `menu_04` | *"Dat ban 5 nguoi luc 18:00. Mon an lay truoc 1 dia ..."* | `booking_with_menu` | ❌ No | 452.92ms | 90.3% | ✅ PASS |
-| `ambiguous_party` | *"Dat ban an tiec sinh nhat 20 nguoi luc 19h ngay 25..."* | `booking_with_menu` | ❌ No | 452.78ms | 92.3% | ✅ PASS |
-| `menu_05` | *"Minh muon dat ban an lau chieu nay luc 17:30. Cho ..."* | `booking_with_menu` | ❌ No | 452.37ms | 91.5% | ✅ PASS |
-| `conflict_01` | *"Dat ban 5 nguoi, a khong di 7 nguoi nha e luc 19h...."* | `booking_with_missing_fields` | ❌ No | 602.44ms | 94.6% | ✅ PASS |
-| `simple_05` | *"Anh Phuc dat ban 2 nguoi luc 20h toi nay. Sdt 0909..."* | `simple_booking` | ✅ Yes | 2.68ms | 100% | ✅ PASS |
-| `simple_06` | *"Ban oi book minh ban 15 nguoi luc 18:30 toi mai. S..."* | `simple_booking` | ✅ Yes | 2.66ms | 100% | ✅ PASS |
-| `menu_06` | *"Cho e order combo nuong 499k cho 4 nguoi an luc 19..."* | `simple_booking` | ❌ No | 605.98ms | 95.4% | ✅ PASS |
-| `menu_07` | *"Dat ban 3 nguoi luc 20h. Lay truoc 3 chai bia va 1..."* | `booking_with_menu` | ❌ No | 452.34ms | 91.7% | ✅ PASS |
-| `missing_all` | *"Minh muon dat ban an toi nay"* | `booking_with_missing_fields` | ❌ No | 601.07ms | 95% | ✅ PASS |
-| `simple_07` | *"Dat ban 6 nguoi 19h ngay 22/06/2026 sdt 0909555666..."* | `simple_booking` | ✅ Yes | 1.56ms | 100% | ✅ PASS |
-| `simple_08` | *"Dat ban 5 nguoi, lien he Hung 0902999888. Luc 18h3..."* | `simple_booking` | ✅ Yes | 2.12ms | 100% | ✅ PASS |
-| `menu_08` | *"Goi truoc cho anh 1 set thit nuong thap cam. Anh d..."* | `booking_with_menu` | ❌ No | 453.19ms | 90.8% | ✅ PASS |
-| `menu_09` | *"Dat ban 4 nguoi luc 19h30 toi nay. Cho anh 4 suat ..."* | `booking_with_menu` | ❌ No | 454.04ms | 91.2% | ✅ PASS |
-| `simple_09` | *"Chi Trinh dat ban 8 nguoi luc 19h ngay 23/06/2026...."* | `simple_booking` | ✅ Yes | 1.59ms | 100% | ✅ PASS |
-| `simple_10` | *"Dat ban 5 nguoi toi nay 20h sdt 0988777666 ten Kie..."* | `simple_booking` | ✅ Yes | 1.34ms | 100% | ✅ PASS |
+| `simple_01` | *"Đặt bàn 5 người tối mai 7h, liên hệ chị Vy 0901234..."* | `simple_booking` | ✅ Yes | 172.02ms | 100% | ✅ PASS |
+| `simple_02` | *"Ban oi dat ban giup minh vao 19:30 ngay 20/06/2026..."* | `simple_booking` | ✅ Yes | 37.15ms | 100% | ✅ PASS |
+| `missing_date` | *"Đặt bàn 10 người lúc 18:00, liên hệ anh Nam 091234..."* | `booking_with_missing_fields` | ✅ Yes | 6.3ms | 100% | ✅ PASS |
+| `missing_time` | *"Đặt bàn ngày mai cho 6 người, liên hệ chị Mai 0933..."* | `booking_with_missing_fields` | ❌ No | 605.48ms | 94.8% | ✅ PASS |
+| `missing_phone` | *"Đặt bàn 4 người tối nay 19:00, tên Minh"* | `booking_with_missing_fields` | ❌ No | 603.6ms | 94.9% | ✅ PASS |
+| `menu_01` | *"Đặt bàn 5 người 19:00 tối mai. Cho e set Sum Vầy [..."* | `simple_booking` | ❌ No | 603.65ms | 95.6% | ✅ PASS |
+| `menu_02` | *"Cho e order 2 ba chỉ bò Mỹ, 1 nạc vai heo và 1 lẩu..."* | `booking_with_menu` | ❌ No | 456.4ms | 91.2% | ✅ PASS |
+| `ambiguous_time` | *"Đặt bàn lúc rảnh tối mai cho 8 người nha chị, sđt ..."* | `simple_booking` | ❌ No | 604.18ms | 95.6% | ✅ PASS |
+| `ambiguous_ref` | *"Cho em đặt lại bàn như hôm trước nha chị, 6 người ..."* | `complex_conversation` | ❌ No | 603.73ms | 95.6% | ✅ PASS |
+| `spelling_error` | *"Dặt bàng 4 nguoi luc 19h toi nay, sdt 0905555555 t..."* | `simple_booking` | ✅ Yes | 2.17ms | 100% | ✅ PASS |
+| `noise_numbers` | *"Đặt bàn cho 5 người tối nay lúc 20h. Sđt liên hệ 0..."* | `booking_with_menu` | ❌ No | 451.34ms | 93.3% | ✅ PASS |
+| `simple_03` | *"Anh Thanh 0982223344 dat ban 8 nguoi 18:30 ngay 21..."* | `simple_booking` | ✅ Yes | 1.96ms | 100% | ✅ PASS |
+| `simple_04` | *"Chi Linh dat ban 12 nguoi luc 11:30 trua mai. Sdt ..."* | `simple_booking` | ✅ Yes | 2.38ms | 100% | ✅ PASS |
+| `missing_name` | *"Dat ban 4 nguoi 19h30 toi nay sdt 0987111222"* | `simple_booking` | ❌ No | 602.59ms | 95.8% | ✅ PASS |
+| `menu_03` | *"Nhom minh di 10 nguoi, book ban luc 19:00 ngay mai..."* | `booking_with_menu` | ❌ No | 452.48ms | 91.4% | ✅ PASS |
+| `menu_04` | *"Dat ban 5 nguoi luc 18:00. Mon an lay truoc 1 dia ..."* | `booking_with_menu` | ❌ No | 454.57ms | 90.3% | ✅ PASS |
+| `ambiguous_party` | *"Dat ban an tiec sinh nhat 20 nguoi luc 19h ngay 25..."* | `booking_with_menu` | ❌ No | 453.32ms | 92.3% | ✅ PASS |
+| `menu_05` | *"Minh muon dat ban an lau chieu nay luc 17:30. Cho ..."* | `booking_with_menu` | ❌ No | 452.25ms | 91.5% | ✅ PASS |
+| `conflict_01` | *"Dat ban 5 nguoi, a khong di 7 nguoi nha e luc 19h...."* | `booking_with_missing_fields` | ❌ No | 603.1ms | 94.6% | ✅ PASS |
+| `simple_05` | *"Anh Phuc dat ban 2 nguoi luc 20h toi nay. Sdt 0909..."* | `simple_booking` | ✅ Yes | 2.94ms | 100% | ✅ PASS |
+| `simple_06` | *"Ban oi book minh ban 15 nguoi luc 18:30 toi mai. S..."* | `simple_booking` | ✅ Yes | 2.04ms | 100% | ✅ PASS |
+| `menu_06` | *"Cho e order combo nuong 499k cho 4 nguoi an luc 19..."* | `simple_booking` | ❌ No | 601.8ms | 95.4% | ✅ PASS |
+| `menu_07` | *"Dat ban 3 nguoi luc 20h. Lay truoc 3 chai bia va 1..."* | `booking_with_menu` | ❌ No | 451.91ms | 91.7% | ✅ PASS |
+| `missing_all` | *"Minh muon dat ban an toi nay"* | `booking_with_missing_fields` | ❌ No | 603.54ms | 95% | ✅ PASS |
+| `simple_07` | *"Dat ban 6 nguoi 19h ngay 22/06/2026 sdt 0909555666..."* | `simple_booking` | ✅ Yes | 2.01ms | 100% | ✅ PASS |
+| `simple_08` | *"Dat ban 5 nguoi, lien he Hung 0902999888. Luc 18h3..."* | `simple_booking` | ✅ Yes | 1.68ms | 100% | ✅ PASS |
+| `menu_08` | *"Goi truoc cho anh 1 set thit nuong thap cam. Anh d..."* | `booking_with_menu` | ❌ No | 452.87ms | 90.8% | ✅ PASS |
+| `menu_09` | *"Dat ban 4 nguoi luc 19h30 toi nay. Cho anh 4 suat ..."* | `booking_with_menu` | ❌ No | 452.22ms | 91.2% | ✅ PASS |
+| `simple_09` | *"Chi Trinh dat ban 8 nguoi luc 19h ngay 23/06/2026...."* | `simple_booking` | ✅ Yes | 1.78ms | 100% | ✅ PASS |
+| `simple_10` | *"Dat ban 5 nguoi toi nay 20h sdt 0988777666 ten Kie..."* | `simple_booking` | ✅ Yes | 1.33ms | 100% | ✅ PASS |
 
 ## 3. Kiến trúc tối ưu hóa cụ thể
 

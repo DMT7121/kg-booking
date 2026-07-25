@@ -23,15 +23,14 @@ export class DualWriteOrderRepository implements OrderRepository {
       return this.pg.getHistory(onBgUpdate)
     }
     
-    // Dual Write Mode: Read from PG, fallback to GAS if PG fails
+    // Dual Write Mode: Read from PG, fallback to GAS if PG fails or returns empty array
     try {
       const pgResult = await this.pg.getHistory(onBgUpdate)
-      if (pgResult.ok) return pgResult
-      throw new Error(pgResult.message || 'PG Read failed')
+      if (pgResult && pgResult.ok && Array.isArray(pgResult.data) && pgResult.data.length > 0) return pgResult
     } catch (e: any) {
       console.warn('[DualWrite] PG read failed, falling back to GAS:', e.message)
-      return this.gas.getHistory(onBgUpdate)
     }
+    return this.gas.getHistory(onBgUpdate)
   }
 
   async getOrderById(id: string): Promise<any> {
