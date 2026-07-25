@@ -14,7 +14,10 @@ const l1ApiCache = new Map<string, { data: any; timestamp: number }>()
 const inFlightGasRequests = new Map<string, Promise<any>>()
 
 function isSuccessfulResponse(res: any): boolean {
-  return res && typeof res === 'object' && res.ok === true
+  if (!res || typeof res !== 'object' || res.ok !== true) return false
+  if (Array.isArray(res.sheets) && res.sheets.length === 0) return false
+  if (Array.isArray(res.data) && res.data.length === 0) return false
+  return true
 }
 
 export function clearL1ApiCache(): void {
@@ -34,21 +37,24 @@ export async function fetchWithStaleWhileRevalidate<T>(
 
   // 1. Check L1 Memory Cache
   const cachedL1 = l1ApiCache.get(key)
-  if (cachedL1) {
+  if (cachedL1 && isSuccessfulResponse(cachedL1.data)) {
     const isStale = (now - cachedL1.timestamp) > ttlMs
     if (!isStale) {
       return cachedL1.data as T
     }
-    // Stale: trigger background fetch and return stale data
     triggerBackgroundFetch(key, fetcher, onBgUpdate)
     return cachedL1.data as T
+  } else if (cachedL1) {
+    l1ApiCache.delete(key)
   }
 
   // 2. Check L2 IndexedDB Cache
   let cachedL2: { data: T; timestamp: number } | null = null
   try {
     const val = await idbGet<{ data: T; timestamp: number }>(`kg_api_cache_${key}`)
-    cachedL2 = val ?? null
+    if (val && isSuccessfulResponse(val.data)) {
+      cachedL2 = val
+    }
   } catch (err) {
     console.warn('[API Cache] L2 read failed:', key, err)
   }

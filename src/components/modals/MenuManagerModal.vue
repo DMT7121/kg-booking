@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { useUIStore } from '@/stores/useUIStore'
 import { useAppStore } from '@/stores/useAppStore'
 import { formatVND } from '@/utils'
@@ -12,6 +12,17 @@ const ui = useUIStore()
 const appStore = useAppStore()
 const { fillSampleMenu, prepareUpdate } = useForm()
 const { parseMenuAI } = useAI()
+
+watch(() => ui.showMenuManager, (isOpen) => {
+  if (isOpen) {
+    if (appStore.menuSheets.length === 0) {
+      appStore.fetchSheets()
+    }
+    if (appStore.menuList.length === 0) {
+      appStore.fetchMenu(appStore.activeSheet || 'MENU2026')
+    }
+  }
+}, { immediate: true })
 
 // Tabs
 
