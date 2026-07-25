@@ -379,11 +379,19 @@ function selectBestDefaultSheet(sheets: string[], defaultProfileId = ''): string
   return preferred || validSheets[0]
 }
 
+function ensureMenu2026InSheets(sheets: string[]): string[] {
+  const clean = sheets.filter(s => !/alias/i.test(s))
+  if (!clean.includes('MENU2026')) {
+    clean.unshift('MENU2026')
+  }
+  return clean
+}
+
   async function fetchSheets() {
     const cached = await getCachedMenuSheets()
     if (cached && cached.length > 0) {
-      const cleanCached = cached.filter(s => !/alias/i.test(s))
-      menuSheets.value = cleanCached.length > 0 ? cleanCached : cached
+      const finalCached = ensureMenu2026InSheets(cached)
+      menuSheets.value = finalCached
       const target = selectBestDefaultSheet(menuSheets.value, defaultMenuProfileId.value)
       if (target) {
         activeSheet.value = target
@@ -396,8 +404,7 @@ function selectBestDefaultSheet(sheets: string[], defaultProfileId = ''): string
     try {
       const data = await menuRepo.getMenuSheets()
       if (data && data.ok && data.sheets && data.sheets.length > 0) {
-        const cleanSheets = data.sheets.filter((s: string) => !/alias/i.test(s))
-        const finalSheets = cleanSheets.length > 0 ? cleanSheets : data.sheets
+        const finalSheets = ensureMenu2026InSheets(data.sheets)
         menuSheets.value = finalSheets
         await cacheMenuSheets(finalSheets)
         
@@ -409,7 +416,7 @@ function selectBestDefaultSheet(sheets: string[], defaultProfileId = ''): string
         }
         scheduleMenusPrecache(finalSheets, { reason: 'app-startup-network' })
       } else if (menuSheets.value.length === 0) {
-        menuSheets.value = ['MENU2026', 'Menu - Set']
+        menuSheets.value = ensureMenu2026InSheets(['MENU2026', 'Menu - Set'])
         const target = selectBestDefaultSheet(menuSheets.value, defaultMenuProfileId.value)
         activeSheet.value = target
         localStorage.setItem(CACHE_KEYS.MENU_SHEET, target)
@@ -418,7 +425,7 @@ function selectBestDefaultSheet(sheets: string[], defaultProfileId = ''): string
     } catch (e) {
       console.error('Fetch Sheets Error', e)
       if (menuSheets.value.length === 0) {
-        menuSheets.value = ['MENU2026', 'Menu - Set']
+        menuSheets.value = ensureMenu2026InSheets(['MENU2026', 'Menu - Set'])
         const target = selectBestDefaultSheet(menuSheets.value, defaultMenuProfileId.value)
         activeSheet.value = target
         localStorage.setItem(CACHE_KEYS.MENU_SHEET, target)
