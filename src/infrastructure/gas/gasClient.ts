@@ -129,9 +129,7 @@ async function postGASDirect(payload: Record<string, any>, signal?: AbortSignal,
     // Pinia not yet initialized, skip UI tracking
   }
 
-  const isGasMode = import.meta.env.VITE_BACKEND_MODE === 'gas'
-  const useLocalProxy = import.meta.env.DEV && API_URL.startsWith('/api')
-  const useWorker = (useLocalProxy || !isGasMode) && !isGatewayCircuitOpen('cloudflare_edge')
+  const useWorker = !isGatewayCircuitOpen('cloudflare_edge')
 
   try {
     if (useWorker) {
