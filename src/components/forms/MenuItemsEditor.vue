@@ -123,13 +123,13 @@ const filteredSuggestions = computed(() => {
   const q = ui.focusIdx !== null ? (formStore.items[ui.focusIdx]?.name || '') : ''
   if (!q) {
     if (selectedCategory.value === 'TẤT CẢ') {
-      return popularMenuItems.value
+      return popularMenuItems.value.length > 0 ? popularMenuItems.value : appStore.menuList.slice(0, 30)
     }
     const cat = CATEGORIES.find(c => c.name === selectedCategory.value)
     if (cat) {
       return appStore.menuList.filter((item: any) => 
         cat.keywords.some(kw => item.name.toLowerCase().includes(kw))
-      ).slice(0, 15)
+      ).slice(0, 20)
     }
   }
   

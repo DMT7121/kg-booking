@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref, shallowRef } from 'vue'
-import { CACHE_KEYS } from '@/utils/constants'
+import { CACHE_KEYS, SAMPLE_MENU } from '@/utils/constants'
 import { useUIStore } from './useUIStore'
 import { useAdminStore } from './useAdminStore'
 import {
@@ -8,6 +8,7 @@ import {
   cacheMenuSheets, getCachedMenuSheets,
   cacheIsFresh
 } from '@/services/cache'
+import { stripAccents } from '@/utils'
 import { DualWriteMenuRepository as GasMenuRepository, DualWriteCorrectionRepository as GasCorrectionRepository } from '@/infrastructure/dual/dualWriteRepository'
 import { clearAIResponseCache, hashAndStringifyLargeObject } from '@/services/ai/aiResponseCache'
 
@@ -20,6 +21,54 @@ export interface MenuListItem {
   desc?: string
   cleanName: string
   acronym: string
+}
+
+export function parseSampleMenu(rawText: string): MenuListItem[] {
+  const lines = rawText.split('\n')
+  const items: MenuListItem[] = []
+  let category = ''
+  for (const line of lines) {
+    const trimmed = line.trim()
+    if (!trimmed) continue
+    if (!trimmed.includes('-') && !/\d+k/i.test(trimmed)) {
+      category = trimmed
+      continue
+    }
+    const parts = trimmed.split('-')
+    const rawName = parts[0].replace(/^\d+[\.\)\s]+/, '').trim()
+    if (!rawName) continue
+    let price = 0
+    if (parts[1]) {
+      const pStr = parts[1].toLowerCase().replace(/k/g, '000').replace(/[^0-9]/g, '')
+      price = parseInt(pStr) || 0
+    }
+    const cleanName = stripAccents(rawName).toLowerCase().trim().replace(/[^a-z0-9\s]/g, '')
+    const acronym = cleanName.split(/\s+/).filter(Boolean).map(w => w[0]).join('')
+    items.push({
+      name: rawName,
+      price,
+      desc: category ? `Loại: ${category}` : '',
+      cleanName,
+      acronym
+    })
+  }
+  return items
+}
+
+export function normalizeMenuItems(rawItems: any[]): MenuListItem[] {
+  if (!Array.isArray(rawItems)) return []
+  return rawItems.map((i: any) => {
+    const name = i.name || ''
+    const cleanName = i.cleanName || stripAccents(name).toLowerCase().trim().replace(/[^a-z0-9\s]/g, '')
+    const acronym = i.acronym || cleanName.split(/\s+/).filter(Boolean).map((w: string) => w[0]).join('')
+    return {
+      name,
+      price: Number(i.price) || 0,
+      desc: i.desc || i.note || '',
+      cleanName,
+      acronym
+    }
+  })
 }
 
 export const useMenuStore = defineStore('menu', () => {
@@ -158,23 +207,26 @@ export const useMenuStore = defineStore('menu', () => {
 
     const cached = await getCachedMenu(targetSheet)
     if (cached && cached.length > 0) {
-      menuList.value = cached
+      const normalized = normalizeMenuItems(cached)
+      menuList.value = normalized
       computeMenuFingerprint()
       const ds: Record<string, string> = {}
-      cached.forEach((i: any) => { if (i.desc) ds[i.name] = i.desc })
+      normalized.forEach((i: any) => { if (i.desc) ds[i.name] = i.desc })
       menuDetails.value = ds
       activeSheet.value = targetSheet
 
       menuRepo.getMenu(targetSheet).then((data) => {
         if (data.ok) {
-          menuList.value = data.data || []
-          computeMenuFingerprint()
-          const dsUpdate: Record<string, string> = {}
-          if (Array.isArray(data.data)) {
-            data.data.forEach((i: any) => { if (i.desc) dsUpdate[i.name] = i.desc })
+          const raw = Array.isArray(data.data) ? data.data : (Array.isArray(data.items) ? data.items : [])
+          if (raw.length > 0) {
+            const updated = normalizeMenuItems(raw)
+            menuList.value = updated
+            computeMenuFingerprint()
+            const dsUpdate: Record<string, string> = {}
+            updated.forEach((i: any) => { if (i.desc) dsUpdate[i.name] = i.desc })
+            menuDetails.value = dsUpdate
+            cacheMenu(targetSheet, updated)
           }
-          menuDetails.value = dsUpdate
-          cacheMenu(targetSheet, data.data || [])
         }
       }).catch((e) => {
         console.warn('[Menu Revalidation Failed]', e)
@@ -186,18 +238,33 @@ export const useMenuStore = defineStore('menu', () => {
     try {
       const data = await menuRepo.getMenu(targetSheet)
       if (data.ok) {
-        menuList.value = data.data || []
-        computeMenuFingerprint()
-        const ds: Record<string, string> = {}
-        if (Array.isArray(data.data)) {
-          data.data.forEach((i: any) => { if (i.desc) ds[i.name] = i.desc })
+        const raw = Array.isArray(data.data) ? data.data : (Array.isArray(data.items) ? data.items : [])
+        const updated = normalizeMenuItems(raw)
+        if (updated.length > 0) {
+          menuList.value = updated
+          computeMenuFingerprint()
+          const ds: Record<string, string> = {}
+          updated.forEach((i: any) => { if (i.desc) ds[i.name] = i.desc })
+          menuDetails.value = ds
+          activeSheet.value = targetSheet
+          await cacheMenu(targetSheet, updated)
+        } else if (menuList.value.length === 0) {
+          const sample = parseSampleMenu(SAMPLE_MENU)
+          menuList.value = sample
+          computeMenuFingerprint()
         }
-        menuDetails.value = ds
-        activeSheet.value = targetSheet
-        await cacheMenu(targetSheet, data.data || [])
+      } else if (menuList.value.length === 0) {
+        const sample = parseSampleMenu(SAMPLE_MENU)
+        menuList.value = sample
+        computeMenuFingerprint()
       }
     } catch (e) {
       console.error(e)
+      if (menuList.value.length === 0) {
+        const sample = parseSampleMenu(SAMPLE_MENU)
+        menuList.value = sample
+        computeMenuFingerprint()
+      }
       uiStore.showToast('Không tải được menu', 'warning')
     }
   }
@@ -299,19 +366,52 @@ export const useMenuStore = defineStore('menu', () => {
     })
   }
 
+function selectBestDefaultSheet(sheets: string[], defaultProfileId = ''): string {
+  if (!sheets || sheets.length === 0) return ''
+  const validSheets = sheets.filter(s => !/alias/i.test(s))
+  if (validSheets.length === 0) return sheets[0]
+  if (defaultProfileId && validSheets.includes(defaultProfileId)) {
+    return defaultProfileId
+  }
+  const preferred = validSheets.find(s => /2026|chinh|main|thuc_don/i.test(s)) ||
+                    validSheets.find(s => /^menu\d*$/i.test(s.trim())) ||
+                    validSheets.find(s => !/set/i.test(s))
+  return preferred || validSheets[0]
+}
+
   async function fetchSheets() {
     const cached = await getCachedMenuSheets()
     if (cached && cached.length > 0) {
-      menuSheets.value = cached
-      scheduleMenusPrecache(cached, { reason: 'app-startup-cache' })
+      const cleanCached = cached.filter(s => !/alias/i.test(s))
+      menuSheets.value = cleanCached.length > 0 ? cleanCached : cached
+      if (!menuSheets.value.includes(activeSheet.value) || menuList.value.length === 0) {
+        const target = selectBestDefaultSheet(menuSheets.value, defaultMenuProfileId.value)
+        if (target) {
+          activeSheet.value = target
+          localStorage.setItem(CACHE_KEYS.MENU_SHEET, target)
+          fetchMenu(target)
+        }
+      }
+      scheduleMenusPrecache(menuSheets.value, { reason: 'app-startup-cache' })
     }
 
     try {
       const data = await menuRepo.getMenuSheets()
-      if (data.ok) {
-        menuSheets.value = data.sheets || []
-        await cacheMenuSheets(data.sheets || [])
-        scheduleMenusPrecache(data.sheets || [], { reason: 'app-startup-network' })
+      if (data.ok && data.sheets && data.sheets.length > 0) {
+        const cleanSheets = data.sheets.filter((s: string) => !/alias/i.test(s))
+        const finalSheets = cleanSheets.length > 0 ? cleanSheets : data.sheets
+        menuSheets.value = finalSheets
+        await cacheMenuSheets(finalSheets)
+        
+        if (!finalSheets.includes(activeSheet.value) || menuList.value.length === 0) {
+          const target = selectBestDefaultSheet(finalSheets, defaultMenuProfileId.value)
+          if (target) {
+            activeSheet.value = target
+            localStorage.setItem(CACHE_KEYS.MENU_SHEET, target)
+            await fetchMenu(target)
+          }
+        }
+        scheduleMenusPrecache(finalSheets, { reason: 'app-startup-network' })
       }
     } catch (e) {
       console.error('Fetch Sheets Error', e)

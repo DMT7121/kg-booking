@@ -31,8 +31,8 @@ function _createForm() {
 
   watch(() => appStore.menuList, (nl) => {
     miniSearch.removeAll()
-    if (nl.length) miniSearch.addAll(nl.map((i: any, idx: number) => ({ id: idx, ...i })))
-  }, { deep: true })
+    if (nl && nl.length) miniSearch.addAll(nl.map((i: any, idx: number) => ({ id: idx, ...i })))
+  }, { deep: true, immediate: true })
 
   function onSearchInput(idx: number) {
     uiStore.focusIdx = idx
