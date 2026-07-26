@@ -158,6 +158,7 @@ function goToTomorrowTimeline() {
             <span class="w-2 h-2 rounded-full bg-green-400 animate-pulse shadow-[0_0_8px_rgba(74,222,128,0.8)] shrink-0"></span>
           </h1>
           <div class="flex items-center gap-1.5 mt-1">
+            <span class="px-1.5 py-0.5 rounded bg-blue-500/20 text-blue-300 font-mono text-[9px] font-bold border border-blue-400/30 shrink-0">v2.5.0-APEX</span>
             <span class="text-[8px] font-black text-slate-400 uppercase tracking-widest">
               {{ 
                 ui.connectionStatus === 'syncing' ? 'Đang đồng bộ' : 
@@ -166,6 +167,7 @@ function goToTomorrowTimeline() {
               }}
             </span>
           </div>
+
         </div>
       </div>
 
