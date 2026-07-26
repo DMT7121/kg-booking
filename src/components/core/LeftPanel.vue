@@ -158,8 +158,16 @@ function goToTomorrowTimeline() {
             <span class="w-2 h-2 rounded-full bg-green-400 animate-pulse shadow-[0_0_8px_rgba(74,222,128,0.8)] shrink-0"></span>
           </h1>
           <div class="flex items-center gap-1.5 mt-1">
-            <span class="px-1.5 py-0.5 rounded bg-blue-500/20 text-blue-300 font-mono text-[9px] font-bold border border-blue-400/30 shrink-0">v2.5.0-APEX</span>
+            <button 
+              @click="ui.showVersionModal = true" 
+              title="Xem thông tin nâng cấp phiên bản v2.5.0-APEX"
+              class="px-1.5 py-0.5 rounded bg-gradient-to-r from-blue-500/30 to-purple-500/30 hover:from-blue-500/50 hover:to-purple-500/50 text-blue-200 font-mono text-[9px] font-bold border border-blue-400/40 shrink-0 cursor-pointer transition-all hover:scale-105 active:scale-95 flex items-center gap-1 shadow-sm"
+            >
+              <i class="fa-solid fa-sparkles text-[8px] text-amber-300 animate-pulse"></i>
+              <span>v2.5.0-APEX</span>
+            </button>
             <span class="text-[8px] font-black text-slate-400 uppercase tracking-widest">
+
               {{ 
                 ui.connectionStatus === 'syncing' ? 'Đang đồng bộ' : 
                 ui.connectionStatus === 'error' ? 'Ngoại tuyến' : 

@@ -24,8 +24,10 @@ const FloorPlanModal = defineAsyncComponent(() => import('@/components/modals/Fl
 const CustomerCareModal = defineAsyncComponent(() => import('@/components/modals/CustomerCareModal.vue'))
 const GuideConfigModal = defineAsyncComponent(() => import('@/components/modals/GuideConfigModal.vue'))
 const ConflictResolutionModal = defineAsyncComponent(() => import('@/components/modals/ConflictResolutionModal.vue'))
+const VersionReleaseModal = defineAsyncComponent(() => import('@/components/modals/VersionReleaseModal.vue'))
 
 const ui = useUIStore()
+
 const formStore = useFormStore()
 const appStore = useAppStore()
 const configStore = useConfigStore()
@@ -729,6 +731,7 @@ const ambientTheme = computed(() => {
     <FloorPlanModal />
     <CustomerCareModal />
     <ConflictResolutionModal />
+    <VersionReleaseModal />
 
     <!-- COMMAND PALETTE MODAL -->
     <transition name="fade">
