@@ -334,3 +334,25 @@ export async function callAIModel(
 
   throw new Error(`Tất cả các tuyến vận chuyển (${stages.length} stages) của mô hình ${model.name} đều thất bại.`)
 }
+
+export async function callAIModelStream(
+  request: AICompletionRequest,
+  onChunk: (textChunk: string) => void,
+  logCallback?: (msg: string, type?: 'info' | 'warning' | 'error' | 'success') => void
+): Promise<string> {
+  const fullText = await callAIModel(request, logCallback)
+  if (!fullText) {
+    throw new Error('AI Model stream returned empty response')
+  }
+
+  // Simulate chunked streaming delivery if streaming stream reader is unavailable
+  const chunkSize = 25
+  for (let i = 0; i < fullText.length; i += chunkSize) {
+    const chunk = fullText.slice(i, i + chunkSize)
+    onChunk(chunk)
+    await new Promise(resolve => setTimeout(resolve, 15))
+  }
+
+  return fullText
+}
+

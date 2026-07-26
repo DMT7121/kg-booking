@@ -1,3 +1,4 @@
+import MiniSearch from 'minisearch'
 import { stripAccents } from '@/utils'
 import type { MenuCandidate, PromptProfile } from '../ai/promptBuilder'
 
@@ -25,88 +26,123 @@ function normalizeString(str: string): string {
     .trim()
 }
 
+function generateAcronym(name: string): string {
+  return normalizeString(name)
+    .split(' ')
+    .filter(Boolean)
+    .map(w => w[0])
+    .join('')
+}
+
 export function retrieveMenuCandidates(input: MenuCandidateRetrievalInput): MenuCandidate[] {
   const { text, menus, limit = 15 } = input
   const normalizedText = normalizeString(text)
   if (!normalizedText) return []
 
-  const textTokens = normalizedText.split(' ').filter(Boolean)
-  const candidates: MenuCandidate[] = []
+  // Initialize MiniSearch Index
+  const miniSearch = new MiniSearch({
+    fields: ['name', 'cleanName', 'acronym', 'aliases'],
+    storeFields: ['menuId', 'menuName', 'itemId', 'itemName', 'aliases'],
+    searchOptions: {
+      boost: { name: 2, acronym: 1.5, cleanName: 1 },
+      fuzzy: 0.2,
+      prefix: true
+    }
+  })
+
+  const documents: any[] = []
+  let docId = 1
 
   for (const menu of menus) {
     for (const item of menu.items) {
-      const normalizedName = normalizeString(item.name)
-      const nameTokens = normalizedName.split(' ').filter(Boolean)
-      
-      let score = 0
-      const matchedBy: Array<'exact' | 'alias' | 'token' | 'fuzzy' | 'bm25'> = []
+      const cleanName = normalizeString(item.name)
+      const acronym = generateAcronym(item.name)
+      const aliasesStr = (item.aliases || []).map(normalizeString).join(' ')
 
-      // 1. Exact phrase match
-      if (normalizedText.includes(normalizedName) && normalizedName.length > 2) {
-        score += 1.0
-        matchedBy.push('exact')
+      documents.push({
+        id: docId++,
+        menuId: menu.menuId,
+        menuName: menu.menuName,
+        itemId: item.id || `item-${docId}`,
+        itemName: item.name,
+        cleanName,
+        acronym,
+        aliases: aliasesStr
+      })
+    }
+  }
+
+  if (documents.length === 0) return []
+
+  miniSearch.addAll(documents)
+  const searchResults = miniSearch.search(normalizedText)
+
+  const candidates: MenuCandidate[] = []
+  const textTokens = normalizedText.split(' ').filter(Boolean)
+
+  for (const res of searchResults) {
+    const matchedBy: Array<'exact' | 'alias' | 'token' | 'fuzzy' | 'bm25'> = []
+
+    const cleanItemName = normalizeString(res.itemName)
+    if (normalizedText.includes(cleanItemName)) {
+      matchedBy.push('exact')
+    }
+
+    if (res.aliases) {
+      const aliasList = res.aliases.split(' ')
+      for (const a of aliasList) {
+        if (a && normalizedText.includes(a)) {
+          matchedBy.push('alias')
+          break
+        }
       }
+    }
 
-      // 2. Aliases match
-      if (item.aliases && item.aliases.length > 0) {
-        let matchedAlias = false
-        for (const alias of item.aliases) {
-          const normalizedAlias = normalizeString(alias)
-          if (normalizedAlias && normalizedText.includes(normalizedAlias)) {
-            score += 0.8
-            matchedAlias = true
+    const itemTokens = cleanItemName.split(' ')
+    const hasTokenOverlap = itemTokens.some(t => textTokens.includes(t))
+    if (hasTokenOverlap) {
+      matchedBy.push('token')
+    }
+
+    matchedBy.push('fuzzy', 'bm25')
+
+    candidates.push({
+      menuId: res.menuId,
+      menuName: res.menuName,
+      itemId: res.itemId,
+      itemName: res.itemName,
+      aliases: res.aliases ? res.aliases.split(' ') : [],
+      score: parseFloat(Math.min(1.0, res.score / 10).toFixed(2)),
+      matchedBy
+    })
+  }
+
+
+  // Fallback Rule-Based Candidate Search if MiniSearch returns few results
+  if (candidates.length < limit) {
+    for (const menu of menus) {
+      for (const item of menu.items) {
+        const normalizedName = normalizeString(item.name)
+        if (normalizedText.includes(normalizedName) && normalizedName.length > 2) {
+          const exists = candidates.some(c => c.itemName === item.name)
+          if (!exists) {
+            candidates.push({
+              menuId: menu.menuId,
+              menuName: menu.menuName,
+              itemId: item.id,
+              itemName: item.name,
+              aliases: item.aliases,
+              score: 0.95,
+              matchedBy: ['exact']
+            })
           }
         }
-        if (matchedAlias) {
-          matchedBy.push('alias')
-        }
-      }
-
-      // 3. Token Overlap
-      let overlapCount = 0
-      for (const token of nameTokens) {
-        if (textTokens.includes(token)) {
-          overlapCount++
-        }
-      }
-      if (overlapCount > 0 && nameTokens.length > 0) {
-        const overlapRatio = overlapCount / nameTokens.length
-        if (overlapRatio >= 0.4) {
-          score += 0.6 * overlapRatio
-          matchedBy.push('token')
-        }
-      }
-
-      // 4. BM25 / Frequency-like scoring helper (token frequency match)
-      let wordMatchCount = 0
-      for (const token of textTokens) {
-        if (nameTokens.includes(token)) {
-          wordMatchCount++
-        }
-      }
-      if (wordMatchCount > 0) {
-        score += 0.2 * Math.min(wordMatchCount, 3)
-        matchedBy.push('bm25')
-      }
-
-      if (score > 0) {
-        candidates.push({
-          menuId: menu.menuId,
-          menuName: menu.menuName,
-          itemId: item.id,
-          itemName: item.name,
-          aliases: item.aliases,
-          score: parseFloat(score.toFixed(2)),
-          matchedBy
-        })
       }
     }
   }
 
-  // Sort candidates by score descending
   candidates.sort((a, b) => b.score - a.score)
 
-  // Remove duplicate items (if the same item matches multiple rules, keep highest score)
   const uniqueCandidates: MenuCandidate[] = []
   const seenItems = new Set<string>()
   for (const cand of candidates) {
@@ -119,3 +155,4 @@ export function retrieveMenuCandidates(input: MenuCandidateRetrievalInput): Menu
 
   return uniqueCandidates.slice(0, limit)
 }
+

@@ -1,8 +1,9 @@
 {
   "name": "kg-booking",
   "private": true,
-  "version": "1.0.0",
+  "version": "2.5.0-APEX",
   "type": "module",
+
   "scripts": {
     "dev": "vite",
     "build": "vue-tsc && vite build",

@@ -1,6 +1,7 @@
-# 🔥 KING'S GRILL OmniBooking AI v2.0.0
+# 🔥 KING'S GRILL OmniBooking AI v2.5.0-APEX
 
-> Hệ thống quản lý đặt bàn thông minh đột phá tích hợp AI Core v6.0, Sơ đồ bàn 2D tương tác trực quan, Cổng thông tin khách hàng E-Portal & cơ chế đồng bộ Offline-First.
+> Hệ thống quản lý đặt bàn thông minh đột phá tích hợp AI Core v7.5 APEX, Supabase PostgreSQL Storage, Multi-Worker Dedicated Engine, MiniSearch Smart Matching & 9 Cổng LLM API Miễn Phí.
+
 
 ---
 

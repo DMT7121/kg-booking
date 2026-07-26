@@ -4,6 +4,7 @@ import { useConfigStore } from '@/stores/useConfigStore'
 import { useAppStore } from '@/stores/useAppStore'
 import { useLogStore } from '@/stores/useLogStore'
 import { resizeImage, cleanPhoneNumber, formatDateStr, formatVND, stripAccents } from '@/utils'
+import { processImageForOCR } from '@/utils/imageProcessor'
 import { AI_MODELS, ADVANCED_AI_PROMPT, IMAGE_OCR_PROMPT } from '@/utils/constants'
 import type { AIModel } from '@/utils/constants'
 import * as api from '@/services/api'
@@ -507,8 +508,13 @@ export function useAI() {
     }
 
     try {
+      if (formStore.aiImage) {
+        logStore.addLog('[ImageProcessor] Tự động nâng cao độ tương phản và nén 1120px tối ưu cho Vision OCR...')
+        formStore.aiImage = await processImageForOCR(formStore.aiImage, { contrastEnhancement: true })
+      }
       const type = formStore.aiImage ? 'vision' : 'text'
       const hasImage = !!formStore.aiImage
+
       
       const classificationInput = {
         text: formStore.rawInput || '',
