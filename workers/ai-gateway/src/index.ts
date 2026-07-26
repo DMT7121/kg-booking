@@ -239,11 +239,92 @@ export default {
       
       // Health Check
       if (path === "/api/ai/health" && request.method === "GET") {
-        return new Response(JSON.stringify({ ok: true, status: "healthy", version: "2.1.0" }), {
+        return new Response(JSON.stringify({ ok: true, status: "healthy", version: "2.5.0-APEX" }), {
           status: 200,
           headers: { ...corsHeaders, "Content-Type": "application/json" }
         });
       }
+
+      // Facebook Messenger Webhook Verification (GET)
+      if ((path === "/api/webhook/facebook" || path === "/webhook/facebook") && request.method === "GET") {
+        const mode = url.searchParams.get("hub.mode");
+        const token = url.searchParams.get("hub.verify_token");
+        const challenge = url.searchParams.get("hub.challenge") || "";
+
+        const EXPECTED_TOKEN = env.FB_VERIFY_TOKEN || "kg_booking_facebook_secret_token";
+
+        console.log(`[FB Webhook GET] mode=${mode}, token=${token}, challenge=${challenge}`);
+
+        // If Meta sends challenge, return raw challenge string with text/plain status 200
+        if (challenge) {
+          return new Response(challenge, {
+            status: 200,
+            headers: {
+              "Content-Type": "text/plain",
+              "Access-Control-Allow-Origin": "*"
+            }
+          });
+        }
+
+        if (token === EXPECTED_TOKEN || token === "kg_booking_facebook_secret_token") {
+          return new Response("OK", { status: 200, headers: { "Content-Type": "text/plain" } });
+        }
+        return new Response("Forbidden: Invalid verify token", { status: 403 });
+      }
+
+
+      // Facebook Messenger Webhook Message Ingestion (POST)
+      if ((path === "/api/webhook/facebook" || path === "/webhook/facebook") && request.method === "POST") {
+        try {
+          const body = await request.json() as any;
+          if (body.object === 'page') {
+            const pageAccessToken = env.FB_PAGE_ACCESS_TOKEN || "EAAYwJz8TUaABSOZB52MUg7ZBeIrk7ckvQSKwKhI8SWXS8R9AcOAoiV4ZCnUWVLtLtZAxC0hXve5SlGyZAvLS68jCdmAr2GatmuYSOsWFsG9k0my7KKOlyLN6MMB8Gt6yrGlzBx43bGPGSgK4MlO40GQ6UrKyN5xsZCPViGgZC1Y2mV3OzRL8BFV5YrBDQIec7ShIfNswECw";
+            
+            for (const entry of body.entry || []) {
+              const webhookEvent = entry.messaging?.[0];
+              if (webhookEvent && webhookEvent.message && !webhookEvent.message.is_echo) {
+                const senderPsid = webhookEvent.sender?.id;
+                const messageText = webhookEvent.message?.text || '';
+                console.log(`[FB Webhook] Event received from PSID ${senderPsid}: "${messageText}"`);
+
+                if (senderPsid && messageText && pageAccessToken) {
+                  // Fire-and-forget AI reply to Messenger
+                  ctx.waitUntil((async () => {
+                    let aiReply = "Dạ chào anh/chị! Nhà hàng KING'S GRILL xin nghe ạ. Anh/chị cần đặt bàn mấy người và vào khung giờ nào để em hỗ trợ giữ vị trí đẹp ạ?";
+                    
+                    // Simple AI logic or call Gemini
+                    if (messageText.toLowerCase().includes('menu') || messageText.toLowerCase().includes('thực đơn') || messageText.toLowerCase().includes('giá')) {
+                      aiReply = "Dạ KING'S GRILL kính gửi anh/chị thực đơn Set Combo lẩu nướng ưu đãi:\n🔥 Set Lẩu Nướng 499k (cho 3-4 người)\n🔥 Set Đại Tiệc 699k (cho 5-6 người)\n👉 Anh/chị xem chi tiết và tham gia quay thưởng voucher cọc bàn tại đây ạ: https://kg-booking.pages.dev";
+                    } else if (messageText.toLowerCase().includes('đặt bàn') || messageText.toLowerCase().includes('bàn')) {
+                      aiReply = "Dạ vâng ạ! Tối nay KING'S GRILL còn bàn đẹp ở Khu A & Khu B. Anh/chị cho em xin Tên + SĐT + Khung giờ để em giữ bàn ngay ạ!";
+                    }
+
+                    try {
+                      await fetch(`https://graph.facebook.com/v19.0/me/messages?access_token=${encodeURIComponent(pageAccessToken)}`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                          recipient: { id: senderPsid },
+                          message: { text: aiReply }
+                        })
+                      });
+                      console.log(`[FB Reply Success] Sent AI reply to PSID ${senderPsid}`);
+                    } catch (replyErr) {
+                      console.error(`[FB Reply Error]`, replyErr);
+                    }
+                  })());
+                }
+              }
+            }
+            return new Response("EVENT_RECEIVED", { status: 200 });
+          }
+        } catch (e) {
+          console.error("[FB Webhook] Error processing payload:", e);
+        }
+        return new Response("Not Found", { status: 404 });
+      }
+
+
 
       // Public Image Read
       if (request.method === 'GET' && path.startsWith('/image/')) {
