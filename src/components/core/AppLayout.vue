@@ -25,8 +25,10 @@ const CustomerCareModal = defineAsyncComponent(() => import('@/components/modals
 const GuideConfigModal = defineAsyncComponent(() => import('@/components/modals/GuideConfigModal.vue'))
 const ConflictResolutionModal = defineAsyncComponent(() => import('@/components/modals/ConflictResolutionModal.vue'))
 const VersionReleaseModal = defineAsyncComponent(() => import('@/components/modals/VersionReleaseModal.vue'))
+const SocialBotModal = defineAsyncComponent(() => import('@/components/modals/SocialBotModal.vue'))
 
 const ui = useUIStore()
+
 
 const formStore = useFormStore()
 const appStore = useAppStore()
@@ -732,6 +734,8 @@ const ambientTheme = computed(() => {
     <CustomerCareModal />
     <ConflictResolutionModal />
     <VersionReleaseModal />
+    <SocialBotModal />
+
 
     <!-- COMMAND PALETTE MODAL -->
     <transition name="fade">

@@ -217,7 +217,87 @@ async function getUserFromRequest(request: Request, env: Env): Promise<{ role: '
   return null;
 }
 
+// Facebook Messenger Automatic Booking Saver
+async function saveFacebookBookingToDB(senderPsid: string, text: string, env: Env) {
+  try {
+    const phoneMatch = text.match(/0\d{9,10}/);
+    const phone = phoneMatch ? phoneMatch[0] : '';
+    
+    const paxMatch = text.match(/(\d+)\s*(người|khách|pax)/i);
+    const pax = paxMatch ? parseInt(paxMatch[1]) : 2;
+
+    const timeMatch = text.match(/(\d{1,2})[h:](\d{2})?/i);
+    const hour = timeMatch ? timeMatch[1].padStart(2, '0') : '19';
+    const min = timeMatch && timeMatch[2] ? timeMatch[2].padStart(2, '0') : '00';
+    const eventTime = `${hour}:${min}`;
+
+    const d = new Date();
+    const eventDate = `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`;
+
+    const nameMatch = text.match(/(anh|chị|khách)\s+([a-zA-ZÀ-ỹ\s]+)/i);
+    const customerName = nameMatch ? `${nameMatch[1]} ${nameMatch[2].trim()}` : `Khách FB (${senderPsid.slice(-4)})`;
+
+    const supabaseUrl = "https://azfkzheypuvfcitckovf.supabase.co";
+    const anonKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImF6Zmt6aGV5cHV2ZmNpdGNrb3ZmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODUwNzc1MjEsImV4cCI6MjEwMDY1MzUyMX0.ltnY7GTzKGE7QiWTv8ZuDlfT_NWIR2sGfGudoVDw4NQ";
+
+    // 1. Post to Supabase PostgreSQL
+    await fetch(`${supabaseUrl}/rest/v1/bookings`, {
+      method: "POST",
+      headers: {
+        "apikey": anonKey,
+        "Authorization": `Bearer ${anonKey}`,
+        "Content-Type": "application/json",
+        "Prefer": "return=minimal"
+      },
+      body: JSON.stringify({
+        customer_name: customerName,
+        phone: phone || "0900000000",
+        event_date: eventDate,
+        event_time: eventTime,
+        guest_count: pax,
+        table_number: "Khu A",
+        booking_need: `FB Messenger: "${text}"`,
+        deposit_amount: 0,
+        status: "pending"
+      })
+    });
+
+    // 2. Post to Google Sheets GAS endpoint
+    const gasUrl = env.GAS_URL || "https://script.google.com/macros/s/AKfycbxzjio4sat5fWoUncPgp8SfjoGqfGxW5vFoDgkHvBI3OKVWIaszsAaUt0LE2fCHtkCFsA/exec";
+    await fetch(gasUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        action: "saveOrder",
+        orderData: {
+          id: `fb-${senderPsid}-${Date.now()}`,
+          timestamp: new Date().toISOString(),
+          parsedCustomer: {
+            name: customerName,
+            phone: phone || "0900000000",
+            date: eventDate,
+            time: eventTime,
+            pax: pax.toString(),
+            tables: "Khu A",
+            type: "Facebook Fanpage",
+            note: text
+          },
+          totalAmount: 0,
+          depositAmount: 0,
+          isDeposited: false,
+          menuItems: [],
+          staff: { name: "AI Chatbot Facebook", phone: "" }
+        }
+      })
+    });
+    console.log(`[FB Auto Booking] Successfully created order for ${customerName}`);
+  } catch (err) {
+    console.error("[FB Auto Booking Error]", err);
+  }
+}
+
 export default {
+
   async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
     const origin = request.headers.get('Origin') || '*';
     const corsHeaders = {
@@ -288,16 +368,20 @@ export default {
                 console.log(`[FB Webhook] Event received from PSID ${senderPsid}: "${messageText}"`);
 
                 if (senderPsid && messageText && pageAccessToken) {
-                  // Fire-and-forget AI reply to Messenger
+                  // Fire-and-forget AI reply to Messenger & Auto-save Booking to DB
                   ctx.waitUntil((async () => {
                     let aiReply = "Dạ chào anh/chị! Nhà hàng KING'S GRILL xin nghe ạ. Anh/chị cần đặt bàn mấy người và vào khung giờ nào để em hỗ trợ giữ vị trí đẹp ạ?";
-                    
-                    // Simple AI logic or call Gemini
-                    if (messageText.toLowerCase().includes('menu') || messageText.toLowerCase().includes('thực đơn') || messageText.toLowerCase().includes('giá')) {
+                    const lowerText = messageText.toLowerCase();
+
+                    if (lowerText.includes('menu') || lowerText.includes('thực đơn') || lowerText.includes('giá')) {
                       aiReply = "Dạ KING'S GRILL kính gửi anh/chị thực đơn Set Combo lẩu nướng ưu đãi:\n🔥 Set Lẩu Nướng 499k (cho 3-4 người)\n🔥 Set Đại Tiệc 699k (cho 5-6 người)\n👉 Anh/chị xem chi tiết và tham gia quay thưởng voucher cọc bàn tại đây ạ: https://kg-booking.pages.dev";
-                    } else if (messageText.toLowerCase().includes('đặt bàn') || messageText.toLowerCase().includes('bàn')) {
-                      aiReply = "Dạ vâng ạ! Tối nay KING'S GRILL còn bàn đẹp ở Khu A & Khu B. Anh/chị cho em xin Tên + SĐT + Khung giờ để em giữ bàn ngay ạ!";
+                    } else if (lowerText.includes('đặt bàn') || lowerText.includes('bàn') || lowerText.includes('đặt') || lowerText.includes('người')) {
+                      aiReply = "Dạ KING'S GRILL đã ghi nhận thông tin đặt bàn của anh/chị! Em đã tạo phiếu giữ chỗ trên hệ thống và xếp vị trí bàn đẹp ở Khu A. Anh/chị xem thông tin phiếu và cọc bàn nhận voucher quà tặng tại đây ạ: https://kg-booking.pages.dev";
                     }
+
+                    // Always auto-save Facebook booking lead to Supabase PostgreSQL & Google Sheets!
+                    await saveFacebookBookingToDB(senderPsid, messageText, env);
+
 
                     try {
                       await fetch(`https://graph.facebook.com/v19.0/me/messages?access_token=${encodeURIComponent(pageAccessToken)}`, {
@@ -314,6 +398,7 @@ export default {
                     }
                   })());
                 }
+
               }
             }
             return new Response("EVENT_RECEIVED", { status: 200 });

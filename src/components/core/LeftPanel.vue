@@ -205,6 +205,10 @@ function goToTomorrowTimeline() {
           <i class="fa-solid fa-eye"></i>
           <span>Phiếu</span>
         </button>
+        <button @click="ui.showSocialBotModal = true" class="px-3 py-2 rounded-xl text-[11px] font-black uppercase tracking-wider transition-all flex items-center gap-1.5 min-h-[36px] whitespace-nowrap text-amber-300 hover:text-white hover:bg-slate-800/50 bg-slate-800/80 border border-amber-400/30">
+          <i class="fa-solid fa-robot text-amber-400 animate-pulse"></i>
+          <span>Social Bot</span>
+        </button>
         <button @click="ui.tab = 'test'" :class="['px-3 py-2 rounded-xl text-[11px] font-black uppercase tracking-wider transition-all flex items-center gap-1.5 min-h-[36px] whitespace-nowrap', ui.tab === 'test' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-400 hover:text-white hover:bg-slate-800/50']">
           <i class="fa-solid fa-flask"></i>
           <span>Kiểm Thử</span>
@@ -214,6 +218,7 @@ function goToTomorrowTimeline() {
           <span>Nhật Ký</span>
         </button>
       </div>
+
 
       <!-- RIGHT: QUICK ACTIONS / SYSTEM -->
       <div class="flex items-center gap-2 relative z-10 shrink-0">
