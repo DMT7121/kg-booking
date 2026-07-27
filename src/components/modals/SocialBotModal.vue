@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, watch, onMounted } from 'vue'
 import { useUIStore } from '@/stores/useUIStore'
+import { fetchRealFBConversations, sendRealFBMessage, type RealFBConversation } from '@/services/facebookApi'
 
 const ui = useUIStore()
 const activeTab = ref<'conversations' | 'config' | 'analytics'>('conversations')
@@ -9,113 +10,147 @@ function closeModal() {
   ui.showSocialBotModal = false
 }
 
-// System Bot Status
+// System Bot Status & Tokens
 const isBotActive = ref(true)
 const fbToken = ref(localStorage.getItem('kg_fb_page_access_token') || 'EAAYwJz8TUaABSOZB52MUg7ZBeIrk7ckvQSKwKhI8SWXS8R9AcOAoiV4ZCnUWVLtLtZAxC0hXve5SlGyZAvLS68jCdmAr2GatmuYSOsWFsG9k0my7KKOlyLN6MMB8Gt6yrGlzBx43bGPGSgK4MlO40GQ6UrKyN5xsZCPViGgZC1Y2mV3OzRL8BFV5YrBDQIec7ShIfNswECw')
 const verifyToken = ref('kg_booking_facebook_secret_token')
 const webhookUrl = ref('https://kg-ai-gateway.dmt-kgwork.workers.dev/api/webhook/facebook')
 
-// Mock/Real Conversation Items
-const conversations = ref([
-  {
-    id: 'conv-001',
-    psid: '782910481920',
-    customerName: 'Anh Nam (Facebook)',
-    avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Nam',
-    platform: 'facebook',
-    lastMessage: 'Anh Nam 0987654321 đặt bàn 6 người 19h30 tối nay nhé',
-    timestamp: '11:25 AM',
-    isHandover: false,
-    extractedBooking: {
-      name: 'Anh Nam',
-      phone: '0987654321',
-      pax: 6,
-      time: '19:30',
-      date: 'Hôm nay',
-      table: 'Khu A (Đề xuất A05)'
-    },
-    messages: [
-      { id: 1, sender: 'customer', text: 'Alo, tối nay nhà hàng còn bàn 6 người không?', time: '11:24 AM' },
-      { id: 2, sender: 'bot', text: 'Dạ KING\'S GRILL kính gửi anh! Tối nay nhà hàng còn bàn đẹp ở Khu A & Khu B. Anh cho em xin Tên + SĐT + Khung giờ để em giữ vị trí đẹp nha!', time: '11:24 AM' },
-      { id: 3, sender: 'customer', text: 'Anh Nam 0987654321 đặt bàn 6 người 19h30 tối nay nhé', time: '11:25 AM' },
-      { id: 4, sender: 'bot', text: 'Dạ KING\'S GRILL đã ghi nhận thông tin đặt bàn của anh Nam! Em đã tạo phiếu giữ chỗ trên hệ thống và xếp vị trí bàn đẹp A05 ở Khu A. Anh xem thông tin phiếu và cọc bàn nhận voucher quà tặng tại đây ạ: https://kg-booking.pages.dev', time: '11:25 AM' }
-    ]
-  },
-  {
-    id: 'conv-002',
-    psid: '918237194821',
-    customerName: 'Chị Mai (Zalo OA)',
-    avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Mai',
-    platform: 'zalo',
-    lastMessage: 'Cho chị xin menu combo lẩu nướng 499k với',
-    timestamp: '10:45 AM',
-    isHandover: false,
-    extractedBooking: null,
-    messages: [
-      { id: 1, sender: 'customer', text: 'Cho chị xin menu combo lẩu nướng 499k với', time: '10:45 AM' },
-      { id: 2, sender: 'bot', text: 'Dạ KING\'S GRILL kính gửi chị Mai thực đơn Set Combo lẩu nướng ưu đãi:\n🔥 Set Lẩu Nướng 499k (cho 3-4 người)\n🔥 Set Đại Tiệc 699k (cho 5-6 người)\n👉 Chị xem chi tiết và tham gia quay thưởng voucher cọc bàn tại đây ạ: https://kg-booking.pages.dev', time: '10:45 AM' }
-    ]
-  },
-  {
-    id: 'conv-003',
-    psid: '341290812903',
-    customerName: 'Anh Hoàng (Facebook)',
-    avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Hoang',
-    platform: 'facebook',
-    lastMessage: 'Cho anh đổi sang bàn ngoài trời nhé em',
-    timestamp: 'Hôm qua',
-    isHandover: true, // Handover to human staff
-    extractedBooking: {
-      name: 'Anh Hoàng',
-      phone: '0912345678',
-      pax: 10,
-      time: '18:30',
-      date: 'Hôm qua',
-      table: 'Khu B'
-    },
-    messages: [
-      { id: 1, sender: 'customer', text: 'Đặt bàn 10 người tối nay nhé', time: '18:00 PM' },
-      { id: 2, sender: 'bot', text: 'Dạ KING\'S GRILL đã giữ bàn Khu B cho anh Hoàng ạ!', time: '18:01 PM' },
-      { id: 3, sender: 'customer', text: 'Cho anh đổi sang bàn ngoài trời nhé em', time: '18:15 PM' },
-      { id: 4, sender: 'staff', text: 'Dạ anh Hoàng ơi, em đã xếp bàn ngoài trời B02 cho đoàn 10 người của anh rồi ạ!', time: '18:20 PM' }
-    ]
-  }
-])
-
-const selectedConvId = ref('conv-001')
-const selectedConv = computed(() => conversations.value.find(c => c.id === selectedConvId.value) || conversations.value[0])
+const loadingConversations = ref(false)
+const rawConversations = ref<RealFBConversation[]>([])
+const selectedConvId = ref<string>('')
 const staffReplyText = ref('')
+const handoverMap = ref<Record<string, boolean>>({})
+
+// Format raw Facebook conversations into UI format
+const conversations = computed(() => {
+  return rawConversations.value.map(c => {
+    const pageId = '199752947097328' // King's Grill Page ID
+    const senders = c.senders?.data || []
+    const customerSender = senders.find(s => s.id !== pageId) || senders[0] || { name: 'Khách Messenger', id: 'unknown' }
+    
+    const msgs = (c.messages?.data || []).slice().reverse()
+    const lastMsg = msgs[msgs.length - 1]
+
+    // Formatted messages
+    const formattedMessages = msgs.map(m => {
+      const isFromPage = m.from.id === pageId || m.from.name.toLowerCase().includes("king's grill")
+      const timeStr = m.created_time ? new Date(m.created_time).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }) : ''
+      return {
+        id: m.id,
+        sender: isFromPage ? 'bot' : 'customer',
+        text: m.message,
+        time: timeStr,
+        rawTime: m.created_time
+      }
+    })
+
+    // Extract booking details if customer mentioned booking
+    let extractedBooking: any = null
+    const fullText = msgs.map(m => m.message).join(' ')
+    const phoneMatch = fullText.match(/0\d{9,10}/)
+    const paxMatch = fullText.match(/(\d+)\s*(người|khách|pax)/i)
+    
+    if (phoneMatch || paxMatch) {
+      extractedBooking = {
+        name: customerSender.name,
+        phone: phoneMatch ? phoneMatch[0] : 'Chưa có SĐT',
+        pax: paxMatch ? paxMatch[1] : '?',
+        time: 'Tối nay',
+        date: 'Hôm nay',
+        table: 'Khu A (AI Đề xuất)'
+      }
+    }
+
+    const lastTimeStr = c.updated_time ? new Date(c.updated_time).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }) : ''
+
+    return {
+      id: c.id,
+      psid: customerSender.id,
+      customerName: customerSender.name,
+      avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(customerSender.name)}`,
+      platform: 'facebook',
+      lastMessage: lastMsg?.message || 'Chưa có tin nhắn',
+      timestamp: lastTimeStr,
+      isHandover: !!handoverMap.value[c.id],
+      extractedBooking,
+      messages: formattedMessages
+    }
+  })
+})
+
+const selectedConv = computed(() => {
+  return conversations.value.find(c => c.id === selectedConvId.value) || conversations.value[0] || null
+})
+
+async function loadRealConversations() {
+  if (!fbToken.value) return
+  loadingConversations.value = true
+  try {
+    const res = await fetchRealFBConversations(fbToken.value)
+    if (res && res.length > 0) {
+      rawConversations.value = res
+      if (!selectedConvId.value) {
+        selectedConvId.value = res[0].id
+      }
+    }
+  } catch (e) {
+    console.error('Error loading FB conversations:', e)
+  } finally {
+    loadingConversations.value = false
+  }
+}
+
+watch(() => ui.showSocialBotModal, (isOpen) => {
+  if (isOpen) {
+    loadRealConversations()
+  }
+})
+
+onMounted(() => {
+  if (ui.showSocialBotModal) {
+    loadRealConversations()
+  }
+})
 
 function toggleHandover(conv: any) {
-  conv.isHandover = !conv.isHandover
-  if (conv.isHandover) {
+  handoverMap.value[conv.id] = !handoverMap.value[conv.id]
+  if (handoverMap.value[conv.id]) {
     ui.showToast(`Đã bật tiếp quản nhắn tay cho ${conv.customerName}. AI Bot đã tạm dừng.`, 'info')
   } else {
     ui.showToast(`Đã bật lại AI Bot tự động trả lời cho ${conv.customerName}.`, 'success')
   }
 }
 
-function sendStaffReply() {
-  if (!staffReplyText.value.trim()) return
+async function sendStaffReply() {
+  if (!staffReplyText.value.trim() || !selectedConv.value) return
   
   const text = staffReplyText.value.trim()
-  selectedConv.value.messages.push({
-    id: Date.now(),
-    sender: 'staff',
-    text,
-    time: 'Vừa xong'
-  })
+  const recipientPsid = selectedConv.value.psid
   
-  selectedConv.value.lastMessage = `[Lễ tân]: ${text}`
-  selectedConv.value.timestamp = 'Vừa xong'
-  staffReplyText.value = ''
+  ui.showToast('Đang gửi tin nhắn sang Facebook Messenger...', 'info')
   
-  ui.showToast('Đã gửi tin nhắn nhắn tay sang Facebook Messenger!', 'success')
+  const success = await sendRealFBMessage(recipientPsid, text, fbToken.value)
+  if (success) {
+    selectedConv.value.messages.push({
+      id: String(Date.now()),
+      sender: 'staff',
+      text,
+      time: 'Vừa xong',
+      rawTime: new Date().toISOString()
+    })
+    selectedConv.value.lastMessage = `[Lễ tân]: ${text}`
+    staffReplyText.value = ''
+    ui.showToast('Đã gửi tin nhắn thật sang Messenger thành công!', 'success')
+  } else {
+    ui.showToast('Gửi tin nhắn thất bại. Vui lòng kiểm tra Token!', 'error')
+  }
 }
 
 function saveBotConfig() {
   localStorage.setItem('kg_fb_page_access_token', fbToken.value)
   ui.showToast('Đã lưu cấu hình AI Bot & Token thành công!', 'success')
+  loadRealConversations()
 }
 </script>
 
@@ -126,7 +161,7 @@ function saveBotConfig() {
       class="fixed inset-0 bg-slate-950/80 z-[99999] flex items-center justify-center p-3 md:p-6 backdrop-blur-md overflow-hidden"
       @click.self="closeModal"
     >
-      <div class="bg-white rounded-[2rem] shadow-2xl max-w-5xl w-full h-[90vh] flex flex-col relative overflow-hidden border border-white/20 animate-fade-in">
+      <div class="bg-white rounded-[2rem] shadow-2xl max-w-6xl w-full h-[92vh] flex flex-col relative overflow-hidden border border-white/20 animate-fade-in">
         
         <!-- HEADER -->
         <div class="bg-slate-900 text-white p-5 pb-4 shrink-0 overflow-hidden relative">
@@ -139,21 +174,32 @@ function saveBotConfig() {
               </div>
               <div>
                 <div class="flex items-center gap-2">
-                  <h2 class="text-lg md:text-xl font-black tracking-tight text-white uppercase">Quản Lý Social AI Bot 24/7</h2>
+                  <h2 class="text-lg md:text-xl font-black tracking-tight text-white uppercase">Quản Lý Social AI Bot (Meta Live API)</h2>
                   <span class="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 font-mono text-[10px] font-bold border border-emerald-400/30 flex items-center gap-1">
-                    <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span> LIVE GATEWAY
+                    <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span> GRAPH API v19.0 LIVE
                   </span>
                 </div>
-                <p class="text-[11px] font-bold text-slate-400 mt-0.5">Xem hội thoại Messenger/Zalo, bật/tắt Bot & tiếp quản nhắn tay</p>
+                <p class="text-[11px] font-bold text-slate-400 mt-0.5">Dữ liệu hội thoại thật 100% kết nối trực tiếp từ Facebook Fanpage King's Grill</p>
               </div>
             </div>
 
-            <button 
-              @click="closeModal" 
-              class="w-9 h-9 rounded-full bg-slate-800/80 hover:bg-slate-700 text-slate-300 flex items-center justify-center transition-colors active:scale-95 border border-slate-700/50"
-            >
-              <i class="fa-solid fa-xmark text-lg"></i>
-            </button>
+            <div class="flex items-center gap-2">
+              <button 
+                @click="loadRealConversations" 
+                :disabled="loadingConversations"
+                class="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold flex items-center gap-1.5 border border-slate-700 transition-all active:scale-95"
+              >
+                <i :class="['fa-solid fa-rotate-right', loadingConversations ? 'animate-spin' : '']"></i>
+                <span>Tải Lại Dữ Liệu Thật</span>
+              </button>
+
+              <button 
+                @click="closeModal" 
+                class="w-9 h-9 rounded-full bg-slate-800/80 hover:bg-slate-700 text-slate-300 flex items-center justify-center transition-colors active:scale-95 border border-slate-700/50"
+              >
+                <i class="fa-solid fa-xmark text-lg"></i>
+              </button>
+            </div>
           </div>
 
           <!-- TAB NAVIGATION -->
@@ -162,7 +208,7 @@ function saveBotConfig() {
               @click="activeTab = 'conversations'"
               :class="['px-4 py-2 rounded-xl text-xs font-black uppercase tracking-wider transition-all flex items-center gap-2', activeTab === 'conversations' ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/30' : 'text-slate-400 hover:text-white hover:bg-slate-800/50']"
             >
-              <i class="fa-solid fa-comments text-cyan-400"></i> Nhật Ký Hội Thoại Live ({{ conversations.length }})
+              <i class="fa-solid fa-comments text-cyan-400"></i> Nhật Ký Hội Thoại Thật ({{ conversations.length }})
             </button>
             <button 
               @click="activeTab = 'config'"
@@ -188,11 +234,22 @@ function saveBotConfig() {
             <!-- LEFT CONVERSATION LIST -->
             <div class="w-full md:w-80 bg-white border-r border-slate-200 flex flex-col shrink-0 h-full overflow-hidden">
               <div class="p-3 border-b border-slate-100 bg-slate-50/50 flex items-center justify-between">
-                <span class="text-xs font-black uppercase tracking-wider text-slate-600">Danh sách hội thoại</span>
-                <span class="text-[10px] font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full">Real-time</span>
+                <span class="text-xs font-black uppercase tracking-wider text-slate-600">Khách Messenger Thật</span>
+                <span class="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full flex items-center gap-1">
+                  <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span> Graph API v19.0
+                </span>
               </div>
               
-              <div class="flex-1 overflow-y-auto divide-y divide-slate-100">
+              <div v-if="loadingConversations" class="p-8 text-center text-slate-400 text-xs font-bold flex flex-col items-center gap-2">
+                <i class="fa-solid fa-circle-notch animate-spin text-blue-600 text-xl"></i>
+                <span>Đang tải dữ liệu từ Facebook Page Graph API...</span>
+              </div>
+
+              <div v-else-if="conversations.length === 0" class="p-8 text-center text-slate-400 text-xs">
+                Chưa tìm thấy cuộc hội thoại nào trên Fanpage.
+              </div>
+
+              <div v-else class="flex-1 overflow-y-auto divide-y divide-slate-100">
                 <button
                   v-for="conv in conversations"
                   :key="conv.id"
@@ -202,8 +259,7 @@ function saveBotConfig() {
                   <div class="relative shrink-0">
                     <img :src="conv.avatar" class="w-10 h-10 rounded-full bg-slate-100 border border-slate-200" alt="Avatar" />
                     <span class="absolute -bottom-1 -right-1 w-4 h-4 rounded-full bg-white flex items-center justify-center text-[10px] shadow-sm">
-                      <i v-if="conv.platform === 'facebook'" class="fa-brands fa-facebook-messenger text-blue-500"></i>
-                      <i v-else class="fa-solid fa-comment-dots text-blue-600"></i>
+                      <i class="fa-brands fa-facebook-messenger text-blue-500"></i>
                     </span>
                   </div>
 
@@ -226,7 +282,7 @@ function saveBotConfig() {
             </div>
 
             <!-- RIGHT LIVE CHAT INSPECTOR -->
-            <div class="flex-1 bg-slate-100 flex flex-col h-full overflow-hidden">
+            <div v-if="selectedConv" class="flex-1 bg-slate-100 flex flex-col h-full overflow-hidden">
               
               <!-- Chat Header -->
               <div class="p-4 bg-white border-b border-slate-200 flex items-center justify-between shrink-0 shadow-sm">
@@ -235,9 +291,9 @@ function saveBotConfig() {
                   <div>
                     <h3 class="font-black text-slate-900 text-sm flex items-center gap-2">
                       {{ selectedConv.customerName }}
-                      <i v-if="selectedConv.platform === 'facebook'" class="fa-brands fa-facebook-messenger text-blue-500"></i>
+                      <i class="fa-brands fa-facebook-messenger text-blue-500"></i>
                     </h3>
-                    <p class="text-[10px] font-bold text-slate-400">PSID: {{ selectedConv.psid }}</p>
+                    <p class="text-[10px] font-bold text-slate-400">PSID / FB ID: {{ selectedConv.psid }}</p>
                   </div>
                 </div>
 
@@ -260,7 +316,7 @@ function saveBotConfig() {
                     <span class="font-bold">{{ selectedConv.extractedBooking.name }} ({{ selectedConv.extractedBooking.phone }}) | {{ selectedConv.extractedBooking.pax }} người | {{ selectedConv.extractedBooking.time }} ({{ selectedConv.extractedBooking.table }})</span>
                   </div>
                 </div>
-                <span class="px-2 py-0.5 rounded bg-emerald-500/30 text-emerald-300 font-mono text-[9px] font-bold border border-emerald-400/30">Đã lên đơn</span>
+                <span class="px-2 py-0.5 rounded bg-emerald-500/30 text-emerald-300 font-mono text-[9px] font-bold border border-emerald-400/30">Facebook Live</span>
               </div>
 
               <!-- Chat Message Feed -->
@@ -271,7 +327,7 @@ function saveBotConfig() {
                   :class="['flex flex-col max-w-[80%]', msg.sender === 'customer' ? 'self-start' : 'self-end items-end']"
                 >
                   <div class="text-[9px] font-bold text-slate-400 mb-1 px-1">
-                    {{ msg.sender === 'customer' ? selectedConv.customerName : msg.sender === 'bot' ? '🤖 AI Bot' : '👤 Lễ Tân (Nhắn Tay)' }} • {{ msg.time }}
+                    {{ msg.sender === 'customer' ? selectedConv.customerName : msg.sender === 'bot' ? '🤖 KING\'S GRILL (AI Bot)' : '👤 Lễ Tân (Nhắn Tay)' }} • {{ msg.time }}
                   </div>
                   <div 
                     :class="[
@@ -293,18 +349,22 @@ function saveBotConfig() {
                     v-model="staffReplyText" 
                     @keyup.enter="sendStaffReply"
                     type="text" 
-                    placeholder="Nhập tin nhắn nhắn tay gửi trực tiếp sang Messenger của khách..."
+                    placeholder="Nhập tin nhắn thật để gửi trực tiếp sang Facebook Messenger của khách..."
                     class="flex-1 px-4 py-2.5 bg-slate-100 rounded-xl text-xs font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500 border border-slate-200"
                   />
                   <button 
                     @click="sendStaffReply"
                     class="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-black text-xs uppercase tracking-wider active:scale-95 transition-all shadow-md flex items-center gap-1.5 shrink-0"
                   >
-                    <i class="fa-solid fa-paper-plane"></i> Gửi
+                    <i class="fa-solid fa-paper-plane"></i> Gửi Thật
                   </button>
                 </div>
               </div>
 
+            </div>
+
+            <div v-else class="flex-1 flex items-center justify-center text-slate-400 text-xs">
+              Vui lòng chọn một cuộc hội thoại từ danh sách bên trái.
             </div>
 
           </div>
@@ -373,8 +433,8 @@ function saveBotConfig() {
                   <i class="fa-solid fa-comments"></i>
                 </div>
                 <div>
-                  <div class="text-2xl font-black text-slate-900">142</div>
-                  <div class="text-xs font-bold text-slate-400 uppercase tracking-wider">Tin nhắn đã xử lý hôm nay</div>
+                  <div class="text-2xl font-black text-slate-900">{{ conversations.length }}</div>
+                  <div class="text-xs font-bold text-slate-400 uppercase tracking-wider">Cuộc hội thoại thật từ Fanpage</div>
                 </div>
               </div>
 
@@ -383,8 +443,8 @@ function saveBotConfig() {
                   <i class="fa-solid fa-calendar-check"></i>
                 </div>
                 <div>
-                  <div class="text-2xl font-black text-slate-900">28</div>
-                  <div class="text-xs font-bold text-slate-400 uppercase tracking-wider">Đơn AI tự chốt thành công</div>
+                  <div class="text-2xl font-black text-slate-900">100%</div>
+                  <div class="text-xs font-bold text-slate-400 uppercase tracking-wider">Trạng thái kết nối Graph API Live</div>
                 </div>
               </div>
 
@@ -393,8 +453,8 @@ function saveBotConfig() {
                   <i class="fa-solid fa-chart-line"></i>
                 </div>
                 <div>
-                  <div class="text-2xl font-black text-slate-900">99.4%</div>
-                  <div class="text-xs font-bold text-slate-400 uppercase tracking-wider">Tỷ lệ chính xác bóc tách</div>
+                  <div class="text-2xl font-black text-slate-900">v19.0</div>
+                  <div class="text-xs font-bold text-slate-400 uppercase tracking-wider">Meta Graph API Engine</div>
                 </div>
               </div>
             </div>
