@@ -106,13 +106,13 @@ async function loadRealConversations() {
   if (!fbToken.value) return
   loadingConversations.value = true
   try {
-    // 1. Fetch real-time webhook logs from Supabase audit_logs
+    // 1. Fetch real-time webhook logs (BOTH Customer Messages AND AI Bot Replies!)
     const supabaseUrl = "https://azfkzheypuvfcitckovf.supabase.co"
     const anonKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImF6Zmt6aGV5cHV2ZmNpdGNrb3ZmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODUwNzc1MjEsImV4cCI6MjEwMDY1MzUyMX0.ltnY7GTzKGE7QiWTv8ZuDlfT_NWIR2sGfGudoVDw4NQ"
     
     let webhookLogs: any[] = []
     try {
-      const sRes = await fetch(`${supabaseUrl}/rest/v1/audit_logs?action=eq.facebook_message_received&order=created_at.desc&limit=20`, {
+      const sRes = await fetch(`${supabaseUrl}/rest/v1/audit_logs?action=in.(facebook_message_received,facebook_message_sent)&order=created_at.desc&limit=50`, {
         headers: { "apikey": anonKey, "Authorization": `Bearer ${anonKey}` }
       })
       if (sRes.ok) {
@@ -125,11 +125,13 @@ async function loadRealConversations() {
     // 2. Fetch Facebook Graph API Conversations
     const res = await fetchRealFBConversations(fbToken.value)
     
-    // 3. Merge Supabase Webhook items if any exist
+    // 3. Merge Supabase Webhook items (Both Customer & AI Bot messages) if any exist
     if (webhookLogs && webhookLogs.length > 0) {
       webhookLogs.forEach((log: any) => {
         const psid = log.target_id
-        const customerName = log.before_json?.customer_name || `Khách FB (${psid})`
+        const isBot = log.action === 'facebook_message_sent'
+        const senderName = isBot ? "KING's GRILL" : (log.before_json?.customer_name || `Khách FB (${psid})`)
+        const senderId = isBot ? '199752947097328' : psid
         const text = log.after_json?.text || ''
         const time = log.created_at
 
@@ -142,7 +144,7 @@ async function loadRealConversations() {
               id: `wh-${log.id}`,
               message: text,
               created_time: time,
-              from: { name: customerName, id: psid }
+              from: { name: senderName, id: senderId }
             })
           }
         } else {
@@ -150,13 +152,13 @@ async function loadRealConversations() {
             id: `wh-thread-${psid}`,
             updated_time: time,
             unread_count: 1,
-            senders: { data: [{ name: customerName, id: psid }] },
+            senders: { data: [{ name: senderName, id: psid }] },
             messages: {
               data: [{
                 id: `wh-${log.id}`,
                 message: text,
                 created_time: time,
-                from: { name: customerName, id: psid }
+                from: { name: senderName, id: senderId }
               }]
             }
           })
@@ -226,6 +228,28 @@ async function sendStaffReply() {
       time: 'Vừa xong',
       rawTime: new Date().toISOString()
     })
+
+    // Log Staff reply to Supabase PostgreSQL audit_logs
+    const supabaseUrl = "https://azfkzheypuvfcitckovf.supabase.co"
+    const anonKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImF6Zmt6aGV5cHV2ZmNpdGNrb3ZmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODUwNzc1MjEsImV4cCI6MjEwMDY1MzUyMX0.ltnY7GTzKGE7QiWTv8ZuDlfT_NWIR2sGfGudoVDw4NQ"
+    fetch(`${supabaseUrl}/rest/v1/audit_logs`, {
+      method: "POST",
+      headers: {
+        "apikey": anonKey,
+        "Authorization": `Bearer ${anonKey}`,
+        "Content-Type": "application/json",
+        "Prefer": "return=minimal"
+      },
+      body: JSON.stringify({
+        actor_role: "staff",
+        action: "facebook_message_sent",
+        target_type: "messenger",
+        target_id: recipientPsid,
+        before_json: { psid: recipientPsid },
+        after_json: { text: text, time: new Date().toISOString() }
+      })
+    }).catch(() => {})
+
     selectedConv.value.lastMessage = `[Lễ tân]: ${text}`
     staffReplyText.value = ''
     ui.showToast('Đã gửi tin nhắn thật sang Messenger thành công!', 'success')
@@ -266,7 +290,7 @@ function saveBotConfig() {
                     <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span> GRAPH API v19.0 LIVE
                   </span>
                 </div>
-                <p class="text-[11px] font-bold text-slate-400 mt-0.5">Dữ liệu hội thoại thật 100% tự động sắp xếp theo thời gian mới nhất</p>
+                <p class="text-[11px] font-bold text-slate-400 mt-0.5">Dữ liệu hội thoại thật 100% tự động hiển thị cả tin nhắn khách gửi & tin nhắn AI Bot đáp lời</p>
               </div>
             </div>
 

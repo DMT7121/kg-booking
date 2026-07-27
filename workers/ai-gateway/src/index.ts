@@ -417,9 +417,31 @@ export default {
                         })
                       });
                       console.log(`[FB Reply Success] Sent AI reply to PSID ${senderPsid}`);
+
+                      // Log AI Bot's reply message into Supabase PostgreSQL audit_logs!
+                      const supabaseUrl = "https://azfkzheypuvfcitckovf.supabase.co";
+                      const anonKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImF6Zmt6aGV5cHV2ZmNpdGNrb3ZmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODUwNzc1MjEsImV4cCI6MjEwMDY1MzUyMX0.ltnY7GTzKGE7QiWTv8ZuDlfT_NWIR2sGfGudoVDw4NQ";
+                      await fetch(`${supabaseUrl}/rest/v1/audit_logs`, {
+                        method: "POST",
+                        headers: {
+                          "apikey": anonKey,
+                          "Authorization": `Bearer ${anonKey}`,
+                          "Content-Type": "application/json",
+                          "Prefer": "return=minimal"
+                        },
+                        body: JSON.stringify({
+                          actor_role: "ai_bot",
+                          action: "facebook_message_sent",
+                          target_type: "messenger",
+                          target_id: senderPsid,
+                          before_json: { psid: senderPsid },
+                          after_json: { text: aiReply, time: new Date().toISOString() }
+                        })
+                      });
                     } catch (replyErr) {
                       console.error(`[FB Reply Error]`, replyErr);
                     }
+
                   })());
                 }
 
