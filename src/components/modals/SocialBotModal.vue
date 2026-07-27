@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted } from 'vue'
 import { useUIStore } from '@/stores/useUIStore'
-import { fetchRealFBConversations, fetchRealFBThreadMessages, fetchRealFBUserProfile, sendRealFBMessage, type RealFBConversation, type RealFBMessage } from '@/services/facebookApi'
+import { fetchRealFBConversations, fetchRealFBThreadMessages, fetchRealFBUserProfile, fetchRealFBBatchUserProfiles, sendRealFBMessage, type RealFBConversation, type RealFBMessage } from '@/services/facebookApi'
 
 const ui = useUIStore()
 const activeTab = ref<'conversations' | 'config' | 'analytics'>('conversations')
@@ -52,7 +52,11 @@ async function toggleGlobalBotStatus() {
 }
 
 const loadingConversations = ref(false)
-const rawConversations = ref<RealFBConversation[]>([])
+
+// Hydrate from instant session cache if available
+const cachedRawConvs = sessionStorage.getItem('kg_fb_convs_cache')
+const rawConversations = ref<RealFBConversation[]>(cachedRawConvs ? JSON.parse(cachedRawConvs) : [])
+
 const activeThreadMessages = ref<Record<string, RealFBMessage[]>>({})
 const selectedConvId = ref<string>('')
 const staffReplyText = ref('')
@@ -72,6 +76,7 @@ function copyCustomerName(name: string) {
 async function fetchCustomerProfiles(convs: RealFBConversation[]) {
   if (!fbToken.value || !convs) return
   const pageId = '199752947097328'
+  const psids: string[] = []
   
   for (const c of convs) {
     const senders = c.senders?.data || (c as any).participants?.data || []
@@ -79,15 +84,28 @@ async function fetchCustomerProfiles(convs: RealFBConversation[]) {
     const psid = customerSender?.id
     
     if (psid && psid !== 'unknown' && !psid.startsWith('wh-') && !realCustomerProfileMap.value[psid]) {
-      fetchRealFBUserProfile(psid, fbToken.value).then(prof => {
-        if (prof && prof.name) {
-          realCustomerProfileMap.value = {
-            ...realCustomerProfileMap.value,
-            [psid]: { name: prof.name, avatar: prof.picture }
-          }
-        }
-      })
+      psids.push(psid)
     }
+  }
+  
+  if (psids.length > 0) {
+    fetchRealFBBatchUserProfiles(psids, fbToken.value).then(batchProfiles => {
+      if (batchProfiles && Object.keys(batchProfiles).length > 0) {
+        const formatted: Record<string, { name: string; avatar?: string }> = {}
+        Object.keys(batchProfiles).forEach(id => {
+          if (batchProfiles[id]?.name) {
+            formatted[id] = {
+              name: batchProfiles[id].name!,
+              avatar: batchProfiles[id].picture
+            }
+          }
+        })
+        realCustomerProfileMap.value = {
+          ...realCustomerProfileMap.value,
+          ...formatted
+        }
+      }
+    })
   }
 }
 
@@ -207,28 +225,25 @@ watch(selectedConvId, async (newId) => {
 
 async function loadRealConversations() {
   if (!fbToken.value) return
-  loadingConversations.value = true
+  if (rawConversations.value.length === 0) {
+    loadingConversations.value = true
+  }
   try {
-    // 1. Fetch real-time webhook logs (BOTH Customer Messages AND AI Bot Replies!)
     const supabaseUrl = "https://azfkzheypuvfcitckovf.supabase.co"
     const anonKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImF6Zmt6aGV5cHV2ZmNpdGNrb3ZmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODUwNzc1MjEsImV4cCI6MjEwMDY1MzUyMX0.ltnY7GTzKGE7QiWTv8ZuDlfT_NWIR2sGfGudoVDw4NQ"
     
-    let webhookLogs: any[] = []
-    try {
-      const sRes = await fetch(`${supabaseUrl}/rest/v1/audit_logs?action=in.(facebook_message_received,facebook_message_sent)&order=created_at.desc&limit=50`, {
+    // Execute Supabase Webhook Audit Logs & Facebook Graph API Conversations IN PARALLEL!
+    const [webhookRes, fbRes] = await Promise.all([
+      fetch(`${supabaseUrl}/rest/v1/audit_logs?action=in.(facebook_message_received,facebook_message_sent)&order=created_at.desc&limit=50`, {
         headers: { "apikey": anonKey, "Authorization": `Bearer ${anonKey}` }
-      })
-      if (sRes.ok) {
-        webhookLogs = await sRes.json()
-      }
-    } catch (e) {
-      console.warn('Failed to load Supabase audit_logs:', e)
-    }
+      }).then(r => r.ok ? r.json() : []).catch(() => []),
+      fetchRealFBConversations(fbToken.value)
+    ])
 
-    // 2. Fetch Facebook Graph API Conversations
-    const res = await fetchRealFBConversations(fbToken.value)
+    const webhookLogs: any[] = webhookRes || []
+    const res: RealFBConversation[] = fbRes || []
     
-    // 3. Merge Supabase Webhook items (Both Customer & AI Bot messages) if any exist
+    // Merge Supabase Webhook items (Both Customer & AI Bot messages) if any exist
     if (webhookLogs && webhookLogs.length > 0) {
       webhookLogs.forEach((log: any) => {
         const psid = log.target_id
@@ -274,18 +289,23 @@ async function loadRealConversations() {
 
     if (res && res.length > 0) {
       rawConversations.value = res
+      try {
+        sessionStorage.setItem('kg_fb_convs_cache', JSON.stringify(res))
+      } catch (e) {}
+
       fetchCustomerProfiles(res)
 
       if (!selectedConvId.value) {
         selectedConvId.value = res[0].id
       }
       
-      // Fetch detailed thread for top conversation immediately
+      // Fetch detailed thread for top conversation asynchronously in background
       if (!res[0].id.startsWith('wh-thread-')) {
-        const topThreadMsgs = await fetchRealFBThreadMessages(res[0].id, fbToken.value)
-        if (topThreadMsgs && topThreadMsgs.length > 0) {
-          activeThreadMessages.value[res[0].id] = topThreadMsgs
-        }
+        fetchRealFBThreadMessages(res[0].id, fbToken.value).then(topThreadMsgs => {
+          if (topThreadMsgs && topThreadMsgs.length > 0) {
+            activeThreadMessages.value[res[0].id] = topThreadMsgs
+          }
+        })
       }
     }
   } catch (e) {

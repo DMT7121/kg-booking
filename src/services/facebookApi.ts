@@ -57,6 +57,37 @@ export async function fetchRealFBUserProfile(psid: string, pageAccessToken: stri
   }
 }
 
+export async function fetchRealFBBatchUserProfiles(
+  psids: string[],
+  pageAccessToken: string
+): Promise<Record<string, { name?: string; picture?: string }>> {
+  if (!psids || psids.length === 0) return {}
+  const uniquePsids = Array.from(new Set(psids)).filter(id => id && id !== 'unknown' && !id.startsWith('wh-')).slice(0, 50)
+  if (uniquePsids.length === 0) return {}
+  
+  try {
+    const url = `https://graph.facebook.com/v19.0/?ids=${encodeURIComponent(uniquePsids.join(','))}&fields=name,picture{url}&access_token=${encodeURIComponent(pageAccessToken)}`
+    const res = await fetch(url)
+    const data = await res.json() as Record<string, any>
+    const result: Record<string, { name?: string; picture?: string }> = {}
+    
+    if (data) {
+      Object.keys(data).forEach(id => {
+        if (data[id]?.name) {
+          result[id] = {
+            name: data[id].name,
+            picture: data[id].picture?.data?.url
+          }
+        }
+      })
+    }
+    return result
+  } catch (err) {
+    console.warn('[FB API Batch Error] Failed to fetch batch user profiles:', err)
+    return {}
+  }
+}
+
 export async function fetchRealFBThreadMessages(conversationId: string, pageAccessToken: string): Promise<RealFBMessage[]> {
   try {
     const url = `https://graph.facebook.com/v19.0/${encodeURIComponent(conversationId)}/messages?fields=id,message,created_time,from&limit=50&access_token=${encodeURIComponent(pageAccessToken)}`
