@@ -232,16 +232,18 @@ async function saveFacebookBookingToDB(senderPsid: string, text: string, env: En
     const eventTime = `${hour}:${min}`;
 
     const d = new Date();
+    const isoDate = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
     const eventDate = `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`;
 
     const nameMatch = text.match(/(anh|chị|khách)\s+([a-zA-ZÀ-ỹ\s]+)/i);
     const customerName = nameMatch ? `${nameMatch[1]} ${nameMatch[2].trim()}` : `Khách FB (${senderPsid.slice(-4)})`;
 
     const supabaseUrl = "https://azfkzheypuvfcitckovf.supabase.co";
+
     const anonKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImF6Zmt6aGV5cHV2ZmNpdGNrb3ZmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODUwNzc1MjEsImV4cCI6MjEwMDY1MzUyMX0.ltnY7GTzKGE7QiWTv8ZuDlfT_NWIR2sGfGudoVDw4NQ";
 
-    // 1. Post to Supabase PostgreSQL
-    await fetch(`${supabaseUrl}/rest/v1/bookings`, {
+    // 1. Post to Supabase PostgreSQL bookings table (Exact Schema Column Names)
+    const resPost = await fetch(`${supabaseUrl}/rest/v1/bookings`, {
       method: "POST",
       headers: {
         "apikey": anonKey,
@@ -251,16 +253,38 @@ async function saveFacebookBookingToDB(senderPsid: string, text: string, env: En
       },
       body: JSON.stringify({
         customer_name: customerName,
-        phone: phone || "0900000000",
-        event_date: eventDate,
-        event_time: eventTime,
+        customer_phone: phone || "0900000000",
+        booking_date: isoDate,
+        start_time: eventTime,
         guest_count: pax,
-        table_number: "Khu A",
-        booking_need: `FB Messenger: "${text}"`,
-        deposit_amount: 0,
-        status: "pending"
+        table_id: "Khu A",
+        source: "facebook_messenger",
+        status: "pending",
+        note: `FB Messenger (${senderPsid}): "${text}"`,
+        raw_message: text
       })
     });
+    console.log(`[FB Auto Booking] Supabase Bookings Insert Status: ${resPost.status}`);
+
+    // 2. Post to Supabase audit_logs for real-time chat log streaming
+    await fetch(`${supabaseUrl}/rest/v1/audit_logs`, {
+      method: "POST",
+      headers: {
+        "apikey": anonKey,
+        "Authorization": `Bearer ${anonKey}`,
+        "Content-Type": "application/json",
+        "Prefer": "return=minimal"
+      },
+      body: JSON.stringify({
+        actor_role: "facebook_user",
+        action: "facebook_message_received",
+        target_type: "messenger",
+        target_id: senderPsid,
+        before_json: { customer_name: customerName, psid: senderPsid },
+        after_json: { text: text, time: new Date().toISOString() }
+      })
+    });
+
 
     // 2. Post to Google Sheets GAS endpoint
     const gasUrl = env.GAS_URL || "https://script.google.com/macros/s/AKfycbxzjio4sat5fWoUncPgp8SfjoGqfGxW5vFoDgkHvBI3OKVWIaszsAaUt0LE2fCHtkCFsA/exec";

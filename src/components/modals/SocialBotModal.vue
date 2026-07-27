@@ -91,7 +91,7 @@ const selectedConv = computed(() => {
 
 // Re-fetch detailed thread messages when a conversation is selected
 watch(selectedConvId, async (newId) => {
-  if (newId && fbToken.value) {
+  if (newId && fbToken.value && !newId.startsWith('wh-thread-')) {
     const threadMsgs = await fetchRealFBThreadMessages(newId, fbToken.value)
     if (threadMsgs && threadMsgs.length > 0) {
       activeThreadMessages.value = {
@@ -106,15 +106,79 @@ async function loadRealConversations() {
   if (!fbToken.value) return
   loadingConversations.value = true
   try {
+    // 1. Fetch real-time webhook logs from Supabase audit_logs
+    const supabaseUrl = "https://azfkzheypuvfcitckovf.supabase.co"
+    const anonKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImF6Zmt6aGV5cHV2ZmNpdGNrb3ZmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODUwNzc1MjEsImV4cCI6MjEwMDY1MzUyMX0.ltnY7GTzKGE7QiWTv8ZuDlfT_NWIR2sGfGudoVDw4NQ"
+    
+    let webhookLogs: any[] = []
+    try {
+      const sRes = await fetch(`${supabaseUrl}/rest/v1/audit_logs?action=eq.facebook_message_received&order=created_at.desc&limit=20`, {
+        headers: { "apikey": anonKey, "Authorization": `Bearer ${anonKey}` }
+      })
+      if (sRes.ok) {
+        webhookLogs = await sRes.json()
+      }
+    } catch (e) {
+      console.warn('Failed to load Supabase audit_logs:', e)
+    }
+
+    // 2. Fetch Facebook Graph API Conversations
     const res = await fetchRealFBConversations(fbToken.value)
+    
+    // 3. Merge Supabase Webhook items if any exist
+    if (webhookLogs && webhookLogs.length > 0) {
+      webhookLogs.forEach((log: any) => {
+        const psid = log.target_id
+        const customerName = log.before_json?.customer_name || `Khách FB (${psid})`
+        const text = log.after_json?.text || ''
+        const time = log.created_at
+
+        // Find if conversation thread exists
+        const existing = res.find(c => c.senders?.data?.some(s => s.id === psid))
+        if (existing) {
+          existing.messages = existing.messages || { data: [] }
+          if (!existing.messages.data.some(m => m.message === text)) {
+            existing.messages.data.unshift({
+              id: `wh-${log.id}`,
+              message: text,
+              created_time: time,
+              from: { name: customerName, id: psid }
+            })
+          }
+        } else {
+          res.unshift({
+            id: `wh-thread-${psid}`,
+            updated_time: time,
+            unread_count: 1,
+            senders: { data: [{ name: customerName, id: psid }] },
+            messages: {
+              data: [{
+                id: `wh-${log.id}`,
+                message: text,
+                created_time: time,
+                from: { name: customerName, id: psid }
+              }]
+            }
+          })
+        }
+      })
+    }
+
+    // Sort final list by updated_time descending (newest updated conversation first!)
+    res.sort((a, b) => new Date(b.updated_time).getTime() - new Date(a.updated_time).getTime())
+
     if (res && res.length > 0) {
       rawConversations.value = res
-      selectedConvId.value = res[0].id
+      if (!selectedConvId.value) {
+        selectedConvId.value = res[0].id
+      }
       
       // Fetch detailed thread for top conversation immediately
-      const topThreadMsgs = await fetchRealFBThreadMessages(res[0].id, fbToken.value)
-      if (topThreadMsgs && topThreadMsgs.length > 0) {
-        activeThreadMessages.value[res[0].id] = topThreadMsgs
+      if (!res[0].id.startsWith('wh-thread-')) {
+        const topThreadMsgs = await fetchRealFBThreadMessages(res[0].id, fbToken.value)
+        if (topThreadMsgs && topThreadMsgs.length > 0) {
+          activeThreadMessages.value[res[0].id] = topThreadMsgs
+        }
       }
     }
   } catch (e) {
