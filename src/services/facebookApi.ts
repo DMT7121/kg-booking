@@ -25,7 +25,7 @@ export interface RealFBConversation {
 
 export async function fetchRealFBConversations(pageAccessToken: string): Promise<RealFBConversation[]> {
   try {
-    const url = `https://graph.facebook.com/v19.0/me/conversations?fields=id,updated_time,senders,unread_count,messages{id,message,created_time,from}&limit=50&access_token=${encodeURIComponent(pageAccessToken)}`
+    const url = `https://graph.facebook.com/v19.0/me/conversations?fields=id,updated_time,senders,participants,unread_count,messages{id,message,created_time,from}&limit=50&access_token=${encodeURIComponent(pageAccessToken)}`
     const res = await fetch(url)
     const data = await res.json() as any
     if (data && data.data) {
@@ -36,6 +36,24 @@ export async function fetchRealFBConversations(pageAccessToken: string): Promise
   } catch (err) {
     console.error('[FB API Error] Failed to fetch conversations:', err)
     return []
+  }
+}
+
+export async function fetchRealFBUserProfile(psid: string, pageAccessToken: string): Promise<{ name?: string; picture?: string } | null> {
+  try {
+    const url = `https://graph.facebook.com/v19.0/${encodeURIComponent(psid)}?fields=name,picture{url}&access_token=${encodeURIComponent(pageAccessToken)}`
+    const res = await fetch(url)
+    const data = await res.json() as any
+    if (data && data.name) {
+      return {
+        name: data.name,
+        picture: data.picture?.data?.url
+      }
+    }
+    return null
+  } catch (err) {
+    console.warn('[FB API Error] Failed to fetch user profile:', err)
+    return null
   }
 }
 

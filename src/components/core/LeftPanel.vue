@@ -239,6 +239,11 @@ function goToTomorrowTimeline() {
           <i class="fa-solid fa-magnifying-glass text-sm"></i>
         </button>
 
+        <!-- Social Bot Mobile Button -->
+        <button @click="ui.showSocialBotModal = true" class="md:hidden w-9 h-9 rounded-xl bg-slate-800 hover:bg-slate-700 flex items-center justify-center border border-amber-400/40 transition-all active:scale-95 text-amber-400 min-h-[36px]" title="Quản Lý Social Bot (Live Chat)">
+          <i class="fa-solid fa-robot text-sm text-amber-400 animate-pulse"></i>
+        </button>
+
         <!-- Sync Button (Desktop) -->
         <button @click="appStore.loadHistory(false)" class="hidden md:flex w-9 h-9 rounded-xl bg-slate-800 hover:bg-slate-700 items-center justify-center border border-slate-700/30 transition-all active:scale-95 text-slate-300 hover:text-white min-h-[36px]" title="Đồng bộ dữ liệu Cloud">
           <i class="fa-solid fa-rotate text-sm"></i>
@@ -507,6 +512,23 @@ function goToTomorrowTimeline() {
             <h3 class="text-center font-black text-slate-800 text-base mb-5 uppercase tracking-widest">Tiện ích khác</h3>
             
             <div class="grid grid-cols-3 gap-3">
+              <!-- Social Bot (Featured Banner) -->
+              <button 
+                @click="ui.showSocialBotModal = true; showMoreSheet = false" 
+                class="bg-gradient-to-r from-slate-900 to-indigo-950 text-white p-3.5 rounded-2xl font-bold text-xs hover:opacity-95 transition-all active:scale-95 flex items-center justify-between col-span-3 border border-amber-400/40 shadow-md"
+              >
+                <div class="flex items-center gap-3">
+                  <div class="w-10 h-10 rounded-xl bg-amber-500/20 text-amber-400 flex items-center justify-center text-xl shrink-0 border border-amber-400/30">
+                    <i class="fa-solid fa-robot animate-pulse"></i>
+                  </div>
+                  <div class="text-left">
+                    <div class="font-black text-amber-300 uppercase tracking-wider text-xs">Quản Lý Social Bot (Messenger Live)</div>
+                    <div class="text-[10px] text-slate-300 font-normal mt-0.5">Theo dõi hội thoại, tin nhắn AI Bot & nhắn tay từ Fanpage</div>
+                  </div>
+                </div>
+                <i class="fa-solid fa-chevron-right text-slate-400 text-xs"></i>
+              </button>
+
               <!-- Báo cáo -->
               <button @click="ui.tab = 'analytics'; appStore.loadHistory(false); showMoreSheet = false" class="bg-slate-50 text-slate-700 p-3 rounded-2xl font-bold text-[11px] hover:bg-slate-100 transition-all active:scale-95 flex flex-col items-center justify-center gap-2 border border-slate-100">
                 <div class="w-10 h-10 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center text-lg">
@@ -553,6 +575,15 @@ function goToTomorrowTimeline() {
                   <i class="fa-solid fa-wand-magic-sparkles"></i>
                 </div>
                 <span>AI</span>
+              </button>
+
+              <!-- Social Bot (Grid Item) -->
+              <button @click="ui.showSocialBotModal = true; showMoreSheet = false" class="bg-indigo-50 text-indigo-900 p-3 rounded-2xl font-bold text-[11px] hover:bg-indigo-100 transition-all active:scale-95 flex flex-col items-center justify-center gap-2 border border-indigo-200 shadow-sm relative overflow-hidden group">
+                <span class="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                <div class="w-10 h-10 rounded-xl bg-indigo-600 text-white flex items-center justify-center text-lg shadow-sm shadow-indigo-500/30">
+                  <i class="fa-solid fa-robot"></i>
+                </div>
+                <span class="font-black text-indigo-950">Social Bot</span>
               </button>
 
               <!-- Kiểm thử -->

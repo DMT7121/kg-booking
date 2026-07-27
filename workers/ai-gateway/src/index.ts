@@ -394,6 +394,35 @@ export default {
                 if (senderPsid && messageText && pageAccessToken) {
                   // Fire-and-forget AI reply to Messenger & Auto-save Booking to DB
                   ctx.waitUntil((async () => {
+                    const supabaseUrl = "https://azfkzheypuvfcitckovf.supabase.co";
+                    const anonKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImF6Zmt6aGV5cHV2ZmNpdGNrb3ZmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODUwNzc1MjEsImV4cCI6MjEwMDY1MzUyMX0.ltnY7GTzKGE7QiWTv8ZuDlfT_NWIR2sGfGudoVDw4NQ";
+
+                    // 1. Check if Fanpage Chatbot is globally active from Supabase audit_logs
+                    let isBotActive = true;
+                    try {
+                      const statusRes = await fetch(`${supabaseUrl}/rest/v1/audit_logs?action=eq.fb_bot_status_changed&order=created_at.desc&limit=1`, {
+                        headers: { "apikey": anonKey, "Authorization": `Bearer ${anonKey}` }
+                      });
+                      if (statusRes.ok) {
+                        const statusLogs = await statusRes.json() as any[];
+                        if (statusLogs && statusLogs.length > 0 && statusLogs[0].after_json) {
+                          if (statusLogs[0].after_json.is_active === false) {
+                            isBotActive = false;
+                          }
+                        }
+                      }
+                    } catch (checkErr) {
+                      console.warn("[FB Webhook] Failed to fetch bot active status:", checkErr);
+                    }
+
+                    // Always auto-save Facebook booking lead to Supabase PostgreSQL & Google Sheets!
+                    await saveFacebookBookingToDB(senderPsid, messageText, env);
+
+                    if (!isBotActive) {
+                      console.log(`[FB Webhook] Chatbot Fanpage is currently TURNED OFF. Skipping AI reply to PSID ${senderPsid}`);
+                      return;
+                    }
+
                     let aiReply = "Dạ chào anh/chị! Nhà hàng KING'S GRILL xin nghe ạ. Anh/chị cần đặt bàn mấy người và vào khung giờ nào để em hỗ trợ giữ vị trí đẹp ạ?";
                     const lowerText = messageText.toLowerCase();
 
@@ -402,9 +431,6 @@ export default {
                     } else if (lowerText.includes('đặt bàn') || lowerText.includes('bàn') || lowerText.includes('đặt') || lowerText.includes('người')) {
                       aiReply = "Dạ KING'S GRILL đã ghi nhận thông tin đặt bàn của anh/chị! Em đã tạo phiếu giữ chỗ trên hệ thống và xếp vị trí bàn đẹp ở Khu A. Anh/chị xem thông tin phiếu và cọc bàn nhận voucher quà tặng tại đây ạ: https://kg-booking.pages.dev";
                     }
-
-                    // Always auto-save Facebook booking lead to Supabase PostgreSQL & Google Sheets!
-                    await saveFacebookBookingToDB(senderPsid, messageText, env);
 
 
                     try {

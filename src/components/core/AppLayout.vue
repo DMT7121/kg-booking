@@ -593,6 +593,18 @@ const ambientTheme = computed(() => {
               <i class="fa-solid fa-chevron-right text-sm" :class="ui.activeSettingModal === 'ai' ? 'text-blue-500' : 'text-slate-300'"></i>
             </button>
 
+            <!-- Social AI Bot -->
+            <button @click="ui.showSocialBotModal = true; ui.showSettingsHub = false" class="w-full px-4 py-4 flex items-center gap-4 transition-colors border-b border-slate-50 group hover:bg-slate-50 active:bg-slate-100">
+              <div class="w-12 h-12 rounded-2xl bg-indigo-50 text-indigo-600 flex items-center justify-center text-xl shrink-0 group-hover:scale-110 transition-transform">
+                <i class="fa-solid fa-robot"></i>
+              </div>
+              <div class="flex-1 text-left">
+                <div class="font-black text-slate-800 text-[13px] mb-0.5">Quản lý Social AI Bot (Fanpage)</div>
+                <div class="text-[10px] font-bold text-slate-400 leading-tight">Theo dõi hội thoại, xem lịch sử tin nhắn thật<br>và bật/tắt AI trả lời Facebook Messenger</div>
+              </div>
+              <i class="fa-solid fa-chevron-right text-sm text-slate-300"></i>
+            </button>
+
             <!-- Staff -->
             <button @click="ui.openConfig('staff')" :class="['w-full px-4 py-4 flex items-center gap-4 transition-colors border-b border-slate-50 group', ui.activeSettingModal === 'staff' ? 'bg-blue-50/50' : 'hover:bg-slate-50 active:bg-slate-100']">
               <div class="w-12 h-12 rounded-2xl bg-emerald-50 text-emerald-500 flex items-center justify-center text-xl shrink-0 group-hover:scale-110 transition-transform">

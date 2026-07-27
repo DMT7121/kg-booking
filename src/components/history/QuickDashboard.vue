@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useAppStore } from '@/stores/useAppStore'
 import { useUIStore } from '@/stores/useUIStore'
 import { useFormStore } from '@/stores/useFormStore'
@@ -18,6 +18,68 @@ const quickInputText = ref('')
 const isAnalyzing = ref(false)
 
 const showAllTodo = ref(false)
+
+// Fanpage Chatbot Active State & Toggle
+const isFbBotActive = ref(localStorage.getItem('kg_fb_bot_active') !== 'false')
+
+async function syncBotActiveStatusFromDB() {
+  const supabaseUrl = "https://azfkzheypuvfcitckovf.supabase.co"
+  const anonKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImF6Zmt6aGV5cHV2ZmNpdGNrb3ZmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODUwNzc1MjEsImV4cCI6MjEwMDY1MzUyMX0.ltnY7GTzKGE7QiWTv8ZuDlfT_NWIR2sGfGudoVDw4NQ"
+  try {
+    const res = await fetch(`${supabaseUrl}/rest/v1/audit_logs?action=eq.fb_bot_status_changed&order=created_at.desc&limit=1`, {
+      headers: { "apikey": anonKey, "Authorization": `Bearer ${anonKey}` }
+    })
+    if (res.ok) {
+      const data = await res.json()
+      if (data && data.length > 0 && data[0].after_json) {
+        const active = data[0].after_json.is_active !== false
+        isFbBotActive.value = active
+        localStorage.setItem('kg_fb_bot_active', String(active))
+      }
+    }
+  } catch (err) {
+    console.warn('[Bot Status DB Sync Error]', err)
+  }
+}
+
+onMounted(() => {
+  syncBotActiveStatusFromDB()
+})
+
+async function toggleFbBotStatus() {
+  isFbBotActive.value = !isFbBotActive.value
+  localStorage.setItem('kg_fb_bot_active', String(isFbBotActive.value))
+
+  const supabaseUrl = "https://azfkzheypuvfcitckovf.supabase.co"
+  const anonKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImF6Zmt6aGV5cHV2ZmNpdGNrb3ZmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODUwNzc1MjEsImV4cCI6MjEwMDY1MzUyMX0.ltnY7GTzKGE7QiWTv8ZuDlfT_NWIR2sGfGudoVDw4NQ"
+
+  try {
+    await fetch(`${supabaseUrl}/rest/v1/audit_logs`, {
+      method: "POST",
+      headers: {
+        "apikey": anonKey,
+        "Authorization": `Bearer ${anonKey}`,
+        "Content-Type": "application/json",
+        "Prefer": "return=minimal"
+      },
+      body: JSON.stringify({
+        actor_role: "staff",
+        action: "fb_bot_status_changed",
+        target_type: "bot_settings",
+        target_id: "facebook_fanpage_bot",
+        after_json: { is_active: isFbBotActive.value, timestamp: new Date().toISOString() }
+      })
+    })
+  } catch (e) {
+    console.warn('Failed to sync bot status to Supabase:', e)
+  }
+
+  if (isFbBotActive.value) {
+    ui.showToast('🟢 Đã BẬT Chatbot AI tự động trên Fanpage 24/7!', 'success')
+  } else {
+    ui.showToast('🔴 Đã TẮT KHÓA HOÀN TOÀN Chatbot AI trên Fanpage. Chỉ bật lại khi bạn bấm nút khởi động lại!', 'warning')
+  }
+}
 
 // Formatting dates
 function getOffsetDateStr(offset: number): string {
@@ -263,6 +325,47 @@ function handleRecentClick(order: any) {
         </button>
         <button @click="ui.tab = 'preview'" class="px-3 py-1.5 bg-white/10 hover:bg-white/20 text-white rounded-full text-[10px] font-black uppercase tracking-wider transition-all flex items-center gap-1 shrink-0 border border-white/10">
           <i class="fa-solid fa-eye text-[8px] text-emerald-300"></i> Xem phiếu
+        </button>
+      </div>
+    </div>
+
+    <!-- Fanpage AI Chatbot Live Control Banner -->
+    <div 
+      class="bg-white border rounded-3xl p-4 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4 transition-all"
+      :class="isFbBotActive ? 'border-emerald-200 bg-emerald-50/20' : 'border-rose-200 bg-rose-50/20'"
+    >
+      <div class="flex items-center gap-3">
+        <div :class="['w-10 h-10 rounded-2xl flex items-center justify-center text-lg shadow-sm shrink-0', isFbBotActive ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700']">
+          <i :class="isFbBotActive ? 'fa-solid fa-robot' : 'fa-solid fa-robot-slashed'"></i>
+        </div>
+        <div>
+          <div class="flex flex-wrap items-center gap-2">
+            <h4 class="font-black text-xs uppercase tracking-wider text-slate-800">Chatbot AI Fanpage Facebook</h4>
+            <span :class="['px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase flex items-center gap-1', isFbBotActive ? 'bg-emerald-100 text-emerald-800 border border-emerald-300/50' : 'bg-rose-100 text-rose-800 border border-rose-300/50']">
+              <span :class="['w-1.5 h-1.5 rounded-full', isFbBotActive ? 'bg-emerald-500 animate-pulse' : 'bg-rose-500']"></span>
+              {{ isFbBotActive ? 'Đang Bật (Tự Động 24/7)' : 'Đã Tắt (Chế Độ Nhắn Tay)' }}
+            </span>
+          </div>
+          <p class="text-[10px] text-slate-500 font-medium mt-0.5">
+            {{ isFbBotActive ? 'AI đang tự động tư vấn và bóc tách phiếu đặt bàn khi khách nhắn tin tới Fanpage' : 'AI Bot đã tạm dừng. Nhân viên sẽ tự tiếp quản nhắn tay cho khách trên Messenger' }}
+          </p>
+        </div>
+      </div>
+
+      <div class="flex items-center gap-2 shrink-0">
+        <button 
+          @click="toggleFbBotStatus"
+          :class="['px-4 py-2 rounded-xl text-xs font-black uppercase tracking-wider transition-all shadow-md active:scale-95 flex items-center gap-2', isFbBotActive ? 'bg-rose-600 hover:bg-rose-700 text-white' : 'bg-emerald-600 hover:bg-emerald-700 text-white']"
+        >
+          <i :class="isFbBotActive ? 'fa-solid fa-power-off' : 'fa-solid fa-play'"></i>
+          <span>{{ isFbBotActive ? 'Tắt Chatbot Fanpage' : 'Bật Lại Chatbot Fanpage' }}</span>
+        </button>
+        <button 
+          @click="ui.showSocialBotModal = true"
+          class="w-9 h-9 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 flex items-center justify-center transition-all border border-slate-200"
+          title="Mở Cửa Sổ Quản Lý Social Bot"
+        >
+          <i class="fa-solid fa-gear"></i>
         </button>
       </div>
     </div>
