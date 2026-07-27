@@ -397,100 +397,106 @@ function saveBotConfig() {
   <transition name="modal">
     <div 
       v-if="ui.showSocialBotModal" 
-      class="fixed inset-0 bg-slate-950/80 z-[99999] flex items-center justify-center p-3 md:p-6 backdrop-blur-md overflow-hidden"
+      class="fixed inset-0 bg-slate-950/80 z-[99999] flex items-center justify-center p-0 md:p-6 backdrop-blur-md overflow-hidden"
       @click.self="closeModal"
     >
-      <div class="bg-white rounded-[2rem] shadow-2xl max-w-6xl w-full h-[92vh] flex flex-col relative overflow-hidden border border-white/20 animate-fade-in">
+      <div class="bg-white rounded-none md:rounded-[2.5rem] shadow-2xl max-w-6xl w-full h-[100dvh] md:h-[92vh] flex flex-col relative overflow-hidden border-0 md:border md:border-white/20 animate-fade-in">
         
-        <!-- HEADER -->
-        <div class="bg-slate-900 text-white p-5 pb-4 shrink-0 overflow-hidden relative">
-          <div class="absolute inset-0 bg-gradient-to-r from-blue-600/30 via-indigo-600/20 to-purple-600/20 pointer-events-none"></div>
-          
-          <div class="flex items-center justify-between relative z-10">
-            <div class="flex items-center gap-3">
-              <div class="w-12 h-12 rounded-2xl bg-gradient-to-tr from-blue-500 to-indigo-600 flex items-center justify-center text-white text-2xl shadow-lg shadow-blue-500/30">
+        <!-- SLEEK COMPACT HEADER -->
+        <div class="bg-slate-900 text-white p-3 md:p-4 shrink-0 border-b border-slate-800 relative z-20">
+          <div class="flex items-center justify-between gap-2">
+            <!-- Left Branding -->
+            <div class="flex items-center gap-2.5 min-w-0">
+              <div class="w-9 h-9 rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-600 flex items-center justify-center text-white text-lg shadow-md shrink-0">
                 <i class="fa-solid fa-robot"></i>
               </div>
-              <div>
-                <div class="flex items-center gap-2">
-                  <h2 class="text-lg md:text-xl font-black tracking-tight text-white uppercase">Quản Lý Social AI Bot (Meta Live API)</h2>
-                  <span class="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 font-mono text-[10px] font-bold border border-emerald-400/30 flex items-center gap-1">
-                    <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span> GRAPH API v19.0 LIVE
+              <div class="min-w-0">
+                <div class="flex items-center gap-1.5 truncate">
+                  <h2 class="text-xs md:text-sm font-black text-white uppercase tracking-tight truncate">Social AI Bot</h2>
+                  <span :class="['px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider shrink-0 flex items-center gap-1', isBotActive ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-400/30' : 'bg-rose-500/20 text-rose-300 border border-rose-400/30']">
+                    <span :class="['w-1.5 h-1.5 rounded-full', isBotActive ? 'bg-emerald-400 animate-pulse' : 'bg-rose-500']"></span>
+                    {{ isBotActive ? 'AI Bật 24/7' : 'AI Đã Tắt' }}
                   </span>
                 </div>
-                <p class="text-[11px] font-bold text-slate-400 mt-0.5">Dữ liệu hội thoại thật 100% tự động hiển thị cả tin nhắn khách gửi & tin nhắn AI Bot đáp lời</p>
               </div>
             </div>
 
-            <div class="flex items-center gap-2">
+            <!-- Right Controls -->
+            <div class="flex items-center gap-1.5 shrink-0">
+              <!-- Bot Active Toggle -->
               <button 
                 @click="toggleGlobalBotStatus" 
-                :class="['px-3.5 py-2 rounded-xl text-xs font-black uppercase tracking-wider flex items-center gap-2 shadow-md transition-all active:scale-95 border', isBotActive ? 'bg-emerald-600/30 text-emerald-300 border-emerald-500/40 hover:bg-emerald-600/50' : 'bg-rose-600/30 text-rose-300 border-rose-500/40 hover:bg-rose-600/50']"
-                title="Bấm để Bật/Tắt Chatbot AI tự động trên Fanpage Facebook"
+                :class="['px-2.5 py-1.5 rounded-xl text-[10px] md:text-xs font-black uppercase tracking-wider flex items-center gap-1.5 shadow-sm transition-all active:scale-95 border', isBotActive ? 'bg-rose-600 text-white border-rose-700' : 'bg-emerald-600 text-white border-emerald-700']"
+                title="Bật/Tắt AI tự động"
               >
-                <span :class="['w-2.5 h-2.5 rounded-full', isBotActive ? 'bg-emerald-400 animate-pulse' : 'bg-rose-500']"></span>
-                <span>{{ isBotActive ? 'Chatbot: ĐANG BẬT' : 'Chatbot: ĐÃ TẮT' }}</span>
+                <i :class="isBotActive ? 'fa-solid fa-power-off' : 'fa-solid fa-play'"></i>
+                <span class="hidden sm:inline">{{ isBotActive ? 'Tắt Bot' : 'Bật Bot' }}</span>
               </button>
 
+              <!-- Refresh Button -->
               <button 
                 @click="loadRealConversations" 
                 :disabled="loadingConversations"
-                class="px-3.5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-black uppercase tracking-wider flex items-center gap-1.5 shadow-md transition-all active:scale-95"
+                class="w-8 h-8 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 flex items-center justify-center text-xs transition-all active:scale-95 border border-slate-700/50"
+                title="Tải lại tin nhắn"
               >
-                <i :class="['fa-solid fa-rotate-right', loadingConversations ? 'animate-spin' : '']"></i>
-                <span>Tải Lại Tin Mới Nhất</span>
+                <i :class="['fa-solid fa-rotate-right', loadingConversations ? 'animate-spin text-blue-400' : '']"></i>
               </button>
 
+              <!-- Close Button -->
               <button 
                 @click="closeModal" 
-                class="w-9 h-9 rounded-full bg-slate-800/80 hover:bg-slate-700 text-slate-300 flex items-center justify-center transition-colors active:scale-95 border border-slate-700/50"
+                class="w-8 h-8 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 flex items-center justify-center text-xs transition-colors active:scale-95 border border-slate-700/50"
               >
-                <i class="fa-solid fa-xmark text-lg"></i>
+                <i class="fa-solid fa-xmark text-sm"></i>
               </button>
             </div>
           </div>
 
-          <!-- TAB NAVIGATION -->
-          <div class="flex gap-2 mt-4 relative z-10 border-b border-slate-800/60 pb-0.5">
+          <!-- COMPACT TAB CONTROL -->
+          <div class="flex items-center gap-1.5 mt-2.5 pt-2 border-t border-slate-800/80">
             <button 
               @click="activeTab = 'conversations'"
-              :class="['px-4 py-2 rounded-xl text-xs font-black uppercase tracking-wider transition-all flex items-center gap-2', activeTab === 'conversations' ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/30' : 'text-slate-400 hover:text-white hover:bg-slate-800/50']"
+              :class="['px-3 py-1 rounded-lg text-[10px] md:text-xs font-black uppercase tracking-wider transition-all flex items-center gap-1.5', activeTab === 'conversations' ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-400 hover:text-white hover:bg-slate-800']"
             >
-              <i class="fa-solid fa-comments text-cyan-400"></i> Nhật Ký Hội Thoại Thật ({{ conversations.length }})
+              <i class="fa-solid fa-comments text-cyan-400"></i>
+              <span>Hội thoại ({{ conversations.length }})</span>
             </button>
             <button 
               @click="activeTab = 'config'"
-              :class="['px-4 py-2 rounded-xl text-xs font-black uppercase tracking-wider transition-all flex items-center gap-2', activeTab === 'config' ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/30' : 'text-slate-400 hover:text-white hover:bg-slate-800/50']"
+              :class="['px-3 py-1 rounded-lg text-[10px] md:text-xs font-black uppercase tracking-wider transition-all flex items-center gap-1.5', activeTab === 'config' ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-400 hover:text-white hover:bg-slate-800']"
             >
-              <i class="fa-solid fa-sliders text-purple-400"></i> Cấu Hình Tokens & Webhook
+              <i class="fa-solid fa-sliders text-purple-400"></i>
+              <span>Cấu hình Token</span>
             </button>
             <button 
               @click="activeTab = 'analytics'"
-              :class="['px-4 py-2 rounded-xl text-xs font-black uppercase tracking-wider transition-all flex items-center gap-2', activeTab === 'analytics' ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/30' : 'text-slate-400 hover:text-white hover:bg-slate-800/50']"
+              :class="['px-3 py-1 rounded-lg text-[10px] md:text-xs font-black uppercase tracking-wider transition-all flex items-center gap-1.5', activeTab === 'analytics' ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-400 hover:text-white hover:bg-slate-800']"
             >
-              <i class="fa-solid fa-chart-pie text-emerald-400"></i> Thống Kê AI Bot
+              <i class="fa-solid fa-chart-pie text-emerald-400"></i>
+              <span>Thống kê</span>
             </button>
           </div>
         </div>
 
-        <!-- MODAL BODY -->
-        <div class="flex-1 overflow-hidden bg-slate-50 flex">
+        <!-- MODAL BODY CONTAINER -->
+        <div class="flex-1 overflow-hidden bg-slate-100 flex relative">
           
           <!-- TAB 1: CONVERSATIONS & LIVE CHAT INSPECTOR -->
           <div v-if="activeTab === 'conversations'" class="flex w-full h-full">
             
             <!-- LEFT CONVERSATION LIST -->
             <div :class="['w-full md:w-80 bg-white border-r border-slate-200 flex flex-col shrink-0 h-full overflow-hidden transition-all', mobileShowDetail ? 'hidden md:flex' : 'flex']">
-              <div class="p-3 border-b border-slate-100 bg-slate-50/50 flex items-center justify-between">
-                <span class="text-xs font-black uppercase tracking-wider text-slate-600">Khách Messenger Thật</span>
+              <div class="p-2.5 border-b border-slate-100 bg-slate-50 flex items-center justify-between gap-2">
+                <span class="text-[11px] font-black uppercase tracking-wider text-slate-600">Khách Messenger Thật</span>
                 <button @click="loadRealConversations" class="text-[10px] font-bold text-blue-600 bg-blue-50 hover:bg-blue-100 px-2 py-0.5 rounded-full flex items-center gap-1">
-                  <i :class="['fa-solid fa-sync', loadingConversations ? 'animate-spin' : '']"></i> Làm mới
+                  <i :class="['fa-solid fa-sync text-[9px]', loadingConversations ? 'animate-spin' : '']"></i> Làm mới
                 </button>
               </div>
               
               <div v-if="loadingConversations" class="p-8 text-center text-slate-400 text-xs font-bold flex flex-col items-center gap-2">
                 <i class="fa-solid fa-circle-notch animate-spin text-blue-600 text-xl"></i>
-                <span>Đang cập nhật hội thoại mới nhất...</span>
+                <span>Đang tải hội thoại Messenger...</span>
               </div>
 
               <div v-else-if="conversations.length === 0" class="p-8 text-center text-slate-400 text-xs">
@@ -502,21 +508,21 @@ function saveBotConfig() {
                   v-for="conv in conversations"
                   :key="conv.id"
                   @click="selectedConvId = conv.id"
-                  :class="['w-full p-3.5 text-left flex items-start gap-3 transition-colors relative', selectedConvId === conv.id ? 'bg-blue-50/70 border-l-4 border-blue-600' : 'hover:bg-slate-50']"
+                  :class="['w-full p-3 text-left flex items-start gap-3 transition-colors relative', selectedConvId === conv.id ? 'bg-blue-50/80 border-l-4 border-blue-600' : 'hover:bg-slate-50']"
                 >
                   <div class="relative shrink-0">
-                    <img :src="conv.avatar" class="w-10 h-10 rounded-full bg-slate-100 border border-slate-200" alt="Avatar" />
-                    <span class="absolute -bottom-1 -right-1 w-4 h-4 rounded-full bg-white flex items-center justify-center text-[10px] shadow-sm">
+                    <img :src="conv.avatar" class="w-9 h-9 rounded-full bg-slate-100 border border-slate-200" alt="Avatar" />
+                    <span class="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full bg-white flex items-center justify-center text-[9px] shadow-sm">
                       <i class="fa-brands fa-facebook-messenger text-blue-500"></i>
                     </span>
                   </div>
 
                   <div class="flex-1 min-w-0">
-                    <div class="flex items-center justify-between mb-1">
+                    <div class="flex items-center justify-between mb-0.5">
                       <h4 class="font-black text-slate-800 text-xs truncate">{{ conv.customerName }}</h4>
                       <span class="text-[9px] font-bold text-slate-400 shrink-0">{{ conv.timestamp }}</span>
                     </div>
-                    <p class="text-[11px] font-medium text-slate-500 truncate leading-tight mb-1.5">{{ conv.lastMessage }}</p>
+                    <p class="text-[11px] font-medium text-slate-500 truncate leading-tight mb-1">{{ conv.lastMessage }}</p>
 
                     <span v-if="conv.isHandover" class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 font-bold text-[9px]">
                       <i class="fa-solid fa-user-gear"></i> Lễ tân tiếp quản
@@ -530,83 +536,91 @@ function saveBotConfig() {
             </div>
 
             <!-- RIGHT LIVE CHAT INSPECTOR -->
-            <div v-if="selectedConv" :class="['flex-1 bg-slate-100 flex flex-col h-full overflow-hidden transition-all', mobileShowDetail ? 'flex' : 'hidden md:flex']">
+            <div v-if="selectedConv" :class="['flex-1 bg-slate-50 flex flex-col h-full overflow-hidden transition-all relative', mobileShowDetail ? 'flex' : 'hidden md:flex']">
               
-              <!-- Chat Header -->
-              <div class="p-3 md:p-4 bg-white border-b border-slate-200 flex items-center justify-between shrink-0 shadow-sm gap-2">
-                <div class="flex items-center gap-2.5 min-w-0">
+              <!-- CLEAN CHAT HEADER (SINGLE COMPACT ROW) -->
+              <div class="p-2.5 md:p-3 bg-white border-b border-slate-200 flex items-center justify-between shrink-0 shadow-xs gap-2 z-10">
+                
+                <!-- Left Info & Mobile Back -->
+                <div class="flex items-center gap-2 min-w-0">
                   <button 
                     @click="mobileShowDetail = false"
-                    class="md:hidden px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold flex items-center gap-1 shrink-0 border border-slate-200"
+                    class="md:hidden px-2 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-bold flex items-center gap-1 shrink-0 border border-slate-200"
                   >
-                    <i class="fa-solid fa-chevron-left text-xs"></i>
+                    <i class="fa-solid fa-chevron-left text-[10px]"></i>
                     <span>Danh sách</span>
                   </button>
                   
-                  <img :src="selectedConv.avatar" class="w-9 h-9 md:w-10 md:h-10 rounded-full bg-slate-100 border border-slate-200 shrink-0" />
+                  <img :src="selectedConv.avatar" class="w-8 h-8 md:w-9 md:h-9 rounded-full bg-slate-100 border border-slate-200 shrink-0" />
+                  
                   <div class="min-w-0">
-                    <h3 class="font-black text-slate-900 text-xs md:text-sm flex items-center gap-1.5 truncate">
+                    <h3 class="font-black text-slate-900 text-xs md:text-sm flex items-center gap-1 truncate">
                       {{ selectedConv.customerName }}
                       <i class="fa-brands fa-facebook-messenger text-blue-500 text-xs"></i>
                     </h3>
-                    
-                    <div class="flex flex-wrap items-center gap-1.5 mt-1">
-                      <button 
-                        @click="copyCustomerName(selectedConv.customerName)"
-                        class="px-2 py-0.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded text-[9px] font-bold flex items-center gap-1 transition-all border border-slate-200 shrink-0 active:scale-95"
-                        title="Copy tên Facebook chính xác"
-                      >
-                        <i class="fa-solid fa-copy text-[8px] text-slate-500"></i>
-                        <span>Copy tên</span>
-                      </button>
-                      
-                      <a 
-                        :href="`https://www.facebook.com/search/top/?q=${encodeURIComponent(selectedConv.customerName)}`" 
-                        target="_blank"
-                        class="px-2 py-0.5 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded text-[9px] font-bold flex items-center gap-1 transition-all border border-blue-200 shrink-0 active:scale-95"
-                        title="Tìm tên Facebook khách trên tab mới"
-                      >
-                        <i class="fa-solid fa-magnifying-glass text-[8px] text-blue-600"></i>
-                        <span>Tìm FB</span>
-                      </a>
-
-                      <a 
-                        :href="`https://www.facebook.com/messages/t/${selectedConv.psid}`" 
-                        target="_blank"
-                        class="px-2 py-0.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded text-[9px] font-bold flex items-center gap-1 transition-all border border-indigo-200 shrink-0 active:scale-95"
-                        title="Mở Messenger trên Facebook"
-                      >
-                        <i class="fa-brands fa-facebook-messenger text-[8px] text-indigo-600"></i>
-                        <span>Mở Chat FB</span>
-                      </a>
-                    </div>
+                    <p class="text-[9px] font-bold text-slate-400 truncate hidden sm:block">PSID: {{ selectedConv.psid }}</p>
                   </div>
                 </div>
 
-                <!-- Handover Toggle Switch -->
-                <button 
-                  @click="toggleHandover(selectedConv)"
-                  :class="['px-2.5 md:px-3 py-1.5 rounded-xl font-black text-[10px] md:text-xs transition-all flex items-center gap-1.5 shadow-sm border shrink-0', selectedConv.isHandover ? 'bg-amber-500 text-white border-amber-600' : 'bg-slate-100 text-slate-700 border-slate-200 hover:bg-slate-200']"
-                >
-                  <i :class="selectedConv.isHandover ? 'fa-solid fa-user-check' : 'fa-solid fa-robot'"></i>
-                  <span>{{ selectedConv.isHandover ? 'Đang nhắn tay' : 'Chuyển Nhắn Tay' }}</span>
-                </button>
+                <!-- Right Action Toolbar (Compact Pill Buttons) -->
+                <div class="flex items-center gap-1 shrink-0">
+                  <!-- Copy Name Button -->
+                  <button 
+                    @click="copyCustomerName(selectedConv.customerName)"
+                    class="px-2 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-[10px] font-bold flex items-center gap-1 border border-slate-200 active:scale-95"
+                    title="Copy tên Facebook chuẩn"
+                  >
+                    <i class="fa-solid fa-copy text-[9px] text-slate-500"></i>
+                    <span class="hidden sm:inline">Copy</span>
+                  </button>
+                  
+                  <!-- Search FB Button -->
+                  <a 
+                    :href="`https://www.facebook.com/search/top/?q=${encodeURIComponent(selectedConv.customerName)}`" 
+                    target="_blank"
+                    class="px-2 py-1 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-lg text-[10px] font-bold flex items-center gap-1 border border-blue-200 active:scale-95"
+                    title="Tìm Facebook khách"
+                  >
+                    <i class="fa-solid fa-magnifying-glass text-[9px] text-blue-600"></i>
+                    <span class="hidden sm:inline">Tìm FB</span>
+                  </a>
+
+                  <!-- Open Messenger -->
+                  <a 
+                    :href="`https://www.facebook.com/messages/t/${selectedConv.psid}`" 
+                    target="_blank"
+                    class="px-2 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-lg text-[10px] font-bold flex items-center gap-1 border border-indigo-200 active:scale-95"
+                    title="Mở Messenger FB"
+                  >
+                    <i class="fa-brands fa-facebook-messenger text-[9px] text-indigo-600"></i>
+                    <span class="hidden sm:inline">Chat FB</span>
+                  </a>
+
+                  <!-- Handover Toggle Switch -->
+                  <button 
+                    @click="toggleHandover(selectedConv)"
+                    :class="['px-2.5 py-1 rounded-lg font-black text-[10px] transition-all flex items-center gap-1 shadow-xs border shrink-0', selectedConv.isHandover ? 'bg-amber-500 text-white border-amber-600' : 'bg-slate-100 text-slate-700 border-slate-200 hover:bg-slate-200']"
+                  >
+                    <i :class="selectedConv.isHandover ? 'fa-solid fa-user-check' : 'fa-solid fa-robot'"></i>
+                    <span>{{ selectedConv.isHandover ? 'Đang nhắn tay' : 'Nhắn tay' }}</span>
+                  </button>
+                </div>
               </div>
 
               <!-- Extracted Booking Card Banner -->
-              <div v-if="selectedConv.extractedBooking" class="bg-blue-900 text-white p-3 px-4 flex items-center justify-between text-xs shrink-0 shadow-inner">
-                <div class="flex items-center gap-3">
-                  <i class="fa-solid fa-calendar-check text-amber-400 text-base"></i>
-                  <div>
-                    <span class="font-black text-amber-300 uppercase tracking-wider text-[10px]">ĐƠN TỰ ĐỘNG BÓC TÁCH: </span>
-                    <span class="font-bold">{{ selectedConv.extractedBooking.name }} ({{ selectedConv.extractedBooking.phone }}) | {{ selectedConv.extractedBooking.pax }} người | {{ selectedConv.extractedBooking.time }} ({{ selectedConv.extractedBooking.table }})</span>
+              <div v-if="selectedConv.extractedBooking" class="bg-blue-900 text-white p-2.5 px-3 flex items-center justify-between text-xs shrink-0 shadow-inner">
+                <div class="flex items-center gap-2 min-w-0">
+                  <i class="fa-solid fa-calendar-check text-amber-400 text-sm shrink-0"></i>
+                  <div class="truncate">
+                    <span class="font-black text-amber-300 uppercase tracking-wider text-[9px]">ĐƠN BÓC TÁCH: </span>
+                    <span class="font-bold text-[11px]">{{ selectedConv.extractedBooking.name }} ({{ selectedConv.extractedBooking.phone }}) | {{ selectedConv.extractedBooking.pax }} người | {{ selectedConv.extractedBooking.time }} ({{ selectedConv.extractedBooking.table }})</span>
                   </div>
                 </div>
-                <span class="px-2 py-0.5 rounded bg-emerald-500/30 text-emerald-300 font-mono text-[9px] font-bold border border-emerald-400/30">Facebook Live</span>
+                <span class="px-1.5 py-0.5 rounded bg-emerald-500/30 text-emerald-300 font-mono text-[9px] font-bold border border-emerald-400/30 shrink-0">Live</span>
               </div>
 
               <!-- Chat Message Feed -->
-              <div class="flex-1 p-3 md:p-4 overflow-y-auto space-y-3 custom-scrollbar">
+              <div class="flex-1 p-3 md:p-4 overflow-y-auto space-y-2.5 custom-scrollbar">
                 <div 
                   v-for="msg in selectedConv.messages" 
                   :key="msg.id"
@@ -620,10 +634,10 @@ function saveBotConfig() {
                   </div>
                   <div 
                     :class="[
-                      'p-3 md:p-3.5 rounded-2xl text-xs font-medium leading-relaxed shadow-sm whitespace-pre-line',
+                      'p-2.5 md:p-3 rounded-2xl text-xs font-medium leading-relaxed shadow-xs whitespace-pre-line',
                       msg.sender === 'customer' ? 'bg-white text-slate-800 rounded-tl-none border border-slate-200' : 
-                      msg.sender === 'bot' ? 'bg-blue-600 text-white rounded-tr-none' : 
-                      'bg-amber-600 text-white rounded-tr-none'
+                      msg.sender === 'bot' ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-tr-none shadow-sm' : 
+                      'bg-gradient-to-r from-amber-600 to-orange-600 text-white rounded-tr-none shadow-sm'
                     ]"
                   >
                     {{ msg.text }}
@@ -632,24 +646,24 @@ function saveBotConfig() {
               </div>
 
               <!-- Staff Input Area (Human Handover) -->
-              <div class="p-3 bg-white border-t border-slate-200 shrink-0">
+              <div class="p-2.5 bg-white border-t border-slate-200 shrink-0">
                 <div class="flex items-center gap-2">
                   <input 
                     v-model="staffReplyText" 
                     @keyup.enter="sendStaffReply"
                     type="text" 
-                    placeholder="Nhập tin nhắn thật để gửi trực tiếp sang Facebook Messenger của khách..."
-                    class="flex-1 px-4 py-2.5 bg-slate-100 rounded-xl text-xs font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500 border border-slate-200"
+                    placeholder="Nhập tin nhắn để gửi trực tiếp sang Messenger..."
+                    class="flex-1 px-3.5 py-2 bg-slate-100 rounded-xl text-xs font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500 border border-slate-200"
                   />
                   <button 
                     @click="sendStaffReply"
-                    class="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-black text-xs uppercase tracking-wider active:scale-95 transition-all shadow-md flex items-center gap-1.5 shrink-0"
+                    class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-black text-xs uppercase tracking-wider active:scale-95 transition-all shadow-sm flex items-center gap-1 shrink-0"
                   >
-                    <i class="fa-solid fa-paper-plane"></i> Gửi Thật
+                    <i class="fa-solid fa-paper-plane text-xs"></i>
+                    <span>Gửi Thật</span>
                   </button>
                 </div>
               </div>
-
             </div>
 
             <div v-else class="flex-1 flex items-center justify-center text-slate-400 text-xs">
