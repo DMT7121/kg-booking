@@ -25,15 +25,32 @@ export interface RealFBConversation {
 
 export async function fetchRealFBConversations(pageAccessToken: string): Promise<RealFBConversation[]> {
   try {
-    const url = `https://graph.facebook.com/v19.0/me/conversations?fields=id,updated_time,senders,unread_count,messages{id,message,created_time,from}&access_token=${encodeURIComponent(pageAccessToken)}`
+    const url = `https://graph.facebook.com/v19.0/me/conversations?fields=id,updated_time,senders,unread_count,messages{id,message,created_time,from}&limit=50&access_token=${encodeURIComponent(pageAccessToken)}`
     const res = await fetch(url)
     const data = await res.json() as any
     if (data && data.data) {
-      return data.data as RealFBConversation[]
+      // Sort conversations by updated_time descending (newest conversation thread first!)
+      return (data.data as RealFBConversation[]).sort((a, b) => new Date(b.updated_time).getTime() - new Date(a.updated_time).getTime())
     }
     return []
   } catch (err) {
     console.error('[FB API Error] Failed to fetch conversations:', err)
+    return []
+  }
+}
+
+export async function fetchRealFBThreadMessages(conversationId: string, pageAccessToken: string): Promise<RealFBMessage[]> {
+  try {
+    const url = `https://graph.facebook.com/v19.0/${encodeURIComponent(conversationId)}/messages?fields=id,message,created_time,from&limit=50&access_token=${encodeURIComponent(pageAccessToken)}`
+    const res = await fetch(url)
+    const data = await res.json() as any
+    if (data && data.data) {
+      // Sort messages ascending by created_time (oldest message first, newest message last!)
+      return (data.data as RealFBMessage[]).sort((a, b) => new Date(a.created_time).getTime() - new Date(b.created_time).getTime())
+    }
+    return []
+  } catch (err) {
+    console.error('[FB API Error] Failed to fetch thread messages:', err)
     return []
   }
 }

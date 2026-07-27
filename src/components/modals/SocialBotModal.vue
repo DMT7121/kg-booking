@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted } from 'vue'
 import { useUIStore } from '@/stores/useUIStore'
-import { fetchRealFBConversations, sendRealFBMessage, type RealFBConversation } from '@/services/facebookApi'
+import { fetchRealFBConversations, fetchRealFBThreadMessages, sendRealFBMessage, type RealFBConversation, type RealFBMessage } from '@/services/facebookApi'
 
 const ui = useUIStore()
 const activeTab = ref<'conversations' | 'config' | 'analytics'>('conversations')
@@ -18,22 +18,27 @@ const webhookUrl = ref('https://kg-ai-gateway.dmt-kgwork.workers.dev/api/webhook
 
 const loadingConversations = ref(false)
 const rawConversations = ref<RealFBConversation[]>([])
+const activeThreadMessages = ref<Record<string, RealFBMessage[]>>({})
 const selectedConvId = ref<string>('')
 const staffReplyText = ref('')
 const handoverMap = ref<Record<string, boolean>>({})
 
-// Format raw Facebook conversations into UI format
+// Format raw Facebook conversations into UI format with strict timestamp sorting
 const conversations = computed(() => {
   return rawConversations.value.map(c => {
     const pageId = '199752947097328' // King's Grill Page ID
     const senders = c.senders?.data || []
     const customerSender = senders.find(s => s.id !== pageId) || senders[0] || { name: 'Khách Messenger', id: 'unknown' }
     
-    const msgs = (c.messages?.data || []).slice().reverse()
-    const lastMsg = msgs[msgs.length - 1]
+    // Check if detailed thread messages have been fetched, otherwise fallback to embedded messages
+    const rawMsgs = activeThreadMessages.value[c.id] || c.messages?.data || []
+    
+    // Sort ascending by created_time (Oldest first, Newest last!)
+    const sortedMsgs = rawMsgs.slice().sort((a, b) => new Date(a.created_time).getTime() - new Date(b.created_time).getTime())
+    const lastMsg = sortedMsgs[sortedMsgs.length - 1]
 
     // Formatted messages
-    const formattedMessages = msgs.map(m => {
+    const formattedMessages = sortedMsgs.map(m => {
       const isFromPage = m.from.id === pageId || m.from.name.toLowerCase().includes("king's grill")
       const timeStr = m.created_time ? new Date(m.created_time).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }) : ''
       return {
@@ -47,7 +52,7 @@ const conversations = computed(() => {
 
     // Extract booking details if customer mentioned booking
     let extractedBooking: any = null
-    const fullText = msgs.map(m => m.message).join(' ')
+    const fullText = sortedMsgs.map(m => m.message).join(' ')
     const phoneMatch = fullText.match(/0\d{9,10}/)
     const paxMatch = fullText.match(/(\d+)\s*(người|khách|pax)/i)
     
@@ -72,6 +77,7 @@ const conversations = computed(() => {
       platform: 'facebook',
       lastMessage: lastMsg?.message || 'Chưa có tin nhắn',
       timestamp: lastTimeStr,
+      updatedTime: c.updated_time,
       isHandover: !!handoverMap.value[c.id],
       extractedBooking,
       messages: formattedMessages
@@ -83,6 +89,19 @@ const selectedConv = computed(() => {
   return conversations.value.find(c => c.id === selectedConvId.value) || conversations.value[0] || null
 })
 
+// Re-fetch detailed thread messages when a conversation is selected
+watch(selectedConvId, async (newId) => {
+  if (newId && fbToken.value) {
+    const threadMsgs = await fetchRealFBThreadMessages(newId, fbToken.value)
+    if (threadMsgs && threadMsgs.length > 0) {
+      activeThreadMessages.value = {
+        ...activeThreadMessages.value,
+        [newId]: threadMsgs
+      }
+    }
+  }
+})
+
 async function loadRealConversations() {
   if (!fbToken.value) return
   loadingConversations.value = true
@@ -90,8 +109,12 @@ async function loadRealConversations() {
     const res = await fetchRealFBConversations(fbToken.value)
     if (res && res.length > 0) {
       rawConversations.value = res
-      if (!selectedConvId.value) {
-        selectedConvId.value = res[0].id
+      selectedConvId.value = res[0].id
+      
+      // Fetch detailed thread for top conversation immediately
+      const topThreadMsgs = await fetchRealFBThreadMessages(res[0].id, fbToken.value)
+      if (topThreadMsgs && topThreadMsgs.length > 0) {
+        activeThreadMessages.value[res[0].id] = topThreadMsgs
       }
     }
   } catch (e) {
@@ -179,7 +202,7 @@ function saveBotConfig() {
                     <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span> GRAPH API v19.0 LIVE
                   </span>
                 </div>
-                <p class="text-[11px] font-bold text-slate-400 mt-0.5">Dữ liệu hội thoại thật 100% kết nối trực tiếp từ Facebook Fanpage King's Grill</p>
+                <p class="text-[11px] font-bold text-slate-400 mt-0.5">Dữ liệu hội thoại thật 100% tự động sắp xếp theo thời gian mới nhất</p>
               </div>
             </div>
 
@@ -187,10 +210,10 @@ function saveBotConfig() {
               <button 
                 @click="loadRealConversations" 
                 :disabled="loadingConversations"
-                class="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold flex items-center gap-1.5 border border-slate-700 transition-all active:scale-95"
+                class="px-3.5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-black uppercase tracking-wider flex items-center gap-1.5 shadow-md transition-all active:scale-95"
               >
                 <i :class="['fa-solid fa-rotate-right', loadingConversations ? 'animate-spin' : '']"></i>
-                <span>Tải Lại Dữ Liệu Thật</span>
+                <span>Tải Lại Tin Mới Nhất</span>
               </button>
 
               <button 
@@ -235,14 +258,14 @@ function saveBotConfig() {
             <div class="w-full md:w-80 bg-white border-r border-slate-200 flex flex-col shrink-0 h-full overflow-hidden">
               <div class="p-3 border-b border-slate-100 bg-slate-50/50 flex items-center justify-between">
                 <span class="text-xs font-black uppercase tracking-wider text-slate-600">Khách Messenger Thật</span>
-                <span class="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full flex items-center gap-1">
-                  <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span> Graph API v19.0
-                </span>
+                <button @click="loadRealConversations" class="text-[10px] font-bold text-blue-600 bg-blue-50 hover:bg-blue-100 px-2 py-0.5 rounded-full flex items-center gap-1">
+                  <i :class="['fa-solid fa-sync', loadingConversations ? 'animate-spin' : '']"></i> Làm mới
+                </button>
               </div>
               
               <div v-if="loadingConversations" class="p-8 text-center text-slate-400 text-xs font-bold flex flex-col items-center gap-2">
                 <i class="fa-solid fa-circle-notch animate-spin text-blue-600 text-xl"></i>
-                <span>Đang tải dữ liệu từ Facebook Page Graph API...</span>
+                <span>Đang cập nhật hội thoại mới nhất...</span>
               </div>
 
               <div v-else-if="conversations.length === 0" class="p-8 text-center text-slate-400 text-xs">
