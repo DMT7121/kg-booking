@@ -134,6 +134,45 @@ describe('Rule Engine Tests', () => {
       expect(result.customer_name).toBeNull()
       expect(result.customer_name_confidence).toBe(0.0)
     })
+
+    it('should correctly parse multiline booking with STT slash dishes and inline price', () => {
+      const rawInput = `A1\t
+Thanh Bình
+
+\t13ng - 18h30
+\t
+0935663666
+\tSinh nhật
+\tNhận: DMT
+\t"TONE HỒNG 
+
+1/ Chân gà nướng sate x1
+2/ Khói Tây Bắc x1
+3/ Bánh sữa nướng sate x1
+4/ Tôm tái thái (10 con) x1
+5/ Cơm chiên cá mặn chà bông ớt hiểm (cay) x1
+6/ Mì xào phá lấu x1
+8/ Sò huyết xào me x1
+
+
+1/ Đậu hũ giấy bạc (chay) 129K x1
+2/ Chả giò tứ bửu (chay) x1
+3/ Lẩu chua cay (chay) x1"`
+
+      const normalized = preNormalizeInput(rawInput)
+      const result = extractByRules(normalized)
+      expect(['Thanh Bình', 'Bình']).toContain(result.customer_name)
+      expect(result.phone).toBe('0935663666')
+      expect(result.guest_count).toBe(13)
+      expect(result.event_time).toBe('18:30')
+      expect(result.table_code).toBe('A1')
+      expect(result.booking_need).toBe('Sinh nhật')
+      expect(result.receiver).toBe('DMT')
+      expect(result.menu_items.length).toBe(10)
+      expect(result.menu_items[0].raw_name).toBe('Chân gà nướng sa tế')
+      expect(result.menu_items[7].raw_name).toBe('Đậu hũ giấy bạc (chay)')
+      expect(result.menu_items[7].unit_price).toBe(129000)
+    })
   })
 })
 

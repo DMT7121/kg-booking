@@ -153,7 +153,7 @@ export function segmentInputBlocksCompat(text: string) {
       blocks.deposit_block.push(trimmed)
       continue
     }
-    const isGuestLine = /(\d+)\s*(?:pax|nguoi|người|ng|khach|khách|cho)/gi.test(lower) || /nguoi lon|tre em|lon.*nho|be/i.test(lower)
+    const isGuestLine = /(\d+)\s*(?:pax|nguoi|người|ng\b|khach|khách|cho)/gi.test(lower) || /nguoi lon|tre em|lon.*nho|be/i.test(lower)
     if (isGuestLine) {
       blocks.guest_count_block.push(trimmed)
     }
@@ -167,7 +167,12 @@ export function segmentInputBlocksCompat(text: string) {
     if (hasPhone || hasCustomerKeywords) {
       blocks.customer_block.push(trimmed)
     }
-    const isMenuLine = (/^\d+\s+[\p{L}\s]+/ui.test(lower) || /combo|set menu|thuc don/i.test(lower)) &&
+    const isDishNumberPattern = /^\d+[\/\.\-\)]?\s+/ui.test(trimmed) || /^\d+\s*[\/\.\-\)]\s*/ui.test(trimmed)
+    const isDishSuffixPattern = /(?:\s*x\s*\d+|\s+\d{2,3}k|\s+\d{3}\.000|\d+\s*(?:con|phan|dia|set|c))\s*$/i.test(trimmed)
+    const isMenuKeywordPattern = /combo|set menu|thuc don|mon an|thuc an/i.test(lower)
+    const isBulletPattern = /^[-*+•]\s+[\p{L}\s]+/ui.test(trimmed)
+
+    const isMenuLine = (isDishNumberPattern || isDishSuffixPattern || isMenuKeywordPattern || isBulletPattern) &&
                        !hasTime && !hasDate && !hasPhone && !isGuestLine
     if (isMenuLine) {
       blocks.menu_block.push(trimmed)
@@ -1046,6 +1051,70 @@ export function extractHardEntities(normalizedText: string): HardEntities {
   return { phones, dates, times, guestCounts, tables }
 }
 
+export function parseSingleMenuLine(lineStr: string): { raw_name: string; quantity: number; unit_price: number | null; note: string } | null {
+  let cleaned = lineStr.trim()
+  if (!cleaned) return null
+
+  // Skip quote headers without food context
+  if (/^["'“”«»][^0-9]+["'“”«»]$/i.test(cleaned) && !/lẩu|nướng|xào|hấp|chiên|sốt|gà|bò|heo|tôm|cua|mực|cá|cơm|mì|bún|đậu|chả|chay/i.test(cleaned)) {
+    return null
+  }
+
+  // 1. Strip STT index prefix: e.g. "1/", "1.", "1)", "1 -", "1/ ", "1 ", "1/ "
+  cleaned = cleaned.replace(/^(\d{1,3})\s*[\/\.\-\)]\s*/, '')
+  // Also strip bullet points
+  cleaned = cleaned.replace(/^[-*+•]\s+/, '')
+
+  cleaned = cleaned.trim()
+  if (!cleaned) return null
+
+  // 2. Extract portion/qty indicators like "3 phần", "3 con", "3 đĩa", "3 tô", "3 ly", "3 lon"
+  let qty = 1
+  
+  // Trailing quantity multiplier: "x1", "x 2", "*3", "(x1)", "1 phần", "2 con"
+  const trailingQtyMatch = cleaned.match(/(?:\((?:[x\*])\s*(\d+)\)|(?:[x\*])\s*(\d+)|\b(\d+)\s*(?:phần|phan|đĩa|dia|con|tô|to|ly|lon|set|suất|suat))\s*$/i)
+  if (trailingQtyMatch) {
+    qty = parseInt(trailingQtyMatch[1] || trailingQtyMatch[2] || trailingQtyMatch[3], 10) || 1
+    cleaned = cleaned.replace(/(?:\((?:[x\*])\s*(\d+)\)|(?:[x\*])\s*(\d+)|\b(\d+)\s*(?:phần|phan|đĩa|dia|con|tô|to|ly|lon|set|suất|suat))\s*$/i, '').trim()
+  } else {
+    // Leading quantity: "2x ", "3* ", "2 phần ", "3 con "
+    const leadingQtyMatch = cleaned.match(/^(?:(\d+)\s*[x\*]\s*|(\d+)\s*(?:phần|phan|đĩa|dia|con|tô|to|ly|lon|set|suất|suat)\s+)/i)
+    if (leadingQtyMatch) {
+      qty = parseInt(leadingQtyMatch[1] || leadingQtyMatch[2], 10) || 1
+      cleaned = cleaned.replace(/^(?:(\d+)\s*[x\*]\s*|(\d+)\s*(?:phần|phan|đĩa|dia|con|tô|to|ly|lon|set|suất|suat)\s+)/i, '').trim()
+    }
+  }
+
+  // 3. Extract price inside dish line: "129K", "129k", "250.000đ", "120000"
+  let unit_price: number | null = null
+  const priceMatch = cleaned.match(/\b(\d{2,4})\s*(k|K)\b/) || cleaned.match(/\b(\d{1,3}(?:[\.,]\d{3})+)\s*(?:đ|VND|vnd)?\b/i)
+  if (priceMatch) {
+    if (priceMatch[2] && priceMatch[2].toLowerCase() === 'k') {
+      unit_price = parseInt(priceMatch[1], 10) * 1000
+    } else {
+      unit_price = parseInt(priceMatch[1].replace(/[\.,]/g, ''), 10)
+    }
+    cleaned = cleaned.replace(priceMatch[0], '').trim()
+  }
+
+  // Clean trailing/leading punctuation or brackets
+  cleaned = cleaned.replace(/^[\s-,\/:]+|[\s-,\/:]+$/g, '').trim()
+
+  // Guard: if cleaned dish name is just numbers or metadata keywords, skip
+  if (/^\d+$/.test(cleaned) || /^(nam|nu|khach|pax|nguoi|ban|table|sdt|gio|ngay|sinh nhat|hbd|coc|ck)$/i.test(stripAccents(cleaned))) {
+    return null
+  }
+
+  if (cleaned.length < 2) return null
+
+  return {
+    raw_name: cleaned,
+    quantity: qty,
+    unit_price,
+    note: ''
+  }
+}
+
 export function extractByRules(normalizedText: string) {
   const blocks = segmentInputBlocksCompat(normalizedText)
   const clean = stripAccents(normalizedText).toLowerCase()
@@ -1358,25 +1427,32 @@ export function extractByRules(normalizedText: string) {
   if (menu_items.length === 0) {
     const menuLines = blocks.menu_block.split('\n')
     for (const line of menuLines) {
-      const lineClean = line.trim()
-      const lineMatch = lineClean.match(/^(\d+)\s+(.+)$/)
-      if (lineMatch) {
-        menu_items.push({
-          raw_name: lineMatch[2].trim(),
-          quantity: parseInt(lineMatch[1]),
-          unit_price: null,
-          note: ''
-        })
-      } else {
-        const lineMatch2 = lineClean.match(/^(.+?)\s*x\s*(\d+)$/i)
-        if (lineMatch2) {
-          menu_items.push({
-            raw_name: lineMatch2[1].trim(),
-            quantity: parseInt(lineMatch2[2]),
-            unit_price: null,
-            note: ''
-          })
-        }
+      const parsed = parseSingleMenuLine(line)
+      if (parsed) {
+        menu_items.push(parsed)
+      }
+    }
+  }
+
+  if (menu_items.length === 0) {
+    const menuLines = blocks.menu_block.split('\n')
+    for (const line of menuLines) {
+      const parsed = parseSingleMenuLine(line)
+      if (parsed) {
+        menu_items.push(parsed)
+      }
+    }
+  }
+
+  // Fallback scan: if menu_block yielded no dishes, scan full normalizedText line by line
+  if (menu_items.length === 0) {
+    const allLines = normalizedText.split('\n')
+    for (const line of allLines) {
+      const lower = stripAccents(line).toLowerCase()
+      if (/(0[35789]\d{7,9})/.test(lower) || /\b\d{1,2}:\d{2}\b/.test(lower) || /\d+ng\b|\d+\s*pax|\d+\s*khach/i.test(lower)) continue
+      const parsed = parseSingleMenuLine(line)
+      if (parsed) {
+        menu_items.push(parsed)
       }
     }
   }
