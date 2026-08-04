@@ -219,6 +219,18 @@ export async function triggerSync(): Promise<void> {
       if (success) {
         await outbox.markAsSynced(item.id, item.action)
         
+        // Update in-memory store order sync status immediately without network reload
+        try {
+          const { getActivePinia } = await import('pinia')
+          if (getActivePinia()) {
+            const { useAppStore } = await import('@/stores/useAppStore')
+            const store = useAppStore()
+            if (store && item.action === 'upsert' && typeof store.markOrderSynced === 'function') {
+              store.markOrderSynced(item.id)
+            }
+          }
+        } catch (err) {}
+
         // Trigger background image upload if an offline image exists in buffer
         if (item.action === 'upsert' && item.payload?.deposit?.image === '__OFFLINE_IMAGE_BUFFER_REF__') {
           uploadImageInBackground(item.id, item.payload, mode, token).catch(() => {})
@@ -233,18 +245,13 @@ export async function triggerSync(): Promise<void> {
     isSyncing = false
     try {
       const { getActivePinia } = await import('pinia')
-        if (getActivePinia()) {
-          const { useAppStore } = await import('@/stores/useAppStore')
-          const store = useAppStore()
-          if (store) {
-            if (typeof store.updateOfflineQueueCount === 'function') {
-              await store.updateOfflineQueueCount()
-            }
-            if (typeof store.loadHistory === 'function') {
-              await store.loadHistory(true)
-            }
-          }
+      if (getActivePinia()) {
+        const { useAppStore } = await import('@/stores/useAppStore')
+        const store = useAppStore()
+        if (store && typeof store.updateOfflineQueueCount === 'function') {
+          await store.updateOfflineQueueCount()
         }
+      }
     } catch (err) {
       console.warn('[Outbox Sync] Failed to update offline queue count in store:', err)
     }

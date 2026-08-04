@@ -262,7 +262,7 @@ export function useAI() {
       const menuItems = parsedResult.menu_items || parsedResult.items
       if (menuItems && Array.isArray(menuItems) && menuItems.length > 0) {
         const newItems = menuItems.map((newItem: any) => ({
-          name: newItem.matched_name || newItem.name,
+          name: newItem.matched_name || newItem.name || newItem.raw_name || 'Món ăn',
           qty: newItem.quantity || newItem.qty || 1,
           price: newItem.unit_price || newItem.price || 0,
           note: newItem.note || newItem.notes || ""

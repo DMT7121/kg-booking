@@ -5,6 +5,9 @@ export function cleanCustomerName(name: string): string {
   if (!name) return ''
   let cleaned = name.trim()
 
+  // Remove leading prefixes like "người đặt:", "tên khách:", "khách hàng:", "khách:"
+  cleaned = cleaned.replace(/^(?:ngu\u1eddi\s*\u0111\u1eb7t|t\u00ean\s*kh\u00e1ch|kh\u00e1ch\s*h\u00e0ng|kh\u00e1ch|li\u00ean\s*h\u1ec7|s\u0111t|sdt)\s*[:\-]?\s*/gi, '')
+
   // 1. Remove table prefixes followed by zone/number combinations (case-insensitive)
   // e.g. "bàn A12", "bàn C6", "khu B5", "phòng D8", "bàn 5", "bàn 12", "bàn A", "khu B"
   cleaned = cleaned.replace(/\b(?:ban|b\u00e0n|so\s*ban|s\u1ed1\s*b\u00e0n|khu|phong|vip)\s+[A-G]?\d*\b/gi, '')
@@ -225,8 +228,10 @@ export function applyDeterministicRuleLock(aiResult: any, hardEntities: any, rul
   if (!result.needs_review_fields) result.needs_review_fields = []
   if (!result.warnings) result.warnings = []
 
-  // Deterministic Customer Name resolution
-  if (ruleBasedResult?.customer_name) {
+  // Deterministic Customer Name resolution: Only override if AI didn't provide a valid customer name
+  const currentAiName = (result.customer.name || '').trim()
+  const isGenericAiName = !currentAiName || /^khách(\s*hàng)?$/i.test(currentAiName)
+  if (isGenericAiName && ruleBasedResult?.customer_name) {
     result.customer.name = ruleBasedResult.customer_name
   }
 

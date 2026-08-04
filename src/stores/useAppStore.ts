@@ -510,8 +510,10 @@ export const useAppStore = defineStore('app', () => {
     }
   }
 
-  async function fetchMenu(sheetName?: string) {
-    await clearAIResponseCache('manual_menu_reload')
+  async function fetchMenu(sheetName?: string, options?: { forceReloadCache?: boolean }) {
+    if (options?.forceReloadCache) {
+      await clearAIResponseCache('manual_menu_reload')
+    }
     const targetSheet = sheetName || activeSheet.value
 
     const cached = await getCachedMenu(targetSheet)
@@ -680,18 +682,13 @@ export const useAppStore = defineStore('app', () => {
   }
 
   async function switchMenu(sheetName: string) {
-    uiStore.loading.is = true
-    uiStore.loading.msg = 'ĐANG CHUYỂN MENU...'
-    uiStore.loading.subMsg = `Syncing: ${sheetName}`
     try {
       activeSheet.value = sheetName
       localStorage.setItem(CACHE_KEYS.MENU_SHEET, sheetName)
-      await fetchMenu(sheetName)
       uiStore.showMenuManager = false
+      await fetchMenu(sheetName)
     } catch (e: any) {
       console.error(e)
-    } finally {
-      uiStore.loading.is = false
     }
   }
 

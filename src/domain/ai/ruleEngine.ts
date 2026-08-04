@@ -1076,58 +1076,83 @@ export function extractByRules(normalizedText: string) {
   const requestKeywords = /\byeu\s+cau\b|\bphong\s+lanh\b|\btrang\s+tri\b|\bbong\s+bong\b|\bbong\s+bay\b|\bcom\s+chien\b|\bthuc\s+don\b|\bmon\s+an\b|\bcoc\b|\bchuyen\s+khoan\b|\bset\s+menu\b|\bcombo\b|\bbao\s+gia\b|\bbia\b|\bnuoc\s+ngot\b/i
   const filterValidNames = (names: string[]) => names.filter(n => !requestKeywords.test(stripAccents(n).toLowerCase()))
 
-  const candidatesList = filterValidNames(nameResults.peopleNames)
-  const confidentCandidates = candidatesList.filter(c => evaluateNameConfidence(c, normalizedText).confidence >= 0.55)
+  const validBookers = filterValidNames(nameResults.bookerCandidates)
+  if (validBookers.length > 0) {
+    const scores = validBookers.map(b => ({
+      name: b,
+      evalRes: evaluateNameConfidence(b, normalizedText)
+    })).sort((a, b) => b.evalRes.confidence - a.evalRes.confidence)
 
-  if (confidentCandidates.length > 1) {
-    customer_name = null
-    customer_name_confidence = 0.0
-    customer_name_metadata = { confidence: 0.0, signals: [], risks: ['conflicting_multiple_names'] }
-  } else if (candidatesList.length > 1) {
-    let bestName: string | null = null
-    let bestScore = -1
-    let bestEval: any = null
-    let hasTie = false
-
-    for (const nameCandidate of candidatesList) {
-      const evalRes = evaluateNameConfidence(nameCandidate, normalizedText)
-      if (evalRes.confidence > bestScore) {
-        bestScore = evalRes.confidence
-        bestName = nameCandidate
-        bestEval = evalRes
-        hasTie = false
-      } else if (evalRes.confidence === bestScore) {
-        hasTie = true
+    if (scores.length === 1) {
+      if (scores[0].evalRes.confidence >= 0.55) {
+        customer_name = scores[0].name
+        customer_name_confidence = scores[0].evalRes.confidence
+        customer_name_metadata = scores[0].evalRes
+      }
+    } else if (scores.length > 1) {
+      const diff = scores[0].evalRes.confidence - scores[1].evalRes.confidence
+      if (diff >= 0.15 && scores[0].evalRes.confidence >= 0.70) {
+        customer_name = scores[0].name
+        customer_name_confidence = scores[0].evalRes.confidence
+        customer_name_metadata = scores[0].evalRes
+      } else {
+        customer_name = null
+        customer_name_confidence = 0.0
+        customer_name_metadata = { confidence: 0.0, signals: [], risks: ['conflicting_multiple_names'] }
       }
     }
+  }
 
-    if (bestName && !hasTie && bestScore >= 0.80) {
-      customer_name = bestName
-      customer_name_confidence = bestScore
-      customer_name_metadata = bestEval
-    } else {
-      customer_name = null
-      customer_name_confidence = 0.0
-      customer_name_metadata = { confidence: 0.0, signals: [], risks: ['conflicting_multiple_names'] }
-    }
-  } else {
-    const validBookers = filterValidNames(nameResults.bookerCandidates)
-    if (validBookers.length > 0) {
-      customer_name = validBookers[0]
+  if (!customer_name) {
+    const candidatesList = filterValidNames(nameResults.peopleNames)
+    const confidentCandidates = candidatesList.filter(c => evaluateNameConfidence(c, normalizedText).confidence >= 0.55)
+
+    if (confidentCandidates.length === 1) {
+      customer_name = confidentCandidates[0]
+      const evalRes = evaluateNameConfidence(customer_name, normalizedText)
+      customer_name_confidence = evalRes.confidence
+      customer_name_metadata = evalRes
+    } else if (candidatesList.length > 1) {
+      let bestName: string | null = null
+      let bestScore = -1
+      let bestEval: any = null
+      let hasTie = false
+
+      for (const nameCandidate of candidatesList) {
+        const evalRes = evaluateNameConfidence(nameCandidate, normalizedText)
+        if (evalRes.confidence > bestScore) {
+          bestScore = evalRes.confidence
+          bestName = nameCandidate
+          bestEval = evalRes
+          hasTie = false
+        } else if (evalRes.confidence === bestScore) {
+          hasTie = true
+        }
+      }
+
+      if (bestName && !hasTie && bestScore >= 0.80) {
+        customer_name = bestName
+        customer_name_confidence = bestScore
+        customer_name_metadata = bestEval
+      } else {
+        customer_name = null
+        customer_name_confidence = 0.0
+        customer_name_metadata = { confidence: 0.0, signals: [], risks: ['conflicting_multiple_names'] }
+      }
     } else {
       const potentialBookers = filterValidNames(nameResults.peopleNames).filter(name => !nameResults.partyOwnerCandidates.includes(name))
       if (potentialBookers.length > 0) {
         customer_name = potentialBookers[0]
       }
-    }
 
-    if (customer_name) {
-      const evalRes = evaluateNameConfidence(customer_name, normalizedText)
-      customer_name_confidence = evalRes.confidence
-      customer_name_metadata = evalRes
-      if (customer_name_confidence < 0.55) {
-        customer_name = null
-        customer_name_confidence = 0.0
+      if (customer_name) {
+        const evalRes = evaluateNameConfidence(customer_name, normalizedText)
+        customer_name_confidence = evalRes.confidence
+        customer_name_metadata = evalRes
+        if (customer_name_confidence < 0.55) {
+          customer_name = null
+          customer_name_confidence = 0.0
+        }
       }
     }
   }
