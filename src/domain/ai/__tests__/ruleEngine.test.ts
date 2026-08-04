@@ -173,6 +173,22 @@ Thanh Bình
       expect(result.menu_items[7].raw_name).toBe('Đậu hũ giấy bạc (chay)')
       expect(result.menu_items[7].unit_price).toBe(129000)
     })
+
+    it('should pre-normalize formatted phone numbers, g-time formats, and parse weight notes', () => {
+      const rawInput = 'Anh Hùng (+84) 935 663 666 đặt bàn 6 khách lúc 18g30. Món ăn: 0.5kg Tôm hùm nướng 500k, 1/2 con Vịt quay 180K x1'
+      const normalized = preNormalizeInput(rawInput)
+      const result = extractByRules(normalized)
+      expect(result.phone).toBe('0935663666')
+      expect(result.event_time).toBe('18:30')
+      expect(result.guest_count).toBe(6)
+      expect(result.menu_items.length).toBe(2)
+      expect(result.menu_items[0].raw_name).toBe('Tôm hùm nướng')
+      expect(result.menu_items[0].unit_price).toBe(500000)
+      expect(result.menu_items[0].note).toBe('0.5kg')
+      expect(result.menu_items[1].raw_name).toBe('Vịt quay')
+      expect(result.menu_items[1].unit_price).toBe(180000)
+      expect(result.menu_items[1].note).toBe('1/2 con')
+    })
   })
 })
 

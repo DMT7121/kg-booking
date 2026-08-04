@@ -636,6 +636,9 @@ export function preNormalizeInput(rawText: string): string {
     return mapping[num] || match
   })
 
+  // Pre-normalize formatted phone numbers (+84, 84, 0, dots, spaces, dashes)
+  clean = clean.replace(/(?:\(\+84\)\s*|\+84\s*|84\s*|0\s*)([35789])[\s\.\-]*(\d{3})[\s\.\-]*(\d{3,4})\b/g, '0$1$2$3')
+
   clean = clean.replace(/\b(\d{1,2})h(\d{2})m\b/gi, '$1:$2')
   clean = clean.replace(/\b(\d{1,2})h(\d{2})\b/gi, '$1:$2')
   clean = clean.replace(/\b(\d{1,2})h\b/gi, '$1:00')
@@ -1085,7 +1088,15 @@ export function parseSingleMenuLine(lineStr: string): { raw_name: string; quanti
     }
   }
 
-  // 3. Extract price inside dish line: "129K", "129k", "250.000đ", "120000"
+  // 3. Extract weight/portion notes like "0.5kg", "500g", "1/2 con", "½ con"
+  let note = ''
+  const portionNoteMatch = cleaned.match(/\b(0[\.,]\d+\s*(?:kg|g|l)|1\/2\s*con|½\s*con|500g|500\s*g|nửa\s*con|nua\s*con)\b/i)
+  if (portionNoteMatch) {
+    note = portionNoteMatch[1].trim()
+    cleaned = cleaned.replace(portionNoteMatch[0], '').trim()
+  }
+
+  // 4. Extract price inside dish line: "129K", "129k", "250.000đ", "120000"
   let unit_price: number | null = null
   const priceMatch = cleaned.match(/\b(\d{2,4})\s*(k|K)\b/) || cleaned.match(/\b(\d{1,3}(?:[\.,]\d{3})+)\s*(?:đ|VND|vnd)?\b/i)
   if (priceMatch) {
@@ -1111,7 +1122,7 @@ export function parseSingleMenuLine(lineStr: string): { raw_name: string; quanti
     raw_name: cleaned,
     quantity: qty,
     unit_price,
-    note: ''
+    note
   }
 }
 
