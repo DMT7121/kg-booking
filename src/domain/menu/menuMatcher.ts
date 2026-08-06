@@ -330,6 +330,37 @@ export function resolveMenuItemsLocally(
   })
 }
 
+export function resolveSetMenuDescription(
+  name: string,
+  menuList: any[] = [],
+  menuDetails: Record<string, string> = {}
+): string {
+  if (!name) return ''
+  if (menuDetails[name]) return menuDetails[name]
+
+  const normTarget = stripAccents(name).toLowerCase().trim()
+
+  for (const [key, desc] of Object.entries(menuDetails)) {
+    if (desc && stripAccents(key).toLowerCase().trim() === normTarget) {
+      return desc
+    }
+  }
+
+  const foundItem = menuList.find(i => i.name && stripAccents(i.name).toLowerCase().trim() === normTarget)
+  if (foundItem && (foundItem.desc || foundItem.description)) {
+    return foundItem.desc || foundItem.description
+  }
+
+  for (const [setKey, setVal] of Object.entries(SETS)) {
+    const normKey = stripAccents(setKey).toLowerCase().trim()
+    if (normTarget.includes(normKey) || normKey.includes(normTarget)) {
+      return setVal
+    }
+  }
+
+  return ''
+}
+
 export function matchMenuItems(
   rawItems: any[],
   guestCount: number | null,
@@ -364,9 +395,6 @@ export function matchMenuItems(
   }
 
   const attributes = ['trung muoi', 'tieu', 'pho mai', 'mo hanh', 'cay', 'lau', 'nuong', 'xao', 'hap']
-  const SETS: Record<string, string> = {
-    'SUM VAY 1': 'Set sum vầy [1]'
-  }
 
   return expandedItems.map((item) => {
     let rawName = (item.raw_name || item.name || '').trim()
@@ -398,14 +426,18 @@ export function matchMenuItems(
 
     if (match) {
       let note = item.note || item.notes || ''
-      const isSet = /set|combo|goi|phan/i.test(match.name)
-      let description = match.desc || menuDetails[match.name] || ''
+      const isSet = /set|combo|goi|phan|couple/i.test(match.name) || /set|combo|goi|phan|couple/i.test(rawName)
+      let description = match.desc || resolveSetMenuDescription(match.name, menuList, menuDetails) || resolveSetMenuDescription(rawName, menuList, menuDetails)
       if (description) {
+        const formattedNote = formatSetNote(description)
         if (isSet) {
-          const formattedNote = formatSetNote(description)
-          note = note ? `${note}\n${formattedNote}` : formattedNote
+          if (!note.includes(formattedNote)) {
+            note = note ? `${note}\n${formattedNote}` : formattedNote
+          }
         } else {
-          note = note ? `${note} (${description})` : description
+          if (!note.includes(description)) {
+            note = note ? `${note} (${description})` : description
+          }
         }
       }
       

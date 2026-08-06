@@ -3,7 +3,7 @@ import { useFormStore } from '@/stores/useFormStore'
 import { useConfigStore } from '@/stores/useConfigStore'
 import { useAppStore } from '@/stores/useAppStore'
 import { useLogStore } from '@/stores/useLogStore'
-import { resizeImage, cleanPhoneNumber, formatDateStr, formatVND, stripAccents } from '@/utils'
+import { resizeImage, cleanPhoneNumber, formatDateStr, formatVND, stripAccents, formatSetNote } from '@/utils'
 import { processImageForOCR } from '@/utils/imageProcessor'
 import { AI_MODELS, ADVANCED_AI_PROMPT, IMAGE_OCR_PROMPT } from '@/utils/constants'
 import type { AIModel } from '@/utils/constants'
@@ -22,7 +22,8 @@ import { safeParseJSON } from '@/domain/ai/jsonRepair'
 import { 
   matchMenuItems, 
   resolveBestMenuSheet, 
-  resolveMenuItemsLocally 
+  resolveMenuItemsLocally,
+  resolveSetMenuDescription
 } from '@/domain/menu/menuMatcher'
 import { 
   applyDeterministicRuleLock, 
@@ -308,6 +309,24 @@ export function useAI() {
             }
           }
           formStore.items = existingItems
+        }
+
+        // Tự động nạp đầy đủ danh sách món thành phần cho Set Menu & Combo Couple khi phân tích thành công
+        for (const item of formStore.items) {
+          const isSetItem = /set|combo|goi|phan|couple/i.test(item.name)
+          const desc = resolveSetMenuDescription(item.name, appStore.menuList, appStore.menuDetails || {})
+          if (desc) {
+            const formattedDesc = formatSetNote(desc)
+            if (isSetItem || !item.note) {
+              if (item.note) {
+                if (!item.note.includes(formattedDesc)) {
+                  item.note = `${item.note}\n${formattedDesc}`
+                }
+              } else {
+                item.note = formattedDesc
+              }
+            }
+          }
         }
       }
     }
