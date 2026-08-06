@@ -4,8 +4,7 @@ import { useUIStore } from '@/stores/useUIStore'
 import { useFormStore } from '@/stores/useFormStore'
 import { useAppStore } from '@/stores/useAppStore'
 import { useForm } from '@/composables/useForm'
-import { formatVND, formatSetNote } from '@/utils'
-import { resolveSetMenuDescription } from '@/domain/menu/menuMatcher'
+import { formatVND } from '@/utils'
 
 const ui = useUIStore()
 const formStore = useFormStore()
@@ -15,18 +14,6 @@ const { handleInputFocus, handleInputBlur, addNewItem, onSearchInput, selectMenu
 const draggedIndex = ref<number | null>(null)
 const dragOverIndex = ref<number | null>(null)
 const expandedNotes = ref<Record<number, boolean>>({})
-
-function getItemSetDetails(item: any): string {
-  if (!item || !item.name) return ''
-  const isSet = /set|combo|goi|phan|couple/i.test(item.name)
-  if (item.note && item.note.includes('\n')) {
-    return formatSetNote(item.note)
-  }
-  const desc = resolveSetMenuDescription(item.name, appStore.menuList, appStore.menuDetails || {})
-  if (desc) return formatSetNote(desc)
-  if (isSet && item.note) return formatSetNote(item.note)
-  return ''
-}
 
 function triggerCreateMenu() {
   ui.activeSettingModal = 'menu'
@@ -289,26 +276,11 @@ function clearItemName(index: number) {
             </div>
           </div>
 
-          <!-- Note & Set Menu Sub-Dishes Card -->
-          <div class="w-full space-y-2">
-            <!-- Visual Set Menu / Combo Sub-Dishes Card -->
-            <div v-if="getItemSetDetails(item)" 
-                 class="p-3 bg-emerald-50/90 border border-emerald-200/80 rounded-2xl shadow-sm transition-all">
-              <div class="flex items-center justify-between text-[11px] font-black uppercase tracking-wider mb-1.5 text-emerald-850">
-                <span class="flex items-center gap-1.5">
-                  <i class="fa-solid fa-list-ul text-emerald-600 text-xs"></i>
-                  Danh sách món trong {{ item.name }}:
-                </span>
-                <span class="bg-emerald-200/90 text-emerald-900 px-2 py-0.5 rounded-md text-[9px] font-black">FULL SET</span>
-              </div>
-              <div class="text-xs font-bold whitespace-pre-line text-emerald-950 leading-relaxed pl-2.5 border-l-2 border-emerald-500">
-                {{ getItemSetDetails(item) }}
-              </div>
-            </div>
-
+          <!-- Note -->
+          <div class="w-full">
             <div class="relative">
               <textarea v-model="item.note" @focus="handleInputFocus" @blur="handleInputBlur"
-                :rows="expandedNotes[index] ? Math.max(item.note ? item.note.split('\n').length + 1 : 1, 5) : 3"
+                :rows="expandedNotes[index] ? Math.max(item.note ? item.note.split('\n').length + 1 : 1, 6) : Math.min(Math.max(item.note ? item.note.split('\n').length : 3, 3), 6)"
                 class="w-full text-xs text-rose-600 font-bold bg-rose-50/30 rounded-xl p-3 pb-8 border border-rose-100 focus:border-rose-300 focus:bg-rose-50 outline-none resize-none transition-all placeholder-rose-300 custom-scrollbar"
                 placeholder="Ghi chú / Yêu cầu thêm..."></textarea>
               
