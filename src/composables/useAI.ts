@@ -132,13 +132,29 @@ export function useAI() {
       return false
     }
 
-    if (field === 'name') return formStore.customer.name !== formStore.originalAiValues.name
-    if (field === 'phone') return cleanPhoneNumber(formStore.customer.phone) !== cleanPhoneNumber(formStore.originalAiValues.phone)
-    if (field === 'date') return formatDateStr(formStore.customer.date) !== formatDateStr(formStore.originalAiValues.date)
-    if (field === 'time') return formStore.customer.time !== formStore.originalAiValues.time
-    if (field === 'pax') return String(formStore.customer.pax) !== String(formStore.originalAiValues.pax)
+    if (field === 'name') {
+      if (!formStore.customer.name || !formStore.customer.name.trim()) return false
+      return formStore.customer.name !== formStore.originalAiValues.name
+    }
+    if (field === 'phone') {
+      if (!formStore.customer.phone || !formStore.customer.phone.trim()) return false
+      return cleanPhoneNumber(formStore.customer.phone) !== cleanPhoneNumber(formStore.originalAiValues.phone)
+    }
+    if (field === 'date') {
+      if (!formStore.customer.date || !formStore.customer.date.trim()) return false
+      return formatDateStr(formStore.customer.date) !== formatDateStr(formStore.originalAiValues.date)
+    }
+    if (field === 'time') {
+      if (!formStore.customer.time || !formStore.customer.time.trim()) return false
+      return formStore.customer.time !== formStore.originalAiValues.time
+    }
+    if (field === 'pax') {
+      if (!formStore.customer.pax || !formStore.customer.pax.trim()) return false
+      return String(formStore.customer.pax) !== String(formStore.originalAiValues.pax)
+    }
     if (field === 'tables') {
       const currentTable = (uiStore.tempTable.zone || '') + (uiStore.tempTable.number || '')
+      if (!currentTable.trim()) return false
       const originalTable = formStore.originalAiValues.tables || ''
       if (!uiStore.tempTable.number && !originalTable) return false
       return currentTable !== originalTable
@@ -242,7 +258,7 @@ export function useAI() {
         }
       }
 
-      const receiver = parsedResult.staff?.receiver || parsedResult.receiver || null
+      const receiver = parsedResult.booking?.receiver || parsedResult.staff?.receiver || parsedResult.receiver || null
       if (receiver && appStore.staffList) {
         const cleanRec = cleanPhoneNumber(receiver).toLowerCase().trim()
         const matchedStaff = appStore.staffList.find((s: any) => 
@@ -261,12 +277,22 @@ export function useAI() {
     if (mode === 'all' || mode === 'menu') {
       const menuItems = parsedResult.menu_items || parsedResult.items
       if (menuItems && Array.isArray(menuItems) && menuItems.length > 0) {
-        const newItems = menuItems.map((newItem: any) => ({
-          name: newItem.matched_name || newItem.name || newItem.raw_name || 'Món ăn',
-          qty: newItem.quantity || newItem.qty || 1,
-          price: newItem.unit_price || newItem.price || 0,
-          note: newItem.note || newItem.notes || ""
-        }))
+        const consolidatedMap = new Map<string, any>()
+        for (const rawItem of menuItems) {
+          const name = rawItem.matched_name || rawItem.name || rawItem.raw_name || 'Món ăn'
+          const qty = parseInt(String(rawItem.quantity ?? rawItem.qty ?? 1), 10) || 1
+          const price = parseFloat(String(rawItem.unit_price || rawItem.price || 0)) || 0
+          const note = (rawItem.note || rawItem.notes || '').trim()
+          
+          const key = `${name.toLowerCase().trim()}_${note.toLowerCase().trim()}`
+          if (consolidatedMap.has(key)) {
+            const existing = consolidatedMap.get(key)
+            existing.qty += qty
+          } else {
+            consolidatedMap.set(key, { name, qty, price, note })
+          }
+        }
+        const newItems = Array.from(consolidatedMap.values())
 
         if (mode === 'all') {
           formStore.items = newItems
@@ -568,109 +594,9 @@ export function useAI() {
       let routingInfo: any = null
       let isBypassed = false
 
-      if (type === 'text' && flags.enableLocalFirstBypass && classification.shouldTryLocalFirst) {
-        const localAnalysis = analyzeBookingLocally(promptText)
-        const bypass = evaluateBookingBypass(
-          localAnalysis,
-          hasImage,
-          classification.detectedSignals.hasMenuKeyword,
-          classification.detectedSignals.hasAmbiguousPhrase
-        )
-
-        if (bypass.canBypassLLM) {
-          isBypassed = true
-          const latency = ((performance.now() - startTime) / 1000).toFixed(2)
-          logStore.addLog(`[Local Bypass] Tất cả trường cốt lõi hợp lệ. Bỏ qua gọi LLM. Trích xuất thành công: Tên=${localAnalysis.customerName.value}, SĐT=${localAnalysis.phone.value}, Ngày=${localAnalysis.bookingDate.value}, Giờ=${localAnalysis.bookingTime.value}, Khách=${localAnalysis.guestCount.value}`, 'success')
-          
-          routingInfo = {
-            pipeline: 'text',
-            tier_used: 0,
-            model_used: 'Local Rule Engine V7.0 (Bypass)',
-            fallback_count: 0,
-            repair_applied: false,
-            latency,
-            mode: 'bypass-local'
-          }
-
-          finalParsedResult = repairAndNormalizeJSON({
-            customer: { name: localAnalysis.customerName.value || 'Khách hàng', phone: localAnalysis.phone.value },
-            booking: {
-              event_date: localAnalysis.bookingDate.value,
-              event_time: localAnalysis.bookingTime.value,
-              guest_count: localAnalysis.guestCount.value,
-              table_number: '',
-              need: localAnalysis.partyType.value
-            },
-            menu_items: []
-          }, inputType)
-        }
-      }
-
-      if (!isBypassed && !force) {
-        const cached = await getCachedAIResponse<any>(cacheKey, {
-          menuFingerprint,
-          correctionFingerprint
-        })
-        
-        if (cached) {
-          finalParsedResult = cached
-          isBypassed = true
-          logStore.addLog(`Cache Hit: Tìm thấy kết quả đã xử lý trước đó trong cache. Bỏ qua gọi AI.`, 'success')
-          const latency = ((performance.now() - startTime) / 1000).toFixed(2)
-          routingInfo = {
-            ...cached.routing,
-            latency,
-            mode: 'cache-hit'
-          }
-        }
-      }
-
-      if (!finalParsedResult && type === 'text' && !force) {
-        const { extractEntitiesFromInput, querySemanticCache } = await import('@/services/ai/semanticCache')
-        const newEntities = extractEntitiesFromInput(ruleBasedResult, hardEntities)
-        
-        const semanticCached = await querySemanticCache(formStore.rawInput || '', newEntities, {
-          menuFingerprint,
-          correctionFingerprint,
-          promptSchemaVersion: 1,
-          normalizerSchemaVersion: 1
-        })
-        
-        if (semanticCached) {
-          finalParsedResult = semanticCached.value
-          isBypassed = true
-          logStore.addLog(`Semantic Cache Hit: Tìm thấy kết quả tương đồng. Bỏ qua gọi AI.`, 'success')
-          const latency = ((performance.now() - startTime) / 1000).toFixed(2)
-          routingInfo = {
-            ...(finalParsedResult.routing || {}),
-            latency,
-            mode: 'cache-hit'
-          }
-        }
-      }
-
-      if (!finalParsedResult) {
-        logStore.addLog(`Bắt đầu chạy pipeline gọi AI...`)
-        
-        logStore.addLog(`[Optimistic UI] Tự động điền nhanh các thông tin cơ bản trích xuất được từ Rule Engine...`)
-        const optimisticResult = {
-          customer: {
-            name: ruleBasedResult.customer_name || '',
-            phone: ruleBasedResult.phone || ''
-          },
-          booking: {
-            event_date: ruleBasedResult.event_date || '',
-            event_time: ruleBasedResult.event_time || '',
-            guest_count: ruleBasedResult.guest_count || null,
-            table_number: ruleBasedResult.table_code || '',
-            need: ruleBasedResult.booking_need || 'Ăn thường'
-          }
-        }
-        fillBookingFormSafely(optimisticResult, { mode: 'customer' })
-        uiStore.showToast('⚡ Đã nhận diện nhanh thông tin khách hàng...', 'info')
-
-        const corrections = appStore.aiCorrections || []
-        const appliedCorrections: Record<string, string> = {}
+      // 100% AI Pipeline Enforcement: Bỏ bypass không dùng AI và bỏ pre-fill bằng Rule Engine
+      const corrections = appStore.aiCorrections || []
+      const appliedCorrections: Record<string, string> = {}
         for (const corr of corrections) {
           if (corr.inputText && promptText.toLowerCase().includes(corr.inputText.toLowerCase())) {
             appliedCorrections[corr.field] = corr.correctValue
@@ -870,7 +796,6 @@ export function useAI() {
             modelProfile: profile
           })
         }
-      }
 
       logStore.addLog(`Áp dụng Luật khóa dữ liệu deterministic (Deterministic Rule Lock)...`)
       finalParsedResult = applyDeterministicRuleLock(finalParsedResult, hardEntities, ruleBasedResult)

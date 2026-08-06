@@ -231,7 +231,7 @@ function getMenuSheets() {
 }
 
 function getMenuData(sheetName) {
-  const targetSheet = sheetName || "Menu";
+  const targetSheet = sheetName || "MENU2026";
   const cacheKey = "menu_data_" + targetSheet.replace(/\s+/g, "_");
   try {
     const cached = CacheService.getScriptCache().get(cacheKey);

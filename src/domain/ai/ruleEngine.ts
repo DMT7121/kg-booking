@@ -97,19 +97,32 @@ export function parseDishItems(input: string): Array<{ name: string; qty: number
     cleanInput = cleanInput.replace(/(?:\((?:[x\*])\s*(\d+)\)|(?:[x\*])\s*(\d+))\s*$/i, '').trim()
   }
 
+  // Mask portion parentheses like "(5 con)" or "(10 con)" so they aren't misparsed as leading dish quantities
+  const portionParens: string[] = []
+  const maskedInput = cleanInput.replace(/\(\s*\d+\s*(?:con|c|kg|g|l|ml|phần|phan|đĩa|dia|tô|to|ly|lon|set|suất|suat)\s*\)/gi, (match) => {
+    portionParens.push(match)
+    return `__PORTION_PAREN_${portionParens.length - 1}__`
+  })
+
   const regex = /(\d+)\s*([\p{L}\s]+)(?=\s*\d|$)/gu
   let match
-  while ((match = regex.exec(cleanInput)) !== null) {
+  while ((match = regex.exec(maskedInput)) !== null) {
     const qty = parseInt(match[1])
-    const name = match[2].trim()
+    let name = match[2].trim()
+    portionParens.forEach((p, idx) => {
+      name = name.replace(`__PORTION_PAREN_${idx}__`, p)
+    })
     if (name.length > 2) {
       results.push({ name, qty })
     }
   }
   if (results.length === 0) {
     const suffixRegex = /([\p{L}\s]+?)\s*(?:x)?\s*(\d+)(?=\s*[\p{L}]|$)/gu
-    while ((match = suffixRegex.exec(cleanInput)) !== null) {
-      const name = match[1].trim()
+    while ((match = suffixRegex.exec(maskedInput)) !== null) {
+      let name = match[1].trim()
+      portionParens.forEach((p, idx) => {
+        name = name.replace(`__PORTION_PAREN_${idx}__`, p)
+      })
       const qty = parseInt(match[2])
       if (name.length > 2) {
         const lowerName = stripAccents(name).toLowerCase()
@@ -141,7 +154,9 @@ export function segmentInputBlocksCompat(text: string) {
   
   const lines = text.split('\n')
   for (const line of lines) {
-    const trimmed = line.trim()
+    let trimmed = line.trim()
+    if (!trimmed) continue
+    trimmed = trimmed.replace(/^["'“”«»]+|["'“”«»]+$/g, '').trim()
     if (!trimmed) continue
     const lower = stripAccents(trimmed).toLowerCase()
     
@@ -149,20 +164,20 @@ export function segmentInputBlocksCompat(text: string) {
       blocks.decoration_block.push(trimmed)
       continue
     }
-    if (/da chuyen|coc|ck|bill|ngan hang|chuyen khoan|ref/i.test(lower)) {
+    if (/da chuyen|\bcoc\b|\bcoc\b|\bck\b|bill|ngan hang|chuyen khoan|ref/i.test(lower)) {
       blocks.deposit_block.push(trimmed)
       continue
     }
-    const isGuestLine = /(\d+)\s*(?:pax|nguoi|người|ng\b|khach|khách|cho)/gi.test(lower) || /nguoi lon|tre em|lon.*nho|be/i.test(lower)
+    const isGuestLine = /(\d+)\s*(?:pax|nguoi|người|ng\b|khach|khách|cho)/i.test(lower) || /nguoi lon|tre em|lon.*nho|be/i.test(lower)
     if (isGuestLine) {
       blocks.guest_count_block.push(trimmed)
     }
-    const hasTime = /\b\d{1,2}:\d{2}\b/gi.test(lower) || /\b\d{1,2}h\d{2}\b/gi.test(lower) || /\b\d{1,2}h\b/gi.test(lower)
-    const hasDate = /\b\d{2}\/\d{2}\/\d{4}\b/gi.test(lower) || /ngay/i.test(lower)
+    const hasTime = /\b\d{1,2}:\d{2}\b/i.test(lower) || /\b\d{1,2}h\d{2}\b/i.test(lower) || /\b\d{1,2}h\b/i.test(lower)
+    const hasDate = /\b\d{2}\/\d{2}\/\d{4}\b/i.test(lower) || /ngay/i.test(lower)
     if (hasTime || hasDate) {
       blocks.booking_time_block.push(trimmed)
     }
-    const hasPhone = /(0[35789]\d{7,9})/g.test(lower)
+    const hasPhone = /(0[35789]\d{7,9})/.test(lower)
     const hasCustomerKeywords = /anh|chi|dat ban|khach/i.test(lower)
     if (hasPhone || hasCustomerKeywords) {
       blocks.customer_block.push(trimmed)
@@ -244,26 +259,26 @@ export function evaluateNameConfidence(name: string, normalizedText: string): {
   const escapedName = nameClean.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&')
 
   if (isSingleToken && hasAmbiguousToken) {
-    const honorificRegex = new RegExp(`\\b(anh|chi|chị|em|chu|chú|co|cô|ong|ông|ba|bà|be|bé|bac|bác|khach|khách)\\s+${escapedName}\\b`, 'i')
-    if (!honorificRegex.test(normalizedText)) {
+    const checkHonorific = new RegExp(`(?<!\\p{L})(?:anh|chi|chị|em|chu|chú|co|cô|ong|ông|ba|bà|be|bé|bac|bác|khach|khách)\\s+${escapedName}(?!\\p{L})`, 'ui')
+    if (!checkHonorific.test(normalizedText)) {
       score -= 0.35
       risks.push('ambiguous_single_token_name')
     }
   }
 
-  const honorificRegex = new RegExp(`\\b(anh|chi|chị|em|chu|chú|co|cô|ong|ông|ba|bà|be|bé|bac|bác|khach|khách)\\s+${escapedName}\\b`, 'i')
+  const honorificRegex = new RegExp(`(?<!\\p{L})(?:anh|chi|chị|em|chu|chú|co|cô|ong|ông|ba|bà|be|bé|bac|bác|khach|khách)\\s+${escapedName}(?!\\p{L})`, 'ui')
   if (honorificRegex.test(normalizedText)) {
     score += 0.20
     signals.push('honorific_before_name')
   }
 
-  const introRegex = new RegExp(`\\b(ten la|tên là|ten em la|tên em là|ten anh la|tên anh là|ten chi la|tên chị là|minh la|mình là|em la|em là|anh la|anh là|chi la|chị là)\\s+${escapedName}\\b`, 'i')
+  const introRegex = new RegExp(`(?<!\\p{L})(?:ten la|tên là|ten em la|tên em là|ten anh la|tên anh là|ten chi la|tên chị là|minh la|mình là|em la|em là|anh la|anh là|chi la|chị là)\\s+${escapedName}(?!\\p{L})`, 'ui')
   if (introRegex.test(normalizedText)) {
     score += 0.35
     signals.push('introduction_phrase')
   }
 
-  const contactPrefixRegex = new RegExp(`\\b(lien he|liên hệ|sdt|sđt)\\s+(?:anh\\s+|chi\\s+|chị\\s+)?${escapedName}\\b`, 'i')
+  const contactPrefixRegex = new RegExp(`(?<!\\p{L})(?:lien he|liên hệ|sdt|sđt)\\s+(?:anh\\s+|chi\\s+|chị\\s+)?${escapedName}(?!\\p{L})`, 'ui')
   if (contactPrefixRegex.test(normalizedText)) {
     score += 0.25
     signals.push('contact_prefix')
@@ -292,53 +307,55 @@ export function evaluateNameConfidence(name: string, normalizedText: string): {
     signals.push('multi_token_name')
   }
 
-  if (nameCleanNoAccent === 'mai') {
-    const maiContextRegex = new RegExp(`\\b(ngay|ngày|toi|tối|chieu|chiều|trua|trưa|sang|sáng|den|đến|hen|hẹn|thoi|thôi)\\s+${escapedName}\\b`, 'i')
+  const hasStrongNameSignal = signals.includes('introduction_phrase') || signals.includes('honorific_before_name') || signals.includes('contact_prefix')
+
+  if (!hasStrongNameSignal && nameCleanNoAccent === 'mai') {
+    const maiContextRegex = new RegExp(`(?<!\\p{L})(?:ngay|ngày|toi|tối|chieu|chiều|trua|trưa|sang|sáng|den|đến|hen|hẹn|thoi|thôi)\\s+${escapedName}(?!\\p{L})`, 'ui')
     if (maiContextRegex.test(normalizedText)) {
       score -= 0.40
       risks.push('mai_time_context')
     }
-    const maiAskRegex = new RegExp(`${escapedName}\\s+(?:dat\\s+)?(?:duoc|được)\\s+(?:khong|không)`, 'i')
+    const maiAskRegex = new RegExp(`${escapedName}\\s+(?:dat\\s+)?(?:duoc|được)\\s+(?:khong|không)`, 'ui')
     if (maiAskRegex.test(normalizedText)) {
       score -= 0.25
       risks.push('ask_context')
     }
   }
 
-  if (nameCleanNoAccent === 'son' || nameCleanNoAccent === 'sơn') {
-    const sonVerbRegex = new RegExp(`\\b(nuoc|nước|son|sơn)\\s+${escapedName}\\b|\\b${escapedName}\\s+(lai|lại|tuong|tường)\\b`, 'i')
+  if (!hasStrongNameSignal && (nameCleanNoAccent === 'son' || nameCleanNoAccent === 'sơn')) {
+    const sonVerbRegex = new RegExp(`(?<!\\p{L})(?:nuoc|nước|son|sơn)\\s+${escapedName}(?!\\p{L})|(?<!\\p{L})${escapedName}\\s+(?:lai|lại|tuong|tường)(?!\\p{L})`, 'ui')
     if (sonVerbRegex.test(normalizedText)) {
       score -= 0.40
       risks.push('son_verb_context')
     }
   }
 
-  if (nameCleanNoAccent === 'vui') {
-    const vuiPhraseRegex = new RegExp(`\\b${escapedName}\\s+(long|lòng|ve|vẻ)\\b`, 'i')
+  if (!hasStrongNameSignal && nameCleanNoAccent === 'vui') {
+    const vuiPhraseRegex = new RegExp(`(?<!\\p{L})${escapedName}\\s+(?:long|lòng|ve|vẻ)(?!\\p{L})`, 'ui')
     if (vuiPhraseRegex.test(normalizedText)) {
       score -= 0.40
       risks.push('vui_phrase_context')
     }
   }
 
-  if (nameCleanNoAccent === 'bang' || nameCleanNoAccent === 'bằng') {
-    const bangPhraseRegex = new RegExp(`\\b${escapedName}\\s+(momo|ck|chuyen|chuyển|tien|tiền|the|thẻ|mat|mặt|va|và)\\b|\\b(dat|đặt|thanh\\s+toan|thanh\\s+toán|tra|trả)\\s+${escapedName}\\b`, 'i')
+  if (!hasStrongNameSignal && (nameCleanNoAccent === 'bang' || nameCleanNoAccent === 'bằng')) {
+    const bangPhraseRegex = new RegExp(`(?<!\\p{L})${escapedName}\\s+(?:momo|ck|chuyen|chuyển|tien|tiền|the|thẻ|mat|mặt|va|và)(?!\\p{L})|(?<!\\p{L})(?:dat|đặt|thanh\\s+toan|thanh\\s+toán|tra|trả)\\s+${escapedName}(?!\\p{L})`, 'ui')
     if (bangPhraseRegex.test(normalizedText)) {
       score -= 0.40
       risks.push('bang_preposition_context')
     }
   }
 
-  if (nameCleanNoAccent === 'dat' || nameCleanNoAccent === 'đạt') {
-    const datVerbRegex = new RegExp(`\\b(dat|đặt)\\s+(ban|bàn|truoc|trước|mon|món|cho|viet|viết)\\b|\\b${escapedName}\\s+(chua|chưa)\\b`, 'i')
+  if (!hasStrongNameSignal && (nameCleanNoAccent === 'dat' || nameCleanNoAccent === 'đạt')) {
+    const datVerbRegex = new RegExp(`(?<!\\p{L})(?:dat|đặt)\\s+(?:ban|bàn|truoc|trước|mon|món|cho|viet|viết)(?!\\p{L})|(?<!\\p{L})${escapedName}\\s+(?:chua|chưa)(?!\\p{L})`, 'ui')
     if (datVerbRegex.test(normalizedText)) {
       score -= 0.40
       risks.push('dat_verb_context')
     }
   }
 
-  if (nameCleanNoAccent === 'nam') {
-    const namGenderRegex = new RegExp(`\\b(?:nguoi|người|khach|khách|lon|lớn|pax|\\d+)\\s+${escapedName}\\b|\\b${escapedName}\\s+(lon|lớn|nu|nữ|nguoi|người|khach|khách)\\b`, 'i')
+  if (!hasStrongNameSignal && nameCleanNoAccent === 'nam') {
+    const namGenderRegex = new RegExp(`(?<!\\p{L})(?:nguoi|người|khach|khách|lon|lớn|pax|\\d+)\\s+${escapedName}(?!\\p{L})|(?<!\\p{L})${escapedName}\\s+(?:lon|lớn|nu|nữ|nguoi|người|khach|khách)(?!\\p{L})`, 'ui')
     if (namGenderRegex.test(normalizedText)) {
       score -= 0.40
       risks.push('nam_noun_context')
@@ -346,7 +363,7 @@ export function evaluateNameConfidence(name: string, normalizedText: string): {
   }
 
   // Check if message is too short and lacks booking context
-  const hasPhone = phoneRegex.test(normalizedText)
+  const hasPhone = /(0[35789]\d{7,9})/.test(normalizedText)
   const hasDate = /\b\d{1,2}[\/\.\-]\d{1,2}\b/g.test(normalizedText) || /ngay|ngày/i.test(normalizedText)
   const hasTime = /\b\d{1,2}[h:]/i.test(normalizedText)
   if (normalizedText.length < 25 && !hasPhone && !hasDate && !hasTime) {
@@ -367,7 +384,7 @@ export function classifyPeopleNames(text: string) {
   const bookerCandidates: string[] = []
   const partyOwnerCandidates: string[] = []
   
-  const invalidNameSet = new Set(['ban', 'giup', 'minh', 'toi', 'ngay', 'gio', 'pax', 'khach', 'nguoi', 'sdt', 'lien', 'he', 'cho', 'duoc', 'khong', 'nhe', 'nha', 'ho', 'lam', 'sao', 'nao', 'chua', 'co', 'hoi', 'hỏi', 'xin', 'xem', 'gui', 'gửi', 'nhan', 'nhận', 'co', 'có', 'con', 'còn', 'la', 'là', 'luc', 'lúc', 'trua', 'trưa', 'sang', 'sáng', 'chieu', 'chiều', 'toi', 'tối', 'tai', 'tại', 'lon', 'lớn', 'nho', 'nhỏ', 'tre', 'trẻ', 'em', 'pax'])
+  const invalidNameSet = new Set(['đặt', 'ban', 'bàn', 'giup', 'giúp', 'minh', 'toi', 'tối', 'ngay', 'ngày', 'gio', 'giờ', 'pax', 'khach', 'khách', 'nguoi', 'người', 'sdt', 'sđt', 'lien', 'liên', 'he', 'hệ', 'cho', 'duoc', 'được', 'khong', 'không', 'nhe', 'nhé', 'nha', 'nhà', 'ho', 'hộ', 'lam', 'làm', 'sao', 'nao', 'nào', 'chua', 'chưa', 'co', 'có', 'hoi', 'hỏi', 'xin', 'xem', 'gui', 'gửi', 'nhan', 'nhận', 'con', 'còn', 'la', 'là', 'luc', 'lúc', 'trua', 'trưa', 'sang', 'sáng', 'chieu', 'chiều', 'tai', 'tại', 'lon', 'lớn', 'nho', 'nhỏ', 'tre', 'trẻ', 'em', 'pax'])
 
   const isInvalidName = (nameValStr: string) => {
     const nameWords = stripAccents(nameValStr).toLowerCase().split(/\s+/)
@@ -398,6 +415,20 @@ export function classifyPeopleNames(text: string) {
   }
 
   const lines = text.split('\n')
+  // Check if first non-empty line is a clean capitalized name (e.g. "Ánh Tiên")
+  for (const line of lines) {
+    const firstClean = line.trim()
+    if (!firstClean) continue
+    if (/^[\p{Lu}][\p{Ll}]+(?:\s+[\p{Lu}][\p{Ll}]+){0,3}$/u.test(firstClean)) {
+      const cleanName = cleanHonorificPrefix(firstClean)
+      if (cleanName && !isInvalidName(cleanName) && !/^(nay|kia|truoc|sau|sang|chieu|toi|ngay|gio|pax|khach|nguoi|ban|mon|set|combo|happy|birthday|hbd|hpbd|sinh|nhat|thoi|noi|giup|giom|cho|sdt|lien|he|table|pax|duoc|khong)$/i.test(stripAccents(cleanName))) {
+        if (!peopleNames.includes(cleanName)) peopleNames.push(cleanName)
+        if (!bookerCandidates.includes(cleanName)) bookerCandidates.push(cleanName)
+      }
+    }
+    break
+  }
+
   for (const line of lines) {
     const lineClean = line.trim()
     if (!lineClean) continue
@@ -480,7 +511,7 @@ export function classifyPeopleNames(text: string) {
         'nv', 'dmt', 'nhan', 'gui', 'nha', 'giup', 'giom', 'sdt', 'lien', 'he',
         'an', 'thuong', 'lon', 'nho', 'be', 'tre', 'em',
         'yeu', 'cau', 'trang', 'tri', 'phong', 'lanh', 'sanh', 'may', 'ngoai', 'troi', 'san', 'khau', 'gan', 'bong', 'bay', 'board', 'chu', 
-        'thiet', 'ke', 'bao', 'gia', 'thuc', 'don', 'uong', 'tien', 'giam', 'gia', 'khuyen', 'mai', 'tang', 'banh', 'kem', 'hoa', 'nen', 
+        'thiet', 'ke', 'bao', 'gia', 'thuc', 'don', 'uong', 'giam', 'gia', 'khuyen', 'mai', 'tang', 'banh', 'kem', 'hoa', 'nen', 
         'hat', 'acoustic', 'phuc', 'vu', 'nhan', 'vien', 'ho', 'tro', 'chu', 'dao', 'nhiet', 'tinh', 'phi', 'dich', 'vu', 'free', 'mien', 
         'phi', 'bat', 'dua', 'chen', 'ly', 'coc', 'da', 'khan', 'uot', 'ngot', 'cay', 'chua', 'man', 'lat', 'nhat', 'nuong', 'lau', 'hap', 
         'chien', 'xao', 'luoc', 'goi', 'salad', 'sup', 'canh', 'com', 'mi', 'bun', 'pho', 'chao', 'khoai', 'tay', 'ngo', 'bap', 'dau', 
@@ -507,11 +538,13 @@ export function classifyPeopleNames(text: string) {
     { regex: /(?:sinh nhật|sinh nhat|hbd|hpbd|happy birthday|thôi nôi|thoi noi|đầy tháng|day thang|bé|be)\s+of\s+((?!cho\b|dat\b|đặt\b|dat\s+ban|đặt\s+bàn|xin\b|gui\b|gửi\b|nha\b|nhà\b|ngay\b|ngày\b|luc\b|lúc\b|vao\b|vào\b|sdt\b|sđt\b|ban\b|bàn\b|trua\b|trưa\b|sang\b|sáng\b|chieu\b|chiều\b|toi\b|tối\b|tai\b|tại\b|lon\b|lớn\b|nho\b|nhỏ\b|tre\b|trẻ\b|em\b|pax\b|khach\b|khách\b|nguoi\b|người\b)\p{L}+(?:\s+(?!cho\b|dat\b|đặt\b|dat\s+ban|đặt\s+bàn|xin\b|gui\b|gửi\b|nha\b|nhà\b|ngay\b|ngày\b|luc\b|lúc\b|vao\b|vào\b|sdt\b|sđt\b|ban\b|bàn\b|trua\b|trưa\b|sang\b|sáng\b|chieu\b|chiều\b|toi\b|tối\b|tai\b|tại\b|lon\b|lớn\b|nho\b|nhỏ\b|tre\b|trẻ\b|em\b|pax\b|khach\b|khách\b|nguoi\b|người\b)\p{L}+){0,3})/ugi, isPartyOwner: true },
     { regex: /(?:sinh nhật|sinh nhat|hbd|hpbd|happy birthday|thôi nôi|thoi noi|đầy tháng|day thang|bé|be)\s+((?!cho\b|dat\b|đặt\b|dat\s+ban|đặt\s+bàn|xin\b|gui\b|gửi\b|nha\b|nhà\b|ngay\b|ngày\b|luc\b|lúc\b|vao\b|vào\b|sdt\b|sđt\b|ban\b|bàn\b|trua\b|trưa\b|sang\b|sáng\b|chieu\b|chiều\b|toi\b|tối\b|tai\b|tại\b|lon\b|lớn\b|nho\b|nhỏ\b|tre\b|trẻ\b|em\b|pax\b|khach\b|khách\b|nguoi\b|người\b)\p{L}+(?:\s+(?!cho\b|dat\b|đặt\b|dat\s+ban|đặt\s+bàn|xin\b|gui\b|gửi\b|nha\b|nhà\b|ngay\b|ngày\b|luc\b|lúc\b|vao\b|vào\b|sdt\b|sđt\b|ban\b|bàn\b|trua\b|trưa\b|sang\b|sáng\b|chieu\b|chiều\b|toi\b|tối\b|tai\b|tại\b|lon\b|lớn\b|nho\b|nhỏ\b|tre\b|trẻ\b|em\b|pax\b|khach\b|khách\b|nguoi\b|người\b)\p{L}+){0,3})/ugi, isPartyOwner: true },
     { regex: /(?:bảng tên|bang ten|chữ|chu)\s+((?!cho\b|dat\b|đặt\b|dat\s+ban|đặt\s+bàn|xin\b|gui\b|gửi\b|nha\b|nhà\b|ngay\b|ngày\b|luc\b|lúc\b|vao\b|vào\b|sdt\b|sđt\b|ban\b|bàn\b|trua\b|trưa\b|sang\b|sáng\b|chieu\b|chiều\b|toi\b|tối\b|tai\b|tại\b|lon\b|lớn\b|nho\b|nhỏ\b|tre\b|trẻ\b|em\b|pax\b|khach\b|khách\b|nguoi\b|người\b)\p{L}+(?:\s+(?!cho\b|dat\b|đặt\b|dat\s+ban|đặt\s+bàn|xin\b|gui\b|gửi\b|nha\b|nhà\b|ngay\b|ngày\b|luc\b|lúc\b|vao\b|vào\b|sdt\b|sđt\b|ban\b|bàn\b|trua\b|trưa\b|sang\b|sáng\b|chieu\b|chiều\b|toi\b|tối\b|tai\b|tại\b|lon\b|lớn\b|nho\b|nhỏ\b|tre\b|trẻ\b|em\b|pax\b|khach\b|khách\b|nguoi\b|người\b)\p{L}+){0,3})/ugi, isPartyOwner: true },
-    { regex: /(?:người đặt|nguoi dat|liên hệ|lien he|anh|chị|chi|anh|sđt|sdt|tên|ten)\s+((?!cho\b|dat\b|đặt\b|dat\s+ban|đặt\s+bàn|xin\b|gui\b|gửi\b|nha\b|nhà\b|ngay\b|ngày\b|luc\b|lúc\b|vao\b|vào\b|sdt\b|sđt\b|ban\b|bàn\b|trua\b|trưa\b|sang\b|sáng\b|chieu\b|chiều\b|toi\b|tối\b|tai\b|tại\b|lon\b|lớn\b|nho\b|nhỏ\b|tre\b|trẻ\b|em\b|pax\b|khach\b|khách\b|nguoi\b|người\b)\p{L}+(?:\s+(?!cho\b|dat\b|đặt\b|dat\s+ban|đặt\s+bàn|xin\b|gui\b|gửi\b|nha\b|nhà\b|ngay\b|ngày\b|luc\b|lúc\b|vao\b|vào\b|sdt\b|sđt\b|ban\b|bàn\b|trua\b|trưa\b|sang\b|sáng\b|chieu\b|chiều\b|toi\b|tối\b|tai\b|tại\b|lon\b|lớn\b|nho\b|nhỏ\b|tre\b|trẻ\b|em\b|pax\b|khach\b|khách\b|nguoi\b|người\b)\p{L}+){0,3})/ugi, isBooker: true },
+    { regex: /(?:tên|ten)\s+(?:em|mình|minh|tôi|toi|anh|chị|chi)\s+(?:là\s+)?(\p{L}+(?:\s+\p{L}+){0,2})/ugi, isBooker: true },
+    { regex: /(?:người đặt|nguoi dat|liên hệ|lien he|anh|chị|chi|sđt|sdt|tên|ten)\s+((?!dat\b|đặt\b|cho\b|xin\b|gui\b|gửi\b|nha\b|nhà\b|ngay\b|ngày\b|luc\b|lúc\b|vao\b|vào\b|sdt\b|sđt\b|ban\b|bàn\b|trua\b|trưa\b|sang\b|sáng\b|chieu\b|chiều\b|toi\b|tối\b|tai\b|tại\b|lon\b|lớn\b|nho\b|nhỏ\b|tre\b|trẻ\b|em\b|pax\b|khach\b|khách\b|nguoi\b|người\b)\p{L}+(?:\s+(?!dat\b|đặt\b|cho\b|xin\b|gui\b|gửi\b|nha\b|nhà\b|ngay\b|ngày\b|luc\b|lúc\b|vao\b|vào\b|sdt\b|sđt\b|ban\b|bàn\b|trua\b|trưa\b|sang\b|sáng\b|chieu\b|chiều\b|toi\b|tối\b|tai\b|tại\b|lon\b|lớn\b|nho\b|nhỏ\b|tre\b|trẻ\b|em\b|pax\b|khach\b|khách\b|nguoi\b|người\b)\p{L}+){0,3})/ugi, isBooker: true },
     { regex: /\b((?:cty|công ty|đoàn|doan|team|group|phòng|phong)\s+(?!cho\b|dat\b|đặt\b|dat\s+ban|đặt\s+bàn|xin\b|gui\b|gửi\b|nha\b|nhà\b|ngay\b|ngày\b|luc\b|lúc\b|vao\b|vào\b|sdt\b|sđt\b|ban\b|bàn\b|trua\b|trưa\b|sang\b|sáng\b|chieu\b|chiều\b|toi\b|tối\b|tai\b|tại\b|lon\b|lớn\b|nho\b|nhỏ\b|tre\b|trẻ\b|em\b|pax\b|khach\b|khách\b|nguoi\b|người\b)\p{L}+(?:\s+(?!cho\b|dat\b|đặt\b|dat\s+ban|đặt\s+bàn|xin\b|gui\b|gửi\b|nha\b|nhà\b|ngay\b|ngày\b|luc\b|lúc\b|vao\b|vào\b|sdt\b|sđt\b|ban\b|bàn\b|trua\b|trưa\b|sang\b|sáng\b|chieu\b|chiều\b|toi\b|tối\b|tai\b|tại\b|lon\b|lớn\b|nho\b|nhỏ\b|tre\b|trẻ\b|em\b|pax\b|khach\b|khách\b|nguoi\b|người\b)\p{L}+){0,4})\b/ugi, isBooker: true, isPartyOwner: true }
   ]
 
   specialPatterns.forEach(({ regex, isPartyOwner, isBooker }) => {
+    regex.lastIndex = 0
     let match
     while ((match = regex.exec(text)) !== null) {
       const cleanedRaw = cleanTrailingInvalidWords(match[1])
@@ -591,7 +624,7 @@ export function preNormalizeInput(rawText: string): string {
 
   clean = clean.replace(/\n{3,}/g, '\n\n')
 
-  clean = clean.replace(/(?:\+84|84|0)(?:\s*[\.-]?\s*\d){9}\b/g, (match) => {
+  clean = clean.replace(/(?<![\d\/])(?:\+84|84|0)(?:\s*[\.\-]?\s*\d){9}\b/g, (match) => {
     let digits = match.replace(/[\s\.-]+/g, '')
     if (digits.startsWith('+84')) digits = '0' + digits.slice(3)
     if (digits.startsWith('84')) digits = '0' + digits.slice(2)
@@ -618,7 +651,7 @@ export function preNormalizeInput(rawText: string): string {
     { pattern: /\b(dut lo|dut\s+lo)\b/gi, replacement: 'đốt lò' },
     { pattern: /\b(chac toi|chac\s+toi)\b/gi, replacement: 'cháy tỏi' },
     { pattern: /\b(sate|sa\s+te)\b/gi, replacement: 'sa tế' },
-    { pattern: /\b(tcocktail|t\s*cocktail)\b/gi, replacement: 'cocktail' }
+    { pattern: /\b(tcocktail|t\s+cocktail)\b/gi, replacement: 'Tôm cocktail' }
   ]
   spellingAliases.forEach(({ pattern, replacement }) => {
     clean = clean.replace(pattern, replacement)
@@ -636,14 +669,15 @@ export function preNormalizeInput(rawText: string): string {
     return mapping[num] || match
   })
 
-  // Pre-normalize formatted phone numbers (+84, 84, 0, dots, spaces, dashes)
-  clean = clean.replace(/(?:\(\+84\)\s*|\+84\s*|84\s*|0\s*)([35789])[\s\.\-]*(\d{3})[\s\.\-]*(\d{3,4})\b/g, '0$1$2$3')
+  clean = clean.replace(/(?<![\d\/])(?:\(\+84\)\s*|\+84\s*|0(?=[35789])|84(?=[35789]))\s*([35789]\d{1,2})[\s\.\-]*(\d{3})[\s\.\-]*(\d{3,4})\b/gi, (m, p1, p2, p3) => {
+    return (p1 && p2 && p3) ? `0${p1}${p2}${p3}` : m
+  })
 
   clean = clean.replace(/\b(\d{1,2})h(\d{2})m\b/gi, '$1:$2')
   clean = clean.replace(/\b(\d{1,2})h(\d{2})\b/gi, '$1:$2')
   clean = clean.replace(/\b(\d{1,2})h\b/gi, '$1:00')
-  clean = clean.replace(/\b(\d{1,2})g(\d{2})\b/gi, '$1:$2')
-  clean = clean.replace(/\b(\d{1,2})g\b/gi, '$1:00')
+  clean = clean.replace(/(?<![\.\d])\b([0-2]?\d)g(\d{2})\b/gi, '$1:$2')
+  clean = clean.replace(/(?<![\.\d])\b(1[0-9]|2[0-4]|[6-9])g\b(?!\s*(?:k|ram|r|con|kg))/gi, '$1:00')
 
   clean = clean.replace(/(\d+)(pax|người|khách|cho|nguoi|khach|ban)/gi, '$1 $2')
   clean = clean.replace(/([\p{L}]{2,})(\d+)\b/ugi, (match, word, num) => {
@@ -653,7 +687,8 @@ export function preNormalizeInput(rawText: string): string {
     }
     return `${word} x${num}`
   })
-  clean = clean.replace(/(\d+)(?![hg\d\s\/:\-\.,])([\p{L}])/ugi, '$1 $2')
+  clean = clean.replace(/(?<!\.)(\d+)(?![hg\d\s\/:\-\.,]|kg|ml)([\p{L}])/ugi, '$1 $2')
+  clean = clean.replace(/(\d+(?:[\.,]\d+)?)\s*(kg|g|ml|l)\b/gi, '$1$2')
 
   clean = clean.replace(/\b(\d+)\s*(?:-|–|—|đến|den|to)\s*(\d+)\s*(pax|người|khách|cho|nguoi|khach|guest)/gi, (match, min, max, unit) => {
     return `${max} ${unit}`
@@ -680,7 +715,7 @@ export function preNormalizeInput(rawText: string): string {
         hour += 12
       }
     }
-    return `${prefix || ''} ${String(hour).padStart(2, '0')}:${m}`
+    return ` ${prefix || ''} ${String(hour).padStart(2, '0')}:${m} `
   })
 
   const today = new Date()
@@ -727,9 +762,9 @@ export function preNormalizeInput(rawText: string): string {
   })
 
   const relativePatterns = [
-    { pattern: /\b(hôm nay|nay|tối nay|chiều nay|hom nay|toi nay|chieu nay)\b/gi, offset: 0 },
-    { pattern: /\b(ngày mai|mai|chiều mai|tối mai|ngay mai|chieu mai|toi mai)\b/gi, offset: 1 },
-    { pattern: /\b(ngày mốt|mốt|ngày kia|ngay mot|mot|ngay kia)\b/gi, offset: 2 }
+    { pattern: /\b(hôm nay|tối nay|chiều nay|hom nay|toi nay|chieu nay)\b/gi, offset: 0 },
+    { pattern: /\b(ngày mai|chiều mai|tối mai|sáng mai|ngay mai|chieu mai|toi mai|sang mai)\b/gi, offset: 1 },
+    { pattern: /\b(ngày mốt|mốt|ngày kia|ngay mot|ngay kia)\b/gi, offset: 2 }
   ]
   
   relativePatterns.forEach(({ pattern, offset }) => {
@@ -780,7 +815,7 @@ export function preNormalizeInput(rawText: string): string {
     return `${day}/${month}/${year}`
   })
 
-  clean = clean.replace(/\b(\d{1,2})[\/\.\-](\d{1,2})\b(?![\/\.\-\d])/g, (match, d, m) => {
+  clean = clean.replace(/(?<!\d[\.\-\/])\b(\d{1,2})[\/\.](\d{1,2})(?!\s*(?:con|kg|g|l|ml|pax|phần|phan|đĩa|dia|tô|to|trái|trai|cái|cai|lon|chai|suất|suat)(?!\p{L}))/ugi, (match, d, m) => {
     const day = parseInt(d)
     const month = parseInt(m)
     if (day >= 1 && day <= 31 && month >= 1 && month <= 12) {
@@ -1058,18 +1093,29 @@ export function parseSingleMenuLine(lineStr: string): { raw_name: string; quanti
   let cleaned = lineStr.trim()
   if (!cleaned) return null
 
+  // Strip leading/trailing quote characters (e.g. from pasted messages with quotes)
+  cleaned = cleaned.replace(/^["'“”«»]+|["'“”«»]+$/g, '').trim()
+  if (!cleaned) return null
+
   // Skip quote headers without food context
   if (/^["'“”«»][^0-9]+["'“”«»]$/i.test(cleaned) && !/lẩu|nướng|xào|hấp|chiên|sốt|gà|bò|heo|tôm|cua|mực|cá|cơm|mì|bún|đậu|chả|chay/i.test(cleaned)) {
     return null
   }
 
-  // 1. Strip STT index prefix: e.g. "1/", "1.", "1)", "1 -", "1/ ", "1 ", "1/ "
-  cleaned = cleaned.replace(/^(\d{1,3})\s*[\/\.\-\)]\s*/, '')
+  // 1. Strip STT index prefix: e.g. "1/", "1.", "1)", "1 -", "1/ ", "1 ", "1/ " (excluding decimals like 0.5kg and fractions like 1/2 con)
+  cleaned = cleaned.replace(/^(?!\d+[\.,]\d+)(?!1\/[2348]\b)([1-9]\d{0,2})\s*[\/\.\-\)]\s*/, '')
   // Also strip bullet points
   cleaned = cleaned.replace(/^[-*+•]\s+/, '')
 
   cleaned = cleaned.trim()
   if (!cleaned) return null
+
+  // Mask portion parens like "(5 con)" so they aren't misparsed as trailing order quantity
+  const portionParens: string[] = []
+  cleaned = cleaned.replace(/\(\s*\d+\s*(?:con|c|kg|g|l|ml|phần|phan|đĩa|dia|tô|to|ly|lon|set|suất|suat)\s*\)/gi, (match) => {
+    portionParens.push(match)
+    return `__PORTION_PAREN_${portionParens.length - 1}__`
+  })
 
   // 2. Extract portion/qty indicators like "3 phần", "3 con", "3 đĩa", "3 tô", "3 ly", "3 lon"
   let qty = 1
@@ -1088,12 +1134,23 @@ export function parseSingleMenuLine(lineStr: string): { raw_name: string; quanti
     }
   }
 
+  // Restore portion parens
+  portionParens.forEach((p, idx) => {
+    cleaned = cleaned.replace(`__PORTION_PAREN_${idx}__`, p)
+  })
+
   // 3. Extract weight/portion notes like "0.5kg", "500g", "1/2 con", "½ con"
   let note = ''
-  const portionNoteMatch = cleaned.match(/\b(0[\.,]\d+\s*(?:kg|g|l)|1\/2\s*con|½\s*con|500g|500\s*g|nửa\s*con|nua\s*con)\b/i)
-  if (portionNoteMatch) {
-    note = portionNoteMatch[1].trim()
-    cleaned = cleaned.replace(portionNoteMatch[0], '').trim()
+  const weightNotes: string[] = []
+  let portionNoteMatch
+  const portionRegex = /\b(\d+(?:[\.,]\d+)?\s*(?:kg|g|l)|1\/2\s*con|½\s*con|nửa\s*con|nua\s*con)\b/gi
+  while ((portionNoteMatch = portionRegex.exec(cleaned)) !== null) {
+    weightNotes.push(portionNoteMatch[1].trim())
+  }
+  if (weightNotes.length > 0) {
+    cleaned = cleaned.replace(/\b(\d+(?:[\.,]\d+)?\s*(?:kg|g|l)|1\/2\s*con|½\s*con|nửa\s*con|nua\s*con)\b/gi, '').trim()
+    const decimalNote = weightNotes.find(n => /0[\.,]\d+/.test(n))
+    note = decimalNote || weightNotes[weightNotes.length - 1]
   }
 
   // 4. Extract price inside dish line: "129K", "129k", "250.000đ", "120000"
@@ -1109,7 +1166,7 @@ export function parseSingleMenuLine(lineStr: string): { raw_name: string; quanti
   }
 
   // Clean trailing/leading punctuation or brackets
-  cleaned = cleaned.replace(/^[\s-,\/:]+|[\s-,\/:]+$/g, '').trim()
+  cleaned = cleaned.replace(/\(\s*\)/g, '').replace(/^[\s-,\/:]+|[\s-,\/:]+$/g, '').replace(/\s+/g, ' ').trim()
 
   // Guard: if cleaned dish name is just numbers or metadata keywords, skip
   if (/^\d+$/.test(cleaned) || /^(nam|nu|khach|pax|nguoi|ban|table|sdt|gio|ngay|sinh nhat|hbd|coc|ck)$/i.test(stripAccents(cleaned))) {
@@ -1126,7 +1183,8 @@ export function parseSingleMenuLine(lineStr: string): { raw_name: string; quanti
   }
 }
 
-export function extractByRules(normalizedText: string) {
+export function extractByRules(rawOrNormalizedText: string) {
+  const normalizedText = preNormalizeInput(rawOrNormalizedText)
   const blocks = segmentInputBlocksCompat(normalizedText)
   const clean = stripAccents(normalizedText).toLowerCase()
   
@@ -1254,10 +1312,14 @@ export function extractByRules(normalizedText: string) {
   }
 
   let event_date: string | null = null
-  const dateRegex = /(\d{2})\/(\d{2})\/(\d{4})/g
+  const dateRegex = /(\d{1,2})[\/\.](\d{1,2})[\/\.](\d{2,4})/
   const dateMatch = normalizedText.match(dateRegex)
   if (dateMatch) {
-    event_date = dateMatch[0]
+    const d = dateMatch[1].padStart(2, '0')
+    const m = dateMatch[2].padStart(2, '0')
+    let y = dateMatch[3]
+    if (y.length === 2) y = '20' + y
+    event_date = `${d}/${m}/${y}`
   }
 
   const today = new Date()
@@ -1271,9 +1333,9 @@ export function extractByRules(normalizedText: string) {
   // Parse relative date patterns first
   if (!event_date) {
     const relativePatterns = [
-      { regex: /\b(hom nay|nay|toi nay|chieu nay)\b/gi, offset: 0 },
-      { regex: /\b(ngay mai|mai|chieu mai|toi mai)\b/gi, offset: 1 },
-      { regex: /\b(ngay mot|mot|ngay kia)\b/gi, offset: 2 }
+      { regex: /(?<!\p{L})(?:hôm nay|hom nay|tối nay|toi nay|chiều nay|chieu nay)(?!\p{L})/ugi, offset: 0 },
+      { regex: /(?<!\p{L})(?:ngày mai|ngay mai|chiều mai|chieu mai|tối mai|toi mai)(?!\p{L})/ugi, offset: 1 },
+      { regex: /(?<!\p{L})(?:ngày mốt|ngay mot|ngày kia|ngay kia)(?!\p{L})/ugi, offset: 2 }
     ]
     for (const { regex, offset } of relativePatterns) {
       if (regex.test(clean)) {
@@ -1474,12 +1536,17 @@ export function extractByRules(normalizedText: string) {
       const dishList = foodLabelMatch[1].split(/[,;]/).map((d: string) => d.trim()).filter((d: string) => d.length > 2)
       for (const dish of dishList) {
         if (/^\d+$/.test(dish) || /sinh nhat|lien hoan|cong ty/i.test(dish)) continue
-        menu_items.push({
-          raw_name: dish,
-          quantity: 1,
-          unit_price: null,
-          note: ''
-        })
+        const parsed = parseSingleMenuLine(dish)
+        if (parsed) {
+          menu_items.push(parsed)
+        } else {
+          menu_items.push({
+            raw_name: dish,
+            quantity: 1,
+            unit_price: null,
+            note: ''
+          })
+        }
       }
     }
   }

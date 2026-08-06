@@ -133,9 +133,15 @@ async function postGASDirect(payload: Record<string, any>, signal?: AbortSignal,
   try {
     if (useWorker) {
       try {
+        const sharedSecret = import.meta.env.VITE_APP_SHARED_SECRET || 'kg_booking_secret_token_2026'
+        const headers: Record<string, string> = {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${sharedSecret}`
+        }
+
         const res = await fetch(API_URL, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers,
           body: JSON.stringify(payload),
           signal
         })
@@ -255,9 +261,15 @@ export async function fetchWithRetry(
     
     if (useWorker) {
       try {
+        const sharedSecret = import.meta.env.VITE_APP_SHARED_SECRET || 'kg_booking_secret_token_2026'
+        const headers: Record<string, string> = {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${sharedSecret}`
+        }
+
         const res = await fetch(API_URL, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers,
           body: JSON.stringify(payload),
           signal
         })

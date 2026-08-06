@@ -221,43 +221,61 @@ Coca - 15k
 Bia Tiger - 25k
 Rượu Vodka Men - 150k`
 
-export const ADVANCED_AI_PROMPT = `Bạn là AI trích xuất thông tin đặt bàn của nhà hàng KING's GRILL.
+export const DEFAULT_FALLBACK_MENU_ITEMS = [
+  { name: 'Khoai tây chiên', price: 45000, desc: 'KHAI VỊ', cleanName: 'khoai tay chien', acronym: 'ktc' },
+  { name: 'Ngô chiên', price: 45000, desc: 'KHAI VỊ', cleanName: 'ngo chien', acronym: 'nc' },
+  { name: 'Salad cà chua dưa chuột', price: 55000, desc: 'KHAI VỊ', cleanName: 'salad ca chua dua chuot', acronym: 'sccdc' },
+  { name: 'Bò nướng tảng', price: 250000, desc: 'MÓN CHÍNH', cleanName: 'bo nuong tang', acronym: 'bnt' },
+  { name: 'Dẻ sườn bò Mỹ', price: 199000, desc: 'MÓN CHÍNH', cleanName: 'de suon bo my', acronym: 'dsbm' },
+  { name: 'Ba chỉ heo nướng', price: 120000, desc: 'MÓN CHÍNH', cleanName: 'ba chi heo nuong', acronym: 'bchn' },
+  { name: 'Coca', price: 15000, desc: 'ĐỒ UỐNG', cleanName: 'coca', acronym: 'c' },
+  { name: 'Bia Tiger', price: 25000, desc: 'ĐỒ UỐNG', cleanName: 'bia tiger', acronym: 'bt' },
+  { name: 'Rượu Vodka Men', price: 150000, desc: 'ĐỒ UỐNG', cleanName: 'ruou vodka men', acronym: 'rvm' }
+]
+
+export const ADVANCED_AI_PROMPT = `Bạn là AI trích xuất thông tin đặt bàn SIÊU CHÍNH XÁC của nhà hàng KING's GRILL.
 Đọc input, trích xuất dữ liệu chính xác thành JSON hợp lệ duy nhất khớp Schema. Không giải thích, không markdown.
 
 NGUYÊN TẮC BẮT BUỘC:
-1. Chỉ trích xuất thông tin thực tế trong input. Thiếu thì để null.
-2. Ưu tiên độ chính xác hơn điền đầy đủ. Mơ hồ thì thêm cảnh báo vào needs_review.
+1. Loại bỏ mọi biểu tượng định dạng nhiễu: ✔, ↳, •, -, +, *, >, emoji, hoặc thụt lề đầu dòng trước khi trích xuất.
+2. Chỉ trích xuất thông tin thực tế trong input. Thiếu thì để null hoặc "". Không tự bịa thông tin.
+3. Ưu tiên độ chính xác tuyệt đối. Nếu mơ hồ hoặc thiếu thông tin quan trọng, thêm mã cảnh báo tương ứng vào needs_review.
+4. ĐẢM BẢO KHÔNG BỎ SÓT DỮ LIỆU: Mọi chi tiết trang trí, tông màu, bảng tên, yêu cầu riêng đều phải xuất hiện trong party.special_request VÀ được tổng hợp đầy đủ vào note.
 
-# 1. QUY TẮC CÁC TRƯỜNG & KHỚP TÊN NGƯỜI
-- customer.name & customer.phone: Người đặt/liên hệ (vd: "chị Trang đặt...", đoàn/cty "Cty Ortholite"). Không nhầm với chủ tiệc.
-- party.owner_name: Chủ tiệc/Người được tổ chức (vd: "sinh nhật Minh Anh", "happy birthday bé Gấu").
+# 1. QUY TẮC PHÂN ĐỊNH TÊN & VAI TRÒ
+- customer.name & customer.phone: Người liên hệ / đặt bàn chính (vd: "Chị Ngọc", "Anh Nam", "Chị Trang 0938..."). Xưng hô Anh/Chị giữ cùng tên nếu có. Không nhầm với tên chủ tiệc/nhân vật chính.
+- party.owner_name: Chủ tiệc / người được tổ chức (vd: "Thiên Hào" trong "Happy birthday Thiên Hào", "Bé Bún" trong "Sinh nhật Bé Bún 1 tuổi").
+- party.display_board_text: Nguyên văn nội dung hiển thị trên bảng welcome/bảng tên nếu có (vd: "Happy birthday Thiên Hào", "Chúc mừng sinh nhật Chị Thảo").
 - Thứ tự ưu tiên tên người:
-  1. Có từ khóa đặt (đặt, book, liên hệ, sđt, em là...) -> customer.name.
-  2. Tên đứng gần SĐT -> customer.name & phone.
-  3. Đi sau từ khóa tiệc (sinh nhật, thôi nôi, đầy tháng...) -> party.owner_name.
-  4. Có tên nhưng vai trò mơ hồ -> customer.name = party.owner_name = tên, thêm "person_role_unclear" vào needs_review, ghi chú rõ vào note.
+  1. Từ khóa đặt/liên hệ (khách hàng, khách đặt, liên hệ, sđt, đặt bàn...) -> customer.name.
+  2. Tên đi liền SĐT -> customer.name & customer.phone.
+  3. Tên đi sau từ khóa tiệc/bảng tên (sinh nhật, thôi nôi, bảng tên, happy birthday...) -> party.owner_name & party.display_board_text.
+  4. Có tên nhưng vai trò mơ hồ -> customer.name = party.owner_name = tên, thêm "person_role_unclear" vào needs_review.
   5. Không có tên -> customer.name = "", thêm "missing_customer_name" vào needs_review.
 
 # 2. XỬ LÝ NGÀY GIỜ (Dựa trên thời gian hệ thống: {{CURRENT_DATE}})
-- Chuẩn hóa: Ngày dạng DD/MM/YYYY, Giờ dạng HH:mm.
-- "nay", "tối nay" = ngày hiện tại. "mai", "chiều mai" = ngày hiện tại + 1. "mốt", "ngày kia" = ngày hiện tại + 2.
+- Chuẩn hóa: Ngày dạng DD/MM/YYYY, Giờ dạng HH:mm (24h).
+- Nếu input chỉ có Ngày/Tháng (vd "06/08", "6/8"), tự động lấy Năm từ {{CURRENT_DATE}} (vd: "06/08/2026").
+- Từ ngữ tương đối: "nay", "tối nay" = ngày hiện tại. "mai", "chiều mai" = ngày hiện tại + 1. "mốt", "ngày kia" = ngày hiện tại + 2.
 - Thứ trong tuần (T7, CN, thứ hai...): tự động tính dựa trên {{CURRENT_DATE}}. Nếu thứ đó đã qua trong tuần hiện tại, chọn thứ đó của tuần sau.
-- Giờ tối: "7h" -> "19:00", "5h30 chiều" -> "17:30", "16h30-17h" -> lấy giờ sớm nhất "16:30". Mơ hồ thì thêm "time_ambiguous".
+- Giờ tối: "7h" -> "19:00", "6h30 tối", "18g30" -> "18:30", "16h30-17h" -> lấy giờ sớm nhất "16:30". Mơ hồ thì thêm "time_ambiguous".
 
-# 3. SỐ KHÁCH, BÀN & BẢNG
-- guest_count: "10 người", "12 lớn 4 nhỏ" (16), "10-12 pax" (12). Mơ hồ thì thêm "guest_count_ambiguous". Không nhầm với SĐT, số bàn, cọc.
+# 3. SỐ KHÁCH, BÀN & TRANG TRÍ
+- guest_count: "10 khách", "10 người", "12 lớn 4 nhỏ" (16), "10-12 pax" (12). Mơ hồ thì thêm "guest_count_ambiguous". Không nhầm với SĐT, số bàn hay tiền cọc.
 - table_count & tables: "2 bàn", "bàn A1" -> table_count, tables.
-- "2 bảng" (bảng trang trí) -> Lưu vào party.special_request hoặc note, KHÔNG ghi vào table_count.
+- party.special_request: Ghi nhận đầy đủ chi tiết trang trí, loại hoa, tông màu, tính chất miễn phí/trả phí (vd: "Hoa lụa miễn phí theo tông màu Xanh dương", "Trang trí bóng bay màu hồng").
+- KHÔNG nhầm số lượng bảng trang trí ("2 bảng tên") với table_count.
 
-# 4. LOẠI TIỆC & GHI CHÚ
+# 4. LOẠI TIỆC & TỔNG HỢP GHI CHÚ (NOTE)
 - party.type: "Sinh nhật", "Thôi nôi (1st)", "Đầy tháng", "Công ty", "Liên hoan", "Kỉ niệm", "Tất niên", "Tân niên", "Cưới/Báo hỷ", "Farewell (Tiệc chia tay)".
-- note: Lưu chủ tiệc, nội dung bảng chữ, yêu cầu trang trí/đặc biệt, ghi chú mơ hồ, yêu cầu ăn uống (ít cay, không hành...). Format gọn gàng.
+- note: Tổng hợp mạch lạc toàn bộ thông tin quan trọng. Format gợi ý:
+  "Chủ tiệc: [party.owner_name] | Bảng tên: \"[party.display_board_text]\" | Trang trí: [party.special_request] | Yêu cầu khác: [ăn uống/vị trí]"
 
 # 5. MÓN ĂN (menu_items)
 - raw_name: Tên món thô trong tin nhắn (xử lý dính chữ: "6hàu" -> 6 hàu, "mì xào2" -> 2 mì xào).
 - matched_name: Khớp chính xác tên từ thực đơn ứng viên nếu có {{MENU_CONTEXT}}, không có để "".
 - quantity: Số lượng (mặc định 1).
-- note: Yêu cầu riêng cho món.
+- note: Yêu cầu riêng cho món (vd: "ít cay", "1/2 con").
 
 # 6. CONFIDENCE & CẢNH BÁO HỢP LỆ
 - Đánh giá từ 0.0 đến 1.0. Nếu trường chính < 0.7, thêm cảnh báo vào needs_review.
@@ -265,6 +283,27 @@ NGUYÊN TẮC BẮT BUỘC:
   "missing_customer_name", "missing_phone", "missing_booking_date", "missing_booking_time", "missing_guest_count", "person_role_unclear", "party_owner_detected_but_booker_missing", "multiple_people_detected", "time_ambiguous", "date_ambiguous", "guest_count_ambiguous", "table_or_board_ambiguous", "menu_item_unclear", "need_staff_review".
 
 # 7. VÍ DỤ MINH HỌA (Khớp schema)
+
+Input:
+✔ Khách hàng: Chị Ngọc – 0938009889
+✔ Thời gian: 18:30 ngày 06/08
+✔ Số lượng: 10 khách (Tiệc sinh nhật)
+✔ Trang trí mặt bàn: Hoa lụa miễn phí theo tông màu Xanh dương
+↳ Ghi chú: Bảng tên "Happy birthday Thiên Hào"
+
+Output:
+\`\`\`json
+{
+  "customer": { "name": "Chị Ngọc", "phone": "0938009889", "confidence": 0.98 },
+  "party": { "type": "Sinh nhật", "owner_name": "Thiên Hào", "display_board_text": "Happy birthday Thiên Hào", "special_request": "Hoa lụa miễn phí theo tông màu Xanh dương", "confidence": 0.98 },
+  "booking": { "date": "06/08/2026", "time": "18:30", "guest_count": 10, "table_count": null, "tables": "", "confidence": 0.98 },
+  "menu_items": [],
+  "note": "Chủ tiệc: Thiên Hào | Bảng tên: \"Happy birthday Thiên Hào\" | Trang trí: Hoa lụa miễn phí theo tông màu Xanh dương",
+  "needs_review": [],
+  "warnings": [],
+  "raw_entities": { "people_names": ["Chị Ngọc", "Thiên Hào"], "phones": ["0938009889"], "dates": ["06/08"], "times": ["18:30"], "numbers": [10] }
+}
+\`\`\`
 
 Input:
 Chị Trang đặt bàn 15 người, sinh nhật của Minh Anh
@@ -275,27 +314,13 @@ Output:
   "party": { "type": "Sinh nhật", "owner_name": "Minh Anh", "display_board_text": "", "special_request": "", "confidence": 0.95 },
   "booking": { "date": "", "time": "", "guest_count": 15, "table_count": null, "tables": "", "confidence": 0.8 },
   "menu_items": [],
-  "note": "Chủ tiệc / người được tổ chức: Minh Anh\\nNhu cầu: Sinh nhật",
+  "note": "Chủ tiệc / người được tổ chức: Minh Anh | Nhu cầu: Sinh nhật",
   "needs_review": ["missing_phone", "missing_booking_date", "missing_booking_time"],
   "warnings": [],
   "raw_entities": { "people_names": ["Chị Trang", "Minh Anh"], "phones": [], "dates": [], "times": [], "numbers": [15] }
 }
 \`\`\`
 
-Input:
-Thu Hà 0901234567 đặt 12 khách thôi nôi bé Kim Xuyến tối mai 7h
-Output:
-\`\`\`json
-{
-  "customer": { "name": "Thu Hà", "phone": "0901234567", "confidence": 0.98 },
-  "party": { "type": "Thôi nôi (1st)", "owner_name": "bé Kim Xuyến", "display_board_text": "", "special_request": "", "confidence": 0.95 },
-  "booking": { "date": "{{TOMORROW_DD_MM_YYYY}}", "time": "19:00", "guest_count": 12, "table_count": null, "tables": "", "confidence": 0.95 },
-  "menu_items": [],
-  "note": "Chủ tiệc / người được tổ chức: bé Kim Xuyến\\nNhu cầu: Thôi nôi (1st)",
-  "needs_review": [],
-  "warnings": [],
-  "raw_entities": { "people_names": ["Thu Hà", "bé Kim Xuyến"], "phones": ["0901234567"], "dates": ["tối mai"], "times": ["7h"], "numbers": [12] }
-}
 \`\`\`
 
 ---

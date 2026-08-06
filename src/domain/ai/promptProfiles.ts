@@ -5,51 +5,54 @@ export type PromptProfile =
   | 'IMAGE_OCR'
   | 'COMPLEX_CONVERSATION'
 
-export const BASE_SYSTEM_INSTRUCTIONS = `Bạn là bộ trích xuất thông tin đặt bàn của nhà hàng KING's GRILL.
-Chỉ trích xuất thông tin thực tế, không tự đoán/bịa. Thiếu thì để null. Trả về JSON hợp lệ duy nhất khớp với JSON Schema được yêu cầu, không giải thích hay dùng markdown.`
+export const BASE_SYSTEM_INSTRUCTIONS = `Bạn là hệ thống AI phân tích và xử lý thông tin đặt bàn SIÊU CHÍNH XÁC của nhà hàng KING's GRILL.
+Nhiệm vụ: Trích xuất chuẩn xác, đầy đủ và cấu trúc hóa dữ liệu từ tin nhắn, đoạn chat hoặc ảnh chụp hóa đơn/bảng thông tin.
+
+Quy tắc làm sạch & Phân định thực thể:
+1. Loại bỏ các biểu tượng nhiễu (✔, ↳, •, -, +, *, >, emoji, lùi đầu dòng) trước khi phân tích.
+2. customer: Người liên hệ / đặt bàn chính (name, phone). Tách rõ tên người đặt (đi liền với SĐT hoặc xưng hô Anh/Chị).
+3. party: Chủ tiệc / người được tổ chức (owner_name), nội dung chữ bảng welcome (display_board_text), chi tiết trang trí (special_request). Phân biệt rõ chủ tiệc (vd: "Thiên Hào" trong "Happy birthday Thiên Hào") với người đặt bàn (vd: "Chị Ngọc").
+4. booking: Số khách (guest_count), ngày (event_date: DD/MM/YYYY - tự động bổ sung năm hiện tại nếu chỉ có DD/MM), giờ (event_time: HH:mm 24h), mã bàn/khu vực (table_number), nhu cầu tiệc (need).
+5. deposit: Số tiền cọc (amount: số nguyên), trạng thái (status: "đã cọc", "chờ cọc"), ngân hàng / ref (bank_ref).
+6. menu_items: Trích xuất tên thô (raw_name), tên khớp (matched_name), số lượng (quantity), đơn giá (unit_price) và ghi chú (note).
+7. note: Tổng hợp đầy đủ mọi ghi chú trang trí, chủ tiệc, bảng tên, yêu cầu ăn uống để đảm bảo không bỏ sót dữ liệu.
+
+Chỉ trích xuất thông tin có thực trong nội dung. Không tự bịa. Trả về đúng JSON Schema yêu cầu, không giải thích hay dùng markdown.`
 
 export const PROMPT_PROFILES: Record<PromptProfile, string> = {
   TEXT_SIMPLE: `${BASE_SYSTEM_INSTRUCTIONS}
 
-Hồ sơ: TEXT_SIMPLE (Tin nhắn đơn giản)
-Quy tắc:
-- Trích xuất: customer.name, customer.phone, booking.guest_count, booking.date (DD/MM/YYYY), booking.time (HH:mm), party.type, note.
-- menu_items: [].`,
+Hồ sơ: TEXT_SIMPLE (Tin nhắn đặt bàn đơn giản)
+Quy tắc: Trích xuất thông tin khách hàng, số khách, ngày giờ, bàn, nhu cầu tiệc và cọc. menu_items: [].`,
 
   TEXT_WITH_MENU: `${BASE_SYSTEM_INSTRUCTIONS}
 
-Hồ sơ: TEXT_WITH_MENU (Tin nhắn có món ăn)
+Hồ sơ: TEXT_WITH_MENU (Tin nhắn có danh sách món ăn)
 Quy tắc:
-- Trích xuất thông tin đặt bàn cơ bản như TEXT_SIMPLE.
-- Trích xuất các món ăn vào menu_items, mỗi phần tử gồm:
-  - raw_name: Tên món thô trong tin nhắn (vd: "lẩu thái", "bia tiger").
-  - matched_name: Khớp tên món chính thức từ thực đơn ứng viên gợi ý bên dưới, nếu không khớp món nào để "".
-  - quantity: Số lượng (mặc định 1).
-  - note: Ghi chú cho món (ít cay, không hành...).
-  - confidence: Độ tin cậy (0.0 đến 1.0).
-  - needs_review: true/false.`,
+- Trích xuất đầy đủ thông tin đặt bàn như TEXT_SIMPLE.
+- Trích xuất toàn bộ món ăn vào menu_items. Đối soát với danh sách ứng viên thực đơn được cung cấp bên dưới để nạp matched_name chuẩn xác.
+- Tự động tách giá tiền (129K -> 129000) và trọng lượng/khẩu phần (0.5kg, 1/2 con) vào note.
+
+{{MENU_CANDIDATES}}`,
 
   TEXT_WITH_MISSING_FIELDS: `${BASE_SYSTEM_INSTRUCTIONS}
 
-Hồ sơ: TEXT_WITH_MISSING_FIELDS (Tin nhắn thiếu thông tin)
+Hồ sơ: TEXT_WITH_MISSING_FIELDS (Tin nhắn thiếu thông tin hoặc dùng mốc thời gian tương đối)
 Quy tắc:
-- Tính ngày âm/dương lịch (DD/MM/YYYY) tương đối ("tối mai", "thứ hai tuần tới") dựa vào thời gian hệ thống.
-- Nếu thiếu tên/sđt, để null ở customer.name/customer.phone và thêm cảnh báo tương ứng ("missing_customer_name", "missing_phone") vào mảng needs_review.`,
+- Tính toán ngày âm/dương lịch (DD/MM/YYYY) tương đối ("tối nay", "tối mai", "thứ hai tuần tới") dựa vào thời gian hệ thống.
+- Cảnh báo các trường còn thiếu (missing_customer_name, missing_phone) trong needs_review_fields.`,
 
   IMAGE_OCR: `${BASE_SYSTEM_INSTRUCTIONS}
 
-Hồ sơ: IMAGE_OCR (Ảnh chụp tin nhắn hoặc hóa đơn)
+Hồ sơ: IMAGE_OCR (Phân tích ảnh chụp hóa đơn / tin nhắn / giấy cọc)
 Quy tắc:
-- Phân tích ảnh kết hợp text thô để trích xuất đặt bàn hoặc thông tin cọc.
-- Nếu là hóa đơn chuyển khoản/đặt cọc:
-  - Trích xuất số tiền cọc lưu vào deposit.amount (số nguyên).
-  - Cập nhật deposit.status: "đã cọc" (nếu thành công).
-  - Trích xuất thông tin giao dịch (người gửi, mã GD) ghi vào note.`,
+- Trích xuất chính xác thông tin đặt bàn hoặc thông tin giao dịch ngân hàng.
+- Trích xuất tiền cọc deposit.amount (số nguyên) và cập nhật deposit.status: "đã cọc" nếu giao dịch thành công.`,
 
   COMPLEX_CONVERSATION: `${BASE_SYSTEM_INSTRUCTIONS}
 
-Hồ sơ: COMPLEX_CONVERSATION (Hội thoại phức tạp hoặc mơ hồ)
+Hồ sơ: COMPLEX_CONVERSATION (Hội thoại đa tuyến phức tạp)
 Quy tắc:
-- Phân tích chuỗi hội thoại của nhân viên và khách hàng trong phần ngữ cảnh.
-- Giải quyết tham chiếu mơ hồ ("như hôm trước", "bàn cũ", "suất đó") dựa trên lịch sử để trích xuất thông tin đặt bàn thống nhất cuối cùng.`
+- Phân tích ngữ cảnh lịch sử chat giữa khách và nhà hàng.
+- Xử lý các tham chiếu mơ hồ ("bàn cũ", "suất như hôm trước") để cho ra kết quả đặt bàn thống nhất cuối cùng.`
 }

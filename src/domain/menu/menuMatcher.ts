@@ -233,7 +233,10 @@ export function scoreAndMatchMenu(
     const maxLen = Math.max(clean.length, mClean.length, 1)
     const levenshteinScore = 1 - (dist / maxLen)
     const jaroWinklerScore = jaroWinklerDistance(clean, mClean)
-    const fuzzyScore = 0.5 * levenshteinScore + 0.5 * jaroWinklerScore
+    let fuzzyScore = 0.5 * levenshteinScore + 0.5 * jaroWinklerScore
+    if (overlap === 0 && !mClean.startsWith(clean) && !clean.startsWith(mClean)) {
+      fuzzyScore *= 0.5
+    }
     
     if (fuzzyScore > score && fuzzyScore >= 0.4) {
       score = Math.max(score, fuzzyScore)
@@ -367,6 +370,18 @@ export function matchMenuItems(
 
   return expandedItems.map((item) => {
     let rawName = (item.raw_name || item.name || '').trim()
+
+    // 1. Trích xuất số lượng đứng ở đầu tên món (vd: "2 cơm chiên hải sản", "2 miến xào cua", "1 tôm cocktail")
+    const leadingQtyMatch = rawName.match(/^(\d+)\s+(.+)$/)
+    if (leadingQtyMatch) {
+      const extractedQty = parseInt(leadingQtyMatch[1], 10)
+      rawName = leadingQtyMatch[2].trim()
+      if (!item.quantity || item.quantity === 1) {
+        item.quantity = extractedQty
+      }
+    }
+
+    // 2. Trích xuất số lượng ở cuối tên món (vd: "cơm chiên hải sản x 2")
     const qtyMatch = rawName.match(/(?:[x\*])\s*(\d+)\s*$/i)
     if (qtyMatch) {
       item.quantity = parseInt(qtyMatch[1], 10)

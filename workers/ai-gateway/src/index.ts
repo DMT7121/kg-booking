@@ -740,10 +740,24 @@ export default {
         const payload = await request.json() as any;
 
         if (!env.SHEETS_QUEUE) {
-          return new Response(JSON.stringify({ ok: false, error: "Cloudflare Queue binding SHEETS_QUEUE not configured" }), {
-            status: 500,
-            headers: corsHeaders
-          });
+          const gasUrl = env.GAS_URL || 'https://script.google.com/macros/s/AKfycbxzjio4sat5fWoUncPgp8SfjoGqfGxW5vFoDgkHvBI3OKVWIaszsAaUt0LE2fCHtkCFsA/exec';
+          try {
+            const gasRes = await fetch(gasUrl, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(payload)
+            });
+            const gasData = await gasRes.json();
+            return new Response(JSON.stringify(gasData), {
+              status: gasRes.status,
+              headers: { ...corsHeaders, "Content-Type": "application/json" }
+            });
+          } catch (gasErr: any) {
+            return new Response(JSON.stringify({ ok: false, error: gasErr.message }), {
+              status: 500,
+              headers: corsHeaders
+            });
+          }
         }
 
         // Push sync action to the queue

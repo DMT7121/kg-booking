@@ -17,14 +17,17 @@ const ZONES = ['Khu A', 'Khu B', 'Khu C', 'Khu D', 'Khu E']
 
 const showQuickView = ref(false)
 
+import { formatDateStr } from '@/utils'
+
 const bookingsForSelectedDate = computed(() => {
   const result: any[] = []
   const groups = appStore.groupedHistory
+  const selectedNorm = formatDateStr(selectedDateStr.value)
   Object.values(groups).forEach((group: any) => {
     const order = group.latest
     if (!order.parsedCustomer) return
-    const date = (order.parsedCustomer.date || '').trim()
-    if (date === selectedDateStr.value) {
+    const orderDateNorm = formatDateStr(order.parsedCustomer.date || '')
+    if (orderDateNorm === selectedNorm) {
       result.push(order)
     }
   })

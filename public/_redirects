@@ -1,0 +1,3 @@
+# Cloudflare Pages Redirects / Proxy Rules
+/api/* https://kg-ai-gateway.dmt-kgwork.workers.dev/api/:splat 200
+/api https://kg-ai-gateway.dmt-kgwork.workers.dev/api 200

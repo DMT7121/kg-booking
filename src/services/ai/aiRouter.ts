@@ -100,9 +100,12 @@ export async function runAIRouter(request: {
     loadingSubMsgCallback
   } = request
 
+  const activeAiMode = aiMode || (import.meta.env.VITE_AI_MODE as 'direct' | 'gateway') || 'direct'
+  const isGatewayActive = activeAiMode === 'gateway' && !!(apiGatewayUrl || import.meta.env.VITE_AI_GATEWAY_URL)
+
   let candidates = availableModels
     .filter(m => m.type === type)
-    .filter(m => m.provider === 'pollinations' || keysStatus[m.provider]?.configured)
+    .filter(m => (isGatewayActive && keysStatus[m.provider]?.configured !== false) || m.provider === 'pollinations' || keysStatus[m.provider]?.configured)
     
   const activeCandidates = candidates.filter(m => !isModelCooldown(m.id) && !isProviderCircuitOpen(m.provider))
   if (activeCandidates.length > 0) {

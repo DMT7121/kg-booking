@@ -247,10 +247,8 @@ export async function callAIModel(
 
     try {
       const headers: Record<string, string> = { 'Content-Type': 'application/json' }
-      const sharedSecret = import.meta.env.VITE_APP_SHARED_SECRET
-      if (sharedSecret) {
-        headers['Authorization'] = `Bearer ${sharedSecret}`
-      }
+      const sharedSecret = import.meta.env.VITE_APP_SHARED_SECRET || 'kg_booking_secret_token_2026'
+      headers['Authorization'] = `Bearer ${sharedSecret}`
 
       const res = await fetch(`${gatewayUrl}/api/ai/analyze`, {
         method: 'POST',

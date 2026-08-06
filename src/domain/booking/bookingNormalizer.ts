@@ -228,49 +228,37 @@ export function applyDeterministicRuleLock(aiResult: any, hardEntities: any, rul
   if (!result.needs_review_fields) result.needs_review_fields = []
   if (!result.warnings) result.warnings = []
 
-  // Deterministic Customer Name resolution: Only override if AI didn't provide a valid customer name
-  const currentAiName = (result.customer.name || '').trim()
-  const isGenericAiName = !currentAiName || /^khách(\s*hàng)?$/i.test(currentAiName)
-  if (isGenericAiName && ruleBasedResult?.customer_name) {
+  // 100% AI Authority: Chỉ bổ sung số ĐT / ngày / giờ nếu AI hoàn toàn không trích xuất được
+  if ((!result.customer.name || result.customer.name === '') && ruleBasedResult?.customer_name) {
     result.customer.name = ruleBasedResult.customer_name
   }
 
-  // Deterministic Customer Phone resolution (must match VN format if available)
-  if (hardEntities.phones && hardEntities.phones.length > 0) {
-    const validPhones = hardEntities.phones.filter((p: any) => p.confidence >= 0.9)
-    if (validPhones.length > 0) {
-      result.customer.phone = validPhones[0].value
-    } else {
-      result.customer.phone = hardEntities.phones[0].value
-    }
+  if ((!result.customer.phone || result.customer.phone === '') && hardEntities.phones && hardEntities.phones.length > 0) {
+    result.customer.phone = hardEntities.phones[0].value
   }
 
-  // Deterministic Event Date lock (e.g. Mai, Hôm nay, Tối mai)
-  if (hardEntities.dates && hardEntities.dates.length > 0) {
+  if ((!result.booking.event_date || result.booking.event_date === '') && hardEntities.dates && hardEntities.dates.length > 0) {
     const freshDates = hardEntities.dates.filter((d: any) => d.confidence >= 0.9)
     if (freshDates.length > 0) {
       result.booking.event_date = freshDates[0].value
     }
   }
 
-  // Deterministic Event Time lock (e.g. 19h, 11h30)
-  if (hardEntities.times && hardEntities.times.length > 0) {
+  if ((!result.booking.event_time || result.booking.event_time === '') && hardEntities.times && hardEntities.times.length > 0) {
     const standardTimes = hardEntities.times.filter((t: any) => t.confidence >= 0.9)
     if (standardTimes.length > 0) {
       result.booking.event_time = standardTimes[0].value
     }
   }
 
-  // Deterministic Table Code lock (e.g. C6, B12)
-  if (hardEntities.tables && hardEntities.tables.length > 0) {
+  if ((!result.booking.table_number || result.booking.table_number === '') && hardEntities.tables && hardEntities.tables.length > 0) {
     const directTables = hardEntities.tables.filter((t: any) => t.confidence >= 0.9)
     if (directTables.length > 0) {
       result.booking.table_number = directTables.map((t: any) => t.zone + t.number).join(',')
     }
   }
 
-  // Deterministic Guest Count lock (e.g. 10 người)
-  if (hardEntities.guestCounts && hardEntities.guestCounts.length > 0) {
+  if ((result.booking.guest_count === null || result.booking.guest_count === undefined) && hardEntities.guestCounts && hardEntities.guestCounts.length > 0) {
     const confCounts = hardEntities.guestCounts.filter((g: any) => g.confidence >= 0.9)
     if (confCounts.length > 0) {
       result.booking.guest_count = confCounts[0].value
@@ -337,8 +325,8 @@ export function repairAndNormalizeJSON(raw: any, inputType = 'unknown'): any {
   customerName = cleanCustomerName(customerName)
   const customerPhone = safeGet(parsed, 'customer.phone', parsed.customer_phone || parsed.phone || "")
 
-  let eventDate = safeGet(parsed, 'booking.event_date', safeGet(parsed, 'reservation.date', parsed.event_date || parsed.date || ""))
-  const eventTime = safeGet(parsed, 'booking.event_time', safeGet(parsed, 'reservation.time', parsed.event_time || parsed.time || ""))
+  let eventDate = safeGet(parsed, 'booking.event_date', safeGet(parsed, 'booking.date', safeGet(parsed, 'reservation.date', safeGet(parsed, 'reservation.event_date', parsed.event_date || parsed.date || ""))))
+  const eventTime = safeGet(parsed, 'booking.event_time', safeGet(parsed, 'booking.time', safeGet(parsed, 'reservation.time', safeGet(parsed, 'reservation.event_time', parsed.event_time || parsed.time || ""))))
 
   if (!eventDate && eventTime) {
     const timeMatch = eventTime.match(/^(\d{2}):(\d{2})$/)
@@ -367,10 +355,10 @@ export function repairAndNormalizeJSON(raw: any, inputType = 'unknown'): any {
     }
   }
   eventDate = normalizeDateString(eventDate)
-  const guestCount = safeGet(parsed, 'booking.guest_count', safeGet(parsed, 'reservation.pax', parsed.guest_count || parsed.guestCount || parsed.pax || null))
+  const guestCount = safeGet(parsed, 'booking.guest_count', safeGet(parsed, 'booking.pax', safeGet(parsed, 'reservation.pax', safeGet(parsed, 'reservation.guest_count', parsed.guest_count || parsed.guestCount || parsed.pax || null))))
   const tableCount = safeGet(parsed, 'booking.table_count', parsed.table_count || null)
-  const tableNumber = safeGet(parsed, 'booking.table_number', safeGet(parsed, 'reservation.table_code', parsed.table_number || ""))
-  const needRaw = safeGet(parsed, 'booking.need', safeGet(parsed, 'reservation.type', parsed.booking_need || ""))
+  const tableNumber = safeGet(parsed, 'booking.table_number', safeGet(parsed, 'booking.tables', safeGet(parsed, 'reservation.table_code', parsed.table_number || parsed.tables || "")))
+  const needRaw = safeGet(parsed, 'booking.need', safeGet(parsed, 'party.type', safeGet(parsed, 'reservation.type', parsed.booking_need || "")))
   const need = normalizePartyType(needRaw)
   const status = safeGet(parsed, 'booking.status', parsed.status || "")
 
@@ -437,14 +425,18 @@ export function repairAndNormalizeJSON(raw: any, inputType = 'unknown'): any {
   }
 
   const partyObj = parsed.party || { type: need, owner_name: partyOwner, display_board_text: textOnBoard, special_request: "" }
+  const receiver = safeGet(parsed, 'booking.receiver', parsed.receiver || parsed.booking_receiver || "")
   const rawNote = safeGet(parsed, 'notes.customer_note', safeGet(parsed, 'notes.note', parsed.note || ""))
-  const customerNote = cleanBookingNotes(
+  let customerNote = cleanBookingNotes(
     buildPartyNote(partyObj, rawNote),
     { name: customerName, phone: customerPhone },
     { guest_count: guestCount },
     menuItems
   )
-  const internalNote = safeGet(parsed, 'notes.internal_note', parsed.internal_note || "")
+  let internalNote = safeGet(parsed, 'notes.internal_note', parsed.internal_note || "")
+  if (receiver && !internalNote.includes(`Nhận: ${receiver}`) && !customerNote.includes(`Nhận: ${receiver}`)) {
+    internalNote = internalNote ? `[Nhận: ${receiver}]\n${internalNote}` : `[Nhận: ${receiver}]`
+  }
   const uncertainInfo = safeGet(parsed, 'notes.uncertain_info', parsed.uncertain_info || [])
 
   fallback.input_type = parsed.input_type || inputType
@@ -456,7 +448,8 @@ export function repairAndNormalizeJSON(raw: any, inputType = 'unknown'): any {
     table_count: tableCount ? parseInt(String(tableCount)) : null,
     table_number: tableNumber,
     need: need,
-    status: status
+    status: status,
+    receiver: receiver
   }
   fallback.menu_items = menuItems
   fallback.deposit = {

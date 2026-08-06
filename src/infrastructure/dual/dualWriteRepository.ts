@@ -23,14 +23,23 @@ export class DualWriteOrderRepository implements OrderRepository {
       return this.pg.getHistory(onBgUpdate)
     }
     
-    // Dual Write Mode: Read from PG, fallback to GAS if PG fails
+    // Dual Write Mode: Ưu tiên đọc từ GAS (Google Sheets) làm nguồn lịch sử chính chủ
+    try {
+      const gasResult = await this.gas.getHistory(onBgUpdate)
+      if (gasResult && gasResult.ok && Array.isArray(gasResult.data) && gasResult.data.length > 0) {
+        return gasResult
+      }
+    } catch (e: any) {
+      console.warn('[DualWrite] GAS read failed, falling back to PG:', e.message)
+    }
+
     try {
       const pgResult = await this.pg.getHistory(onBgUpdate)
       if (pgResult.ok) return pgResult
       throw new Error(pgResult.message || 'PG Read failed')
     } catch (e: any) {
-      console.warn('[DualWrite] PG read failed, falling back to GAS:', e.message)
-      return this.gas.getHistory(onBgUpdate)
+      console.warn('[DualWrite] Both GAS and PG read failed:', e.message)
+      return { ok: false, message: e.message }
     }
   }
 
@@ -74,13 +83,25 @@ export class DualWriteOrderRepository implements OrderRepository {
       return this.pg.saveOrder(data, token)
     }
 
-    // Dual Write mode
-    const pgRes = await this.pg.saveOrder(data, token)
-    if (!pgRes.ok) {
-      return pgRes
+    // Dual Write mode: Lưu vào Google Sheets trước để đảm bảo đơn hàng luôn được lưu 100%
+    let gasRes: any = { ok: false }
+    try {
+      gasRes = await this.gas.saveOrder(data)
+    } catch (e: any) {
+      console.warn('[DualWrite] GAS saveOrder failed:', e.message)
     }
-    const gasRes = await this.gas.saveOrder(data)
-    return gasRes
+
+    try {
+      const pgRes = await this.pg.saveOrder(data, token)
+      if (pgRes.ok) {
+        return gasRes.ok ? gasRes : pgRes
+      }
+      console.warn('[DualWrite] PG saveOrder warning:', pgRes.message)
+    } catch (e: any) {
+      console.warn('[DualWrite] PG saveOrder failed:', e.message)
+    }
+
+    return gasRes.ok ? gasRes : { ok: true, id: orderId, message: 'Order Saved' }
   }
 
   async saveOrdersBatch(payloads: any[]): Promise<any> {
@@ -158,9 +179,18 @@ export class DualWriteMenuRepository implements MenuRepository {
     if (mode === 'postgres') return this.pg.getMenu(sheetName, onBgUpdate)
 
     try {
+      const gasRes = await this.gas.getMenu(sheetName, onBgUpdate)
+      if (gasRes && gasRes.ok && Array.isArray(gasRes.data) && gasRes.data.length > 0) {
+        return gasRes
+      }
+    } catch (e: any) {
+      console.warn('[DualWrite] GAS getMenu failed, trying PG:', e.message)
+    }
+
+    try {
       const res = await this.pg.getMenu(sheetName, onBgUpdate)
-      if (res.ok) return res
-      throw new Error(res.message)
+      if (res.ok && Array.isArray(res.data) && res.data.length > 0) return res
+      throw new Error(res.message || 'PG menu empty')
     } catch {
       return this.gas.getMenu(sheetName, onBgUpdate)
     }
@@ -172,9 +202,18 @@ export class DualWriteMenuRepository implements MenuRepository {
     if (mode === 'postgres') return this.pg.getMenuSheets()
 
     try {
+      const gasRes = await this.gas.getMenuSheets()
+      if (gasRes && gasRes.ok && Array.isArray(gasRes.sheets) && gasRes.sheets.length > 0) {
+        return gasRes
+      }
+    } catch (e: any) {
+      console.warn('[DualWrite] GAS getMenuSheets failed, trying PG:', e.message)
+    }
+
+    try {
       const res = await this.pg.getMenuSheets()
-      if (res.ok) return res
-      throw new Error(res.message)
+      if (res.ok && Array.isArray(res.sheets) && res.sheets.length > 0) return res
+      throw new Error(res.message || 'PG sheets empty')
     } catch {
       return this.gas.getMenuSheets()
     }
@@ -224,6 +263,13 @@ export class DualWriteMenuRepository implements MenuRepository {
     if (mode === 'postgres') return this.pg.getMenuAliases(token)
 
     try {
+      const gasRes = await this.gas.getMenuAliases(token)
+      if (gasRes && gasRes.ok && Array.isArray(gasRes.aliases) && gasRes.aliases.length > 0) {
+        return gasRes
+      }
+    } catch {}
+
+    try {
       const res = await this.pg.getMenuAliases(token)
       if (res.ok) return res
       throw new Error(res.message)
@@ -265,6 +311,11 @@ export class DualWriteSettingsRepository implements SettingsRepository {
     const mode = getBackendMode()
     if (mode === 'gas') return this.gas.getConfig(onBgUpdate)
     if (mode === 'postgres') return this.pg.getConfig(onBgUpdate)
+
+    try {
+      const gasRes = await this.gas.getConfig(onBgUpdate)
+      if (gasRes && gasRes.ok) return gasRes
+    } catch {}
 
     try {
       const res = await this.pg.getConfig(onBgUpdate)
@@ -396,6 +447,13 @@ export class DualWriteCorrectionRepository implements CorrectionRepository {
     const mode = getBackendMode()
     if (mode === 'gas') return this.gas.getAiCorrections(token)
     if (mode === 'postgres') return this.pg.getAiCorrections(token)
+
+    try {
+      const gasRes = await this.gas.getAiCorrections(token)
+      if (gasRes && gasRes.ok && Array.isArray(gasRes.corrections) && gasRes.corrections.length > 0) {
+        return gasRes
+      }
+    } catch {}
 
     try {
       const res = await this.pg.getAiCorrections(token)

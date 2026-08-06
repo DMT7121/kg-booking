@@ -42,7 +42,7 @@ const enhancedMenuList = computed(() => {
       ...item,
       category: cat,
       // Priority: dishImage from store > fallback placeholder
-      image: appStore.dishImages[item.cleanName] || `https://picsum.photos/seed/${item.cleanName || index}/200/200`,
+      image: (item.cleanName && appStore.dishImages[item.cleanName]) || `https://picsum.photos/seed/${item.cleanName || index}/200/200`,
       inUse: index % 3 === 0
     }
   })
@@ -288,7 +288,7 @@ async function handleDishImageUpload(event: Event) {
                 <p class="text-[10px] uppercase font-black tracking-widest text-slate-400 mb-0.5 truncate">Thực đơn đang chọn</p>
                 <div class="flex items-center gap-2">
                   <select v-model="appStore.activeSheet" @change="appStore.switchMenu(appStore.activeSheet)" class="text-sm font-black text-blue-900 bg-transparent outline-none cursor-pointer flex-grow appearance-none pr-6 bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIGZpbGw9Im5vbmUiIHZpZXdCb3g9IjAgMCAyNCAyNCIgc3Ryb2tlLXdpZHRoPSIyIiBzdHJva2U9IiMxZTNhOGEiPjxwYXRoIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgc3Ryb2tlLWxpbmVqb2luPSJyb3VuZCIgZD0iTTE5IDlsLTcgNy03LTciLz48L3N2Zz4=')] bg-[length:16px_16px] bg-[right_center] bg-no-repeat truncate">
-                    <option v-if="appStore.menuSheets.length === 0" value="">-- Trống --</option>
+                    <option v-if="appStore.activeSheet && !appStore.menuSheets.includes(appStore.activeSheet)" :value="appStore.activeSheet">{{ appStore.activeSheet }}</option>
                     <option v-for="sheet in appStore.menuSheets" :key="sheet" :value="sheet">{{ sheet }}</option>
                   </select>
                   <span 

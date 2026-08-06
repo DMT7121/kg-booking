@@ -4,13 +4,19 @@ import type { MenuListItem } from './useAppStore'
 import { DualWriteMenuRepository as GasMenuRepository } from '@/infrastructure/dual/dualWriteRepository'
 import { getCachedMenu, cacheMenu, getCachedMenuSheets, cacheMenuSheets } from '@/services/cache'
 import { stripAccents } from '@/utils'
+import { DEFAULT_FALLBACK_MENU_ITEMS } from '@/utils/constants'
 
 const menuRepo = new GasMenuRepository()
 
 export const useMenuStore = defineStore('menuStore', () => {
-  const activeMenuSheet = ref<string>('')
+  const savedMenuSheet = localStorage.getItem('kg_v400_menu_sheet')
+  const initialMenuSheet = (!savedMenuSheet || savedMenuSheet === 'Menu' || savedMenuSheet === 'Thực đơn') ? 'MENU2026' : savedMenuSheet
+  if (savedMenuSheet !== initialMenuSheet) {
+    localStorage.setItem('kg_v400_menu_sheet', initialMenuSheet)
+  }
+  const activeMenuSheet = ref<string>(initialMenuSheet)
   const menuSheets = ref<string[]>([])
-  const menuList = ref<MenuListItem[]>([])
+  const menuList = ref<MenuListItem[]>(DEFAULT_FALLBACK_MENU_ITEMS)
   const menuLoading = ref(false)
   const menuLoaded = ref(false)
   const menuAliases = ref<Record<string, string>>({})
@@ -33,7 +39,7 @@ export const useMenuStore = defineStore('menuStore', () => {
       if (res && res.ok && Array.isArray(res.sheets)) {
         menuSheets.value = res.sheets
         if (!activeMenuSheet.value && res.sheets.length > 0) {
-          activeMenuSheet.value = res.sheets[0]
+          activeMenuSheet.value = res.sheets.includes('MENU2026') ? 'MENU2026' : res.sheets[0]
         }
         await cacheMenuSheets(res.sheets)
       }
@@ -43,7 +49,7 @@ export const useMenuStore = defineStore('menuStore', () => {
   }
 
   async function loadMenu(sheetName?: string, forceReload = false) {
-    const targetSheet = sheetName || activeMenuSheet.value || 'Thực đơn'
+    const targetSheet = sheetName || activeMenuSheet.value || 'MENU2026'
     if (menuLoaded.value && activeMenuSheet.value === targetSheet && !forceReload) return
     menuLoading.value = true
     activeMenuSheet.value = targetSheet
@@ -56,13 +62,20 @@ export const useMenuStore = defineStore('menuStore', () => {
       }
 
       const res = await menuRepo.getMenu(targetSheet)
-      if (res && res.ok && Array.isArray(res.items)) {
+      if (res && res.ok && Array.isArray(res.items) && res.items.length > 0) {
         menuList.value = res.items
         menuLoaded.value = true
         await cacheMenu(targetSheet, res.items)
+      } else if (menuList.value.length === 0) {
+        menuList.value = DEFAULT_FALLBACK_MENU_ITEMS
+        menuLoaded.value = true
       }
     } catch (e) {
       console.error('[MenuStore] Failed to load menu:', e)
+      if (menuList.value.length === 0) {
+        menuList.value = DEFAULT_FALLBACK_MENU_ITEMS
+        menuLoaded.value = true
+      }
     } finally {
       menuLoading.value = false
     }

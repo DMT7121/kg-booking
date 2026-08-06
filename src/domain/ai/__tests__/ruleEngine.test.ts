@@ -189,6 +189,31 @@ Thanh Bình
       expect(result.menu_items[1].unit_price).toBe(180000)
       expect(result.menu_items[1].note).toBe('1/2 con')
     })
+
+    it('should extract Ánh Tiên name and portion dishes from user exact multiline input', () => {
+      const rawInput = `Ánh Tiên
+5ng - 18h30
+0979008427
+Ăn thường
+Nhận: DMT
+"Sinh nhật, dự kiến thêm ~4 người, có 1 trẻ em
+Bò nướng chảo gang x2
+Cơm chiên hải sản x2
+Salad King's Grill x2
+Tôm cocktail (5 con) x2"`
+
+      const normalized = preNormalizeInput(rawInput)
+      const result = extractByRules(normalized)
+      expect(result.customer_name).toBe('Ánh Tiên')
+      expect(result.phone).toBe('0979008427')
+      expect(result.guest_count).toBe(5)
+      expect(result.event_time).toBe('18:30')
+      expect(result.booking_need).toBe('Sinh nhật')
+      expect(result.receiver).toBe('DMT')
+      expect(result.menu_items.length).toBe(4)
+      expect(result.menu_items[3].raw_name).toBe('Tôm cocktail (5 con)')
+      expect(result.menu_items[3].quantity).toBe(2)
+    })
   })
 })
 

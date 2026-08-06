@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref, reactive, computed, shallowRef } from 'vue'
-import { stripAccents, formatVND, cleanPhoneNumber } from '@/utils'
-import { CACHE_KEYS, DEFAULTS } from '@/utils/constants'
+import { stripAccents, formatVND, cleanPhoneNumber, formatDateStr } from '@/utils'
+import { CACHE_KEYS, DEFAULTS, DEFAULT_FALLBACK_MENU_ITEMS } from '@/utils/constants'
 import { useUIStore } from './useUIStore'
 import {
   cacheHistory, getCachedHistory,
@@ -71,8 +71,8 @@ export interface MenuListItem {
   name: string
   price: number
   desc?: string
-  cleanName: string
-  acronym: string
+  cleanName?: string
+  acronym?: string
 }
 
 export interface NormalizedBookingTime {
@@ -274,12 +274,22 @@ export const useAppStore = defineStore('app', () => {
   const menuImages = ref<Record<string, string>>({})
   const dishImages = ref<Record<string, string>>({})
   const menuSheets = ref<string[]>([])
-  const activeSheet = ref(localStorage.getItem(CACHE_KEYS.MENU_SHEET) || 'Menu')
+  const savedSheet = localStorage.getItem(CACHE_KEYS.MENU_SHEET)
+  const initialSheet = (!savedSheet || savedSheet === 'Menu' || savedSheet === 'Thực đơn') ? 'MENU2026' : savedSheet
+  if (savedSheet !== initialSheet) {
+    localStorage.setItem(CACHE_KEYS.MENU_SHEET, initialSheet)
+  }
+  const activeSheet = ref(initialSheet)
   const newMenuName = ref('')
   const newMenuContent = ref('')
   const adminToken = ref(sessionStorage.getItem('kg_admin_token') || '')
   const adminExpiresAt = ref(parseInt(sessionStorage.getItem('kg_admin_expires_at') || '0'))
-  const defaultMenuProfileId = ref(localStorage.getItem('default_menu_profile_id') || '')
+  const savedDefaultProfile = localStorage.getItem('default_menu_profile_id')
+  const initialDefaultProfile = (!savedDefaultProfile || savedDefaultProfile === 'Menu' || savedDefaultProfile === 'Thực đơn') ? 'MENU2026' : savedDefaultProfile
+  if (savedDefaultProfile !== initialDefaultProfile) {
+    localStorage.setItem('default_menu_profile_id', initialDefaultProfile)
+  }
+  const defaultMenuProfileId = ref(initialDefaultProfile)
   const defaultBankAccountIndex = ref(parseInt(localStorage.getItem('default_bank_account_index') || '-1'))
   const menuAliases = ref<{ alias: string; dishName: string }[]>(JSON.parse(localStorage.getItem('menu_aliases') || '[]'))
   const aiCorrections = ref<any[]>(JSON.parse(localStorage.getItem('ai_corrections') || '[]'))
@@ -321,6 +331,38 @@ export const useAppStore = defineStore('app', () => {
       }))
     const { hash } = await hashAndStringifyLargeObject(normalizedCorrections)
     correctionFingerprint.value = hash
+  }
+
+  async function fetchSheets() {
+    let sheets: string[] = ['MENU2026']
+    const cached = await getCachedMenuSheets()
+    if (cached && Array.isArray(cached) && cached.length > 0) {
+      const filtered = cached.filter((s: string) => s !== 'Menu' && s !== 'Thực đơn')
+      if (!filtered.includes('MENU2026')) filtered.unshift('MENU2026')
+      sheets = filtered
+    }
+    menuSheets.value = sheets
+    scheduleMenusPrecache(sheets, { reason: 'app-startup-cache' })
+
+    try {
+      const data = await menuRepo.getMenuSheets()
+      if (data.ok && Array.isArray(data.sheets)) {
+        const remoteFiltered = data.sheets.filter((s: string) => s !== 'Menu' && s !== 'Thực đơn')
+        if (!remoteFiltered.includes('MENU2026')) remoteFiltered.unshift('MENU2026')
+        menuSheets.value = remoteFiltered
+        await cacheMenuSheets(remoteFiltered)
+        scheduleMenusPrecache(remoteFiltered, { reason: 'app-startup-network' })
+      }
+    } catch (e) {
+      console.error('Fetch Sheets Error', e)
+    }
+
+    if (!menuSheets.value.includes(activeSheet.value)) {
+      activeSheet.value = 'MENU2026'
+      localStorage.setItem(CACHE_KEYS.MENU_SHEET, 'MENU2026')
+    }
+
+    triggerOutboxSync()
   }
 
   // --- Bank ---
@@ -377,8 +419,9 @@ export const useAppStore = defineStore('app', () => {
       
       // Time filter (simple logic for today)
       if (time === 'today') {
-        const todayStr = `${String(new Date().getDate()).padStart(2, '0')}/${String(new Date().getMonth() + 1).padStart(2, '0')}/${new Date().getFullYear()}`
-        if ((customer.date || '').trim() !== todayStr) return false
+        const todayStr = formatDateStr(new Date().toISOString())
+        const orderDateNorm = formatDateStr(customer.date || '')
+        if (orderDateNorm !== todayStr) return false
       }
       
       // Status filter
@@ -465,13 +508,36 @@ export const useAppStore = defineStore('app', () => {
     }
   }
 
+  function normalizeHistoryOrder(order: any): any {
+    if (!order) return order
+    const pc = order.parsedCustomer || {}
+    return {
+      ...order,
+      parsedCustomer: {
+        ...pc,
+        name: pc.name || 'Khách hàng',
+        phone: cleanPhoneNumber(pc.phone || ''),
+        date: formatDateStr(pc.date || ''),
+        time: pc.time || '',
+        pax: pc.pax || pc.guest_count || null,
+        tables: pc.tables || pc.table_number || ''
+      }
+    }
+  }
+
+  function normalizeHistoryList(list: any[]): any[] {
+    if (!Array.isArray(list)) return []
+    return list.map(normalizeHistoryOrder)
+  }
+
   // --- API Actions ---
   async function loadHistory(silent: boolean) {
     const cached = await getCachedHistory()
-    const hasCache = cached && cached.length > 0
+    const hasCache = cached && Array.isArray(cached) && cached.length > 0
     if (hasCache && historyList.value.length === 0) {
-      historyList.value = cached
-      rebuildBookingTimeIndex(cached)
+      const normCached = normalizeHistoryList(cached)
+      historyList.value = normCached
+      rebuildBookingTimeIndex(normCached)
     }
 
     if (!hasCache) {
@@ -480,31 +546,35 @@ export const useAppStore = defineStore('app', () => {
 
     try {
       const data = await orderRepo.getHistory((freshData) => {
-        if (freshData && freshData.ok) {
-          historyList.value = freshData.data || []
-          rebuildBookingTimeIndex(freshData.data || [])
+        if (freshData && freshData.ok && Array.isArray(freshData.data)) {
+          const normFresh = normalizeHistoryList(freshData.data)
+          historyList.value = normFresh
+          rebuildBookingTimeIndex(normFresh)
           uiStore.connectionStatus = 'online'
-          cacheHistory(freshData.data || [])
+          cacheHistory(normFresh)
         }
       })
-      if (data.ok) {
-        historyList.value = data.data || []
-        rebuildBookingTimeIndex(data.data || [])
+      if (data && data.ok && Array.isArray(data.data)) {
+        const normData = normalizeHistoryList(data.data)
+        historyList.value = normData
+        rebuildBookingTimeIndex(normData)
         uiStore.connectionStatus = 'online'
-        cacheHistory(data.data || [])
+        cacheHistory(normData)
       } else {
         uiStore.connectionStatus = hasCache ? 'online' : 'error'
         if (hasCache && cached) {
-          historyList.value = cached
-          rebuildBookingTimeIndex(cached)
+          const normCached = normalizeHistoryList(cached)
+          historyList.value = normCached
+          rebuildBookingTimeIndex(normCached)
         }
       }
     } catch (e) {
       console.error(e)
       uiStore.connectionStatus = hasCache ? 'online' : 'error'
       if (hasCache && cached) {
-        historyList.value = cached
-        rebuildBookingTimeIndex(cached)
+        const normCached = normalizeHistoryList(cached)
+        historyList.value = normCached
+        rebuildBookingTimeIndex(normCached)
       }
       if (hasCache && !silent) uiStore.showToast('Đang dùng dữ liệu offline', 'info')
     }
@@ -546,20 +616,25 @@ export const useAppStore = defineStore('app', () => {
 
     try {
       const data = await menuRepo.getMenu(targetSheet)
-      if (data.ok) {
-        menuList.value = data.data || []
+      if (data.ok && Array.isArray(data.data) && data.data.length > 0) {
+        menuList.value = data.data
         computeMenuFingerprint()
         const ds: Record<string, string> = {}
-        if (Array.isArray(data.data)) {
-          data.data.forEach((i: any) => { if (i.desc) ds[i.name] = i.desc })
-        }
+        data.data.forEach((i: any) => { if (i.desc) ds[i.name] = i.desc })
         menuDetails.value = ds
         activeSheet.value = targetSheet
-        await cacheMenu(targetSheet, data.data || [])
+        await cacheMenu(targetSheet, data.data)
+      } else if (menuList.value.length === 0) {
+        menuList.value = DEFAULT_FALLBACK_MENU_ITEMS
+        computeMenuFingerprint()
       }
     } catch (e) {
       console.error(e)
-      uiStore.showToast('Không tải được menu', 'warning')
+      if (menuList.value.length === 0) {
+        menuList.value = DEFAULT_FALLBACK_MENU_ITEMS
+        computeMenuFingerprint()
+      }
+      uiStore.showToast('Đã nạp thực đơn mặc định', 'info')
     }
   }
 
@@ -658,27 +733,6 @@ export const useAppStore = defineStore('app', () => {
       })
       console.debug(`[Pre-cache] Finished pre-cache for all menus in ${(performance.now() - start).toFixed(1)}ms`)
     })
-  }
-
-  async function fetchSheets() {
-    const cached = await getCachedMenuSheets()
-    if (cached && cached.length > 0) {
-      menuSheets.value = cached
-      scheduleMenusPrecache(cached, { reason: 'app-startup-cache' })
-    }
-
-    try {
-      const data = await menuRepo.getMenuSheets()
-      if (data.ok) {
-        menuSheets.value = data.sheets || []
-        await cacheMenuSheets(data.sheets || [])
-        scheduleMenusPrecache(data.sheets || [], { reason: 'app-startup-network' })
-      }
-    } catch (e) {
-      console.error('Fetch Sheets Error', e)
-    }
-
-    triggerOutboxSync()
   }
 
   async function switchMenu(sheetName: string) {

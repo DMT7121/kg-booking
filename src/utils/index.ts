@@ -50,10 +50,39 @@ export const parseJSON = <T = any>(t: string | object): T | null => {
 /** Format date string to dd/mm/yyyy */
 export const formatDateStr = (d: string): string => {
   if (!d) return ''
-  if (/^\d{2}\/\d{2}\/\d{4}$/.test(d)) return d
-  const date = new Date(d)
+  const str = String(d).trim()
+  if (/^\d{2}\/\d{2}\/\d{4}$/.test(str)) return str
+  
+  // Match DD/MM (e.g. 06/08 or 6/8)
+  const ddmm = str.match(/^(\d{1,2})\/(\d{1,2})$/)
+  if (ddmm) {
+    const day = ddmm[1].padStart(2, '0')
+    const month = ddmm[2].padStart(2, '0')
+    const year = new Date().getFullYear()
+    return `${day}/${month}/${year}`
+  }
+  
+  // Match DD/MM/YYYY (e.g. 6/8/2026)
+  const ddmmyyyy = str.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/)
+  if (ddmmyyyy) {
+    const day = ddmmyyyy[1].padStart(2, '0')
+    const month = ddmmyyyy[2].padStart(2, '0')
+    const year = ddmmyyyy[3]
+    return `${day}/${month}/${year}`
+  }
+
+  // Match YYYY-MM-DD (e.g. 2026-08-06)
+  const yyyymmdd = str.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/)
+  if (yyyymmdd) {
+    const year = yyyymmdd[1]
+    const month = yyyymmdd[2].padStart(2, '0')
+    const day = yyyymmdd[3].padStart(2, '0')
+    return `${day}/${month}/${year}`
+  }
+
+  const date = new Date(str)
   return isNaN(date.getTime())
-    ? d
+    ? str
     : `${String(date.getDate()).padStart(2, '0')}/${String(date.getMonth() + 1).padStart(2, '0')}/${date.getFullYear()}`
 }
 

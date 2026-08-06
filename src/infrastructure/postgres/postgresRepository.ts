@@ -29,6 +29,29 @@ async function pgFetch(path: string, options: RequestInit = {}) {
   return res.json()
 }
 
+export function stringToUuid(str: string): string {
+  if (!str) return crypto.randomUUID()
+  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+  if (uuidRegex.test(str)) return str
+
+  let hash1 = 0, hash2 = 0, hash3 = 0, hash4 = 0
+  for (let i = 0; i < str.length; i++) {
+    const char = str.charCodeAt(i)
+    hash1 = ((hash1 << 5) - hash1 + char) | 0
+    hash2 = ((hash2 << 7) - hash2 + char) | 0
+    hash3 = ((hash3 << 11) - hash3 + char) | 0
+    hash4 = ((hash4 << 13) - hash4 + char) | 0
+  }
+
+  const h1 = (Math.abs(hash1).toString(16) + '00000000').substring(0, 8)
+  const h2 = (Math.abs(hash2).toString(16) + '0000').substring(0, 4)
+  const h3 = '4' + (Math.abs(hash3).toString(16) + '000').substring(0, 3)
+  const h4 = '8' + (Math.abs(hash4).toString(16) + '000').substring(0, 3)
+  const h5 = (Math.abs(hash1 ^ hash2 ^ hash3 ^ hash4).toString(16) + '000000000000').substring(0, 12)
+
+  return `${h1}-${h2}-${h3}-${h4}-${h5}`
+}
+
 function toPgDate(ddmmyyyy: string): string {
   if (!ddmmyyyy) return ''
   const parts = ddmmyyyy.split('/')
@@ -86,7 +109,8 @@ export class PostgresOrderRepository implements OrderRepository {
   }
 
   async getOrderById(id: string): Promise<any> {
-    const rows = await pgFetch(`/bookings?id=eq.${encodeURIComponent(id)}&select=*`)
+    const uuid = stringToUuid(id)
+    const rows = await pgFetch(`/bookings?id=eq.${encodeURIComponent(uuid)}&select=*`)
     if (rows.length === 0) return { ok: false, message: 'Order not found' }
     const row = rows[0]
     return {
@@ -104,7 +128,8 @@ export class PostgresOrderRepository implements OrderRepository {
 
   async saveOrder(data: any, token?: string): Promise<any> {
     const orderData = data.id ? data : data.data
-    const orderId = orderData.id || crypto.randomUUID()
+    const rawId = orderData.id || crypto.randomUUID()
+    const orderId = stringToUuid(rawId)
     
     const payload = {
       id: orderId,
@@ -140,7 +165,7 @@ export class PostgresOrderRepository implements OrderRepository {
         body: JSON.stringify(payload)
       })
       if (response && response.length > 0) {
-        return { ok: true, id: orderId, message: 'Order Saved to PostgreSQL' }
+        return { ok: true, id: rawId, message: 'Order Saved to PostgreSQL' }
       }
       return { ok: false, message: 'Failed to save to PostgreSQL' }
     } catch (e: any) {
@@ -163,11 +188,12 @@ export class PostgresOrderRepository implements OrderRepository {
 
   async deleteOrder(id: string, password?: string, token?: string): Promise<any> {
     try {
+      const uuid = stringToUuid(id)
       const headers: Record<string, string> = {}
       if (token) {
         headers['Authorization'] = `Bearer ${token}`
       }
-      await pgFetch(`/bookings?id=eq.${encodeURIComponent(id)}`, {
+      await pgFetch(`/bookings?id=eq.${encodeURIComponent(uuid)}`, {
         method: 'DELETE',
         headers
       })
