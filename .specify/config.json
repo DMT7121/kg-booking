@@ -1,0 +1,12 @@
+{
+  "name": "kg-booking-speckit",
+  "version": "1.0.0",
+  "agent": "antigravity",
+  "workflow": "spec-driven-development",
+  "commands": {
+    "constitution": ".specify/constitution.md",
+    "specify": ".specify/templates/spec.template.md",
+    "plan": ".specify/templates/plan.template.md",
+    "tasks": ".specify/templates/tasks.template.md"
+  }
+}

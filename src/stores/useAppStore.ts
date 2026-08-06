@@ -400,6 +400,7 @@ export const useAppStore = defineStore('app', () => {
   const filteredHistory = computed(() => {
     const groups = groupedHistory.value
     const query = uiStore.historySearch.trim().toLowerCase()
+    const normQuery = query ? stripAccents(query) : ''
     const { time, status, deposit, sort } = uiStore.historyFilters
 
     let entries = Object.entries(groups)
@@ -407,10 +408,13 @@ export const useAppStore = defineStore('app', () => {
     entries = entries.filter(([key, group]) => {
       const customer = group.latest.parsedCustomer
       
-      // Search
-      if (query) {
-        const searchStr = `${customer.name} ${customer.phone} ${customer.date} ${formatVND(group.latest.totalAmount)}`.toLowerCase()
-        if (!stripAccents(searchStr).includes(stripAccents(query))) return false
+      // Search (memoized normalized string for high-speed filtering)
+      if (normQuery) {
+        if (!(group.latest as any)._normSearchStr) {
+          const searchStr = `${customer.name || ''} ${customer.phone || ''} ${customer.date || ''} ${formatVND(group.latest.totalAmount || 0)}`.toLowerCase()
+          ;(group.latest as any)._normSearchStr = stripAccents(searchStr)
+        }
+        if (!(group.latest as any)._normSearchStr.includes(normQuery)) return false
       }
       
       // Deposit filter
