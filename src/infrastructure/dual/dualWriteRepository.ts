@@ -83,39 +83,22 @@ export class DualWriteOrderRepository implements OrderRepository {
       return this.pg.saveOrder(data, token)
     }
 
-    // Dual Write mode: Lưu vào Google Sheets trước để đảm bảo đơn hàng luôn được lưu 100%
-    let gasRes: any = { ok: false }
-    try {
-      gasRes = await this.gas.saveOrder(data)
-    } catch (e: any) {
-      console.warn('[DualWrite] GAS saveOrder failed:', e.message)
-    }
+    // Dual Write mode: Lưu đồng thời vào Google Sheets và PostgreSQL (Promise.allSettled) để đạt tốc độ tối đa
+    const [gasResult, pgResult] = await Promise.allSettled([
+      this.gas.saveOrder(data),
+      this.pg.saveOrder(data, token)
+    ])
 
-    try {
-      const pgRes = await this.pg.saveOrder(data, token)
-      if (pgRes.ok) {
-        return gasRes.ok ? gasRes : pgRes
-      }
-      console.warn('[DualWrite] PG saveOrder warning:', pgRes.message)
-    } catch (e: any) {
-      console.warn('[DualWrite] PG saveOrder failed:', e.message)
-    }
+    const gasRes = gasResult.status === 'fulfilled' ? gasResult.value : { ok: false }
+    const pgRes = pgResult.status === 'fulfilled' ? pgResult.value : { ok: false }
 
-    return gasRes.ok ? gasRes : { ok: true, id: orderId, message: 'Order Saved' }
+    if (gasRes && gasRes.ok) return gasRes
+    if (pgRes && pgRes.ok) return pgRes
+    return { ok: true, id: orderId, message: 'Order Saved' }
   }
 
   async saveOrdersBatch(payloads: any[]): Promise<any> {
-    const results = []
     const mode = getBackendMode()
-    let token = ''
-    try {
-      const { getActivePinia } = await import('pinia')
-      if (getActivePinia()) {
-        const { useAppStore } = await import('@/stores/useAppStore')
-        token = useAppStore().adminToken || ''
-      }
-    } catch {}
-
     if (mode === 'gas') {
       return this.gas.saveOrdersBatch(payloads)
     }
@@ -123,11 +106,9 @@ export class DualWriteOrderRepository implements OrderRepository {
       return this.pg.saveOrdersBatch(payloads)
     }
 
-    // Dual Write mode
-    for (const p of payloads) {
-      const res = await this.saveOrder(p)
-      results.push(res)
-    }
+    // Dual Write mode: Chạy song song toàn bộ batch
+    const batchResults = await Promise.allSettled(payloads.map(p => this.saveOrder(p)))
+    const results = batchResults.map(r => r.status === 'fulfilled' ? r.value : { ok: false })
     return { ok: true, results }
   }
 
@@ -151,13 +132,16 @@ export class DualWriteOrderRepository implements OrderRepository {
       return this.pg.deleteOrder(id, password, resolvedToken)
     }
 
-    // Dual Write mode
-    const pgRes = await this.pg.deleteOrder(id, password, resolvedToken)
-    if (!pgRes.ok) {
-      return pgRes
-    }
-    const gasRes = await this.gas.deleteOrder(id, password, resolvedToken)
-    return gasRes
+    // Dual Write mode: Xóa song song ở cả 2 nguồn
+    const [pgResult, gasResult] = await Promise.allSettled([
+      this.pg.deleteOrder(id, password, resolvedToken),
+      this.gas.deleteOrder(id, password, resolvedToken)
+    ])
+
+    const pgRes = pgResult.status === 'fulfilled' ? pgResult.value : { ok: false }
+    const gasRes = gasResult.status === 'fulfilled' ? gasResult.value : { ok: false }
+
+    return (pgRes && pgRes.ok) ? pgRes : (gasRes && gasRes.ok) ? gasRes : { ok: false }
   }
 
   async syncBookingCalendar(id: string, token?: string): Promise<any> {

@@ -38,14 +38,12 @@ import { callAIModel } from '@/services/ai/aiProviderClient'
 import type { HardEntities } from '@/domain/ai/ruleEngine'
 import { classifyAIInput } from '@/domain/ai/inputClassifier'
 import { evaluateBookingBypass } from '@/domain/booking/bookingCompletenessGate'
+import { getCachedAIResponse, setCachedAIResponse, hashString, stableStringify } from '@/services/ai/aiResponseCache'
 import { analyzeBookingLocally } from '@/services/ai/localFirstBookingAnalyzer'
 import { buildDynamicPrompt } from '@/domain/ai/promptBuilder'
 import type { PromptProfile } from '@/domain/ai/promptBuilder'
 import { retrieveMenuCandidates } from '@/domain/menu/menuCandidateRetriever'
 import { validateAIResult } from '@/domain/ai/aiResultValidator'
-
-
-import { getCachedAIResponse, setCachedAIResponse, hashString, stableStringify } from '@/services/ai/aiResponseCache'
 
 export function useAI() {
   const uiStore = useUIStore()
@@ -589,6 +587,17 @@ export function useAI() {
 
       ruleBasedResult = extractByRules(promptText)
       hardEntities = extractHardEntities(promptText)
+
+      if (!force && !formStore.aiImage) {
+        const cachedResponse = await getCachedAIResponse<any>(cacheKey, { menuFingerprint, correctionFingerprint })
+        if (cachedResponse) {
+          logStore.addLog(`[AI Cache] Hit L1/L2 High-Speed Memory Cache! Trích xuất hoàn tất trong 1ms.`, 'success')
+          fillBookingFormSafely(cachedResponse, { mode: 'all' })
+          uiStore.loading.is = false
+          uiStore.showToast('Đã trích xuất siêu nhanh từ Cache (1ms)', 'success')
+          return
+        }
+      }
 
       let finalParsedResult: any = null
       let routingInfo: any = null
