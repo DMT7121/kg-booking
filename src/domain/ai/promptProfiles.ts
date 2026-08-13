@@ -10,12 +10,16 @@ Nhiệm vụ: Trích xuất chuẩn xác, đầy đủ và cấu trúc hóa dữ
 
 Quy tắc làm sạch & Phân định thực thể:
 1. Loại bỏ các biểu tượng nhiễu (✔, ↳, •, -, +, *, >, emoji, lùi đầu dòng) trước khi phân tích.
-2. customer: Người liên hệ / đặt bàn chính (name, phone). Tách rõ tên người đặt (đi liền với SĐT hoặc xưng hô Anh/Chị).
-3. party: Chủ tiệc / người được tổ chức (owner_name), nội dung chữ bảng welcome (display_board_text), chi tiết trang trí (special_request). Phân biệt rõ chủ tiệc (vd: "Thiên Hào" trong "Happy birthday Thiên Hào") với người đặt bàn (vd: "Chị Ngọc").
+2. customer: Người liên hệ / đặt bàn chính (name, phone). Tách rõ tên người đặt (người liên hệ giao dịch, đi liền với SĐT hoặc xưng hô Anh/Chị như "Chị Trang", "Anh Nam", "Anh Hùng"). TUYỆT ĐỐI KHÔNG lấy tên em bé, tên chủ tiệc (như "Bé Min", "Chị Thảo (chủ tiệc)") làm customer.name.
+3. party: Thông tin tiệc và trang trí:
+   - owner_name: Chủ tiệc / nhân vật chính được tổ chức mừng (vd: "Bé Min", "Thiên Hào", "Chị Thảo").
+   - display_board_text: Nguyên văn chữ viết trên bảng trang trí / bảng mừng (vd: "Happy 1st Birthday Bé Min", "Chúc mừng sinh nhật Chị Thảo").
+   - decor_color: Tông màu trang trí yêu cầu (vd: "Hồng pastel", "Xanh dương", "Vàng kim", "Đen đỏ", "Trắng kem", v.v.). Trích xuất rõ ràng tông màu nếu có đề cập.
+   - special_request: Chi tiết trang trí bổ sung hoặc yêu cầu đặc biệt khác.
 4. booking: Số khách (guest_count), ngày (event_date: DD/MM/YYYY - tự động bổ sung năm hiện tại nếu chỉ có DD/MM), giờ (event_time: HH:mm 24h), mã bàn/khu vực (table_number), nhu cầu tiệc (need).
 5. deposit: Số tiền cọc (amount: số nguyên), trạng thái (status: "đã cọc", "chờ cọc"), ngân hàng / ref (bank_ref).
 6. menu_items: Trích xuất tên thô (raw_name), tên khớp (matched_name), số lượng (quantity), đơn giá (unit_price) và ghi chú (note).
-7. note: Tổng hợp đầy đủ mọi ghi chú trang trí, chủ tiệc, bảng tên, yêu cầu ăn uống để đảm bảo không bỏ sót dữ liệu.
+7. note: Tổng hợp đầy đủ mọi ghi chú trang trí, tông màu trang trí, chủ tiệc, bảng tên, yêu cầu ăn uống để đảm bảo không bỏ sót dữ liệu.
 
 Chỉ trích xuất thông tin có thực trong nội dung. Không tự bịa. Trả về đúng JSON Schema yêu cầu, không giải thích hay dùng markdown.`
 

@@ -476,11 +476,20 @@ export const useAppStore = defineStore('app', () => {
     if (idx !== -1) {
       list[idx] = order
     } else {
-      list.push(order)
+      list.unshift(order)
     }
     historyList.value = list
     rebuildBookingTimeIndex(list)
     cacheHistory(list)
+
+    // Sync reactive updates to booking store
+    import('@/stores/useBookingStore').then(({ useBookingStore }) => {
+      try {
+        useBookingStore().addOrUpdateBooking(order)
+      } catch (e) {
+        console.warn('[AppStore] Failed syncing to booking store:', e)
+      }
+    }).catch(() => {})
   }
 
   function markOrderSynced(orderId: string, serverData?: any) {
@@ -1185,7 +1194,13 @@ export const useAppStore = defineStore('app', () => {
   async function saveOrder(data: any): Promise<any> {
     const orderData = data.id ? data : (data.data ? data.data : data)
     const orderId = orderData.id || crypto.randomUUID()
-    const beforeOrder = orderId ? historyList.value.find(h => h.id === orderId) : null
+    if (!orderData.id) orderData.id = orderId
+    const beforeOrder = historyList.value.find(h => h.id === orderId)
+    
+    // Instantly update UI state and local cache for <5ms perceived latency
+    const optimistic = normalizePayloadToHistoryOrder(orderId, orderData)
+    optimistic.isSyncing = true
+    setOptimisticOrder(optimistic)
     
     const result = await orderRepo.saveOrder(data)
     
@@ -1193,6 +1208,8 @@ export const useAppStore = defineStore('app', () => {
       const normalized = normalizePayloadToHistoryOrder(orderId, orderData)
       if (result.status === 'pending') {
         normalized.isSyncing = true
+      } else {
+        normalized.isSyncing = false
       }
       setOptimisticOrder(normalized)
 
@@ -1202,7 +1219,7 @@ export const useAppStore = defineStore('app', () => {
         orderId,
         beforeOrder ? beforeOrder.parsedCustomer : null,
         orderData.customer || orderData.parsedCustomer || orderData
-      )
+      ).catch(() => {})
     }
     return result
   }

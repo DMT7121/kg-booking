@@ -108,6 +108,18 @@ function clearText() {
   formStore.rawInput = ''
 }
 
+let autoAnalyzeTimer: any = null
+function triggerAutoAnalyzeIfEnabled(delayMs = 1000) {
+  if (!configStore.defaults.enableAutoRecognize) return
+  if (isProcessing.value || isOcrProcessing.value) return
+  if (autoAnalyzeTimer) clearTimeout(autoAnalyzeTimer)
+  autoAnalyzeTimer = setTimeout(() => {
+    if (!isProcessing.value && configStore.defaults.enableAutoRecognize) {
+      handleAnalyze()
+    }
+  }, delayMs)
+}
+
 function isBookingText(text: string): boolean {
   if (!text) return false
   const hasPhone = /0\d{8,11}/.test(text.replace(/[\s.-]/g, ''))
@@ -123,9 +135,7 @@ async function pasteClipboard() {
       formStore.rawInput = (formStore.rawInput ? formStore.rawInput + '\n' : '') + text
       ui.showToast('📋 Đã dán nội dung từ Clipboard!', 'success')
       if (isBookingText(text)) {
-        setTimeout(() => {
-          handleAnalyze()
-        }, 500)
+        triggerAutoAnalyzeIfEnabled(600)
       }
     } else {
       ui.showToast('Không có nội dung dạng văn bản trong clipboard!', 'warning')
@@ -152,9 +162,7 @@ async function processImage(f: File) {
         formStore.rawInput = (formStore.rawInput ? formStore.rawInput + '\n\n' : '') + text
         formStore.aiImage = null // Clear image so processAI focuses purely on text
         ui.showToast('📝 Đã nhận diện chữ viết thành công từ ảnh!', 'success')
-        setTimeout(() => {
-          handleAnalyze()
-        }, 500)
+        triggerAutoAnalyzeIfEnabled(800)
       }
     } catch (err: any) {
       ui.showToast('Lỗi OCR: ' + err.message, 'error')
@@ -191,9 +199,7 @@ function onPaste(e: ClipboardEvent) {
   if (!hasImage) {
     const text = e.clipboardData?.getData('text') || ''
     if (isBookingText(text)) {
-      setTimeout(() => {
-        handleAnalyze()
-      }, 500)
+      triggerAutoAnalyzeIfEnabled(600)
     }
   }
 }
@@ -314,7 +320,18 @@ onUnmounted(() => {
     <div class="absolute top-0 right-0 p-6 opacity-10 pointer-events-none transform translate-x-4 -translate-y-4"><i class="fa-solid fa-bolt-lightning text-7xl text-white"></i></div>
     <div class="flex justify-between items-center mb-3 relative z-10">
       <h3 class="font-black text-white text-[9px] uppercase tracking-widest flex items-center gap-2"><i class="fa-solid fa-wand-sparkles text-yellow-300"></i> AI Core v7.0</h3>
-      <span class="text-[8px] px-2 py-0.5 bg-white text-blue-700 rounded-full font-black uppercase shadow-sm border border-white/50" :class="{'animate-pulse': ui.listening}">{{ ui.listening ? 'LISTENING...' : 'SMART ROUTING ON' }}</span>
+      <div class="flex items-center gap-2">
+        <button 
+          @click.prevent="configStore.defaults.enableAutoRecognize = !configStore.defaults.enableAutoRecognize; ui.showToast(configStore.defaults.enableAutoRecognize ? '⚡ Đã BẬT Tự động nhận diện' : '🛡️ Đã TẮT Tự động nhận diện', configStore.defaults.enableAutoRecognize ? 'success' : 'info')"
+          class="px-2 py-0.5 rounded-full font-black text-[8px] uppercase tracking-wider flex items-center gap-1 transition-all select-none cursor-pointer shadow-sm border"
+          :class="configStore.defaults.enableAutoRecognize ? 'bg-amber-400 text-slate-900 border-amber-300' : 'bg-white/20 text-white/80 border-white/30 hover:bg-white/30'"
+          :title="configStore.defaults.enableAutoRecognize ? 'Tự động nhận diện nhanh: ĐANG BẬT' : 'Tự động nhận diện nhanh: ĐANG TẮT'"
+        >
+          <i class="fa-solid fa-bolt-lightning text-[8px]"></i>
+          {{ configStore.defaults.enableAutoRecognize ? 'Tự động: BẬT' : 'Tự động: TẮT' }}
+        </button>
+        <span class="text-[8px] px-2 py-0.5 bg-white text-blue-700 rounded-full font-black uppercase shadow-sm border border-white/50" :class="{'animate-pulse': ui.listening}">{{ ui.listening ? 'LISTENING...' : 'SMART ROUTING ON' }}</span>
+      </div>
     </div>
 
     <!-- Clipboard Toast Pill -->

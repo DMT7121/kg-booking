@@ -263,13 +263,14 @@ NGUYÊN TẮC BẮT BUỘC:
 # 3. SỐ KHÁCH, BÀN & TRANG TRÍ
 - guest_count: "10 khách", "10 người", "12 lớn 4 nhỏ" (16), "10-12 pax" (12). Mơ hồ thì thêm "guest_count_ambiguous". Không nhầm với SĐT, số bàn hay tiền cọc.
 - table_count & tables: "2 bàn", "bàn A1" -> table_count, tables.
-- party.special_request: Ghi nhận đầy đủ chi tiết trang trí, loại hoa, tông màu, tính chất miễn phí/trả phí (vd: "Hoa lụa miễn phí theo tông màu Xanh dương", "Trang trí bóng bay màu hồng").
+- party.decor_color: Tông màu trang trí yêu cầu (vd: "Hồng pastel", "Xanh dương", "Vàng kim", "Đen đỏ", "Trắng kem", v.v.). Trích xuất trực tiếp tông màu nếu có đề cập.
+- party.special_request: Ghi nhận đầy đủ chi tiết trang trí bổ sung, loại hoa, tính chất miễn phí/trả phí (vd: "Hoa lụa miễn phí theo tông màu Xanh dương", "Trang trí bóng bay màu hồng").
 - KHÔNG nhầm số lượng bảng trang trí ("2 bảng tên") với table_count.
 
 # 4. LOẠI TIỆC & TỔNG HỢP GHI CHÚ (NOTE)
 - party.type: "Sinh nhật", "Thôi nôi (1st)", "Đầy tháng", "Công ty", "Liên hoan", "Kỉ niệm", "Tất niên", "Tân niên", "Cưới/Báo hỷ", "Farewell (Tiệc chia tay)".
 - note: Tổng hợp mạch lạc toàn bộ thông tin quan trọng. Format gợi ý:
-  "Chủ tiệc: [party.owner_name] | Bảng tên: \"[party.display_board_text]\" | Trang trí: [party.special_request] | Yêu cầu khác: [ăn uống/vị trí]"
+  "Chủ tiệc: [party.owner_name] | Tông màu: [party.decor_color] | Bảng tên: \"[party.display_board_text]\" | Trang trí: [party.special_request] | Yêu cầu khác: [ăn uống/vị trí]"
 
 # 5. MÓN ĂN (menu_items)
 - raw_name: Tên món thô trong tin nhắn (xử lý dính chữ: "6hàu" -> 6 hàu, "mì xào2" -> 2 mì xào).
@@ -295,7 +296,7 @@ Output:
 \`\`\`json
 {
   "customer": { "name": "Chị Ngọc", "phone": "0938009889", "confidence": 0.98 },
-  "party": { "type": "Sinh nhật", "owner_name": "Thiên Hào", "display_board_text": "Happy birthday Thiên Hào", "special_request": "Hoa lụa miễn phí theo tông màu Xanh dương", "confidence": 0.98 },
+  "party": { "type": "Sinh nhật", "owner_name": "Thiên Hào", "display_board_text": "Happy birthday Thiên Hào", "decor_color": "Xanh dương", "special_request": "Hoa lụa miễn phí theo tông màu Xanh dương", "confidence": 0.98 },
   "booking": { "date": "06/08/2026", "time": "18:30", "guest_count": 10, "table_count": null, "tables": "", "confidence": 0.98 },
   "menu_items": [],
   "note": "Chủ tiệc: Thiên Hào | Bảng tên: \"Happy birthday Thiên Hào\" | Trang trí: Hoa lụa miễn phí theo tông màu Xanh dương",

@@ -91,8 +91,9 @@ export const useConfigStore = defineStore('config', () => {
   const isVaultUnlocked = ref(false)
   const vaultUnlockMode = ref<'device' | 'passphrase' | null>(null)
 
-  const defaultsObj = JSON.parse(localStorage.getItem(CACHE_KEYS.DEFAULTS) || '{"text":"gemini-2.5-flash", "vision":"gemini-2.5-flash","aiWorkflowMode":"direct"}')
+  const defaultsObj = JSON.parse(localStorage.getItem(CACHE_KEYS.DEFAULTS) || '{"text":"gemini-2.5-flash", "vision":"gemini-2.5-flash","aiWorkflowMode":"direct","enableAutoRecognize":false}')
   if (!defaultsObj.aiWorkflowMode) defaultsObj.aiWorkflowMode = 'direct'
+  if (defaultsObj.enableAutoRecognize === undefined) defaultsObj.enableAutoRecognize = false
 
   // Validate and sanitize active model selections
   const validTextIds = AI_MODELS.filter(m => m.type === 'text').map(m => m.id)

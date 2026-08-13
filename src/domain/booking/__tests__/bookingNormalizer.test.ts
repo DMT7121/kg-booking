@@ -53,4 +53,19 @@ describe('Booking Normalizer Tests', () => {
     expect(locked.booking.event_date).toBe('25/06/2026')
     expect(locked.booking.event_time).toBe('18:30')
   })
+
+  it('should include decor_color in party notes and repairAndNormalizeJSON output', () => {
+    const parsed = {
+      customer: { name: 'Chị Trang', phone: '0901234567' },
+      party: { type: 'Sinh nhật', owner_name: 'Bé Min', display_board_text: 'Happy 1st Birthday Bé Min', decor_color: 'Hồng pastel', special_request: 'Bóng bay pastel' },
+      booking: { date: '15/08/2026', time: '19:00', guest_count: 15 }
+    }
+    const normalized = repairAndNormalizeJSON(parsed)
+    expect(normalized.customer.name).toBe('Chị Trang')
+    expect(normalized.customer.phone).toBe('0901234567')
+    expect(normalized.party.decor_color).toBe('Hồng pastel')
+    expect(normalized.note).toContain('Chủ tiệc / người được tổ chức: Bé Min')
+    expect(normalized.note).toContain('Tông màu trang trí: Hồng pastel')
+    expect(normalized.note).toContain('Nội dung bảng/trang trí: Happy 1st Birthday Bé Min')
+  })
 })

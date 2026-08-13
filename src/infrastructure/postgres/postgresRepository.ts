@@ -53,12 +53,24 @@ export function stringToUuid(str: string): string {
 }
 
 function toPgDate(ddmmyyyy: string): string {
-  if (!ddmmyyyy) return ''
-  const parts = ddmmyyyy.split('/')
+  if (!ddmmyyyy || typeof ddmmyyyy !== 'string') return new Date().toISOString().split('T')[0]
+  const str = ddmmyyyy.trim()
+  if (/^\d{4}-\d{2}-\d{2}$/.test(str)) return str
+
+  const parts = str.split('/')
   if (parts.length === 3) {
-    return `${parts[2]}-${parts[1]}-${parts[0]}`
+    const d = parts[0].padStart(2, '0')
+    const m = parts[1].padStart(2, '0')
+    const y = parts[2].length === 2 ? `20${parts[2]}` : parts[2]
+    return `${y}-${m}-${d}`
   }
-  return ddmmyyyy
+  if (parts.length === 2) {
+    const d = parts[0].padStart(2, '0')
+    const m = parts[1].padStart(2, '0')
+    const y = new Date().getFullYear()
+    return `${y}-${m}-${d}`
+  }
+  return str
 }
 
 function fromPgDate(yyyymmdd: string): string {

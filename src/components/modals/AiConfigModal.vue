@@ -339,6 +339,23 @@ function handleClearCooldowns() {
               <i class="fa-solid fa-chevron-down absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 text-[10px] pointer-events-none"></i>
             </div>
           </div>
+          <!-- AI Auto Recognize Switch -->
+          <div class="flex items-center justify-between mt-3">
+            <div>
+              <label class="text-xs font-black text-slate-800">Tự động nhận diện nhanh</label>
+              <p class="text-[10px] font-bold text-slate-400">Tự động chạy AI khi dán text hoặc OCR ảnh</p>
+            </div>
+            <button 
+              @click="configStore.defaults.enableAutoRecognize = !configStore.defaults.enableAutoRecognize"
+              class="w-12 h-6 rounded-full transition-colors relative cursor-pointer shadow-sm"
+              :class="configStore.defaults.enableAutoRecognize ? 'bg-amber-500' : 'bg-slate-300'"
+            >
+              <div 
+                class="w-5 h-5 rounded-full bg-white absolute top-0.5 transition-transform shadow-md"
+                :class="configStore.defaults.enableAutoRecognize ? 'left-[26px]' : 'left-0.5'"
+              ></div>
+            </button>
+          </div>
 
           <div class="h-[1px] bg-slate-100 my-2"></div>
 

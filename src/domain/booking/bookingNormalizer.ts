@@ -119,6 +119,9 @@ export function buildPartyNote(party: any, existingNote: string): string {
         lines.push(`Chủ tiệc / người được tổ chức: ${ownerName.trim()}`)
       }
     }
+    if (party.decor_color && String(party.decor_color).trim()) {
+      lines.push(`Tông màu trang trí: ${String(party.decor_color).trim()}`)
+    }
     if (party.display_board_text || party.text_on_board) {
       lines.push(`Nội dung bảng/trang trí: ${party.display_board_text || party.text_on_board}`)
     }
@@ -424,7 +427,11 @@ export function repairAndNormalizeJSON(raw: any, inputType = 'unknown'): any {
     }
   }
 
-  const partyObj = parsed.party || { type: need, owner_name: partyOwner, display_board_text: textOnBoard, special_request: "" }
+  const decorColor = safeGet(parsed, 'party.decor_color', safeGet(parsed, 'decoration.color', parsed.decor_color || parsed.tong_mau || ""))
+  const partyObj = parsed.party ? {
+    ...parsed.party,
+    decor_color: parsed.party.decor_color || decorColor
+  } : { type: need, owner_name: partyOwner, display_board_text: textOnBoard, decor_color: decorColor, special_request: "" }
   const receiver = safeGet(parsed, 'booking.receiver', parsed.receiver || parsed.booking_receiver || "")
   const rawNote = safeGet(parsed, 'notes.customer_note', safeGet(parsed, 'notes.note', parsed.note || ""))
   let customerNote = cleanBookingNotes(
@@ -460,6 +467,8 @@ export function repairAndNormalizeJSON(raw: any, inputType = 'unknown'): any {
     bank_ref: bankRef,
     needs_review: depositNeedsReview
   }
+  fallback.party = partyObj
+  fallback.note = customerNote
   fallback.decoration = {
     type: decorationType || (textOnBoard ? 'Sinh nhật' : ''),
     text_on_board: textOnBoard,
