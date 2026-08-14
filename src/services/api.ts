@@ -11,9 +11,6 @@ let activeAIController: AbortController | null = null
 
 import { useUIStore } from '@/stores/useUIStore'
 
-const API_GATEWAY = import.meta.env.VITE_GAS_URL ||
-  'https://script.google.com/macros/s/AKfycbxzjio4sat5fWoUncPgp8SfjoGqfGxW5vFoDgkHvBI3OKVWIaszsAaUt0LE2fCHtkCFsA/exec'
-
 /** Cancel any active AI request and create new controller */
 export function createAIAbortController(): AbortController {
   if (activeAIController) {

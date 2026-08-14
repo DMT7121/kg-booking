@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, ref, defineAsyncComponent } from 'vue'
 import { useUIStore } from '@/stores/useUIStore'
 import { useFormStore } from '@/stores/useFormStore'
 import { useConfigStore } from '@/stores/useConfigStore'
@@ -12,15 +12,29 @@ import CustomerForm from '@/components/forms/CustomerForm.vue'
 import DepositManager from '@/components/forms/DepositManager.vue'
 import MenuItemsEditor from '@/components/forms/MenuItemsEditor.vue'
 import HistoryList from '@/components/history/HistoryList.vue'
-import HistoryTimeline from '@/components/history/HistoryTimeline.vue'
-import AnalyticsDashboard from '@/components/history/AnalyticsDashboard.vue'
 import QuickDashboard from '@/components/history/QuickDashboard.vue'
-import TestDashboard from '@/components/history/TestDashboard.vue'
-import LogViewer from '@/components/history/LogViewer.vue'
 import BillPreview from './BillPreview.vue'
 import { formatVND } from '@/utils'
 
+// Lazy-loaded tab components (only fetched when user navigates to them)
+const HistoryTimeline = defineAsyncComponent(() => import('@/components/history/HistoryTimeline.vue'))
+const AnalyticsDashboard = defineAsyncComponent(() => import('@/components/history/AnalyticsDashboard.vue'))
+const TestDashboard = defineAsyncComponent(() => import('@/components/history/TestDashboard.vue'))
+const LogViewer = defineAsyncComponent(() => import('@/components/history/LogViewer.vue'))
+
 const showChecklist = ref(true)
+
+const buildInfo = computed(() => {
+  try {
+    const ts = typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : 'dev'
+    const hash = typeof __BUILD_HASH__ !== 'undefined' ? __BUILD_HASH__ : 'local'
+    if (ts === 'dev') return 'Development Build'
+    const d = new Date(ts)
+    return `Hash #${hash} - Built: ${d.toLocaleString('vi-VN', { hour12: false })}`
+  } catch {
+    return 'v2.5.0-APEX'
+  }
+})
 
 const checklistItems = computed(() => {
   return [
@@ -160,7 +174,7 @@ function goToTomorrowTimeline() {
           <div class="flex items-center gap-1.5 mt-1">
             <button 
               @click="ui.showVersionModal = true" 
-              title="Xem thông tin nâng cấp phiên bản v2.5.0-APEX"
+              :title="`Build: ${buildInfo}`"
               class="px-1.5 py-0.5 rounded bg-gradient-to-r from-blue-500/30 to-purple-500/30 hover:from-blue-500/50 hover:to-purple-500/50 text-blue-200 font-mono text-[9px] font-bold border border-blue-400/40 shrink-0 cursor-pointer transition-all hover:scale-105 active:scale-95 flex items-center gap-1 shadow-sm"
             >
               <i class="fa-solid fa-sparkles text-[8px] text-amber-300 animate-pulse"></i>

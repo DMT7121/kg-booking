@@ -1,3 +1,5 @@
+import { parseTimeToMinutes } from '@/utils/time'
+
 export interface TableOption {
   code: string        // e.g. "A5", "B12"
   zone: string        // "A", "B", "C", "D", "E"
@@ -101,11 +103,3 @@ export function allocateSmartTables(req: TableAllocationRequest): TableAllocatio
   }
 }
 
-function parseTimeToMinutes(timeStr: string): number {
-  if (!timeStr) return 12 * 60 // default 12:00
-  const m = timeStr.match(/^(\d{1,2}):(\d{2})$/)
-  if (m) {
-    return parseInt(m[1], 10) * 60 + parseInt(m[2], 10)
-  }
-  return 12 * 60
-}

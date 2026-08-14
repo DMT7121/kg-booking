@@ -9,7 +9,14 @@ export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '')
   process.env.VITE_GAS_URL = env.VITE_GAS_URL
 
+  const buildTime = new Date().toISOString()
+  const buildHash = buildTime.replace(/[-T:.Z]/g, '').slice(0, 12) // e.g. "202608132358"
+
   return {
+    define: {
+      __BUILD_TIMESTAMP__: JSON.stringify(buildTime),
+      __BUILD_HASH__: JSON.stringify(buildHash),
+    },
     plugins: [
       vue(),
     VitePWA({
@@ -77,6 +84,17 @@ export default defineConfig(({ mode }) => {
     alias: {
       '@': fileURLToPath(new URL('./src', import.meta.url)),
     },
+  },
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          'vendor-html2canvas': ['html2canvas'],
+          'vendor-pinia': ['pinia'],
+          'vendor-idb': ['idb-keyval'],
+        }
+      }
+    }
   },
   server: {
     port: 3000,

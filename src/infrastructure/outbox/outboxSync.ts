@@ -1,6 +1,7 @@
 import * as outbox from './outbox'
 import { PostgresOrderRepository } from '../postgres/postgresRepository'
 import { getBackendMode } from '@/utils/backendMode'
+import { API_GATEWAY_URL, GAS_DIRECT_URL, SHARED_SECRET, buildGatewayHeaders, buildGASHeaders } from '@/config/endpoints'
 
 const pgRepo = new PostgresOrderRepository()
 let isSyncing = false
@@ -18,23 +19,14 @@ async function syncToSheets(item: outbox.DecryptedOutboxItem): Promise<boolean> 
     idempotencyKey: item.idempotencyKey
   }
   
-  const gatewayUrl = import.meta.env.VITE_API_URL || '/api'
-  const gasFallbackUrl = import.meta.env.VITE_GAS_URL ||
-    'https://script.google.com/macros/s/AKfycbxzjio4sat5fWoUncPgp8SfjoGqfGxW5vFoDgkHvBI3OKVWIaszsAaUt0LE2fCHtkCFsA/exec'
-  const sharedSecret = import.meta.env.VITE_APP_SHARED_SECRET || ''
-  const bodyStr = JSON.stringify(sheetsPayload)
-  
-  const headers: Record<string, string> = { 'Content-Type': 'application/json' }
-  if (sharedSecret) {
-    headers['Authorization'] = `Bearer ${sharedSecret}`
-  }
+  const headers = buildGatewayHeaders()
 
   // 1. Try API Gateway first (will proxy to GAS or Worker)
   try {
-    const res = await fetch(gatewayUrl, {
+    const res = await fetch(API_GATEWAY_URL, {
       method: 'POST',
       headers,
-      body: bodyStr
+      body: JSON.stringify(sheetsPayload)
     })
     
     if (res.ok) {
@@ -50,10 +42,10 @@ async function syncToSheets(item: outbox.DecryptedOutboxItem): Promise<boolean> 
 
   // 2. Fallback to GAS directly
   try {
-    const res = await fetch(gasFallbackUrl, {
+    const res = await fetch(GAS_DIRECT_URL, {
       method: 'POST',
-      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-      body: bodyStr
+      headers: buildGASHeaders(),
+      body: JSON.stringify(sheetsPayload)
     })
     if (res.ok) {
       const data = await res.json()
@@ -212,8 +204,23 @@ export async function triggerSync(): Promise<void> {
           continue
         }
         
-        // Halt processing to avoid loop hammering
-        break 
+        // Dead-letter: if item has failed too many times, skip it and move on
+        const MAX_RETRIES = 5
+        if (item.attempts + 1 >= MAX_RETRIES) {
+          console.warn(`[Outbox Sync] Item ${item.id} exceeded ${MAX_RETRIES} retries — moved to dead-letter. Skipping.`)
+          pendingItems = await outbox.getPendingItems()
+          continue
+        }
+        
+        // For transient network errors, halt queue to avoid hammering
+        const isNetworkError = err instanceof TypeError || err.message?.includes('fetch') || err.message?.includes('network') || err.message?.includes('Failed to fetch')
+        if (isNetworkError) {
+          console.warn('[Outbox Sync] Network error detected — halting queue to avoid hammering.')
+          break
+        }
+        
+        // For other server errors, halt queue as well (original behavior)
+        break
       }
       
       if (success) {
@@ -278,20 +285,11 @@ async function uploadImageInBackground(id: string, payload: any, mode: string, t
         data: imagePayload,
         idempotencyKey: crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).substring(2)
       }
-      const gatewayUrl = import.meta.env.VITE_API_URL || '/api'
-      const gasFallbackUrl = import.meta.env.VITE_GAS_URL ||
-        'https://script.google.com/macros/s/AKfycbxzjio4sat5fWoUncPgp8SfjoGqfGxW5vFoDgkHvBI3OKVWIaszsAaUt0LE2fCHtkCFsA/exec'
-      const sharedSecret = import.meta.env.VITE_APP_SHARED_SECRET || ''
-      const bodyStr = JSON.stringify(sheetsPayload)
-      
-      const headers: Record<string, string> = { 'Content-Type': 'application/json' }
-      if (sharedSecret) {
-        headers['Authorization'] = `Bearer ${sharedSecret}`
-      }
+      const headers = buildGatewayHeaders()
       
       let sheetsOk = false
       try {
-        const res = await fetch(gatewayUrl, { method: 'POST', headers, body: bodyStr })
+        const res = await fetch(API_GATEWAY_URL, { method: 'POST', headers, body: JSON.stringify(sheetsPayload) })
         if (res.ok) {
           const data = await res.json()
           if (data && data.ok) sheetsOk = true
@@ -300,10 +298,10 @@ async function uploadImageInBackground(id: string, payload: any, mode: string, t
 
       if (!sheetsOk) {
         try {
-          await fetch(gasFallbackUrl, {
+          await fetch(GAS_DIRECT_URL, {
             method: 'POST',
-            headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-            body: bodyStr
+            headers: buildGASHeaders(),
+            body: JSON.stringify(sheetsPayload)
           })
         } catch {}
       }

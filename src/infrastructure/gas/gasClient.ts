@@ -1,13 +1,7 @@
 import { useUIStore } from '@/stores/useUIStore'
 import { get as idbGet, set as idbSet } from 'idb-keyval'
 import { isGatewayCircuitOpen, reportGatewaySuccess, reportGatewayFailure } from '@/services/ai/circuitBreaker'
-
-// URL của API Gateway (Local/Worker). Mặc định là '/api' để khớp với Vite Middleware
-const API_URL = import.meta.env.VITE_API_URL || '/api'
-
-// URL dự phòng của Google Apps Script
-const GAS_FALLBACK_URL = import.meta.env.VITE_GAS_URL ||
-  'https://script.google.com/macros/s/AKfycbxzjio4sat5fWoUncPgp8SfjoGqfGxW5vFoDgkHvBI3OKVWIaszsAaUt0LE2fCHtkCFsA/exec'
+import { API_GATEWAY_URL, GAS_DIRECT_URL, buildGatewayHeaders, buildGASHeaders } from '@/config/endpoints'
 
 // L1 memory cache for API read requests
 const l1ApiCache = new Map<string, { data: any; timestamp: number }>()
@@ -127,19 +121,15 @@ async function postGASDirect(payload: Record<string, any>, signal?: AbortSignal,
   }
 
   const isGasMode = import.meta.env.VITE_BACKEND_MODE === 'gas'
-  const useLocalProxy = import.meta.env.DEV && API_URL.startsWith('/api')
+  const useLocalProxy = import.meta.env.DEV && API_GATEWAY_URL.startsWith('/api')
   const useWorker = (useLocalProxy || !isGasMode) && !isGatewayCircuitOpen('cloudflare_edge')
 
   try {
     if (useWorker) {
       try {
-        const sharedSecret = import.meta.env.VITE_APP_SHARED_SECRET || 'kg_booking_secret_token_2026'
-        const headers: Record<string, string> = {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${sharedSecret}`
-        }
+        const headers = buildGatewayHeaders()
 
-        const res = await fetch(API_URL, {
+        const res = await fetch(API_GATEWAY_URL, {
           method: 'POST',
           headers,
           body: JSON.stringify(payload),
@@ -179,9 +169,9 @@ async function postGASDirect(payload: Record<string, any>, signal?: AbortSignal,
     }
 
     // Fallback sang GAS trực tiếp
-    const res = await fetch(GAS_FALLBACK_URL, {
+    const res = await fetch(GAS_DIRECT_URL, {
       method: 'POST',
-      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      headers: buildGASHeaders(),
       body: JSON.stringify(payload),
       signal
     })
@@ -249,7 +239,7 @@ export async function fetchWithRetry(
   ui.activeRequests++
 
   const isGasMode = import.meta.env.VITE_BACKEND_MODE === 'gas'
-  const useLocalProxy = import.meta.env.DEV && API_URL.startsWith('/api')
+  const useLocalProxy = import.meta.env.DEV && API_GATEWAY_URL.startsWith('/api')
   const useWorker = (useLocalProxy || !isGasMode) && !isGatewayCircuitOpen('cloudflare_edge')
 
   // Lần lượt thử qua API Gateway trước, nếu thất bại qua số lần retry thì chuyển sang GAS Fallback
@@ -261,13 +251,9 @@ export async function fetchWithRetry(
     
     if (useWorker) {
       try {
-        const sharedSecret = import.meta.env.VITE_APP_SHARED_SECRET || 'kg_booking_secret_token_2026'
-        const headers: Record<string, string> = {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${sharedSecret}`
-        }
+        const headers = buildGatewayHeaders()
 
-        const res = await fetch(API_URL, {
+        const res = await fetch(API_GATEWAY_URL, {
           method: 'POST',
           headers,
           body: JSON.stringify(payload),
@@ -311,9 +297,9 @@ export async function fetchWithRetry(
   // Fallback to GAS directly if Gateway fails all retries
   console.warn(`[API Client] Chuyển hướng đồng bộ trực tiếp lên GAS...`)
   try {
-    const res = await fetch(GAS_FALLBACK_URL, {
+    const res = await fetch(GAS_DIRECT_URL, {
       method: 'POST',
-      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      headers: buildGASHeaders(),
       body: JSON.stringify(payload),
       signal
     })

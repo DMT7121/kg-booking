@@ -7,9 +7,7 @@ import { fetchWithRetry } from '@/services/api'
 import { smartUploadImage } from '@/services/r2'
 import { useAI } from '@/composables/useAI'
 import { cacheBillImage, addToOfflineQueue } from '@/services/cache'
-
-
-declare const html2canvas: any
+import html2canvas from 'html2canvas'
 
 /**
  * Bill rendering composable (SINGLETON)
@@ -120,9 +118,6 @@ function _createBillRender() {
       // ONLY run synchronous rendering if it is NOT a save-only operation (i.e. user wants to export PDF, Image, Print, or Copy)
       if (!isSaveOnly) {
         try {
-          if (typeof html2canvas === 'undefined') {
-            await loadLibrary('https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js')
-          }
           await document.fonts.ready
 
           const currentScrollX = window.scrollX
@@ -319,9 +314,6 @@ function _createBillRender() {
               // If it's a save-only operation, render the canvas fully in the background
               if (!currentHighRes && billClone) {
                 try {
-                  if (typeof html2canvas === 'undefined') {
-                    await loadLibrary('https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js')
-                  }
                   await document.fonts.ready
 
                   // Append clone to body sandbox container

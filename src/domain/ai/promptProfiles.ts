@@ -10,7 +10,10 @@ Nhiệm vụ: Trích xuất chuẩn xác, đầy đủ và cấu trúc hóa dữ
 
 Quy tắc làm sạch & Phân định thực thể:
 1. Loại bỏ các biểu tượng nhiễu (✔, ↳, •, -, +, *, >, emoji, lùi đầu dòng) trước khi phân tích.
-2. customer: Người liên hệ / đặt bàn chính (name, phone). Tách rõ tên người đặt (người liên hệ giao dịch, đi liền với SĐT hoặc xưng hô Anh/Chị như "Chị Trang", "Anh Nam", "Anh Hùng"). TUYỆT ĐỐI KHÔNG lấy tên em bé, tên chủ tiệc (như "Bé Min", "Chị Thảo (chủ tiệc)") làm customer.name.
+2. customer: Người liên hệ / đặt bàn chính (name, phone). 
+   - Tách rõ tên người đặt (người liên hệ giao dịch, đi liền với SĐT hoặc xưng hô Anh/Chị như "Chị Trang", "Anh Nam").
+   - TUYỆT ĐỐI KHÔNG lấy tên nhân vật chính của buổi tiệc (như "Bé Min", "Chị Thảo (chủ tiệc)") làm customer.name.
+   - VÍ DỤ: "Đặt bàn sinh nhật bé Su sđt 0901234567" -> customer.name = null (chưa biết), party.owner_name = "bé Su", phone = "0901234567".
 3. party: Thông tin tiệc và trang trí:
    - owner_name: Chủ tiệc / nhân vật chính được tổ chức mừng (vd: "Bé Min", "Thiên Hào", "Chị Thảo").
    - display_board_text: Nguyên văn chữ viết trên bảng trang trí / bảng mừng (vd: "Happy 1st Birthday Bé Min", "Chúc mừng sinh nhật Chị Thảo").
@@ -18,10 +21,10 @@ Quy tắc làm sạch & Phân định thực thể:
    - special_request: Chi tiết trang trí bổ sung hoặc yêu cầu đặc biệt khác.
 4. booking: Số khách (guest_count), ngày (event_date: DD/MM/YYYY - tự động bổ sung năm hiện tại nếu chỉ có DD/MM), giờ (event_time: HH:mm 24h), mã bàn/khu vực (table_number), nhu cầu tiệc (need).
 5. deposit: Số tiền cọc (amount: số nguyên), trạng thái (status: "đã cọc", "chờ cọc"), ngân hàng / ref (bank_ref).
-6. menu_items: Trích xuất tên thô (raw_name), tên khớp (matched_name), số lượng (quantity), đơn giá (unit_price) và ghi chú (note).
+6. menu_items: Trích xuất tên thô (raw_name), tên khớp (matched_name), số lượng (quantity), đơn giá (unit_price) và ghi chú (note). Mặc định số lượng là 1 nếu không đề cập.
 7. note: Tổng hợp đầy đủ mọi ghi chú trang trí, tông màu trang trí, chủ tiệc, bảng tên, yêu cầu ăn uống để đảm bảo không bỏ sót dữ liệu.
 
-Chỉ trích xuất thông tin có thực trong nội dung. Không tự bịa. Trả về đúng JSON Schema yêu cầu, không giải thích hay dùng markdown.`
+Chỉ trích xuất thông tin có thực trong nội dung. Không tự bịa. Trả về ĐÚNG chuẩn JSON Schema yêu cầu. BẮT BUỘC trả về định dạng JSON hợp lệ, KHÔNG bao gồm markdown \`\`\`json hay bất kỳ văn bản giải thích nào khác.`
 
 export const PROMPT_PROFILES: Record<PromptProfile, string> = {
   TEXT_SIMPLE: `${BASE_SYSTEM_INSTRUCTIONS}

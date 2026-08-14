@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 import { useUIStore } from '@/stores/useUIStore'
 
 const ui = useUIStore()
@@ -8,6 +8,18 @@ const activeTab = ref<'whats-new' | 'all-features' | 'timeline'>('whats-new')
 function closeModal() {
   ui.showVersionModal = false
 }
+
+const buildTimeFormatted = computed(() => {
+  try {
+    const ts = typeof __BUILD_TIMESTAMP__ !== 'undefined' ? __BUILD_TIMESTAMP__ : 'dev'
+    const hash = typeof __BUILD_HASH__ !== 'undefined' ? __BUILD_HASH__ : 'local'
+    if (ts === 'dev') return 'Development Build'
+    const d = new Date(ts)
+    return `Build ${hash} • Tải bản mới: ${d.toLocaleString('vi-VN', { hour12: false })}`
+  } catch {
+    return 'v2.5.0-APEX'
+  }
+})
 
 const latestHighlights = [
   {
@@ -324,9 +336,9 @@ const versionTimeline = [
         </div>
 
         <!-- FOOTER -->
-        <div class="p-4 bg-white border-t border-slate-100 flex items-center justify-between shrink-0">
-          <div class="text-[11px] font-bold text-slate-400">
-            King's Grill OmniBooking © 2026
+        <div class="p-4 bg-white border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-2 shrink-0">
+          <div class="text-[11px] font-bold text-slate-400 font-mono">
+            King's Grill OmniBooking © 2026 • {{ buildTimeFormatted }}
           </div>
           <button 
             @click="closeModal" 

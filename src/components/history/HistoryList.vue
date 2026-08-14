@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, watch, onUnmounted } from 'vue'
 import { useUIStore } from '@/stores/useUIStore'
 import { useAppStore } from '@/stores/useAppStore'
 import { useForm } from '@/composables/useForm'
@@ -9,6 +9,15 @@ import { usePullToRefresh, haptic } from '@/composables/useGestures'
 const ui = useUIStore()
 const appStore = useAppStore()
 const { editHistoricOrder, resetForm, copyToClipboard } = useForm()
+
+// --- Debounced Search ---
+const localSearch = ref(ui.historySearch)
+let searchTimer: ReturnType<typeof setTimeout> | null = null
+watch(localSearch, (val) => {
+  if (searchTimer) clearTimeout(searchTimer)
+  searchTimer = setTimeout(() => { ui.historySearch = val }, 300)
+})
+onUnmounted(() => { if (searchTimer) clearTimeout(searchTimer) })
 
 // --- Stats Calculation ---
 const stats = computed(() => {
@@ -162,7 +171,7 @@ function isOrderCared(id: string) {
       <div class="p-4 bg-slate-50 space-y-3 z-10 shrink-0">
         <div class="flex gap-2">
           <div class="relative flex-grow">
-            <input v-model="ui.historySearch" type="text" class="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-200 bg-white font-bold text-slate-700 text-[13px] focus:border-blue-900 outline-none transition-all placeholder-slate-400" placeholder="Tìm kiếm theo tên, SĐT, mã phiếu...">
+            <input v-model="localSearch" type="text" class="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-200 bg-white font-bold text-slate-700 text-[13px] focus:border-blue-900 outline-none transition-all placeholder-slate-400" placeholder="Tìm kiếm theo tên, SĐT, mã phiếu...">
             <i class="fa-solid fa-magnifying-glass absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400"></i>
           </div>
           <button @click="ui.isBatchMode = !ui.isBatchMode" class="px-4 py-2.5 rounded-xl border font-bold text-[13px] flex items-center gap-2 active:scale-95 transition-all whitespace-nowrap" :class="ui.isBatchMode ? 'border-red-200 bg-red-50 text-red-600' : 'border-blue-200 bg-blue-50 text-blue-600'">

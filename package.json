@@ -3,7 +3,6 @@
   "private": true,
   "version": "2.5.0-APEX",
   "type": "module",
-
   "scripts": {
     "dev": "vite",
     "build": "vue-tsc && vite build",

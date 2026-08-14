@@ -234,11 +234,13 @@ export function scoreAndMatchMenu(
     const levenshteinScore = 1 - (dist / maxLen)
     const jaroWinklerScore = jaroWinklerDistance(clean, mClean)
     let fuzzyScore = 0.5 * levenshteinScore + 0.5 * jaroWinklerScore
+    
+    // Giảm hình phạt nếu không có overlap token
     if (overlap === 0 && !mClean.startsWith(clean) && !clean.startsWith(mClean)) {
-      fuzzyScore *= 0.5
+      fuzzyScore *= 0.7 // Trải nghiệm thực tế 0.5 là quá nặng, giảm xuống 0.7
     }
     
-    if (fuzzyScore > score && fuzzyScore >= 0.4) {
+    if (fuzzyScore > score && fuzzyScore >= 0.35) { // Hạ ngưỡng chấp nhận match
       score = Math.max(score, fuzzyScore)
       reasons.push('fuzzy_match')
     }
@@ -259,24 +261,28 @@ export function scoreAndMatchMenu(
       score *= 0.5
     }
 
-    if (score >= 0.4) {
+    if (score >= 0.35) { // Cho phép đưa vào ứng viên từ điểm 0.35
       candidates.push({ item: m, score, reasons, risks })
     }
   }
 
   candidates.sort((a, b) => b.score - a.score)
 
-  if (candidates.length > 0 && candidates[0].score >= 0.5) {
+  if (candidates.length > 0 && candidates[0].score >= 0.45) { // Chấp nhận từ 0.45 thay vì 0.5
     const best = candidates[0]
     let needsReview = false
     
     if (candidates.length > 1) {
       const runnerUp = candidates[1]
-      if (best.score - runnerUp.score < 0.08) {
+      // Nếu top 2 món ăn quá gần nhau về điểm (khoảng cách < 0.1), yêu cầu người dùng xác nhận
+      if (best.score - runnerUp.score < 0.1) {
         needsReview = true
       }
     }
-    if (best.score < 0.78) {
+    
+    // Hạ ngưỡng cảnh báo needsReview từ 0.78 xuống 0.65 
+    // để bớt làm phiền người dùng nếu model tự tin >= 65%
+    if (best.score < 0.65) {
       needsReview = true
     }
 

@@ -152,8 +152,19 @@ export async function runAIRouter(request: {
       const moneyCount = (userPrompt.match(moneyRegex) || []).length
       const hasMultipleAmounts = moneyCount > 1
 
-      if (hasImage || isLongText || isMixedOrMenu || hasMultipleNames || hasMultipleTimes || hasMultipleAmounts) {
-        runRace = true
+      const isComplex = hasImage || isLongText || isMixedOrMenu || hasMultipleNames || hasMultipleTimes || hasMultipleAmounts
+      
+      if (isComplex) {
+        if (logCallback) {
+          logCallback(`[AI Router] Phát hiện tác vụ phức tạp (Complex Task). Ép định tuyến sang Quality Model (Loại bỏ Tier 0)...`, 'info')
+        }
+        // Filter out tier 0 (fast) models to force the use of quality models
+        candidates = candidates.filter(m => m.tier > 0)
+        
+        // After filtering, check if we still have at least 2 candidates for a race
+        if (candidates.length >= 2) {
+           runRace = true
+        }
       }
     }
   }

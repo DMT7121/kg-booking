@@ -2,6 +2,7 @@ import { defineStore } from 'pinia'
 import { ref, reactive, computed, shallowRef } from 'vue'
 import { stripAccents, formatVND, cleanPhoneNumber, formatDateStr } from '@/utils'
 import { CACHE_KEYS, DEFAULTS, DEFAULT_FALLBACK_MENU_ITEMS } from '@/utils/constants'
+import { parseTimeToMinutes } from '@/utils/time'
 import { useUIStore } from './useUIStore'
 import {
   cacheHistory, getCachedHistory,
@@ -90,17 +91,7 @@ const bookingTimeIndex = new Map<string, NormalizedBookingTime[]>()
 function rebuildBookingTimeIndex(history: HistoryOrder[]) {
   bookingTimeIndex.clear()
   
-  const parseTimeToMinutes = (tStr: string) => {
-    if (!tStr) return 0
-    if (tStr.length === 5 && tStr[2] === ':') {
-      const h = (tStr.charCodeAt(0) - 48) * 10 + (tStr.charCodeAt(1) - 48)
-      const m = (tStr.charCodeAt(3) - 48) * 10 + (tStr.charCodeAt(4) - 48)
-      if (h >= 0 && h < 24 && m >= 0 && m < 60) return h * 60 + m
-    }
-    const m = tStr.match(/^(\d{2}):(\d{2})$/)
-    if (!m) return 0
-    return parseInt(m[1]) * 60 + parseInt(m[2])
-  }
+
   
   history.forEach(order => {
     if (!order.parsedCustomer) return
@@ -176,17 +167,7 @@ export function hasTimeConflictIndexed(
   const tablesA = a.tables.split(/[\s,]+/).map(t => t.trim().toUpperCase()).filter(Boolean)
   if (tablesA.length === 0) return false
   
-  const parseTimeToMinutes = (tStr: string) => {
-    if (!tStr) return 0
-    if (tStr.length === 5 && tStr[2] === ':') {
-      const h = (tStr.charCodeAt(0) - 48) * 10 + (tStr.charCodeAt(1) - 48)
-      const m = (tStr.charCodeAt(3) - 48) * 10 + (tStr.charCodeAt(4) - 48)
-      if (h >= 0 && h < 24 && m >= 0 && m < 60) return h * 60 + m
-    }
-    const m = tStr.match(/^(\d{2}):(\d{2})$/)
-    if (!m) return 0
-    return parseInt(m[1]) * 60 + parseInt(m[2])
-  }
+
   
   const timeA = parseTimeToMinutes(a.time)
   const startA = timeA
@@ -234,18 +215,7 @@ export function hasTimeConflict(
   const hasCommonTable = tablesA.some(t => tablesB.includes(t))
   if (!hasCommonTable) return false
   
-  const parseTimeToMinutes = (tStr: string) => {
-    if (tStr.length === 5 && tStr[2] === ':') {
-      const h = (tStr.charCodeAt(0) - 48) * 10 + (tStr.charCodeAt(1) - 48)
-      const m = (tStr.charCodeAt(3) - 48) * 10 + (tStr.charCodeAt(4) - 48)
-      if (h >= 0 && h < 24 && m >= 0 && m < 60) {
-        return h * 60 + m
-      }
-    }
-    const m = tStr.match(/^(\d{2}):(\d{2})$/)
-    if (!m) return 0
-    return parseInt(m[1]) * 60 + parseInt(m[2])
-  }
+
   
   const timeA = parseTimeToMinutes(a.time)
   const timeB = parseTimeToMinutes(b.time)

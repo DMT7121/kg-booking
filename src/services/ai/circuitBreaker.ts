@@ -63,6 +63,23 @@ export type PersistedCircuitState = {
 }
 
 const CIRCUIT_STATE_DB_KEY = 'kg_circuit_breaker_state'
+const GATEWAY_SESSION_KEY = 'kg_cb_gateways'
+
+// Synchronous hydration from sessionStorage for gateway state (faster than async IDB)
+try {
+  const cached = sessionStorage.getItem(GATEWAY_SESSION_KEY)
+  if (cached) {
+    const gateways = JSON.parse(cached) as Record<string, GatewayHealthState>
+    const now = Date.now()
+    for (const [gw, state] of Object.entries(gateways)) {
+      if (state.cooldownUntil && state.cooldownUntil > now) {
+        gatewayHealthMap[gw] = state
+      } else if (state.status === 'open') {
+        gatewayHealthMap[gw] = { ...state, status: 'half_open', cooldownUntil: undefined }
+      }
+    }
+  }
+} catch {}
 
 function saveStateToDB() {
   if (typeof indexedDB === 'undefined') return
@@ -76,6 +93,10 @@ function saveStateToDB() {
   idbSet(CIRCUIT_STATE_DB_KEY, state).catch(err => {
     console.warn('[CircuitBreaker] DB write failed:', err)
   })
+  // Also persist gateway state synchronously to sessionStorage
+  try {
+    sessionStorage.setItem(GATEWAY_SESSION_KEY, JSON.stringify(gatewayHealthMap))
+  } catch {}
 }
 
 export async function hydrateCircuitState(): Promise<void> {
