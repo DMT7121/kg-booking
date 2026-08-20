@@ -54,8 +54,16 @@ function _createBillRender() {
     if (uiStore.loading.is) return
     if (validateFn && !validateFn()) return
     
-    // Bypassed admin password verification for save/update action as requested
-    
+    // Interactive Confirmation Gate before saving
+    const isConfirmed = await uiStore.openBookingConfirmation({
+      customer: formStore.customer,
+      items: formStore.items,
+      deposit: formStore.deposit,
+      rawInput: formStore.rawInput
+    })
+
+    if (!isConfirmed) return
+
     uiStore.pendingAction = type
     uiStore.showStaffSelector = true
   }

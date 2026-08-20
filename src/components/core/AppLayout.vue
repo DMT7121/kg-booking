@@ -26,6 +26,7 @@ const GuideConfigModal = defineAsyncComponent(() => import('@/components/modals/
 const ConflictResolutionModal = defineAsyncComponent(() => import('@/components/modals/ConflictResolutionModal.vue'))
 const VersionReleaseModal = defineAsyncComponent(() => import('@/components/modals/VersionReleaseModal.vue'))
 const SocialBotModal = defineAsyncComponent(() => import('@/components/modals/SocialBotModal.vue'))
+const BookingConfirmationModal = defineAsyncComponent(() => import('@/components/modals/BookingConfirmationModal.vue'))
 
 const ui = useUIStore()
 
@@ -747,6 +748,7 @@ const ambientTheme = computed(() => {
     <ConflictResolutionModal />
     <VersionReleaseModal />
     <SocialBotModal />
+    <BookingConfirmationModal />
 
 
     <!-- COMMAND PALETTE MODAL -->

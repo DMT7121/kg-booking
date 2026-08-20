@@ -286,7 +286,8 @@ const INVALID_NAME_SET = new Set([
   'sdt', 'sđt', 'lien', 'liên', 'he', 'hệ', 'cho', 'duoc', 'được', 'khong', 'không', 'nhe', 'nhé', 'nha', 'nhà', 'ho', 'hộ',
   'lam', 'làm', 'sao', 'nao', 'nào', 'chua', 'chưa', 'co', 'có', 'hoi', 'hỏi', 'xin', 'xem', 'gui', 'gửi', 'nhan', 'nhận',
   'con', 'còn', 'la', 'là', 'luc', 'lúc', 'trua', 'trưa', 'sang', 'sáng', 'chieu', 'chiều', 'tai', 'tại',
-  'lon', 'lớn', 'nho', 'nhỏ', 'tre', 'trẻ', 'em', 'vip', 'khu', 'phong', 'phòng', 'guong', 'gương', 'bang', 'bảng', 'hang', 'hàng'
+  'lon', 'lớn', 'nho', 'nhỏ', 'tre', 'trẻ', 'em', 'vip', 'khu', 'phong', 'phòng', 'guong', 'gương', 'bang', 'bảng', 'hang', 'hàng',
+  'vui', 'long', 'lòng'
 ])
 
 const STOP_WORDS = new Set([
@@ -581,6 +582,26 @@ export function classifyPeopleNames(text: string) {
         if (!bookerCandidates.includes(explicitName)) bookerCandidates.unshift(explicitName)
       }
     }
+
+    // Conversational pattern: "Serena đặt bàn...", "Ánh Tiên book tiệc..."
+    const bookPrefixMatch = lineClean.match(/^([A-Za-z\p{L}\s\.\-]+?)\s+(?:đặt\s*bàn|đặt\s*tiệc|book\s*bàn|book\s*tiệc)\b/iu)
+    if (bookPrefixMatch) {
+      const explicitName = cleanHonorificPrefix(bookPrefixMatch[1].trim())
+      if (explicitName && explicitName.length >= 2 && !isInvalidName(explicitName) && !REJECT_NAME_REGEX.test(stripAccents(explicitName))) {
+        if (!peopleNames.includes(explicitName)) peopleNames.push(explicitName)
+        if (!bookerCandidates.includes(explicitName)) bookerCandidates.unshift(explicitName)
+      }
+    }
+
+    // Conversational pattern: "Em ơi cho anh đặt bàn tên Tuấn...", "Đặt bàn cho chị Thảo..."
+    const nameForMatch = lineClean.match(/(?:đặt\s*bàn|đặt\s*tiệc|book\s*bàn|đặt|cho)\s+(?:tên|ten|cho\s+chị|cho\s+anh|cho\s+em|cho)?\s*([A-Za-z\p{L}\s\.\-]+?)(?=\s+(?:0[35789]\d{7,9}|\d{1,2}h|\d+\s*(?:ng|người|pax|khách)|ngày|lúc|tại|sinh nhật|$))/iu)
+    if (nameForMatch) {
+      const explicitName = cleanHonorificPrefix(nameForMatch[1].trim())
+      if (explicitName && explicitName.length >= 2 && !isInvalidName(explicitName) && !REJECT_NAME_REGEX.test(stripAccents(explicitName))) {
+        if (!peopleNames.includes(explicitName)) peopleNames.push(explicitName)
+        if (!bookerCandidates.includes(explicitName)) bookerCandidates.push(explicitName)
+      }
+    }
     
     // Extract capitalized words next to phone numbers as candidates
     const phoneRegex = /(0[35789]\d{7,9})/g
@@ -794,8 +815,8 @@ export function preNormalizeInput(rawText: string): string {
 
   clean = clean.replace(/\n{3,}/g, '\n\n')
 
-  clean = clean.replace(/(?<![\d\/])(?:\+84|84|0)(?:\s*[\.\-]?\s*\d){9}\b/g, (match) => {
-    let digits = match.replace(/[\s\.-]+/g, '')
+  clean = clean.replace(/(?<![\d\/])(?:\+84|84|0)(?:[ ]*[\.\-]?[ ]*\d){9}\b/g, (match) => {
+    let digits = match.replace(/[ \.-]+/g, '')
     if (digits.startsWith('+84')) digits = '0' + digits.slice(3)
     if (digits.startsWith('84')) digits = '0' + digits.slice(2)
     return digits
@@ -814,8 +835,8 @@ export function preNormalizeInput(rawText: string): string {
   })
 
   // Safe replacement for Vietnamese short abbreviations to avoid breaking words like "người" and "khách"
-  clean = clean.replace(/(^|\s)(kh)(?=\s|$|[\.,\?!])/gi, '$1khách')
-  clean = clean.replace(/(^|\s)(ng)(?=\s|$|[\.,\?!])/gi, '$1người')
+  clean = clean.replace(/(^|[ ])(kh)(?=[ ]|$|[\.,\?!])/gi, '$1khách')
+  clean = clean.replace(/(^|[ ])(ng)(?=[ ]|$|[\.,\?!])/gi, '$1người')
 
   const spellingAliases = [
     { pattern: /\b(dut lo|dut\s+lo)\b/gi, replacement: 'đốt lò' },
@@ -839,7 +860,7 @@ export function preNormalizeInput(rawText: string): string {
     return mapping[num] || match
   })
 
-  clean = clean.replace(/(?<![\d\/])(?:\(\+84\)\s*|\+84\s*|0(?=[35789])|84(?=[35789]))\s*([35789]\d{1,2})[\s\.\-]*(\d{3})[\s\.\-]*(\d{3,4})\b/gi, (m, p1, p2, p3) => {
+  clean = clean.replace(/(?<![\d\/])(?:\(\+84\)[ ]*|\+84[ ]*|0(?=[35789])|84(?=[35789]))[ ]*([35789]\d{1,2})[ \.\-]*(\d{3})[ \.\-]*(\d{3,4})\b/gi, (m, p1, p2, p3) => {
     return (p1 && p2 && p3) ? `0${p1}${p2}${p3}` : m
   })
 
@@ -864,12 +885,12 @@ export function preNormalizeInput(rawText: string): string {
     return `${max} ${unit}`
   })
   
-  clean = clean.replace(/\b(\d+)\s*(?:người lớn|nguoi lon|lớn|lon)\s*(?:\+|,|và|va)?\s*(\d+)\s*(?:nhỏ|bé|trẻ em|tre em|nho|be)\b/gi, (match, adults, kids) => {
+  clean = clean.replace(/(?<![:\d])\b(\d+)[ ]*(?:người lớn|nguoi lon|lớn|lon)[ ]*(?:\+|,|và|va)?[ ]*(\d+)[ ]*(?:nhỏ|bé|trẻ em|tre em|nho|be)\b/gi, (match, adults, kids) => {
     const total = parseInt(adults) + parseInt(kids)
     return `${total} khách`
   })
 
-  clean = clean.replace(/\b(\d{1,2}:\d{2})\s*[-–—đến|den|to]\s*(\d{1,2}:\d{2})\b/g, (match, t1, t2) => t1)
+  clean = clean.replace(/\b(\d{1,2}:\d{2})\s*(?:[-–—]|đến|den|to)\s*(\d{1,2}:\d{2})\b/g, (match, t1, t2) => t1)
 
   clean = clean.replace(/\b(\d{1,2}):(\d{2})\s*(chiều|tối|pm|chieu|toi)\b/gi, (match, h, m) => {
     let hour = parseInt(h)
@@ -920,7 +941,7 @@ export function preNormalizeInput(rawText: string): string {
     return formatDate(targetDate)
   })
 
-  clean = clean.replace(/\b(?:ngay\s+)?(\d{1,2})\s+(?:thang|thg|t|t\s*)\s*(\d{1,2})\b/gi, (match, d, m) => {
+  clean = clean.replace(/\b(?:ngày\s+|ngay\s+)?(\d{1,2})\s+(?:tháng|thang|thg|\bt\b)\s*(\d{1,2})\b/gi, (match, d, m) => {
     const day = parseInt(d)
     const month = parseInt(m)
     if (day >= 1 && day <= 31 && month >= 1 && month <= 12) {
@@ -985,7 +1006,7 @@ export function preNormalizeInput(rawText: string): string {
     return `${day}/${month}/${year}`
   })
 
-  clean = clean.replace(/(?<!\d[\.\-\/])\b(\d{1,2})[\/\.](\d{1,2})(?!\s*(?:con|kg|g|l|ml|pax|phần|phan|đĩa|dia|tô|to|trái|trai|cái|cai|lon|chai|suất|suat)(?!\p{L}))/ugi, (match, d, m) => {
+  clean = clean.replace(/(?<!\d[\.\-\/])\b(\d{1,2})[\/\.](\d{1,2})(?![\/\.\-\d])(?!\s*(?:con|kg|g|l|ml|pax|phần|phan|đĩa|dia|tô|to|trái|trai|cái|cai|lon|chai|suất|suat)(?!\p{L}))/ugi, (match, d, m) => {
     const day = parseInt(d)
     const month = parseInt(m)
     if (day >= 1 && day <= 31 && month >= 1 && month <= 12) {
@@ -1222,7 +1243,7 @@ export function extractHardEntities(normalizedText: string): HardEntities {
     }
   }
 
-  const additionGuestRegex = /\b(\d+)\s*(?:nguoi lon|lon)\s*(?:\+|,|va)?\s*(\d+)\s*(?:nho|be|tre em)\b/gi
+  const additionGuestRegex = /\b(\d+)\s*(?:nguoi lon|lon)\s*(?:\+|,|va)?\s*(\d+)\s*(?:tre\s+em|nho|be)\b/gi
   let addMatch
   while ((addMatch = additionGuestRegex.exec(clean)) !== null) {
     const total = parseInt(addMatch[1]) + parseInt(addMatch[2])
@@ -1262,6 +1283,11 @@ export function extractHardEntities(normalizedText: string): HardEntities {
 export function parseSingleMenuLine(lineStr: string): { raw_name: string; quantity: number; unit_price: number | null; note: string } | null {
   let cleaned = lineStr.trim()
   if (!cleaned) return null
+
+  const lowerRaw = stripAccents(lineStr).toLowerCase().trim()
+  if (/(?:m[oỗ]i\s+m[oó]n|m[oỗ]i\s+lo[aạ]i|m[aấ]y\s+m[oó]n|t[aấ]t\s+c[aả]\s+c[aá]c\s+m[oó]n|c[aá]c\s+m[oó]n\s+tr[eê]n|ri[eê]ng\s+m[oó]n|ri[eê]ng\s+l[aẩ]u|con\s+lai\s+m[oỗ]i\s+m[oó]n)/i.test(lowerRaw)) {
+    return null
+  }
 
   // Strip leading/trailing quote characters (e.g. from pasted messages with quotes)
   cleaned = cleaned.replace(/^["'“”«»]+|["'“”«»]+$/g, '').trim()
@@ -1359,8 +1385,13 @@ export function parseSingleMenuLine(lineStr: string): { raw_name: string; quanti
   // Clean trailing/leading punctuation or brackets
   cleaned = cleaned.replace(/\(\s*\)/g, '').replace(/^[\s-,\/:]+|[\s-,\/:]+$/g, '').replace(/\s+/g, ' ').trim()
 
+  // Reject distributive quantifier statements like "Mỗi món 2 phần", "Mỗi loại 1 đĩa", "Riêng lẩu 1 phần", "Mấy món trên lấy 2 suất"
+  if (/^(?:m[oỗ]i\s+m[oó]n|m[oỗ]i\s+lo[aạ]i|m[aấ]y\s+m[oó]n|t[aấ]t\s+c[aả]\s+c[aá]c\s+m[oó]n|c[aá]c\s+m[oó]n\s+tr[eê]n|ri[eê]ng\s+m[oó]n|ri[eê]ng\s+l[aẩ]u|con\s+lai\s+m[oỗ]i\s+m[oó]n)\b/i.test(stripAccents(cleaned))) {
+    return null
+  }
+
   // Guard: if cleaned dish name is just numbers or metadata keywords, skip
-  if (/^\d+$/.test(cleaned) || /^(nam|nu|khach|pax|nguoi|ban|table|sdt|gio|ngay|sinh nhat|hbd|coc|ck)$/i.test(stripAccents(cleaned))) {
+  if (/^\d+$/.test(cleaned) || /^(nam|nu|khach|pax|nguoi|ban|table|sdt|gio|ngay|sinh nhat|hbd|coc|ck|thuc don|menu|mon an|thuc an|do uong|thuc uong)$/i.test(stripAccents(cleaned))) {
     return null
   }
 
@@ -1460,6 +1491,57 @@ export function extractDecorationDetails(decorationBlock: string): DecorationDet
         result.board_text = hbdMatch[1].trim()
         continue
       }
+    }
+  }
+
+  return result
+}
+
+export function resolveDistributiveQuantifiers(menuItems: any[], text: string): any[] {
+  if (!menuItems || menuItems.length === 0 || !text) return menuItems
+  const clean = stripAccents(text).toLowerCase()
+
+  // 1. Initial N items: "3 món đầu mỗi món 2 phần"
+  const headNMatch = clean.match(/(\d+)\s+m[oó]n\s+[đd][aầ]u\s+(?:m[oỗ]i\s+m[oó]n\s+)?(\d+)\s*(?:ph[aầ]n|[đd][ií]a|su[aấ]t)?/i)
+
+  // 2. Overall quantifier: "mỗi món 2 phần", "mỗi loại 2 đĩa", "mấy món trên lấy 2 suất", "các món trên mỗi món 2 phần"
+  const globalDistMatch = !headNMatch ? clean.match(/(?:m[oỗ]i\s+m[oó]n|m[oỗ]i\s+lo[aạ]i|m[aấ]y\s+m[oó]n\s+tr[eê]n(?:\s+m[oỗ]i\s+m[oó]n)?|t[aấ]t\s+c[aả]\s+c[aá]c\s+m[oó]n|c[aá]c\s+m[oó]n\s+tr[eê]n)\s+(?:l[aấ]y\s+)?(\d+)\s*(?:ph[aầ]n|ph[aà]n|[đd][ií]a|[đd][iĩ]a|su[aấ]t|t[oô]|ly|c[aá]i|set)?/i) : null
+
+  // 3. Specific exceptions / overrides: "riêng lẩu 1 phần", "ngoại trừ cơm chiên 1 dĩa", "lẩu 1 phần"
+  const exceptionMatches = Array.from(clean.matchAll(/(?:ri[eê]ng|ngo[aạ]i\s+tr[uừ]|tr[uừ])\s+(?:m[oó]n\s+)?([a-z\s]+?)\s*(\d+)\s*(?:ph[aầ]n|[đd][ií]a|su[aấ]t|t[oô]|c[aá]i)?(?=[,;\n]|$)/gi))
+
+  let result = [...menuItems]
+
+  if (globalDistMatch) {
+    const defaultQty = parseInt(globalDistMatch[1], 10) || 1
+    result = result.map(item => ({
+      ...item,
+      quantity: defaultQty
+    }))
+  }
+
+  if (headNMatch) {
+    const countN = parseInt(headNMatch[1], 10) || 0
+    const qtyN = parseInt(headNMatch[2], 10) || 1
+    result = result.map((item, idx) => {
+      if (idx < countN) {
+        return { ...item, quantity: qtyN }
+      }
+      return item
+    })
+  }
+
+  if (exceptionMatches.length > 0) {
+    for (const match of exceptionMatches) {
+      const targetKeyword = match[1].trim()
+      const targetQty = parseInt(match[2], 10) || 1
+      result = result.map(item => {
+        const itemClean = stripAccents(item.raw_name || item.name || '').toLowerCase()
+        if (itemClean.includes(targetKeyword) || targetKeyword.includes(itemClean)) {
+          return { ...item, quantity: targetQty }
+        }
+        return item
+      })
     }
   }
 
@@ -1681,9 +1763,14 @@ export function extractByRules(rawOrNormalizedText: string) {
   }
 
   let guest_count: number | null = null
-  const paxMatch = clean.match(/(\d+)\s*(?:pax|nguoi|người|khach|khách|cho|guest|\bng\b)\b/i)
-  if (paxMatch) {
-    guest_count = parseInt(paxMatch[1])
+  const additionGuestMatch = clean.match(/(\d+)\s*(?:nguoi lon|lon)\s*(?:\+|,|va)?\s*(\d+)\s*(?:tre\s+em|nho|be)\b/i)
+  if (additionGuestMatch) {
+    guest_count = parseInt(additionGuestMatch[1]) + parseInt(additionGuestMatch[2])
+  } else {
+    const paxMatch = clean.match(/(\d+)\s*(?:pax|nguoi|người|khach|khách|cho|guest|\bng\b)\b/i)
+    if (paxMatch) {
+      guest_count = parseInt(paxMatch[1])
+    }
   }
   
   let table_code: string | null = null
@@ -1702,6 +1789,21 @@ export function extractByRules(rawOrNormalizedText: string) {
     if (bareTableMatch) {
       table_code = 'A' + bareTableMatch[1]
     }
+  }
+
+  // Fallback to high-precision hardEntities if any field is missing
+  const hardEntities = extractHardEntities(normalizedText)
+  if (!event_time && hardEntities.times.length > 0) {
+    event_time = hardEntities.times[0].value
+  }
+  if (!event_date && hardEntities.dates.length > 0) {
+    event_date = hardEntities.dates[0].value
+  }
+  if (!guest_count && hardEntities.guestCounts.length > 0) {
+    guest_count = hardEntities.guestCounts[0].value
+  }
+  if (!table_code && hardEntities.tables.length > 0) {
+    table_code = (hardEntities.tables[0].zone || '') + (hardEntities.tables[0].number || '')
   }
 
   let booking_need = 'Ăn thường'
@@ -1784,9 +1886,18 @@ export function extractByRules(rawOrNormalizedText: string) {
   if (menu_items.length === 0) {
     const menuLines = blocks.menu_block.split('\n')
     for (const line of menuLines) {
-      const parsed = parseSingleMenuLine(line)
-      if (parsed) {
-        menu_items.push(parsed)
+      let cleanLine = line.trim().replace(/^[-*+•]\s*/, '').replace(/^(?:món|mon|thực đơn|thuc don)\s*[:\-–—]?\s*/i, '').trim()
+      if ((cleanLine.includes(',') || cleanLine.includes(';')) && !/^\d+\s*kg/i.test(cleanLine)) {
+        const subDishes = cleanLine.split(/[,;]/).map(d => d.trim()).filter(Boolean)
+        for (const sd of subDishes) {
+          const parsed = parseSingleMenuLine(sd)
+          if (parsed) menu_items.push(parsed)
+        }
+      } else {
+        const parsed = parseSingleMenuLine(line)
+        if (parsed) {
+          menu_items.push(parsed)
+        }
       }
     }
   }
@@ -1850,7 +1961,7 @@ export function extractByRules(rawOrNormalizedText: string) {
     deposit_amount,
     deposit_status,
     note,
-    menu_items,
+    menu_items: resolveDistributiveQuantifiers(menu_items, normalizedText),
     receiver
   }
 }

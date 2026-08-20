@@ -147,3 +147,129 @@ export function evaluateBookingBypass(
     extracted
   }
 }
+
+export interface BookingCompletenessAudit {
+  isComplete: boolean
+  riskLevel: 'low' | 'medium' | 'high'
+  warnings: string[]
+  missingFields: string[]
+  unresolvedItems: string[]
+  uncapturedRawNotes: string[]
+  summary: string
+}
+
+export function auditBookingCompleteness(
+  formData: {
+    customer?: { name?: string; phone?: string; date?: string; time?: string; pax?: number | string; tables?: string; type?: string; note?: string }
+    items?: Array<{ name?: string; qty?: number; price?: number; note?: string; needs_review?: boolean }>
+    deposit?: { amount?: number; isPaid?: boolean }
+  },
+  rawInput?: string
+): BookingCompletenessAudit {
+  const warnings: string[] = []
+  const missingFields: string[] = []
+  const unresolvedItems: string[] = []
+  const uncapturedRawNotes: string[] = []
+
+  const c = formData.customer || {}
+  const items = formData.items || []
+  const deposit = formData.deposit || {}
+  const paxNum = parseInt(String(c.pax || '0'), 10) || 0
+
+  // 1. Customer Name
+  if (!c.name || !c.name.trim()) {
+    missingFields.push('customer_name')
+    warnings.push('Chưa có tên khách hàng / người đặt.')
+  }
+
+  // 2. Phone
+  if (!c.phone || !c.phone.trim()) {
+    missingFields.push('phone')
+    warnings.push('Chưa có số điện thoại liên hệ.')
+  } else {
+    const cleanPhone = c.phone.replace(/\s+/g, '')
+    if (!/^(?:0|\+84)[1-9]\d{8}$/.test(cleanPhone)) {
+      warnings.push(`Số điện thoại không đúng chuẩn VN (10 chữ số): "${c.phone}".`)
+    }
+  }
+
+  // 3. Date & Time
+  if (!c.date || !c.date.trim()) {
+    missingFields.push('event_date')
+    warnings.push('Chưa chọn ngày đặt tiệc.')
+  }
+  if (!c.time || !c.time.trim()) {
+    missingFields.push('event_time')
+    warnings.push('Chưa chọn giờ đặt tiệc.')
+  }
+
+  // 4. Guest Count & Table Seating
+  if (!paxNum || paxNum <= 0) {
+    missingFields.push('guest_count')
+    warnings.push('Chưa nhập số lượng khách.')
+  } else if (paxNum >= 8 && (!c.tables || !c.tables.trim())) {
+    warnings.push(`Đoàn đông (${paxNum} khách) nhưng chưa được xếp bàn hoặc khu vực.`)
+  }
+
+  // 5. Deposit Safety
+  const depositAmt = deposit.amount || 0
+  const hasSetMenu = items.some(i => /set\s*menu|combo/i.test(i.name || ''))
+  if ((paxNum >= 8 || hasSetMenu || (c.type && c.type !== 'Ăn thường')) && depositAmt <= 0 && !deposit.isPaid) {
+    warnings.push('Tiệc đoàn / Set menu / Sinh nhật nhưng chưa có tiền cọc (khuyến nghị thu cọc).')
+  }
+
+  // 6. Unresolved Dishes
+  items.forEach(i => {
+    if (i.needs_review || !i.name || i.name.trim() === '') {
+      unresolvedItems.push(i.name || 'Món chưa rõ tên')
+    }
+  })
+  if (unresolvedItems.length > 0) {
+    warnings.push(`Có ${unresolvedItems.length} món ăn cần kiểm tra lại thực đơn: [${unresolvedItems.join(', ')}].`)
+  }
+
+  // 7. Check uncaptured raw notes
+  if (rawInput && rawInput.trim()) {
+    const rawClean = rawInput.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    const noteClean = (c.note || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+
+    if (/khong cay|it cay|cay vua/i.test(rawClean) && !noteClean.includes('cay')) {
+      uncapturedRawNotes.push('Lưu ý độ cay (không cay / ít cay)')
+    }
+    if (/it ngot|nhieu da|bot dau/i.test(rawClean) && !noteClean.includes('ngot') && !noteClean.includes('da') && !noteClean.includes('dau')) {
+      uncapturedRawNotes.push('Lưu ý khẩu vị (ít ngọt / nhiều đá / bớt dầu)')
+    }
+    if (/ghe tre em|ghe be|ghe nho/i.test(rawClean) && !noteClean.includes('ghe')) {
+      uncapturedRawNotes.push('Yêu cầu ghế trẻ em')
+    }
+    if (/trang tri|tong mau|tone|bong bay|hoa tuoi|bang chu|guong/i.test(rawClean) && !noteClean.includes('trang tri') && !noteClean.includes('tong') && !noteClean.includes('tone')) {
+      uncapturedRawNotes.push('Ghi chú trang trí tiệc / bảng tên')
+    }
+
+    if (uncapturedRawNotes.length > 0) {
+      warnings.push(`Phát hiện lưu ý trong tin nhắn gốc chưa được ghi vào ô Ghi chú: [${uncapturedRawNotes.join(', ')}].`)
+    }
+  }
+
+  const isComplete = missingFields.length === 0 && unresolvedItems.length === 0
+  let riskLevel: 'low' | 'medium' | 'high' = 'low'
+  if (missingFields.length > 0 || unresolvedItems.length > 0) {
+    riskLevel = 'high'
+  } else if (warnings.length > 0) {
+    riskLevel = 'medium'
+  }
+
+  const summary = isComplete
+    ? (warnings.length === 0 ? 'Dữ liệu hoàn thiện 100%' : `Hoàn thiện với ${warnings.length} lưu ý`)
+    : `Thiếu ${missingFields.length} trường thông tin, ${warnings.length} cảnh báo`
+
+  return {
+    isComplete,
+    riskLevel,
+    warnings,
+    missingFields,
+    unresolvedItems,
+    uncapturedRawNotes,
+    summary
+  }
+}

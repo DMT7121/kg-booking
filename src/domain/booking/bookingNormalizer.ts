@@ -8,8 +8,17 @@ export function cleanCustomerName(name: string): string {
   // Remove leading bullet/icon symbols like "▶", "●", "•", "*", "-", etc.
   cleaned = cleaned.replace(/^[▶•●\*\-–—\u2800\s]+/g, '').trim()
 
+  // Remove conversational leading prefaces like "Em ơi cho anh đặt bàn tên Tuấn", "Đặt bàn cho chị Thảo", "Book bàn tên..."
+  cleaned = cleaned.replace(/^(?:em\s*ơi|em\s*oi|ad\s*ơi|ad\s*oi|admin\s*ơi|admin\s*oi|mình\s*muốn|minh\s*muon|tôi\s*muốn|toi\s*muon)\s*/gi, '')
+  cleaned = cleaned.replace(/^(?:cho\s+mình|cho\s+minh|cho\s+anh|cho\s+chị|cho\s+em|cho)\s*/gi, '')
+  cleaned = cleaned.replace(/^(?:đặt\s*bàn|đặt\s*tiệc|book\s*bàn|book\s*tiệc|đặt|book)\s*(?:cho\s+chị|cho\s+anh|cho\s+em|cho)?\s*(?:tên|ten)?\s*[:\-–—]?\s*/gi, '')
+  cleaned = cleaned.replace(/^(?:tên|ten)\s*[:\-–—]?\s*/gi, '')
+
   // Remove leading prefixes like "người đặt:", "tên khách:", "khách hàng:", "khách:"
-  cleaned = cleaned.replace(/^(?:ngu\u1eddi\s*\u0111\u1eb7t|t\u00ean\s*kh\u00e1ch|kh\u00e1ch\s*h\u00e0ng|kh\u00e1ch|li\u00ean\s*h\u1ec7|s\u0111t|sdt)\s*[:\-–—]?\s*/gi, '')
+  cleaned = cleaned.replace(/^(?:ngu\u1eddi\s*\u0111\u1eb7t|t\u00ean\s*kh\u00e1ch|kh\u00e1ch\s*h\u00e0ng|kh\u00e1ch|li\u00ean\s*h\u1ec7|s\u0111t|sdt|tên|ten)\s*[:\-–—]?\s*/gi, '')
+
+  // Remove conversational suffixes like "... đặt bàn", "... book tiệc"
+  cleaned = cleaned.replace(/\s+(?:đặt\s*bàn|đặt\s*tiệc|book\s*bàn|book\s*tiệc)$/gi, '')
 
   // 1. Remove table prefixes followed by zone/number combinations (case-insensitive)
   // e.g. "bàn A12", "bàn C6", "khu B5", "phòng D8", "bàn 5", "bàn 12", "bàn A", "khu B"
@@ -19,8 +28,8 @@ export function cleanCustomerName(name: string): string {
   // e.g. "C6", "A12", "B5", "VIP2"
   cleaned = cleaned.replace(/\b(?:[A-G]|VIP)\d+\b/gi, '')
 
-  // 3. Remove single-letter abbreviation prefixes like "C ", "c ", "C. ", "C/ ", "A. ", "A/ ", "a ", "A "
-  cleaned = cleaned.replace(/^(?:c\.|c\/|c|a\.|a\/|a)\s+/gi, '')
+  // 3. Remove single-letter abbreviation & English title prefixes like "C ", "c ", "C. ", "A. ", "Mr. ", "Ms. ", "Mrs. "
+  cleaned = cleaned.replace(/^(?:mr\.|mr|ms\.|ms|mrs\.|mrs|c\.|c\/|c|a\.|a\/|a)\s+/gi, '')
 
   // 4. Remove trailing/leading hyphen, comma, slash, colon, or space after stripping
   cleaned = cleaned.replace(/^[\s-,\/:]+|[\s-,\/:]+$/g, '')

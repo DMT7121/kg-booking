@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { evaluateBookingBypass } from '../bookingCompletenessGate'
+import { evaluateBookingBypass, auditBookingCompleteness } from '../bookingCompletenessGate'
 import type { LocalBookingExtractionResult } from '../bookingCompletenessGate'
 
 describe('Booking Completeness Gate Tests', () => {
@@ -68,5 +68,36 @@ describe('Booking Completeness Gate Tests', () => {
     const decision = evaluateBookingBypass(invalidResult, false, false, false)
     expect(decision.canBypassLLM).toBe(false)
     expect(decision.reasons[0]).toContain('Giờ đặt bàn nằm ngoài khung hoạt động thông thường')
+  })
+
+  describe('auditBookingCompleteness Tests', () => {
+    it('should detect complete form without warnings', () => {
+      const form = {
+        customer: { name: 'Serena', phone: '0986945194', date: '22/08/2026', time: '18:30', pax: 10, tables: 'Phòng lạnh', note: 'Không cay, ít ngọt' },
+        items: [{ name: 'SET MENU 6', qty: 1, price: 4500000, note: 'Giảm 10% tiền thức ăn' }],
+        deposit: { amount: 1000000, isPaid: true }
+      }
+      const audit = auditBookingCompleteness(form, 'Khách Serena 0986945194 đặt tiệc phòng lạnh không cay ít ngọt')
+      expect(audit.isComplete).toBe(true)
+      expect(audit.riskLevel).toBe('low')
+      expect(audit.missingFields.length).toBe(0)
+    })
+
+    it('should flag missing contact, missing table for large groups and unrecorded raw notes', () => {
+      const form = {
+        customer: { name: '', phone: '0123', date: '', time: '', pax: 12, tables: '', note: '' },
+        items: [{ name: 'Món lạ', qty: 1, needs_review: true }],
+        deposit: { amount: 0, isPaid: false }
+      }
+      const rawText = 'Đặt tiệc sinh nhật 12 khách cần ghế trẻ em và không cay'
+      const audit = auditBookingCompleteness(form, rawText)
+      expect(audit.isComplete).toBe(false)
+      expect(audit.riskLevel).toBe('high')
+      expect(audit.missingFields).toContain('customer_name')
+      expect(audit.missingFields).toContain('event_date')
+      expect(audit.missingFields).toContain('event_time')
+      expect(audit.warnings.some(w => w.includes('Đoàn đông'))).toBe(true)
+      expect(audit.warnings.some(w => w.includes('ghế trẻ em'))).toBe(true)
+    })
   })
 })

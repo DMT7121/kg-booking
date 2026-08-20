@@ -60,7 +60,9 @@ export const useUIStore = defineStore('ui', () => {
   const showBookingDetailModal = ref(false)
   const showVersionModal = ref(false)
   const showSocialBotModal = ref(false)
-
+  const showBookingConfirmationModal = ref(false)
+  const bookingConfirmationPayload = ref<any>(null)
+  const bookingConfirmationResolve = ref<((value: boolean) => void) | null>(null)
 
   const selectedBooking = ref<any>(null)
   const pendingAction = ref<string | null>(null)
@@ -195,10 +197,28 @@ export const useUIStore = defineStore('ui', () => {
     }
   }
 
+  function openBookingConfirmation(payload: any): Promise<boolean> {
+    sound.playPop()
+    bookingConfirmationPayload.value = payload
+    showBookingConfirmationModal.value = true
+    return new Promise((resolve) => {
+      bookingConfirmationResolve.value = resolve
+    })
+  }
+
+  function resolveBookingConfirmation(confirmed: boolean) {
+    if (bookingConfirmationResolve.value) {
+      bookingConfirmationResolve.value(confirmed)
+      bookingConfirmationResolve.value = null
+    }
+    showBookingConfirmationModal.value = false
+    bookingConfirmationPayload.value = null
+  }
+
   return {
     tab, connectionStatus, isKeyboardOpen, isVoiceSupported, selectedTimelineDate,
     loading, activeRequests, isFetchingAPI, error,
-    showSettingsHub, activeSettingModal, showCommandPalette, showAiConfig, showBankConfig, showMenuManager, showBrandingConfig, showStaffConfig, showStaffSelector, showWebhookConfig, showBookingDetailModal, showVersionModal, showSocialBotModal, showFloorPlan, showCustomerCareModal, activeOrderForCare, selectedBooking,
+    showSettingsHub, activeSettingModal, showCommandPalette, showAiConfig, showBankConfig, showMenuManager, showBrandingConfig, showStaffConfig, showStaffSelector, showWebhookConfig, showBookingDetailModal, showVersionModal, showSocialBotModal, showBookingConfirmationModal, bookingConfirmationPayload, showFloorPlan, showCustomerCareModal, activeOrderForCare, selectedBooking,
 
 
     pendingAction, menuTab, isUpdateMode, isDarkMode, showMenuUploadModal,
@@ -207,6 +227,7 @@ export const useUIStore = defineStore('ui', () => {
     toasts, verifyModal, modal,
     showToast, removeToast,
     resolveModal, showAlert, showConfirm, showPrompt,
+    openBookingConfirmation, resolveBookingConfirmation,
     openConfig, closeConfig, toggleBatchMode, toggleSelection, toggleDarkMode
   }
 })
