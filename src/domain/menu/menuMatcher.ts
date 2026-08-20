@@ -154,6 +154,16 @@ export function scoreAndMatchMenu(
   if (qtyMatch) {
     rawName = rawName.replace(/(?:[x\*])\s*(\d+)\s*$/i, '').trim()
   }
+
+  // Strip parenthetical note / discount like "(Giảm 10% tiền thức ăn)" or "(không cay)" before matching
+  const parenMatch = rawName.match(/\s*\(([^)]+)\)\s*$/)
+  if (parenMatch) {
+    const insideParen = parenMatch[1].trim()
+    // Do not strip portion parentheses like (5 con) or (10 con)
+    if (!/^\d+\s*(?:con|c|kg|g|l|ml)$/i.test(insideParen)) {
+      rawName = rawName.replace(/\s*\([^)]+\)\s*$/, '').trim()
+    }
+  }
   
   rawName = normalizeSynonyms(rawName)
   const clean = stripAccents(rawName).toLowerCase().trim()

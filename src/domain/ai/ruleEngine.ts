@@ -286,13 +286,13 @@ const INVALID_NAME_SET = new Set([
   'sdt', 'sđt', 'lien', 'liên', 'he', 'hệ', 'cho', 'duoc', 'được', 'khong', 'không', 'nhe', 'nhé', 'nha', 'nhà', 'ho', 'hộ',
   'lam', 'làm', 'sao', 'nao', 'nào', 'chua', 'chưa', 'co', 'có', 'hoi', 'hỏi', 'xin', 'xem', 'gui', 'gửi', 'nhan', 'nhận',
   'con', 'còn', 'la', 'là', 'luc', 'lúc', 'trua', 'trưa', 'sang', 'sáng', 'chieu', 'chiều', 'tai', 'tại',
-  'lon', 'lớn', 'nho', 'nhỏ', 'tre', 'trẻ', 'em', 'vip', 'khu', 'phong', 'phòng', 'guong', 'gương', 'bang', 'bảng'
+  'lon', 'lớn', 'nho', 'nhỏ', 'tre', 'trẻ', 'em', 'vip', 'khu', 'phong', 'phòng', 'guong', 'gương', 'bang', 'bảng', 'hang', 'hàng'
 ])
 
 const STOP_WORDS = new Set([
   'ngay', 'mai', 'hom', 'nay', 'kia', 'mot', 'tuan', 'thang', 'nam',
   'gio', 'luc', 'tam', 'khoang', 'sang', 'trua', 'chieu', 'toi',
-  'pax', 'nguoi', 'khach', 'ban', 'table', 'ghe',
+  'pax', 'nguoi', 'khach', 'ban', 'table', 'ghe', 'hang', 'hàng',
   'sinh', 'nhat', 'thoi', 'noi', 'hop', 'lop', 'lien', 'hoan', 'tiec', 'cuoi', 'hpbd', 'hbd', 'sn', 'mung', 'tho', 'tieu', 'ca', 'nhac',
   'coc', 'ck', 'chuyen', 'khoan', 'bill', 'bank', 'banking', 'momo',
   'mon', 'an', 'menu', 'combo', 'set', 'lau', 'nuong', 'xao', 'hap', 'bo', 'ga', 'heo', 'suon', 'de', 'tom', 'cua', 'muc',
@@ -312,7 +312,7 @@ const STOP_WORDS = new Set([
 ])
 
 // Pre-compiled regex for rejecting common non-name tokens (used 5x in classifyPeopleNames)
-const REJECT_NAME_REGEX = /^(nay|kia|truoc|sau|sang|chieu|toi|ngay|gio|pax|khach|nguoi|ban|mon|set|combo|happy|birthday|hbd|hpbd|sinh|nhat|thoi|noi|giup|giom|cho|sdt|lien|he|table|pax|duoc|khong)$/i
+const REJECT_NAME_REGEX = /^(nay|kia|truoc|sau|sang|chieu|toi|ngay|gio|pax|khach|nguoi|ban|mon|set|combo|happy|birthday|hbd|hpbd|sinh|nhat|thoi|noi|giup|giom|cho|sdt|lien|he|table|pax|duoc|khong|hang|hàng)$/i
 
 export function evaluateNameConfidence(name: string, normalizedText: string): {
   confidence: number
@@ -571,6 +571,16 @@ export function classifyPeopleNames(text: string) {
   for (const line of lines) {
     const lineClean = line.trim()
     if (!lineClean) continue
+
+    // Check explicit field labels like "● Khách hàng: Serena", "Tên khách: Serena", "Người đặt: Serena"
+    const labelMatch = lineClean.match(/^(?:[▶•●\*\-]\s*)?(?:khách\s*hàng|khach\s*hang|tên\s*khách|ten\s*khach|người\s*đặt|nguoi\s*dat|người\s*liên\s*hệ|nguoi\s*lien\s*he|tên|ten|khách|khach)\s*[:\-–—]\s*([A-Za-z\p{L}\s\.\-]+)$/iu)
+    if (labelMatch) {
+      const explicitName = cleanHonorificPrefix(labelMatch[1].trim())
+      if (explicitName && !isInvalidName(explicitName) && !REJECT_NAME_REGEX.test(stripAccents(explicitName))) {
+        if (!peopleNames.includes(explicitName)) peopleNames.push(explicitName)
+        if (!bookerCandidates.includes(explicitName)) bookerCandidates.unshift(explicitName)
+      }
+    }
     
     // Extract capitalized words next to phone numbers as candidates
     const phoneRegex = /(0[35789]\d{7,9})/g
@@ -605,7 +615,7 @@ export function classifyPeopleNames(text: string) {
       }
     }
 
-    const nameRegex = /(?:anh|chị|em|chú|cô|ông|bà|anh|chi|em|chu|co|ong|ba|bé|be|khách|khach|tên|ten|đặt|dat|cho|liên hệ|lien he)\s+((?!cho\b|dat\b|đặt\b|dat\s+ban|đặt\s+bàn|xin\b|gui\b|gửi\b|nha\b|nhà\b|ngay\b|ngày\b|luc\b|lúc\b|vao\b|vào\b|sdt\b|sđt\b|ban\b|bàn\b|trua\b|trưa\b|sang\b|sáng\b|chieu\b|chiều\b|toi\b|tối\b|tai\b|tại\b|lon\b|lớn\b|nho\b|nhỏ\b|tre\b|trẻ\b|em\b|pax\b|khach\b|khách\b|nguoi\b|người\b)\p{L}+(?:\s+(?!cho\b|dat\b|đặt\b|dat\s+ban|đặt\s+bàn|xin\b|gui\b|gửi\b|nha\b|nhà\b|ngay\b|ngày\b|luc\b|lúc\b|vao\b|vào\b|sdt\b|sđt\b|ban\b|bàn\b|trua\b|trưa\b|sang\b|sáng\b|chieu\b|chiều\b|toi\b|tối\b|tai\b|tại\b|lon\b|lớn\b|nho\b|nhỏ\b|tre\b|trẻ\b|em\b|pax\b|khach\b|khách\b|nguoi\b|người\b)\p{L}+){0,3})/gui
+    const nameRegex = /(?:khách\s+hàng|khach\s+hang|tên\s+khách|ten\s+khach|người\s+đặt|nguoi\s+dat|anh|chị|chi|em|chú|chu|cô|co|ông|ong|bà|ba|bé|be|bác|bac|khách|khach|tên|ten|đặt|dat|cho|liên\s+hệ|lien\s+he)\s*[:\-]?\s+((?!hang\b|hàng\b|cho\b|dat\b|đặt\b|dat\s+ban|đặt\s+bàn|xin\b|gui\b|gửi\b|nha\b|nhà\b|ngay\b|ngày\b|luc\b|lúc\b|vao\b|vào\b|sdt\b|sđt\b|ban\b|bàn\b|trua\b|trưa\b|sang\b|sáng\b|chieu\b|chiều\b|toi\b|tối\b|tai\b|tại\b|lon\b|lớn\b|nho\b|nhỏ\b|tre\b|trẻ\b|em\b|pax\b|khach\b|khách\b|nguoi\b|người\b)\p{L}+(?:\s+(?!hang\b|hàng\b|cho\b|dat\b|đặt\b|dat\s+ban|đặt\s+bàn|xin\b|gui\b|gửi\b|nha\b|nhà\b|ngay\b|ngày\b|luc\b|lúc\b|vao\b|vào\b|sdt\b|sđt\b|ban\b|bàn\b|trua\b|trưa\b|sang\b|sáng\b|chieu\b|chiều\b|toi\b|tối\b|tai\b|tại\b|lon\b|lớn\b|nho\b|nhỏ\b|tre\b|trẻ\b|em\b|pax\b|khach\b|khách\b|nguoi\b|người\b)\p{L}+){0,3})/gui
     let match
     while ((match = nameRegex.exec(lineClean)) !== null) {
       const cleanedRaw = cleanTrailingInvalidWords(match[1])
@@ -1324,6 +1334,16 @@ export function parseSingleMenuLine(lineStr: string): { raw_name: string; quanti
     note = decimalNote || weightNotes[weightNotes.length - 1]
   }
 
+  // 3b. Extract trailing parenthetical notes like "(Giảm 10% tiền thức ăn)", "(không cay)"
+  const parenNoteMatch = cleaned.match(/\s*\(([^)]+)\)\s*$/)
+  if (parenNoteMatch) {
+    const insideParen = parenNoteMatch[1].trim()
+    if (!/^\d+\s*(?:con|c|kg|g|l|ml)$/i.test(insideParen)) {
+      note = note ? `${note} - ${insideParen}` : insideParen
+      cleaned = cleaned.replace(/\s*\([^)]+\)\s*$/, '').trim()
+    }
+  }
+
   // 4. Extract price inside dish line: "129K", "129k", "250.000đ", "120000"
   let unit_price: number | null = null
   const priceMatch = cleaned.match(/\b(\d{2,4})\s*(k|K)\b/) || cleaned.match(/\b(\d{1,3}(?:[\.,]\d{3})+)\s*(?:đ|VND|vnd)?\b/i)
@@ -1376,16 +1396,36 @@ export function extractDecorationDetails(decorationBlock: string): DecorationDet
   result.raw_decoration_lines = [...lines]
 
   for (const line of lines) {
-    const lower = stripAccents(line).toLowerCase()
+    const cleanDecorLine = line.replace(/^[▶•●\*\-–—\u2800\s]+/g, '').trim()
+    const lower = stripAccents(cleanDecorLine).toLowerCase()
+
+    // 0. Line starting with "Trang trí:" or "Decor:" or "Setup:"
+    const decorPrefixMatch = cleanDecorLine.match(/^(?:trang\s*tr[ií]|decor|setup)(?:\s*ti[eệ]c)?\s*[:\-–—]\s*(.+)/i)
+    if (decorPrefixMatch) {
+      const content = decorPrefixMatch[1].trim()
+      if (!result.special_requests.includes(content)) {
+        result.special_requests.push(content)
+      }
+      const parenColorMatch = content.match(/\(([^)]*(?:tr[aắ]ng|h[oồ]ng|xanh|v[aà]ng|[đd][oỏ]|t[ií]m|cam|[đd]en|n[aâ]u|b[aạ]c|gold|silver|pastel)[^)]*)\)/i)
+      if (parenColorMatch && !result.decor_color) {
+        result.decor_color = parenColorMatch[1].trim()
+      }
+      continue
+    }
 
     // 1. Decor color: "tông hồng pastel", "tông màu: xanh dương", "tone: blue", "màu hồng", "tone hồng pastel"
-    const colorMatch = line.match(/(?:t[oô]ng\s*(?:m[aà]u)?|m[aà]u|tone|color)\s*[:\-]?\s*([^,\n;]+)/i)
+    const colorMatch = cleanDecorLine.match(/(?:t[oô]ng\s*(?:m[aà]u)?|m[aà]u|tone|color)\s*[:\-]?\s*([^,\n;]+)/i)
     if (colorMatch && !result.decor_color) {
       result.decor_color = colorMatch[1].trim()
     }
 
+    const genericParenColor = cleanDecorLine.match(/\(([^)]*(?:tr[aắ]ng|h[oồ]ng|xanh|v[aà]ng|[đd][oỏ]|t[ií]m|cam|[đd]en|n[aâ]u|b[aạ]c|gold|silver|pastel)[^)]*)\)/i)
+    if (genericParenColor && !result.decor_color) {
+      result.decor_color = genericParenColor[1].trim()
+    }
+
     // 2. Special requests with labels: "Dặn dò: ...", "lưu ý: ...", "nhắc: ...", "yêu cầu: ...", "note: ..."
-    const reqMatch = line.match(/^(?:d[aặ]n\s*d[oò]|l[uư]u\s*[yý]|nh[aắ]c|y[eê]u\s*c[aầ]u|note)\s*[:\-]?\s*(.+)/i)
+    const reqMatch = cleanDecorLine.match(/^(?:d[aặ]n\s*d[oò]|l[uư]u\s*[yý]|nh[aắ]c|y[eê]u\s*c[aầ]u|note)\s*[:\-]?\s*(.+)/i)
     if (reqMatch) {
       result.special_requests.push(reqMatch[1].trim())
       continue

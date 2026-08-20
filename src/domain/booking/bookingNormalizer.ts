@@ -5,8 +5,11 @@ export function cleanCustomerName(name: string): string {
   if (!name) return ''
   let cleaned = name.trim()
 
+  // Remove leading bullet/icon symbols like "▶", "●", "•", "*", "-", etc.
+  cleaned = cleaned.replace(/^[▶•●\*\-–—\u2800\s]+/g, '').trim()
+
   // Remove leading prefixes like "người đặt:", "tên khách:", "khách hàng:", "khách:"
-  cleaned = cleaned.replace(/^(?:ngu\u1eddi\s*\u0111\u1eb7t|t\u00ean\s*kh\u00e1ch|kh\u00e1ch\s*h\u00e0ng|kh\u00e1ch|li\u00ean\s*h\u1ec7|s\u0111t|sdt)\s*[:\-]?\s*/gi, '')
+  cleaned = cleaned.replace(/^(?:ngu\u1eddi\s*\u0111\u1eb7t|t\u00ean\s*kh\u00e1ch|kh\u00e1ch\s*h\u00e0ng|kh\u00e1ch|li\u00ean\s*h\u1ec7|s\u0111t|sdt)\s*[:\-–—]?\s*/gi, '')
 
   // 1. Remove table prefixes followed by zone/number combinations (case-insensitive)
   // e.g. "bàn A12", "bàn C6", "khu B5", "phòng D8", "bàn 5", "bàn 12", "bàn A", "khu B"
