@@ -2,27 +2,40 @@ import { stripAccents, formatSetNote } from '@/utils'
 import { SETS } from '@/utils/constants'
 import { parseDishItems } from '@/domain/ai/ruleEngine'
 
-export function extractPortionSize(rawName: string): number | null {
+export function extractPortionSize(rawName: string): number | string | null {
   const clean = stripAccents(rawName).toLowerCase()
   const match = clean.match(/\b(5|10)\s*(?:con|c)\b/i)
   if (match) return parseInt(match[1])
+  if (/\b(?:1\/2|½|nua)\s*con\b/i.test(clean)) return '1/2 con'
+  if (/\b(?:0[\.,]5\s*kg|500\s*g|nua\s*kg)\b/i.test(clean)) return '0.5kg'
+  if (/\b1\s*kg\b/i.test(clean)) return '1kg'
+  if (/\b(?:dia\s*lon|phan\s*lon|lon|size\s*l)\b/i.test(clean)) return 'lớn'
+  if (/\b(?:dia\s*nho|phan\s*nho|nho|size\s*s|size\s*m)\b/i.test(clean)) return 'nhỏ'
   return null
 }
 
-export function getMenuPortionSize(menuName: string): number | null {
+export function getMenuPortionSize(menuName: string): number | string | null {
   const clean = stripAccents(menuName).toLowerCase()
   const match = clean.match(/\b(5|10)\s*(?:con|c)\b/i)
   if (match) return parseInt(match[1])
+  if (/\b(?:1\/2|½|nua)\s*con\b/i.test(clean)) return '1/2 con'
+  if (/\b(?:0[\.,]5\s*kg|500\s*g|nua\s*kg)\b/i.test(clean)) return '0.5kg'
+  if (/\b1\s*kg\b/i.test(clean)) return '1kg'
+  if (/\b(?:dia\s*lon|phan\s*lon|lon|size\s*l)\b/i.test(clean)) return 'lớn'
+  if (/\b(?:dia\s*nho|phan\s*nho|nho|size\s*s|size\s*m)\b/i.test(clean)) return 'nhỏ'
   return null
 }
 
 export function getBaseDishName(name: string): string {
   let clean = stripAccents(name).toLowerCase().trim()
   // Remove "5 con", "10 con", "5con", "10con"
-  clean = clean.replace(/\b(5|10)\s*con\b/gi, '')
-  clean = clean.replace(/\b(5|10)con\b/gi, '')
-  // Remove "nho", "lon"
-  clean = clean.replace(/\b(nho|lon)\b/gi, '')
+  clean = clean.replace(/\b(5|10)\s*(?:con|c)\b/gi, '')
+  clean = clean.replace(/\b(5|10)(?:con|c)\b/gi, '')
+  // Remove 1/2 con, nửa con, 0.5kg, 1kg
+  clean = clean.replace(/\b(?:1\/2|½|nua)\s*con\b/gi, '')
+  clean = clean.replace(/\b(?:0[\.,]5\s*kg|500\s*g|1\s*kg|nua\s*kg)\b/gi, '')
+  // Remove "nho", "lon", "dia lon", "dia nho", "phan lon", "phan nho"
+  clean = clean.replace(/\b(?:dia|phan)?\s*(nho|lon)\b/gi, '')
   // Trim extra spaces
   return clean.replace(/\s+/g, ' ').trim()
 }
@@ -235,12 +248,12 @@ export function scoreAndMatchMenu(
     const jaroWinklerScore = jaroWinklerDistance(clean, mClean)
     let fuzzyScore = 0.5 * levenshteinScore + 0.5 * jaroWinklerScore
     
-    // Giảm hình phạt nếu không có overlap token
+    // Giảm mạnh hình phạt nếu không có overlap token
     if (overlap === 0 && !mClean.startsWith(clean) && !clean.startsWith(mClean)) {
-      fuzzyScore *= 0.7 // Trải nghiệm thực tế 0.5 là quá nặng, giảm xuống 0.7
+      fuzzyScore *= 0.5 // Phạt nặng nếu không có token overlap và không phải prefix
     }
     
-    if (fuzzyScore > score && fuzzyScore >= 0.35) { // Hạ ngưỡng chấp nhận match
+    if (fuzzyScore > score && fuzzyScore >= 0.55) {
       score = Math.max(score, fuzzyScore)
       reasons.push('fuzzy_match')
     }
@@ -261,14 +274,14 @@ export function scoreAndMatchMenu(
       score *= 0.5
     }
 
-    if (score >= 0.35) { // Cho phép đưa vào ứng viên từ điểm 0.35
+    if (score >= 0.50) {
       candidates.push({ item: m, score, reasons, risks })
     }
   }
 
   candidates.sort((a, b) => b.score - a.score)
 
-  if (candidates.length > 0 && candidates[0].score >= 0.45) { // Chấp nhận từ 0.45 thay vì 0.5
+  if (candidates.length > 0 && candidates[0].score >= 0.65) {
     const best = candidates[0]
     let needsReview = false
     
@@ -280,9 +293,7 @@ export function scoreAndMatchMenu(
       }
     }
     
-    // Hạ ngưỡng cảnh báo needsReview từ 0.78 xuống 0.65 
-    // để bớt làm phiền người dùng nếu model tự tin >= 65%
-    if (best.score < 0.65) {
+    if (best.score < 0.75 || (best.reasons.includes('fuzzy_match') && !best.reasons.includes('exact_match') && !best.reasons.includes('alias_match') && best.score < 0.85)) {
       needsReview = true
     }
 
@@ -381,7 +392,7 @@ export function matchMenuItems(
   for (const item of rawItems) {
     const rawName = (item.raw_name || item.name || '').trim()
     const parsedSubDishes = parseDishItems(rawName)
-    if (parsedSubDishes.length > 0) {
+    if (parsedSubDishes.length > 1) {
       if (logCallback) {
         logCallback(`Tách món ghép: "${rawName}" -> [${parsedSubDishes.map(d => `${d.qty}x ${d.name}`).join(', ')}]`)
       }
@@ -405,22 +416,38 @@ export function matchMenuItems(
   return expandedItems.map((item) => {
     let rawName = (item.raw_name || item.name || '').trim()
 
-    // 1. Trích xuất số lượng đứng ở đầu tên món (vd: "2 cơm chiên hải sản", "2 miến xào cua", "1 tôm cocktail")
-    const leadingQtyMatch = rawName.match(/^(\d+)\s+(.+)$/)
-    if (leadingQtyMatch) {
-      const extractedQty = parseInt(leadingQtyMatch[1], 10)
-      rawName = leadingQtyMatch[2].trim()
-      if (!item.quantity || item.quantity === 1) {
-        item.quantity = extractedQty
+    // Kiểm tra xem số ở đầu có phải là quy cách khẩu phần (vd: "5 con", "10 con", "1/2 con", "0.5kg") hay không
+    const isPortionPrefix = /^(?:(?:5|10)\s*(?:con|c)|1\/[2348]\s*con|½\s*con|nửa\s*con|nua\s*con|0[\.,]\d+\s*kg|\d+\s*(?:kg|g|l|ml)|dĩa\s*(?:lớn|nhỏ|lon|nho)|phan\s*(?:lon|nho))\b/i.test(rawName)
+
+    // 1. Trích xuất số lượng có từ "phần", "dĩa", "suất", "x" ở đầu: e.g. "2 phần hàu 5 con", "2x gà 1/2 con"
+    const explicitLeadingQtyMatch = rawName.match(/^(?:(\d+)\s*(?:phần|phan|đĩa|dia|suất|suat|x|\*)\s+)(.+)$/i)
+    if (explicitLeadingQtyMatch) {
+      item.quantity = parseInt(explicitLeadingQtyMatch[1], 10) || item.quantity || 1
+      rawName = explicitLeadingQtyMatch[2].trim()
+    } else if (!isPortionPrefix) {
+      // Trích xuất số lượng đứng ở đầu tên món thông thường (vd: "2 cơm chiên hải sản", "2 miến xào cua", "1 tôm cocktail")
+      const leadingQtyMatch = rawName.match(/^(\d+)\s+(.+)$/)
+      if (leadingQtyMatch) {
+        const extractedQty = parseInt(leadingQtyMatch[1], 10)
+        // Chỉ nhận là số lượng nếu phần sau không bắt đầu bằng đơn vị con/kg/g
+        if (!/^(?:con|c|kg|g|l|ml)\b/i.test(leadingQtyMatch[2].trim())) {
+          rawName = leadingQtyMatch[2].trim()
+          if (!item.quantity || item.quantity === 1) {
+            item.quantity = extractedQty
+          }
+        }
       }
     }
 
-    // 2. Trích xuất số lượng ở cuối tên món (vd: "cơm chiên hải sản x 2")
-    const qtyMatch = rawName.match(/(?:[x\*])\s*(\d+)\s*$/i)
+    // 2. Trích xuất số lượng ở cuối tên món (vd: "cơm chiên hải sản x 2", "hàu phô mai 5 con x 2")
+    const qtyMatch = rawName.match(/(?:[x\*]|\bphần|\bphan|\bđĩa|\bdia)\s*(\d+)\s*$/i)
     if (qtyMatch) {
       item.quantity = parseInt(qtyMatch[1], 10)
-      rawName = rawName.replace(/(?:[x\*])\s*(\d+)\s*$/i, '').trim()
+      rawName = rawName.replace(/(?:[x\*]|\bphần|\bphan|\bđĩa|\bdia)\s*(\d+)\s*$/i, '').trim()
     }
+
+    // 3. Trích xuất khẩu phần để bổ sung vào note nếu cần
+    const detectedPortion = extractPortionSize(rawName)
 
     const { match, confidence, needsReview, matchType } = scoreAndMatchMenu(
       rawName,
@@ -432,6 +459,9 @@ export function matchMenuItems(
 
     if (match) {
       let note = item.note || item.notes || ''
+      if (detectedPortion && !note.includes(String(detectedPortion)) && !match.name.includes(String(detectedPortion))) {
+        note = note ? `${note} (${detectedPortion})` : String(detectedPortion)
+      }
       const isSet = /set|combo|goi|phan|couple/i.test(match.name) || /set|combo|goi|phan|couple/i.test(rawName)
       let description = match.desc || resolveSetMenuDescription(match.name, menuList, menuDetails) || resolveSetMenuDescription(rawName, menuList, menuDetails)
       if (description) {
@@ -555,4 +585,51 @@ export function resolveBestMenuSheet(
   }
 
   return { bestSheet, score: maxScore, isBorderline }
+}
+
+/**
+ * Post-dedup: Merge items that matched to the same dish (same matched_name + same note).
+ * This handles cases where the same dish is extracted twice under different raw names.
+ */
+export function deduplicateMatchedItems(
+  items: any[],
+  logCallback?: (msg: string, level?: string) => void
+): any[] {
+  if (!items || items.length <= 1) return items
+
+  const dedupMap = new Map<string, any>()
+  const mergedLog: string[] = []
+
+  for (const item of items) {
+    const matchedName = (item.matched_name || item.name || item.matchedName || '').trim()
+    const note = (item.note || '').trim()
+    // Only dedup items that were actually matched (confidence > 0)
+    const confidence = item.match_confidence || item.confidence || 0
+    if (!matchedName || confidence <= 0) {
+      // Unmatched items: keep as-is with a unique key
+      const uniqueKey = `__unmatched_${dedupMap.size}__`
+      dedupMap.set(uniqueKey, { ...item })
+      continue
+    }
+
+    const key = `${stripAccents(matchedName).toLowerCase()}_${stripAccents(note).toLowerCase()}`
+
+    if (dedupMap.has(key)) {
+      const existing = dedupMap.get(key)
+      const oldQty = existing.quantity || existing.qty || 1
+      const addQty = item.quantity || item.qty || 1
+      existing.quantity = oldQty + addQty
+      existing.qty = oldQty + addQty
+      existing.auto_merged = true
+      mergedLog.push(`Gộp "${matchedName}" (${oldQty} + ${addQty} = ${existing.quantity})`)
+    } else {
+      dedupMap.set(key, { ...item })
+    }
+  }
+
+  if (mergedLog.length > 0 && logCallback) {
+    logCallback(`[Dedup] ${mergedLog.join('; ')}`, 'info')
+  }
+
+  return Array.from(dedupMap.values())
 }

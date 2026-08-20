@@ -3,7 +3,7 @@ import { useFormStore } from '@/stores/useFormStore'
 import { useAppStore } from '@/stores/useAppStore'
 import { useUIStore } from '@/stores/useUIStore'
 import { stripAccents, resizeImage, loadLibrary, isIOS, isAndroid, isDesktop, generateBookingId } from '@/utils'
-import { fetchWithRetry } from '@/services/api'
+import { fetchWithRetry, updateOrderImages } from '@/services/api'
 import { smartUploadImage } from '@/services/r2'
 import { useAI } from '@/composables/useAI'
 import { cacheBillImage, addToOfflineQueue } from '@/services/cache'
@@ -499,7 +499,6 @@ function _createBillRender() {
               // Phase 2: Update images on GAS once uploaded
               if (uploads.billUploadUrl || uploads.uploadedReceiptUrl !== depositImage) {
                 try {
-                  const { updateOrderImages } = await import('@/services/api')
                   const updateRes = await updateOrderImages(
                     orderId,
                     uploads.billUploadUrl,

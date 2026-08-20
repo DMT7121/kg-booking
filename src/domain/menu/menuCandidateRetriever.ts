@@ -34,6 +34,17 @@ function generateAcronym(name: string): string {
     .join('')
 }
 
+const MENU_SEARCH_STOP_WORDS = new Set([
+  'dat', 'ban', 'nguoi', 'pax', 'khach', 'sdt', 'dien', 'thoai', 'ngay', 'gio', 'phut',
+  'toi', 'mai', 'hom', 'nay', 'sang', 'trua', 'chieu', 'dem', 'tuan', 'thang', 'nam',
+  'sinh', 'nhat', 'thoi', 'noi', 'day', 'thang', 'happy', 'birthday', 'hbd', 'hpbd', 'chuc', 'mung',
+  'coc', 'ck', 'chuyen', 'khoan', 'bill', 'bank', 'banking', 'momo', 'tien',
+  'anh', 'chi', 'em', 'bac', 'chu', 'co', 'ong', 'ba', 'be', 'khach', 'minh', 'toi',
+  'le', 'tan', 'nhan', 'vien', 'giup', 'cho', 'nhe', 'nha', 'lien', 'he', 'so',
+  'trang', 'tri', 'tong', 'mau', 'tone', 'color', 'guong', 'bang', 'chu', 'bong', 'bay', 'hoa', 'tuoi', 'lua',
+  'thu', 'hai', 'ba', 'tu', 'sau', 'bay', 'nhat'
+])
+
 export function retrieveMenuCandidates(input: MenuCandidateRetrievalInput): MenuCandidate[] {
   const { text, menus, limit = 15 } = input
   const normalizedText = normalizeString(text)
@@ -44,8 +55,8 @@ export function retrieveMenuCandidates(input: MenuCandidateRetrievalInput): Menu
     fields: ['name', 'cleanName', 'acronym', 'aliases'],
     storeFields: ['menuId', 'menuName', 'itemId', 'itemName', 'aliases'],
     searchOptions: {
-      boost: { name: 2, acronym: 1.5, cleanName: 1 },
-      fuzzy: 0.2,
+      boost: { name: 2.5, cleanName: 1.5, aliases: 2, acronym: 0.8 },
+      fuzzy: 0.15,
       prefix: true
     }
   })
@@ -75,33 +86,50 @@ export function retrieveMenuCandidates(input: MenuCandidateRetrievalInput): Menu
   if (documents.length === 0) return []
 
   miniSearch.addAll(documents)
-  const searchResults = miniSearch.search(normalizedText)
+
+  // Filter text tokens to remove general booking noise before searching
+  const textTokens = normalizedText
+    .split(' ')
+    .filter(t => t.length > 1 && !MENU_SEARCH_STOP_WORDS.has(t))
+
+  const searchQuery = textTokens.join(' ')
+  if (!searchQuery) return []
+
+  const searchResults = miniSearch.search(searchQuery)
 
   const candidates: MenuCandidate[] = []
-  const textTokens = normalizedText.split(' ').filter(Boolean)
 
   for (const res of searchResults) {
     const matchedBy: Array<'exact' | 'alias' | 'token' | 'fuzzy' | 'bm25'> = []
 
     const cleanItemName = normalizeString(res.itemName)
+    const itemTokens = cleanItemName.split(' ').filter(t => t.length > 1)
+
+    // Check exact match
     if (normalizedText.includes(cleanItemName)) {
       matchedBy.push('exact')
     }
 
+    // Check alias match
     if (res.aliases) {
       const aliasList = res.aliases.split(' ')
       for (const a of aliasList) {
-        if (a && normalizedText.includes(a)) {
+        if (a && a.length > 2 && normalizedText.includes(a)) {
           matchedBy.push('alias')
           break
         }
       }
     }
 
-    const itemTokens = cleanItemName.split(' ')
-    const hasTokenOverlap = itemTokens.some(t => textTokens.includes(t))
-    if (hasTokenOverlap) {
+    // Check meaningful token overlap
+    const hasMeaningfulToken = itemTokens.some(t => t.length >= 3 && textTokens.includes(t))
+    if (hasMeaningfulToken) {
       matchedBy.push('token')
+    }
+
+    // Only include candidate if there is genuine exact/alias/token match or strong search score >= 2.0
+    if (matchedBy.length === 0 && res.score < 2.0) {
+      continue
     }
 
     matchedBy.push('fuzzy', 'bm25')

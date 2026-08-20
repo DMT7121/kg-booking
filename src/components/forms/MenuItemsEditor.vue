@@ -159,18 +159,26 @@ function clearItemName(index: number) {
 </script>
 
 <template>
-  <div class="bg-white rounded-3xl shadow-xl shadow-blue-900/5 border p-5 md:p-6 transition-all duration-300"
+  <div class="bg-white rounded-3xl shadow-sm border p-5 md:p-6 transition-all duration-300 relative overflow-hidden"
        :class="hasSoftWarning ? 'border-amber-300 bg-amber-50/10' : 'border-slate-100'">
-    <div class="flex justify-between items-center mb-6">
-      <h3 class="font-black text-blue-900 text-xs uppercase tracking-widest flex items-center gap-3">
-        <div class="w-8 h-8 bg-blue-50 text-blue-600 rounded-lg flex items-center justify-center">
-          <i class="fa-solid fa-list-check"></i>
+    <!-- Top Decorative Line -->
+    <div class="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-emerald-500 via-teal-500 to-cyan-500"></div>
+
+    <div class="flex justify-between items-center mb-5 border-b border-slate-100 pb-3">
+      <div class="flex items-center gap-2.5">
+        <div class="w-8 h-8 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center text-sm shadow-sm border border-emerald-100">
+          <i class="fa-solid fa-bell-concierge"></i>
         </div>
-        Danh sách món
-        <span class="bg-red-500 text-white w-5 h-5 flex items-center justify-center rounded-full text-[10px] shadow-sm ml-1">{{ formStore.items.length }}</span>
-      </h3>
-      <button @click="ui.showMenuManager = true" class="text-[10px] bg-slate-50 px-3 py-1.5 rounded-lg text-slate-500 font-black border border-slate-200 hover:bg-slate-100 active:scale-95 transition-all uppercase tracking-widest flex items-center gap-2">
-        <i class="fa-solid fa-book-open"></i> {{ appStore.activeSheet }}
+        <div>
+          <h3 class="font-black text-slate-800 text-xs uppercase tracking-widest flex items-center gap-1.5">
+            Danh Sách Món Ăn & Đồ Uống
+            <span class="bg-red-500 text-white px-2 py-0.5 rounded-full text-[10px] font-black shadow-xs">{{ formStore.items.length }}</span>
+          </h3>
+          <p class="text-[10px] font-bold text-slate-400">Chọn từ thực đơn hoặc nhập tự do</p>
+        </div>
+      </div>
+      <button @click="ui.showMenuManager = true" class="text-[10px] bg-slate-50 px-3 py-1.5 rounded-xl text-slate-600 font-black border border-slate-200 hover:bg-slate-100 active:scale-95 transition-all uppercase tracking-widest flex items-center gap-2 cursor-pointer shadow-xs">
+        <i class="fa-solid fa-book-open text-blue-600"></i> {{ appStore.activeSheet }}
       </button>
     </div>
 

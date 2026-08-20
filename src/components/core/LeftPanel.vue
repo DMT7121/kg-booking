@@ -193,44 +193,63 @@ function goToTomorrowTimeline() {
         </div>
       </div>
 
-      <!-- CENTER: NAVIGATION TABS (DESKTOP) -->
-      <div class="hidden md:flex items-center gap-1 bg-slate-800/40 p-1 rounded-2xl border border-slate-700/30 mx-4 max-w-3xl flex-1 justify-start lg:justify-center relative z-10 overflow-x-auto overflow-y-hidden scrollbar-none flex-nowrap">
-        <button @click="ui.tab = 'dashboard'" :class="['px-3 py-2 rounded-xl text-[11px] font-black uppercase tracking-wider transition-all flex items-center gap-1.5 min-h-[36px] whitespace-nowrap', ui.tab === 'dashboard' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-400 hover:text-white hover:bg-slate-800/50']">
-          <i class="fa-solid fa-gauge-high"></i>
-          <span>Tổng Quan</span>
-        </button>
-        <button @click="ui.tab = 'create'" :class="['px-3 py-2 rounded-xl text-[11px] font-black uppercase tracking-wider transition-all flex items-center gap-1.5 min-h-[36px] whitespace-nowrap', ui.tab === 'create' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-400 hover:text-white hover:bg-slate-800/50']">
-          <i class="fa-solid fa-plus"></i>
-          <span>Tạo</span>
-        </button>
-        <button @click="ui.tab = 'timeline'; appStore.loadHistory(false)" :class="['px-3 py-2 rounded-xl text-[11px] font-black uppercase tracking-wider transition-all flex items-center gap-1.5 min-h-[36px] whitespace-nowrap', ui.tab === 'timeline' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-400 hover:text-white hover:bg-slate-800/50']">
-          <i class="fa-solid fa-calendar-days"></i>
-          <span>Lịch</span>
-        </button>
-        <button @click="ui.tab = 'history'; appStore.loadHistory(false)" :class="['px-3 py-2 rounded-xl text-[11px] font-black uppercase tracking-wider transition-all flex items-center gap-1.5 min-h-[36px] whitespace-nowrap', ui.tab === 'history' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-400 hover:text-white hover:bg-slate-800/50']">
-          <i class="fa-solid fa-list-ul"></i>
-          <span>Lịch Sử</span>
-        </button>
-        <button @click="ui.tab = 'analytics'; appStore.loadHistory(false)" :class="['px-3 py-2 rounded-xl text-[11px] font-black uppercase tracking-wider transition-all flex items-center gap-1.5 min-h-[36px] whitespace-nowrap', ui.tab === 'analytics' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-400 hover:text-white hover:bg-slate-800/50']">
-          <i class="fa-solid fa-chart-pie"></i>
-          <span>Báo Cáo</span>
-        </button>
-        <button v-if="formStore.customer.name || formStore.id" @click="ui.tab = 'preview'" :class="['px-3 py-2 rounded-xl text-[11px] font-black uppercase tracking-wider transition-all flex items-center gap-1.5 min-h-[36px] whitespace-nowrap', ui.tab === 'preview' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-400 hover:text-white hover:bg-slate-800/50']">
-          <i class="fa-solid fa-eye"></i>
-          <span>Phiếu</span>
-        </button>
-        <button @click="ui.showSocialBotModal = true" class="px-3 py-2 rounded-xl text-[11px] font-black uppercase tracking-wider transition-all flex items-center gap-1.5 min-h-[36px] whitespace-nowrap text-amber-300 hover:text-white hover:bg-slate-800/50 bg-slate-800/80 border border-amber-400/30">
-          <i class="fa-solid fa-robot text-amber-400 animate-pulse"></i>
+      <!-- CENTER: NAVIGATION TABS (DESKTOP) - Structured Hub Categories -->
+      <div class="hidden md:flex items-center gap-1.5 bg-slate-800/60 p-1.5 rounded-2xl border border-slate-700/40 mx-4 max-w-4xl flex-1 justify-start lg:justify-center relative z-10 overflow-x-auto overflow-y-hidden scrollbar-none flex-nowrap backdrop-blur-md">
+        <!-- Hub 1: Vận Hành -->
+        <div class="flex items-center gap-1 bg-slate-900/60 p-1 rounded-xl border border-slate-700/30">
+          <button @click="ui.tab = 'create'" :class="['px-3 py-1.5 rounded-lg text-[11px] font-black uppercase tracking-wider transition-all flex items-center gap-1.5 min-h-[34px] whitespace-nowrap cursor-pointer', ui.tab === 'create' ? 'bg-blue-600 text-white shadow-md shadow-blue-600/30' : 'text-slate-300 hover:text-white hover:bg-slate-800/60']" title="Tạo phiếu đặt bàn mới">
+            <i class="fa-solid fa-plus text-xs"></i>
+            <span>Tạo Phiếu</span>
+          </button>
+          <button @click="ui.tab = 'timeline'; appStore.loadHistory(false)" :class="['px-3 py-1.5 rounded-lg text-[11px] font-black uppercase tracking-wider transition-all flex items-center gap-1.5 min-h-[34px] whitespace-nowrap cursor-pointer', ui.tab === 'timeline' ? 'bg-blue-600 text-white shadow-md shadow-blue-600/30' : 'text-slate-300 hover:text-white hover:bg-slate-800/60']" title="Sơ đồ lịch bàn">
+            <i class="fa-solid fa-calendar-days text-xs"></i>
+            <span>Lịch Bàn</span>
+          </button>
+          <button v-if="formStore.customer.name || formStore.id" @click="ui.tab = 'preview'" :class="['px-3 py-1.5 rounded-lg text-[11px] font-black uppercase tracking-wider transition-all flex items-center gap-1.5 min-h-[34px] whitespace-nowrap cursor-pointer', ui.tab === 'preview' ? 'bg-blue-600 text-white shadow-md shadow-blue-600/30' : 'text-slate-300 hover:text-white hover:bg-slate-800/60']" title="Xem & In phiếu">
+            <i class="fa-solid fa-eye text-xs"></i>
+            <span>Xem Phiếu</span>
+          </button>
+        </div>
+
+        <div class="h-4 w-[1px] bg-slate-700/50 mx-0.5"></div>
+
+        <!-- Hub 2: Quản Lý & Lịch Sử -->
+        <div class="flex items-center gap-1 bg-slate-900/60 p-1 rounded-xl border border-slate-700/30">
+          <button @click="ui.tab = 'dashboard'" :class="['px-3 py-1.5 rounded-lg text-[11px] font-black uppercase tracking-wider transition-all flex items-center gap-1.5 min-h-[34px] whitespace-nowrap cursor-pointer', ui.tab === 'dashboard' ? 'bg-blue-600 text-white shadow-md shadow-blue-600/30' : 'text-slate-300 hover:text-white hover:bg-slate-800/60']" title="Bảng tổng quan số liệu">
+            <i class="fa-solid fa-gauge-high text-xs"></i>
+            <span>Tổng Quan</span>
+          </button>
+          <button @click="ui.tab = 'history'; appStore.loadHistory(false)" :class="['px-3 py-1.5 rounded-lg text-[11px] font-black uppercase tracking-wider transition-all flex items-center gap-1.5 min-h-[34px] whitespace-nowrap cursor-pointer', ui.tab === 'history' ? 'bg-blue-600 text-white shadow-md shadow-blue-600/30' : 'text-slate-300 hover:text-white hover:bg-slate-800/60']" title="Danh sách lịch sử đặt bàn">
+            <i class="fa-solid fa-list-ul text-xs"></i>
+            <span>Lịch Sử</span>
+          </button>
+          <button @click="ui.tab = 'analytics'; appStore.loadHistory(false)" :class="['px-3 py-1.5 rounded-lg text-[11px] font-black uppercase tracking-wider transition-all flex items-center gap-1.5 min-h-[34px] whitespace-nowrap cursor-pointer', ui.tab === 'analytics' ? 'bg-blue-600 text-white shadow-md shadow-blue-600/30' : 'text-slate-300 hover:text-white hover:bg-slate-800/60']" title="Báo cáo & thống kê">
+            <i class="fa-solid fa-chart-pie text-xs"></i>
+            <span>Báo Cáo</span>
+          </button>
+        </div>
+
+        <div class="h-4 w-[1px] bg-slate-700/50 mx-0.5"></div>
+
+        <!-- Hub 3: Social AI Bot -->
+        <button @click="ui.showSocialBotModal = true" class="px-3 py-1.5 rounded-xl text-[11px] font-black uppercase tracking-wider transition-all flex items-center gap-1.5 min-h-[34px] whitespace-nowrap text-amber-300 hover:text-white hover:bg-amber-500/20 bg-slate-900/80 border border-amber-400/40 shadow-sm cursor-pointer" title="Quản lý Messenger Live Chat AI">
+          <i class="fa-solid fa-robot text-amber-400 animate-pulse text-xs"></i>
           <span>Social Bot</span>
         </button>
-        <button @click="ui.tab = 'test'" :class="['px-3 py-2 rounded-xl text-[11px] font-black uppercase tracking-wider transition-all flex items-center gap-1.5 min-h-[36px] whitespace-nowrap', ui.tab === 'test' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-400 hover:text-white hover:bg-slate-800/50']">
-          <i class="fa-solid fa-flask"></i>
-          <span>Kiểm Thử</span>
-        </button>
-        <button @click="ui.tab = 'logs'" :class="['px-3 py-2 rounded-xl text-[11px] font-black uppercase tracking-wider transition-all flex items-center gap-1.5 min-h-[36px] whitespace-nowrap', ui.tab === 'logs' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-400 hover:text-white hover:bg-slate-800/50']">
-          <i class="fa-solid fa-terminal"></i>
-          <span>Nhật Ký</span>
-        </button>
+
+        <div class="h-4 w-[1px] bg-slate-700/50 mx-0.5"></div>
+
+        <!-- Hub 4: Tools & Logs -->
+        <div class="flex items-center gap-1 bg-slate-900/60 p-1 rounded-xl border border-slate-700/30">
+          <button @click="ui.tab = 'test'" :class="['px-2.5 py-1.5 rounded-lg text-[11px] font-black uppercase tracking-wider transition-all flex items-center gap-1 min-h-[34px] whitespace-nowrap cursor-pointer', ui.tab === 'test' ? 'bg-purple-600 text-white shadow-md' : 'text-slate-400 hover:text-white hover:bg-slate-800/60']" title="Kiểm thử AI & Parser">
+            <i class="fa-solid fa-flask text-xs"></i>
+            <span>Kiểm Thử</span>
+          </button>
+          <button @click="ui.tab = 'logs'" :class="['px-2.5 py-1.5 rounded-lg text-[11px] font-black uppercase tracking-wider transition-all flex items-center gap-1 min-h-[34px] whitespace-nowrap cursor-pointer', ui.tab === 'logs' ? 'bg-purple-600 text-white shadow-md' : 'text-slate-400 hover:text-white hover:bg-slate-800/60']" title="Nhật ký hoạt động">
+            <i class="fa-solid fa-terminal text-xs"></i>
+            <span>Log</span>
+          </button>
+        </div>
       </div>
 
 
@@ -523,106 +542,90 @@ function goToTomorrowTimeline() {
           <div v-if="showMoreSheet" class="bg-white rounded-t-3xl p-5 relative z-10 shadow-2xl pb-safe max-h-[85vh] overflow-y-auto">
             <div class="w-12 h-1.5 bg-slate-200 rounded-full mx-auto mb-4"></div>
             
-            <h3 class="text-center font-black text-slate-800 text-base mb-5 uppercase tracking-widest">Tiện ích khác</h3>
+            <h3 class="text-center font-black text-slate-800 text-base mb-4 uppercase tracking-widest">Danh Mục & Tiện Ích</h3>
             
-            <div class="grid grid-cols-3 gap-3">
-              <!-- Social Bot (Featured Banner) -->
+            <div class="space-y-4">
+              <!-- Featured: Social Bot Messenger -->
               <button 
                 @click="ui.showSocialBotModal = true; showMoreSheet = false" 
-                class="bg-gradient-to-r from-slate-900 to-indigo-950 text-white p-3.5 rounded-2xl font-bold text-xs hover:opacity-95 transition-all active:scale-95 flex items-center justify-between col-span-3 border border-amber-400/40 shadow-md"
+                class="bg-gradient-to-r from-slate-900 via-indigo-950 to-purple-950 text-white p-3.5 rounded-2xl font-bold text-xs hover:opacity-95 transition-all active:scale-95 flex items-center justify-between w-full border border-amber-400/40 shadow-md"
               >
                 <div class="flex items-center gap-3">
                   <div class="w-10 h-10 rounded-xl bg-amber-500/20 text-amber-400 flex items-center justify-center text-xl shrink-0 border border-amber-400/30">
                     <i class="fa-solid fa-robot animate-pulse"></i>
                   </div>
                   <div class="text-left">
-                    <div class="font-black text-amber-300 uppercase tracking-wider text-xs">Quản Lý Social Bot (Messenger Live)</div>
-                    <div class="text-[10px] text-slate-300 font-normal mt-0.5">Theo dõi hội thoại, tin nhắn AI Bot & nhắn tay từ Fanpage</div>
+                    <div class="font-black text-amber-300 uppercase tracking-wider text-xs">Quản Lý Social Bot (Messenger)</div>
+                    <div class="text-[10px] text-slate-300 font-normal mt-0.5">Theo dõi hội thoại Live Chat & điều khiển AI Bot</div>
                   </div>
                 </div>
                 <i class="fa-solid fa-chevron-right text-slate-400 text-xs"></i>
               </button>
 
-              <!-- Báo cáo -->
-              <button @click="ui.tab = 'analytics'; appStore.loadHistory(false); showMoreSheet = false" class="bg-slate-50 text-slate-700 p-3 rounded-2xl font-bold text-[11px] hover:bg-slate-100 transition-all active:scale-95 flex flex-col items-center justify-center gap-2 border border-slate-100">
-                <div class="w-10 h-10 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center text-lg">
-                  <i class="fa-solid fa-chart-pie"></i>
+              <!-- Group 1: Quản lý & Báo cáo -->
+              <div>
+                <div class="text-[10px] font-black text-slate-400 uppercase tracking-wider mb-2 pl-1">Quản lý & Báo cáo</div>
+                <div class="grid grid-cols-3 gap-2.5">
+                  <button @click="ui.tab = 'analytics'; appStore.loadHistory(false); showMoreSheet = false" class="bg-slate-50 text-slate-700 p-2.5 rounded-2xl font-bold text-[11px] hover:bg-slate-100 transition-all active:scale-95 flex flex-col items-center justify-center gap-1.5 border border-slate-100">
+                    <div class="w-9 h-9 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center text-base">
+                      <i class="fa-solid fa-chart-pie"></i>
+                    </div>
+                    <span>Báo cáo</span>
+                  </button>
+                  <button @click="ui.tab = 'history'; appStore.loadHistory(false); showMoreSheet = false" class="bg-slate-50 text-slate-700 p-2.5 rounded-2xl font-bold text-[11px] hover:bg-slate-100 transition-all active:scale-95 flex flex-col items-center justify-center gap-1.5 border border-slate-100">
+                    <div class="w-9 h-9 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center text-base">
+                      <i class="fa-solid fa-list-ul"></i>
+                    </div>
+                    <span>Lịch sử</span>
+                  </button>
+                  <button @click="ui.showSettingsHub = true; showMoreSheet = false" class="bg-slate-50 text-slate-700 p-2.5 rounded-2xl font-bold text-[11px] hover:bg-slate-100 transition-all active:scale-95 flex flex-col items-center justify-center gap-1.5 border border-slate-100">
+                    <div class="w-9 h-9 rounded-xl bg-slate-100 text-slate-600 flex items-center justify-center text-base">
+                      <i class="fa-solid fa-gear"></i>
+                    </div>
+                    <span>Cài đặt</span>
+                  </button>
                 </div>
-                <span>Báo cáo</span>
-              </button>
-              
-              <!-- Lịch sử -->
-              <button @click="ui.tab = 'history'; appStore.loadHistory(false); showMoreSheet = false" class="bg-slate-50 text-slate-700 p-3 rounded-2xl font-bold text-[11px] hover:bg-slate-100 transition-all active:scale-95 flex flex-col items-center justify-center gap-2 border border-slate-100">
-                <div class="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center text-lg">
-                  <i class="fa-solid fa-list-ul"></i>
-                </div>
-                <span>Lịch sử</span>
-              </button>
+              </div>
 
-              <!-- Cài đặt -->
-              <button @click="ui.showSettingsHub = true; showMoreSheet = false" class="bg-slate-50 text-slate-700 p-3 rounded-2xl font-bold text-[11px] hover:bg-slate-100 transition-all active:scale-95 flex flex-col items-center justify-center gap-2 border border-slate-100">
-                <div class="w-10 h-10 rounded-xl bg-slate-100 text-slate-600 flex items-center justify-center text-lg">
-                  <i class="fa-solid fa-gear"></i>
+              <!-- Group 2: Dữ liệu & AI -->
+              <div>
+                <div class="text-[10px] font-black text-slate-400 uppercase tracking-wider mb-2 pl-1">Cấu hình dữ liệu</div>
+                <div class="grid grid-cols-3 gap-2.5">
+                  <button @click="ui.openConfig('menu'); showMoreSheet = false" class="bg-slate-50 text-slate-700 p-2.5 rounded-2xl font-bold text-[11px] hover:bg-slate-100 transition-all active:scale-95 flex flex-col items-center justify-center gap-1.5 border border-slate-100">
+                    <div class="w-9 h-9 rounded-xl bg-emerald-50 text-emerald-650 flex items-center justify-center text-base">
+                      <i class="fa-solid fa-bell-concierge"></i>
+                    </div>
+                    <span>Thực đơn</span>
+                  </button>
+                  <button @click="ui.openConfig('ai'); showMoreSheet = false" class="bg-slate-50 text-slate-700 p-2.5 rounded-2xl font-bold text-[11px] hover:bg-slate-100 transition-all active:scale-95 flex flex-col items-center justify-center gap-1.5 border border-slate-100">
+                    <div class="w-9 h-9 rounded-xl bg-pink-50 text-pink-650 flex items-center justify-center text-base">
+                      <i class="fa-solid fa-wand-magic-sparkles"></i>
+                    </div>
+                    <span>Cấu hình AI</span>
+                  </button>
+                  <button @click="ui.openConfig('bank'); showMoreSheet = false" class="bg-slate-50 text-slate-700 p-2.5 rounded-2xl font-bold text-[11px] hover:bg-slate-100 transition-all active:scale-95 flex flex-col items-center justify-center gap-1.5 border border-slate-100">
+                    <div class="w-9 h-9 rounded-xl bg-cyan-50 text-cyan-650 flex items-center justify-center text-base">
+                      <i class="fa-solid fa-building-columns"></i>
+                    </div>
+                    <span>Ngân hàng</span>
+                  </button>
                 </div>
-                <span>Cài đặt</span>
-              </button>
+              </div>
 
-              <!-- Ngân hàng -->
-              <button @click="ui.openConfig('bank'); showMoreSheet = false" class="bg-slate-50 text-slate-700 p-3 rounded-2xl font-bold text-[11px] hover:bg-slate-100 transition-all active:scale-95 flex flex-col items-center justify-center gap-2 border border-slate-100">
-                <div class="w-10 h-10 rounded-xl bg-cyan-50 text-cyan-650 flex items-center justify-center text-lg">
-                  <i class="fa-solid fa-building-columns"></i>
+              <!-- Group 3: Công cụ & Logs -->
+              <div>
+                <div class="text-[10px] font-black text-slate-400 uppercase tracking-wider mb-2 pl-1">Công cụ & Logs</div>
+                <div class="grid grid-cols-2 gap-2.5">
+                  <button @click="ui.tab = 'test'; showMoreSheet = false" class="bg-slate-50 text-slate-700 p-2.5 rounded-2xl font-bold text-[11px] hover:bg-slate-100 transition-all active:scale-95 flex items-center justify-center gap-2 border border-slate-100">
+                    <i class="fa-solid fa-flask text-rose-500"></i>
+                    <span>Kiểm thử AI</span>
+                  </button>
+                  <button @click="ui.tab = 'logs'; showMoreSheet = false" class="bg-slate-50 text-slate-700 p-2.5 rounded-2xl font-bold text-[11px] hover:bg-slate-100 transition-all active:scale-95 flex items-center justify-center gap-2 border border-slate-100">
+                    <i class="fa-solid fa-terminal text-indigo-500"></i>
+                    <span>Nhật ký Log</span>
+                  </button>
                 </div>
-                <span>Ngân hàng</span>
-              </button>
-
-              <!-- Thực đơn -->
-              <button @click="ui.openConfig('menu'); showMoreSheet = false" class="bg-slate-50 text-slate-700 p-3 rounded-2xl font-bold text-[11px] hover:bg-slate-100 transition-all active:scale-95 flex flex-col items-center justify-center gap-2 border border-slate-100">
-                <div class="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-650 flex items-center justify-center text-lg">
-                  <i class="fa-solid fa-bell-concierge"></i>
-                </div>
-                <span>Thực đơn</span>
-              </button>
-
-              <!-- AI -->
-              <button @click="ui.openConfig('ai'); showMoreSheet = false" class="bg-slate-50 text-slate-700 p-3 rounded-2xl font-bold text-[11px] hover:bg-slate-100 transition-all active:scale-95 flex flex-col items-center justify-center gap-2 border border-slate-100">
-                <div class="w-10 h-10 rounded-xl bg-pink-50 text-pink-650 flex items-center justify-center text-lg">
-                  <i class="fa-solid fa-wand-magic-sparkles"></i>
-                </div>
-                <span>AI</span>
-              </button>
-
-              <!-- Social Bot (Grid Item) -->
-              <button @click="ui.showSocialBotModal = true; showMoreSheet = false" class="bg-indigo-50 text-indigo-900 p-3 rounded-2xl font-bold text-[11px] hover:bg-indigo-100 transition-all active:scale-95 flex flex-col items-center justify-center gap-2 border border-indigo-200 shadow-sm relative overflow-hidden group">
-                <span class="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-                <div class="w-10 h-10 rounded-xl bg-indigo-600 text-white flex items-center justify-center text-lg shadow-sm shadow-indigo-500/30">
-                  <i class="fa-solid fa-robot"></i>
-                </div>
-                <span class="font-black text-indigo-950">Social Bot</span>
-              </button>
-
-              <!-- Kiểm thử -->
-              <button @click="ui.tab = 'test'; showMoreSheet = false" class="bg-slate-50 text-slate-700 p-3 rounded-2xl font-bold text-[11px] hover:bg-slate-100 transition-all active:scale-95 flex flex-col items-center justify-center gap-2 border border-slate-100">
-                <div class="w-10 h-10 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center text-lg">
-                  <i class="fa-solid fa-flask"></i>
-                </div>
-                <span>Kiểm thử</span>
-              </button>
-
-              <!-- Nhật ký -->
-              <button @click="ui.tab = 'logs'; showMoreSheet = false" class="bg-slate-50 text-slate-700 p-3 rounded-2xl font-bold text-[11px] hover:bg-slate-100 transition-all active:scale-95 flex flex-col items-center justify-center gap-2 border border-slate-100">
-                <div class="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-650 flex items-center justify-center text-lg">
-                  <i class="fa-solid fa-terminal"></i>
-                </div>
-                <span>Nhật ký</span>
-              </button>
-
-              <!-- Kiểm tra hệ thống -->
-              <button @click="ui.openConfig('webhook'); showMoreSheet = false" class="bg-slate-50 text-slate-700 p-3 rounded-2xl font-bold text-[11px] hover:bg-slate-100 transition-all active:scale-95 flex flex-col items-center justify-center gap-2 border border-slate-100 col-span-3">
-                <div class="w-10 h-10 rounded-xl bg-slate-100 text-slate-700 flex items-center justify-center text-lg">
-                  <i class="fa-solid fa-shield-halved"></i>
-                </div>
-                <span>Kiểm tra hệ thống (Webhooks / Telegram)</span>
-              </button>
+              </div>
             </div>
             
           </div>

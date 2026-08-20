@@ -132,12 +132,22 @@ const tableConflictWarning = computed(() => {
 </script>
 
 <template>
-  <div class="bg-white rounded-2xl shadow-[0_2px_10px_rgba(0,0,0,0.04)] border p-5 space-y-5 transition-all duration-300"
+  <div class="bg-white rounded-3xl shadow-sm border p-5 md:p-6 space-y-5 transition-all duration-300 relative overflow-hidden"
        :class="hasSoftWarning ? 'border-amber-300 bg-amber-50/10' : 'border-slate-100'">
+    <!-- Top Decorative Line -->
+    <div class="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-blue-500 via-indigo-500 to-purple-500"></div>
+
     <!-- Header -->
-    <div class="flex items-center gap-2 mb-2">
-      <i class="fa-solid fa-user text-blue-600 text-lg"></i>
-      <h3 class="font-black text-slate-800 text-[11px] uppercase tracking-widest">Thông tin khách hàng</h3>
+    <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+      <div class="flex items-center gap-2.5">
+        <div class="w-8 h-8 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center text-sm shadow-sm border border-blue-100">
+          <i class="fa-solid fa-user-tag"></i>
+        </div>
+        <div>
+          <h3 class="font-black text-slate-800 text-xs uppercase tracking-widest">Thông tin khách hàng & Bàn</h3>
+          <p class="text-[10px] font-bold text-slate-400">Nhập trực tiếp hoặc nạp tự động qua AI</p>
+        </div>
+      </div>
       <div v-if="formStore.customer.phone && crmStatus" :class="['crm-badge', crmStatus === 'VIP' ? 'crm-vip' : 'crm-new']">
         <i class="fa-solid" :class="crmStatus === 'VIP' ? 'fa-crown' : 'fa-seedling'"></i> {{ crmStatus }}
       </div>

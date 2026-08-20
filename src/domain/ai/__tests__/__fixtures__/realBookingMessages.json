@@ -1,0 +1,151 @@
+[
+  {
+    "id": "case_001",
+    "description": "Standard booking with party, decoration details (board + mirror + color)",
+    "input": "Bàn C6 chị Trang 0901234567\n15 người\n18h30 ngày 20/8/2025\nSinh nhật bé Su\nTông hồng pastel\nBảng: Happy Birthday Bé Su\nGương viết: Welcome to Su's Party\nDặn dò: đem bánh kem lúc 20h",
+    "expected": {
+      "customer_name": "Trang",
+      "phone": "0901234567",
+      "table_code": "C6",
+      "guest_count": 15,
+      "booking_need": "Sinh nhật",
+      "decoration_details": {
+        "decor_color": "hồng pastel",
+        "board_text_contains": "Happy Birthday Bé Su",
+        "mirror_text_contains": "Welcome to Su"
+      }
+    }
+  },
+  {
+    "id": "case_002",
+    "description": "Booking with deposit sender vs booker name disambiguation",
+    "input": "Chị Trang đặt bàn 20 người\nNgày mai 18h\n0903456789\nAnh Thuận đã chuyển 500K cọc",
+    "expected": {
+      "phone": "0903456789",
+      "guest_count": 20,
+      "booking_need": "Ăn thường",
+      "customer_name_must_not_be": "Thuận"
+    }
+  },
+  {
+    "id": "case_003",
+    "description": "Party owner vs booker (sinh nhật bé Min, người đặt chị Hà)",
+    "input": "Chị Hà 0912345678\nĐặt 10 người\n19h ngày 25/8/2025\nSinh nhật bé Min\nBảng: HBD Bé Min\nTông xanh dương",
+    "expected": {
+      "customer_name": "Hà",
+      "phone": "0912345678",
+      "guest_count": 10,
+      "booking_need": "Sinh nhật",
+      "customer_name_must_not_be": "Min"
+    }
+  },
+  {
+    "id": "case_004",
+    "description": "Abbreviated name + phone pattern",
+    "input": "T.Trang 0901234567\n15 người mai 18h30\nBàn A5",
+    "expected": {
+      "customer_name": "Trang",
+      "phone": "0901234567",
+      "guest_count": 15,
+      "table_code": "A5"
+    }
+  },
+  {
+    "id": "case_005",
+    "description": "Ambiguous 'Mai' in time context (ngày mai)",
+    "input": "Đặt bàn 10 người ngày mai 18h\n0987654321",
+    "expected": {
+      "guest_count": 10,
+      "phone": "0987654321",
+      "customer_name_must_not_be": "Mai"
+    }
+  },
+  {
+    "id": "case_006",
+    "description": "Simple booking with all core fields",
+    "input": "Anh Khoa 0933456789\n20 người\n19h ngày 15/9/2025\nBàn B3\nLiên hoan công ty",
+    "expected": {
+      "customer_name": "Khoa",
+      "phone": "0933456789",
+      "guest_count": 20,
+      "event_time": "19:00",
+      "table_code": "B3",
+      "booking_need": "Công ty"
+    }
+  },
+  {
+    "id": "case_007",
+    "description": "Multi-line decoration with context carry-over",
+    "input": "Chị Ngọc 0978123456\n10 người 18h30\nSinh nhật\nTông: vàng gold\nBảng: Chúc mừng sinh nhật Ngọc\nGương: Happy Birthday\nDặn dò: chuẩn bị nến và pháo sáng",
+    "expected": {
+      "customer_name": "Ngọc",
+      "phone": "0978123456",
+      "guest_count": 10,
+      "booking_need": "Sinh nhật",
+      "decoration_details": {
+        "decor_color": "vàng gold",
+        "board_text_contains": "Chúc mừng sinh nhật Ngọc",
+        "mirror_text_contains": "Happy Birthday"
+      }
+    }
+  },
+  {
+    "id": "case_008",
+    "description": "Name 'Hải' in number context should not be detected as name",
+    "input": "Đặt bàn anh Dũng 0911222333\nhai bàn A1 A2\n20 người mai 19h",
+    "expected": {
+      "customer_name": "Dũng",
+      "phone": "0911222333",
+      "guest_count": 20,
+      "customer_name_must_not_be": "hai"
+    }
+  },
+  {
+    "id": "case_009",
+    "description": "Name on first line (no honorific, capitalized)",
+    "input": "Ánh Tiên\n0977888999\n15 người\n18h ngày 20/8/2025\nSinh nhật",
+    "expected": {
+      "customer_name": "Ánh Tiên",
+      "phone": "0977888999",
+      "guest_count": 15,
+      "booking_need": "Sinh nhật"
+    }
+  },
+  {
+    "id": "case_010",
+    "description": "VIP room booking with receiver staff",
+    "input": "Anh Tuấn 0944555666\n30 người VIP\n19h30 ngày 1/9/2025\nTất niên\nNhận: NV Lan",
+    "expected": {
+      "customer_name": "Tuấn",
+      "phone": "0944555666",
+      "guest_count": 30,
+      "booking_need": "Tất niên"
+    }
+  },
+  {
+    "id": "case_011",
+    "description": "Menu order with dishes",
+    "input": "Chị Hương 0966777888\n8 người 18h ngày mai\nBàn D2\n2 Sườn nướng\n1 Lẩu thái hải sản\n2 Bia Tiger",
+    "expected": {
+      "customer_name": "Hương",
+      "phone": "0966777888",
+      "guest_count": 8,
+      "table_code": "D2",
+      "menu_items_count_gte": 2
+    }
+  },
+  {
+    "id": "case_012",
+    "description": "Thôi nôi event type detection",
+    "input": "Anh Thành 0955666777\n25 người\n11h30 ngày 10/9/2025\nThôi nôi bé Bon\nTông hồng trắng",
+    "expected": {
+      "customer_name": "Thành",
+      "phone": "0955666777",
+      "guest_count": 25,
+      "booking_need": "Thôi nôi (1st)",
+      "decoration_details": {
+        "decor_color": "hồng trắng"
+      }
+    }
+  }
+]

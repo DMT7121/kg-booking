@@ -5,9 +5,16 @@ import { useUIStore } from './useUIStore'
 import * as api from '@/services/api'
 import { useAppStore } from './useAppStore'
 import * as localKeyVault from '@/services/security/localKeyVault'
+import { featureFlagService } from '@/services/featureFlags/featureFlagService'
+import type { FeatureFlagKey } from '@/services/featureFlags/types'
 
 export const useConfigStore = defineStore('config', () => {
   const uiStore = useUIStore()
+
+  // --- Feature Flags ---
+  const featureFlags = featureFlagService.getAllFlags()
+  const isFeatureEnabled = (flagKey: FeatureFlagKey) => featureFlagService.isEnabled(flagKey)
+  const setFeatureFlag = (flagKey: FeatureFlagKey, enabled: boolean) => featureFlagService.setEnabled(flagKey, enabled)
 
   // --- Branding ---
   const branding = reactive({
@@ -379,6 +386,7 @@ export const useConfigStore = defineStore('config', () => {
     textModels, visionModels, totalKeyCount, totalKeysHasData,
     getKeyCount, toggleKeyVisibility,
     saveApiKey, deleteApiKey, borrowKeys: borrowKeys, hydrateAiRuntimeConfig,
-    saveBranding, handleLogoUpload
+    saveBranding, handleLogoUpload,
+    featureFlags, isFeatureEnabled, setFeatureFlag
   }
 })

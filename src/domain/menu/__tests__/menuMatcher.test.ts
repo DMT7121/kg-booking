@@ -37,6 +37,28 @@ describe('Menu Matcher Tests', () => {
     expect(matched[0].matched_name).toBe('Tôm Cocktail (10)')
   })
 
+  it('should properly handle portion sizes without corrupting quantity', () => {
+    const listWithPortions = [
+      { name: 'Hàu Nướng Phô Mai (5 con)', price: 150000, cleanName: 'hau nuong pho mai 5 con' },
+      { name: 'Hàu Nướng Phô Mai (10 con)', price: 280000, cleanName: 'hau nuong pho mai 10 con' },
+      { name: 'Gà Ta Nướng Muối Ớt', price: 220000, cleanName: 'ga ta nuong muoi ot' }
+    ]
+    const rawItems = [
+      { name: '5 con hàu nướng phô mai', quantity: 1 },
+      { name: '2 phần 5 con hàu nướng phô mai', quantity: 1 },
+      { name: 'Gà ta nướng muối ớt 1/2 con', quantity: 1 }
+    ]
+    const matched = matchMenuItems(rawItems, null, listWithPortions, [], {})
+    expect(matched[0].quantity).toBe(1)
+    expect(matched[0].matched_name).toBe('Hàu Nướng Phô Mai (5 con)')
+
+    expect(matched[1].quantity).toBe(2)
+    expect(matched[1].matched_name).toBe('Hàu Nướng Phô Mai (5 con)')
+
+    expect(matched[2].quantity).toBe(1)
+    expect(matched[2].note).toContain('1/2 con')
+  })
+
   it('should resolve best menu sheet', () => {
     const parsedItems = [
       { matched_name: 'Sum Vầy [1]' },

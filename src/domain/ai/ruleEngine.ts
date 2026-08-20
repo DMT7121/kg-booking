@@ -1,5 +1,27 @@
 import { stripAccents, cleanPhoneNumber, formatVND } from '@/utils'
 
+// Top 200 Vietnamese first names (no diacritics, lowercase) for NER boosting
+export const COMMON_VN_FIRST_NAMES = new Set([
+  'an', 'anh', 'bao', 'bich', 'binh', 'cam', 'chi', 'chung', 'cuong', 'dang',
+  'danh', 'dao', 'dat', 'diem', 'diep', 'dinh', 'dong', 'duc', 'dung', 'duong',
+  'duyen', 'giang', 'ha', 'hai', 'han', 'hang', 'hanh', 'hao', 'hau', 'hien',
+  'hieu', 'hiep', 'hoa', 'hoai', 'hoan', 'hoang', 'hong', 'hue', 'hung', 'huong',
+  'huy', 'huyen', 'kha', 'khai', 'khanh', 'khiem', 'khoa', 'khoi', 'khuong', 'kien',
+  'kiet', 'kim', 'lam', 'lan', 'le', 'lien', 'linh', 'loan', 'loc', 'long',
+  'luan', 'luc', 'luu', 'ly', 'mai', 'man', 'minh', 'my', 'nam', 'nga',
+  'nghi', 'nghia', 'ngoc', 'nha', 'nhan', 'nhi', 'nhu', 'nhung', 'nhut', 'niem',
+  'oanh', 'phat', 'phi', 'phu', 'phuc', 'phuoc', 'phuong', 'quang', 'quan', 'quoc',
+  'quy', 'quyen', 'sang', 'sinh', 'son', 'tam', 'tan', 'thach', 'thai', 'than',
+  'thang', 'thanh', 'thao', 'thi', 'thien', 'thiet', 'thinh', 'tho', 'thong', 'thu',
+  'thua', 'thuan', 'thuc', 'thuy', 'tien', 'tin', 'tinh', 'toan', 'tong', 'tram',
+  'trang', 'tri', 'trieu', 'trinh', 'trong', 'truc', 'trung', 'truong', 'tu', 'tuan',
+  'tue', 'tung', 'tuoi', 'tuong', 'tuyen', 'uyen', 'van', 'vi', 'viet', 'vinh',
+  'vu', 'vuong', 'xuan', 'yen',
+  // Additional common names
+  'huy', 'khang', 'phong', 'bao', 'nhat', 'khoi', 'duy', 'tien', 'khiem', 'phuc',
+  'bach', 'cuc', 'suong', 'thu', 'tuyet', 'vy', 'thuy', 'phuong', 'quynh', 'ngan'
+])
+
 export interface TableCode {
   zone: string
   number: string
@@ -97,14 +119,14 @@ export function parseDishItems(input: string): Array<{ name: string; qty: number
     cleanInput = cleanInput.replace(/(?:\((?:[x\*])\s*(\d+)\)|(?:[x\*])\s*(\d+))\s*$/i, '').trim()
   }
 
-  // Mask portion parentheses like "(5 con)" or "(10 con)" so they aren't misparsed as leading dish quantities
+  // Mask portion parentheses like "(5 con)" or "(10 con)" or standalone "5 con", "10 con", "1/2 con", "0.5kg" so they aren't misparsed as leading dish quantities
   const portionParens: string[] = []
-  const maskedInput = cleanInput.replace(/\(\s*\d+\s*(?:con|c|kg|g|l|ml|phần|phan|đĩa|dia|tô|to|ly|lon|set|suất|suat)\s*\)/gi, (match) => {
+  const maskedInput = cleanInput.replace(/(?:\(\s*\d+\s*(?:con|c|kg|g|l|ml|phần|phan|đĩa|dia|tô|to|ly|lon|set|suất|suat)\s*\)|\b(?:5|10)\s*(?:con|c)\b|\b1\/[2348]\s*con\b|\b½\s*con\b|\b0[\.,]\d+\s*kg\b|\b\d+\s*(?:kg|g|l|ml)\b)/gi, (match) => {
     portionParens.push(match)
     return `__PORTION_PAREN_${portionParens.length - 1}__`
   })
 
-  const regex = /(\d+)\s*([\p{L}\s]+)(?=\s*\d|$)/gu
+  const regex = /(\d+)\s*([\p{L}\s_0-9]+?)(?=\s+\d+|$)/gu
   let match
   while ((match = regex.exec(maskedInput)) !== null) {
     const qty = parseInt(match[1])
@@ -112,12 +134,14 @@ export function parseDishItems(input: string): Array<{ name: string; qty: number
     portionParens.forEach((p, idx) => {
       name = name.replace(`__PORTION_PAREN_${idx}__`, p)
     })
+    name = name.replace(/\s+/g, ' ').trim()
     if (name.length > 2) {
       results.push({ name, qty })
     }
   }
+
   if (results.length === 0) {
-    const suffixRegex = /([\p{L}\s]+?)\s*(?:x)?\s*(\d+)(?=\s*[\p{L}]|$)/gu
+    const suffixRegex = /([\p{L}\s_0-9]+?)\s*(?:x)?\s*(\d+)(?=\s*[\p{L}]|$)/gu
     while ((match = suffixRegex.exec(maskedInput)) !== null) {
       let name = match[1].trim()
       portionParens.forEach((p, idx) => {
@@ -127,9 +151,7 @@ export function parseDishItems(input: string): Array<{ name: string; qty: number
       if (name.length > 2) {
         const lowerName = stripAccents(name).toLowerCase()
         const isSetOrCombo = /(?:^|\s)(set\s*menu|set|combo|thuc\s*don|thực\s*đơn)(?:\s+)?$/i.test(lowerName)
-        if (isSetOrCombo) {
-          // Keep the trailing number as part of the set/combo name, do not treat as quantity here
-        } else {
+        if (!isSetOrCombo) {
           results.push({ name, qty })
         }
       }
@@ -140,6 +162,10 @@ export function parseDishItems(input: string): Array<{ name: string; qty: number
   }
   return results.map(r => ({ name: r.name, qty: r.qty * baseQty }))
 }
+
+// Label prefixes that indicate a decoration-related line even without keywords
+// Color keywords (tông, tone, màu) don't require a separator; others require [:：-]
+const DECOR_LABEL_PREFIX_REGEX = /^(?:(?:tông|tong|tone|màu|mau|color)(?:\s*[:：\-]|\s+)|(?:bảng|bang|gương|guong|gương viết|guong viet|dặn|dan|dặn dò|dan do|lưu ý|luu y|nhắc|nhac|nội dung|noi dung|theme)\s*[:：\-])/i
 
 export function segmentInputBlocksCompat(text: string) {
   const blocks = {
@@ -153,34 +179,45 @@ export function segmentInputBlocksCompat(text: string) {
   }
   
   const lines = text.split('\n')
+  let lastBlockType: string | null = null // context carry-over for multi-line threading
   for (const line of lines) {
     let trimmed = line.trim()
     if (!trimmed) continue
-    trimmed = trimmed.replace(/^["'“”«»]+|["'“”«»]+$/g, '').trim()
+    trimmed = trimmed.replace(/^["'\u201c\u201d\u00ab\u00bb]+|["'\u201c\u201d\u00ab\u00bb]+$/g, '').trim()
     if (!trimmed) continue
     const lower = stripAccents(trimmed).toLowerCase()
     
-    if (/happy birthday|hbd|chuc mung|bang chu|bong bay|trang tri/i.test(lower)) {
+    if (/happy birthday|hbd|chuc mung|bang chu|bang ten|bang|bảng|bong bay|bong bong|trang tri|tong mau|tone|màu|mau|guong|gương|dan do|dặn dò|sinh nhat|thoi noi|day thang|hoa tuoi|hoa lua|hoa sap|cam hoa|backdrop|banh kem/i.test(lower)) {
       blocks.decoration_block.push(trimmed)
+      lastBlockType = 'decoration'
       continue
+    }
+    // Context carry-over: if previous line was decoration and this line starts with a decor label prefix
+    if (lastBlockType === 'decoration' && DECOR_LABEL_PREFIX_REGEX.test(lower)) {
+      blocks.decoration_block.push(trimmed)
+      continue // keep lastBlockType as 'decoration'
     }
     if (/da chuyen|\bcoc\b|\bcoc\b|\bck\b|bill|ngan hang|chuyen khoan|ref/i.test(lower)) {
       blocks.deposit_block.push(trimmed)
+      lastBlockType = 'deposit'
       continue
     }
     const isGuestLine = /(\d+)\s*(?:pax|nguoi|người|ng\b|khach|khách|cho)/i.test(lower) || /nguoi lon|tre em|lon.*nho|be/i.test(lower)
     if (isGuestLine) {
       blocks.guest_count_block.push(trimmed)
+      lastBlockType = 'guest'
     }
     const hasTime = /\b\d{1,2}:\d{2}\b/i.test(lower) || /\b\d{1,2}h\d{2}\b/i.test(lower) || /\b\d{1,2}h\b/i.test(lower)
     const hasDate = /\b\d{2}\/\d{2}\/\d{4}\b/i.test(lower) || /ngay/i.test(lower)
     if (hasTime || hasDate) {
       blocks.booking_time_block.push(trimmed)
+      lastBlockType = 'time'
     }
     const hasPhone = /(0[35789]\d{7,9})/.test(lower)
     const hasCustomerKeywords = /anh|chi|dat ban|khach/i.test(lower)
     if (hasPhone || hasCustomerKeywords) {
       blocks.customer_block.push(trimmed)
+      lastBlockType = 'customer'
     }
     const isDishNumberPattern = /^\d+[\/\.\-\)]?\s+/ui.test(trimmed) || /^\d+\s*[\/\.\-\)]\s*/ui.test(trimmed)
     const isDishSuffixPattern = /(?:\s*x\s*\d+|\s+\d{2,3}k|\s+\d{3}\.000|\d+\s*(?:con|phan|dia|set|c))\s*$/i.test(trimmed)
@@ -191,6 +228,7 @@ export function segmentInputBlocksCompat(text: string) {
                        !hasTime && !hasDate && !hasPhone && !isGuestLine
     if (isMenuLine) {
       blocks.menu_block.push(trimmed)
+      lastBlockType = 'menu'
     }
     
     const matchedAny = 
@@ -203,6 +241,7 @@ export function segmentInputBlocksCompat(text: string) {
       
     if (!matchedAny) {
       blocks.note_block.push(trimmed)
+      lastBlockType = 'note'
     }
   }
   
@@ -244,7 +283,7 @@ const INVALID_NAME_SET = new Set([
   'sdt', 'sđt', 'lien', 'liên', 'he', 'hệ', 'cho', 'duoc', 'được', 'khong', 'không', 'nhe', 'nhé', 'nha', 'nhà', 'ho', 'hộ',
   'lam', 'làm', 'sao', 'nao', 'nào', 'chua', 'chưa', 'co', 'có', 'hoi', 'hỏi', 'xin', 'xem', 'gui', 'gửi', 'nhan', 'nhận',
   'con', 'còn', 'la', 'là', 'luc', 'lúc', 'trua', 'trưa', 'sang', 'sáng', 'chieu', 'chiều', 'tai', 'tại',
-  'lon', 'lớn', 'nho', 'nhỏ', 'tre', 'trẻ', 'em'
+  'lon', 'lớn', 'nho', 'nhỏ', 'tre', 'trẻ', 'em', 'vip', 'khu', 'phong', 'phòng', 'guong', 'gương', 'bang', 'bảng'
 ])
 
 const STOP_WORDS = new Set([
@@ -291,6 +330,13 @@ export function evaluateNameConfidence(name: string, normalizedText: string): {
     const noAccent = stripAccents(w)
     return AMBIGUOUS_VIETNAMESE_NAME_TOKENS.has(w) || AMBIGUOUS_VIETNAMESE_NAME_TOKENS.has(noAccent)
   })
+
+  // --- NER Upgrade: Boost score if name matches common VN first names ---
+  const lastWordNoAccent = stripAccents(words[words.length - 1] || '').toLowerCase()
+  if (COMMON_VN_FIRST_NAMES.has(lastWordNoAccent) && !hasAmbiguousToken) {
+    score += 0.05
+    signals.push('common_vn_name')
+  }
 
   const escapedName = nameClean.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&')
 
@@ -341,6 +387,25 @@ export function evaluateNameConfidence(name: string, normalizedText: string): {
   if (words.length >= 2) {
     score += 0.15
     signals.push('multi_token_name')
+  }
+
+  // --- NER Upgrade: Positional Context Score ---
+  // Names appearing on the first non-empty line get a boost
+  const textLines = normalizedText.split('\n').filter(l => l.trim())
+  if (textLines.length > 0) {
+    const firstLineLower = textLines[0].toLowerCase()
+    if (firstLineLower.includes(nameCleanLower)) {
+      score += 0.10
+      signals.push('first_line_position')
+    }
+  }
+
+  // --- NER Upgrade: Abbreviated name + phone detection ---
+  // Pattern like "T.Trang 0901234567" or "C.Hằng 0987654321"
+  const abbrPhoneRegex = new RegExp(`[A-Z]\\s*\\.\\s*${escapedName}\\s+0[35789]\\d{7,9}`, 'i')
+  if (abbrPhoneRegex.test(normalizedText)) {
+    score += 0.30
+    signals.push('abbreviated_name_with_phone')
   }
 
   const hasStrongNameSignal = signals.includes('introduction_phrase') || signals.includes('honorific_before_name') || signals.includes('contact_prefix')
@@ -398,6 +463,40 @@ export function evaluateNameConfidence(name: string, normalizedText: string): {
     }
   }
 
+  // --- NER Upgrade: Additional ambiguous names ---
+  if (!hasStrongNameSignal && (nameCleanNoAccent === 'hai' || nameCleanNoAccent === 'hải')) {
+    // "hai" can be number 2 in Vietnamese
+    const haiNumberRegex = new RegExp(`(?<!\\p{L})${escapedName}\\s+(?:ban|bàn|nguoi|người|phan|phần|mon|món|con|cai|cái|dia|đĩa|ly|lon|chai)(?!\\p{L})`, 'ui')
+    if (haiNumberRegex.test(normalizedText)) {
+      score -= 0.40
+      risks.push('hai_number_context')
+    }
+  }
+
+  if (!hasStrongNameSignal && (nameCleanNoAccent === 'loan' || nameCleanNoAccent === 'lộn')) {
+    const loanVerbRegex = new RegExp(`(?<!\\p{L})(?:lon|lộn|xon)\\s+${escapedName}(?!\\p{L})`, 'ui')
+    if (loanVerbRegex.test(normalizedText)) {
+      score -= 0.35
+      risks.push('loan_verb_context')
+    }
+  }
+
+  if (!hasStrongNameSignal && (nameCleanNoAccent === 'dung' || nameCleanNoAccent === 'dũng')) {
+    const dungNounRegex = new RegExp(`(?<!\\p{L})(?:dung\\s+dich|dung\\s+moi|dung\\s+tich)(?!\\p{L})`, 'ui')
+    if (dungNounRegex.test(normalizedText)) {
+      score -= 0.35
+      risks.push('dung_noun_context')
+    }
+  }
+
+  if (!hasStrongNameSignal && (nameCleanNoAccent === 'hanh' || nameCleanNoAccent === 'hạnh')) {
+    const hanhNounRegex = new RegExp(`(?<!\\p{L})(?:hanh\\s+phuc|hạnh\\s+phúc|hat\\s+hanh|hạt\\s+hạnh)(?!\\p{L})`, 'ui')
+    if (hanhNounRegex.test(normalizedText)) {
+      score -= 0.35
+      risks.push('hanh_noun_context')
+    }
+  }
+
   // Check if message is too short and lacks booking context
   const hasPhone = /(0[35789]\d{7,9})/.test(normalizedText)
   const hasDate = /\b\d{1,2}[\/\.\-]\d{1,2}\b/g.test(normalizedText) || /ngay|ngày/i.test(normalizedText)
@@ -419,6 +518,7 @@ export function classifyPeopleNames(text: string) {
   const peopleNames: string[] = []
   const bookerCandidates: string[] = []
   const partyOwnerCandidates: string[] = []
+  const depositSenderCandidates: string[] = []
   
   const invalidNameSet = INVALID_NAME_SET
 
@@ -608,10 +708,51 @@ export function classifyPeopleNames(text: string) {
     }
   })
 
+  // --- Deposit Sender Isolation (#4) ---
+  // Detect names that appear in deposit/transfer context
+  const depositSenderRegex = /(?:đã chuyển|da chuyen|chuyển khoản|chuyen khoan|\bck\b|cọc|đặt cọc|nộp|gửi cọc)\s+(?:anh|chị|chi|em)?\s*(\p{L}+(?:\s+\p{L}+){0,2})/ugi
+  let depMatch
+  while ((depMatch = depositSenderRegex.exec(text)) !== null) {
+    const senderName = cleanHonorificPrefix(depMatch[1].trim())
+    if (senderName && senderName.length > 1 && !REJECT_NAME_REGEX.test(stripAccents(senderName))) {
+      if (!depositSenderCandidates.includes(senderName)) {
+        depositSenderCandidates.push(senderName)
+      }
+    }
+  }
+  // Also detect reverse pattern: "Anh Thuận đã chuyển"
+  const depositSenderReverseRegex = /(?:anh|chị|chi|em)\s+(\p{L}+(?:\s+\p{L}+){0,2})\s+(?:đã chuyển|da chuyen|chuyển khoản|chuyen khoan|đã cọc|da coc|nộp cọc)/ugi
+  while ((depMatch = depositSenderReverseRegex.exec(text)) !== null) {
+    const senderName = cleanHonorificPrefix(depMatch[1].trim())
+    if (senderName && senderName.length > 1 && !REJECT_NAME_REGEX.test(stripAccents(senderName))) {
+      if (!depositSenderCandidates.includes(senderName)) {
+        depositSenderCandidates.push(senderName)
+      }
+    }
+  }
+  // Remove deposit senders from booker candidates
+  for (const sender of depositSenderCandidates) {
+    const idx = bookerCandidates.indexOf(sender)
+    if (idx !== -1) bookerCandidates.splice(idx, 1)
+  }
+
+  // --- NER Upgrade: Detect abbreviated name + phone pattern ---
+  // Pattern like "T.Trang 0901234567" or "C.Hằng 0987654321"
+  const abbrNamePhoneRegex = /[A-Z]\s*\.\s*(\p{Lu}[\p{Ll}]+)\s+0[35789]\d{7,9}/gu
+  let abbrMatch
+  while ((abbrMatch = abbrNamePhoneRegex.exec(text)) !== null) {
+    const abbrName = abbrMatch[1].trim()
+    if (abbrName && abbrName.length > 1 && !REJECT_NAME_REGEX.test(stripAccents(abbrName))) {
+      if (!peopleNames.includes(abbrName)) peopleNames.push(abbrName)
+      if (!bookerCandidates.includes(abbrName)) bookerCandidates.push(abbrName)
+    }
+  }
+
   return {
     peopleNames,
     bookerCandidates,
-    partyOwnerCandidates
+    partyOwnerCandidates,
+    depositSenderCandidates
   }
 }
 
@@ -1133,20 +1274,31 @@ export function parseSingleMenuLine(lineStr: string): { raw_name: string; quanti
     return `__PORTION_PAREN_${portionParens.length - 1}__`
   })
 
-  // 2. Extract portion/qty indicators like "3 phần", "3 con", "3 đĩa", "3 tô", "3 ly", "3 lon"
+  // 2. Extract portion/qty indicators like "3 phần", "3 đĩa", "3 tô", "3 ly", "3 lon"
   let qty = 1
   
-  // Trailing quantity multiplier: "x1", "x 2", "*3", "(x1)", "1 phần", "2 con"
-  const trailingQtyMatch = cleaned.match(/(?:\((?:[x\*])\s*(\d+)\)|(?:[x\*])\s*(\d+)|\b(\d+)\s*(?:phần|phan|đĩa|dia|con|tô|to|ly|lon|set|suất|suat))\s*$/i)
+  // Trailing quantity multiplier: "x1", "x 2", "*3", "(x1)", "1 phần"
+  const trailingQtyMatch = cleaned.match(/(?:\((?:[x\*])\s*(\d+)\)|(?:[x\*])\s*(\d+)|\b(\d+)\s*(?:phần|phan|đĩa|dia|tô|to|ly|lon|set|suất|suat))\s*$/i)
   if (trailingQtyMatch) {
     qty = parseInt(trailingQtyMatch[1] || trailingQtyMatch[2] || trailingQtyMatch[3], 10) || 1
-    cleaned = cleaned.replace(/(?:\((?:[x\*])\s*(\d+)\)|(?:[x\*])\s*(\d+)|\b(\d+)\s*(?:phần|phan|đĩa|dia|con|tô|to|ly|lon|set|suất|suat))\s*$/i, '').trim()
+    cleaned = cleaned.replace(/(?:\((?:[x\*])\s*(\d+)\)|(?:[x\*])\s*(\d+)|\b(\d+)\s*(?:phần|phan|đĩa|dia|tô|to|ly|lon|set|suất|suat))\s*$/i, '').trim()
   } else {
-    // Leading quantity: "2x ", "3* ", "2 phần ", "3 con "
-    const leadingQtyMatch = cleaned.match(/^(?:(\d+)\s*[x\*]\s*|(\d+)\s*(?:phần|phan|đĩa|dia|con|tô|to|ly|lon|set|suất|suat)\s+)/i)
+    // Leading explicit quantity: "2x ", "3* ", "2 phần ", "3 đĩa "
+    const leadingQtyMatch = cleaned.match(/^(?:(\d+)\s*[x\*]\s*|(\d+)\s*(?:phần|phan|đĩa|dia|tô|to|ly|lon|set|suất|suat)\s+)/i)
     if (leadingQtyMatch) {
       qty = parseInt(leadingQtyMatch[1] || leadingQtyMatch[2], 10) || 1
-      cleaned = cleaned.replace(/^(?:(\d+)\s*[x\*]\s*|(\d+)\s*(?:phần|phan|đĩa|dia|con|tô|to|ly|lon|set|suất|suat)\s+)/i, '').trim()
+      cleaned = cleaned.replace(/^(?:(\d+)\s*[x\*]\s*|(\d+)\s*(?:phần|phan|đĩa|dia|tô|to|ly|lon|set|suất|suat)\s+)/i, '').trim()
+    } else {
+      // Check if leading "X con" is not a dish portion (5 con, 10 con)
+      const leadingConMatch = cleaned.match(/^(\d+)\s*(?:con|c)\s+(.+)$/i)
+      if (leadingConMatch) {
+        const count = parseInt(leadingConMatch[1], 10)
+        // If count is 5 or 10, it's a portion specification for oysters/seafood, not order quantity
+        if (count !== 5 && count !== 10) {
+          qty = count
+          cleaned = leadingConMatch[2].trim()
+        }
+      }
     }
   }
 
@@ -1197,6 +1349,78 @@ export function parseSingleMenuLine(lineStr: string): { raw_name: string; quanti
     unit_price,
     note
   }
+}
+
+export interface DecorationDetails {
+  decor_color: string | null
+  board_text: string | null
+  mirror_text: string | null
+  special_requests: string[]
+  raw_decoration_lines: string[]
+}
+
+export function extractDecorationDetails(decorationBlock: string): DecorationDetails {
+  const result: DecorationDetails = {
+    decor_color: null,
+    board_text: null,
+    mirror_text: null,
+    special_requests: [],
+    raw_decoration_lines: []
+  }
+  if (!decorationBlock) return result
+
+  const lines = decorationBlock.split('\n').map(l => l.trim()).filter(Boolean)
+  result.raw_decoration_lines = [...lines]
+
+  for (const line of lines) {
+    const lower = stripAccents(line).toLowerCase()
+
+    // 1. Decor color: "tông hồng pastel", "tông màu: xanh dương", "tone: blue", "màu hồng", "tone hồng pastel"
+    const colorMatch = line.match(/(?:t[oô]ng\s*(?:m[aà]u)?|m[aà]u|tone|color)\s*[:\-]?\s*([^,\n;]+)/i)
+    if (colorMatch && !result.decor_color) {
+      result.decor_color = colorMatch[1].trim()
+    }
+
+    // 2. Special requests with labels: "Dặn dò: ...", "lưu ý: ...", "nhắc: ...", "yêu cầu: ...", "note: ..."
+    const reqMatch = line.match(/^(?:d[aặ]n\s*d[oò]|l[uư]u\s*[yý]|nh[aắ]c|y[eê]u\s*c[aầ]u|note)\s*[:\-]?\s*(.+)/i)
+    if (reqMatch) {
+      result.special_requests.push(reqMatch[1].trim())
+      continue
+    }
+
+    // 3. Board text: "Bảng: HBD Bé Su", "bảng sinh nhật: ...", "bảng chữ: ...", "bảng tên: ..."
+    const boardMatch = line.match(/(?:b[aả]ng(?:\s+t[eê]n|\s+ch[uữ]|\s+sinh\s*nh[aậ]t|\s+m[uừ]ng)?|bang(?:\s+ten|\s+chu|\s+sinh\s*nhat|\s+mung)?)\s*[:\-]?\s*(.+)/i)
+    if (boardMatch && !result.board_text) {
+      result.board_text = boardMatch[1].trim()
+      continue
+    }
+
+    // 4. Mirror text: "Gương viết: Welcome", "gương: ...", "mirror: ..."
+    const mirrorMatch = line.match(/(?:g[uư][oơ]ng(?:\s+vi[eế]t(?:\s+t[eê]n)?)?|mirror)\s*[:\-]?\s*(.+)/i)
+    if (mirrorMatch && !result.mirror_text) {
+      result.mirror_text = mirrorMatch[1].trim()
+      continue
+    }
+
+    // 5. Flower & Balloon Decoration: "Trang trí hoa tươi", "Hoa tươi trên bàn", "Bong bóng tone hồng", "Bóng bay pastel"
+    if (/hoa\s+tuoi|hoa\s+lua|hoa\s+sap|cam\s+hoa|bong\s+bong|bong\s+bay|backdrop|banh\s+kem|phao|nen/i.test(lower)) {
+      if (!result.special_requests.includes(line)) {
+        result.special_requests.push(line)
+      }
+      continue
+    }
+
+    // 6. If line contains HBD or Happy Birthday text and no board_text yet, extract the message
+    if (!result.board_text) {
+      const hbdMatch = line.match(/(?:happy\s*birthday|hbd|hpbd|ch[uú]c\s*m[uừ]ng)\s+(.+)/i)
+      if (hbdMatch) {
+        result.board_text = hbdMatch[1].trim()
+        continue
+      }
+    }
+  }
+
+  return result
 }
 
 export function extractByRules(rawOrNormalizedText: string) {
@@ -1449,6 +1673,7 @@ export function extractByRules(rawOrNormalizedText: string) {
   else if (/lien hoan|tiec|hop lop/i.test(clean)) booking_need = 'Liên hoan'
 
   let decoration_text = ''
+  const decoration_details = extractDecorationDetails(blocks.decoration_block)
   if (blocks.decoration_block) {
     const decoMatch = normalizedText.match(/(?:happy birthday|hbd|bang chu|chu)\s+([^:\n]+)/i)
     if (decoMatch) {
@@ -1578,6 +1803,7 @@ export function extractByRules(rawOrNormalizedText: string) {
     table_code,
     booking_need,
     decoration_text,
+    decoration_details,
     deposit_amount,
     deposit_status,
     note,

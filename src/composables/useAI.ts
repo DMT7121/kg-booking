@@ -23,7 +23,8 @@ import {
   matchMenuItems, 
   resolveBestMenuSheet, 
   resolveMenuItemsLocally,
-  resolveSetMenuDescription
+  resolveSetMenuDescription,
+  deduplicateMatchedItems
 } from '@/domain/menu/menuMatcher'
 import { 
   applyDeterministicRuleLock, 
@@ -32,7 +33,8 @@ import {
   cleanBookingNotes, 
   normalizePartyType, 
   repairAndNormalizeJSON, 
-  validateParsedFields 
+  validateParsedFields,
+  crossValidateResults
 } from '@/domain/booking/bookingNormalizer'
 import { runAIRouter } from '@/services/ai/aiRouter'
 import { callAIModel } from '@/services/ai/aiProviderClient'
@@ -728,7 +730,8 @@ export function useAI() {
           }
         }
 
-        Object.keys(appliedCorrections).forEach(field => {
+        Object.keys(appliedCorrections).forEach(field =>
+          {
           const val = appliedCorrections[field]
           if (field === 'name' || field === 'phone') {
             if (!rawJsonParsed.customer) rawJsonParsed.customer = {}
@@ -740,6 +743,15 @@ export function useAI() {
           }
         })
 
+        // Cross-Validation: AI ↔ Rule Engine (#1)
+        if (ruleBasedResult) {
+          const { result: crossValidated, validations } = crossValidateResults(rawJsonParsed, ruleBasedResult, hardEntities)
+          rawJsonParsed = crossValidated
+          if (validations.length > 0) {
+            logStore.addLog(`[CrossValidation] ${validations.length} trường được đối chiếu chéo: ${validations.map(v => `${v.field}→${v.chosenSource}`).join(', ')}`, 'info')
+          }
+        }
+
         if (rawJsonParsed.menu_items && rawJsonParsed.menu_items.length > 0) {
           logStore.addLog(`Bắt đầu đối khớp ${rawJsonParsed.menu_items.length} món ăn trích xuất được với thực đơn nhà hàng...`)
           rawJsonParsed.menu_items = matchMenuItems(
@@ -750,6 +762,11 @@ export function useAI() {
             appStore.menuDetails || {},
             formStore.customer.pax ? parseInt(String(formStore.customer.pax)) : null,
             (msg, level) => logStore.addLog(msg, level)
+          )
+          // Semantic Duplicate Dish Detection (#6)
+          rawJsonParsed.menu_items = deduplicateMatchedItems(
+            rawJsonParsed.menu_items,
+            (msg, level) => logStore.addLog(msg, level as 'info' | 'warning' | 'error' | 'success')
           )
         }
 

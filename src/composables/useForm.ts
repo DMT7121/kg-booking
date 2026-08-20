@@ -5,6 +5,7 @@ import { useUIStore } from '@/stores/useUIStore'
 import { stripAccents, formatVND, cleanPhoneNumber, formatDateStr, isIOS, formatSetNote, escapeHtml, generateBookingId } from '@/utils'
 import { SETS, SAMPLE_MENU } from '@/utils/constants'
 import { saveFormDraft, getFormDraft, clearFormDraft } from '@/services/cache'
+import { useAI } from '@/composables/useAI'
 
 import MiniSearch from 'minisearch'
 
@@ -299,10 +300,8 @@ Cảm ơn anh/chị đã tin tưởng King's Grill 🙏`
         uiStore.listening = false
         
         // Auto-trigger AI processing
-        import('@/composables/useAI').then(({ useAI }) => {
-          const { processAI } = useAI()
-          processAI()
-        })
+        const { processAI } = useAI()
+        processAI()
       }
       recognition.start()
     }

@@ -243,14 +243,16 @@ NGUYÊN TẮC BẮT BUỘC:
 4. ĐẢM BẢO KHÔNG BỎ SÓT DỮ LIỆU: Mọi chi tiết trang trí, tông màu, bảng tên, yêu cầu riêng đều phải xuất hiện trong party.special_request VÀ được tổng hợp đầy đủ vào note.
 
 # 1. QUY TẮC PHÂN ĐỊNH TÊN & VAI TRÒ
-- customer.name & customer.phone: Người liên hệ / đặt bàn chính (vd: "Chị Ngọc", "Anh Nam", "Chị Trang 0938..."). Xưng hô Anh/Chị giữ cùng tên nếu có. Không nhầm với tên chủ tiệc/nhân vật chính.
+- customer.name & customer.phone: Người liên hệ / đặt bàn chính (vd: "Chị Ngọc", "Anh Nam", "Chị Trang 0938..."). Xưng hô Anh/Chị giữ cùng tên nếu có.
+- TUYỆT ĐỐI KHÔNG lấy tên nhân vật chính của buổi tiệc (như "Bé Min", "Bé Bún", "Chị Thảo (chủ tiệc)") làm customer.name. Nếu chỉ có tên chủ tiệc/nhân vật chính mà không rõ người đặt, để customer.name = "".
+- TUYỆT ĐỐI KHÔNG lấy số bàn, mã bàn/khu vực (như "Bàn 5", "Bàn C6", "A12", "VIP2", "Khu A"), tên nhân viên nhận cọc/đơn (như "Thuận", "Dương", "Tiên", "Lễ tân", "Admin"), hoặc thông tin yêu cầu/món ăn làm customer.name. Nếu không có tên khách rõ ràng, để customer.name = "".
 - party.owner_name: Chủ tiệc / người được tổ chức (vd: "Thiên Hào" trong "Happy birthday Thiên Hào", "Bé Bún" trong "Sinh nhật Bé Bún 1 tuổi").
 - party.display_board_text: Nguyên văn nội dung hiển thị trên bảng welcome/bảng tên nếu có (vd: "Happy birthday Thiên Hào", "Chúc mừng sinh nhật Chị Thảo").
 - Thứ tự ưu tiên tên người:
   1. Từ khóa đặt/liên hệ (khách hàng, khách đặt, liên hệ, sđt, đặt bàn...) -> customer.name.
   2. Tên đi liền SĐT -> customer.name & customer.phone.
   3. Tên đi sau từ khóa tiệc/bảng tên (sinh nhật, thôi nôi, bảng tên, happy birthday...) -> party.owner_name & party.display_board_text.
-  4. Có tên nhưng vai trò mơ hồ -> customer.name = party.owner_name = tên, thêm "person_role_unclear" vào needs_review.
+  4. Có tên nhưng vai trò mơ hồ -> customer.name = "", party.owner_name = tên, thêm "person_role_unclear" vào needs_review.
   5. Không có tên -> customer.name = "", thêm "missing_customer_name" vào needs_review.
 
 # 2. XỬ LÝ NGÀY GIỜ (Dựa trên thời gian hệ thống: {{CURRENT_DATE}})
@@ -264,19 +266,22 @@ NGUYÊN TẮC BẮT BUỘC:
 - guest_count: "10 khách", "10 người", "12 lớn 4 nhỏ" (16), "10-12 pax" (12). Mơ hồ thì thêm "guest_count_ambiguous". Không nhầm với SĐT, số bàn hay tiền cọc.
 - table_count & tables: "2 bàn", "bàn A1" -> table_count, tables.
 - party.decor_color: Tông màu trang trí yêu cầu (vd: "Hồng pastel", "Xanh dương", "Vàng kim", "Đen đỏ", "Trắng kem", v.v.). Trích xuất trực tiếp tông màu nếu có đề cập.
-- party.special_request: Ghi nhận đầy đủ chi tiết trang trí bổ sung, loại hoa, tính chất miễn phí/trả phí (vd: "Hoa lụa miễn phí theo tông màu Xanh dương", "Trang trí bóng bay màu hồng").
+- party.special_request: Ghi nhận đầy đủ chi tiết trang trí bổ sung: hoa tươi ("trang trí hoa tươi", "hoa tươi trên bàn"), hoa lụa, bong bóng, backdrop, vị trí bàn ("gần sân khấu", "phòng riêng"), giờ đem bánh kem ("đem bánh kem lúc 20h").
 - KHÔNG nhầm số lượng bảng trang trí ("2 bảng tên") với table_count.
 
 # 4. LOẠI TIỆC & TỔNG HỢP GHI CHÚ (NOTE)
 - party.type: "Sinh nhật", "Thôi nôi (1st)", "Đầy tháng", "Công ty", "Liên hoan", "Kỉ niệm", "Tất niên", "Tân niên", "Cưới/Báo hỷ", "Farewell (Tiệc chia tay)".
 - note: Tổng hợp mạch lạc toàn bộ thông tin quan trọng. Format gợi ý:
-  "Chủ tiệc: [party.owner_name] | Tông màu: [party.decor_color] | Bảng tên: \"[party.display_board_text]\" | Trang trí: [party.special_request] | Yêu cầu khác: [ăn uống/vị trí]"
+  "Chủ tiệc: [party.owner_name] | Tông màu: [party.decor_color] | Bảng tên: \"[party.display_board_text]\" | Gương: \"[party.mirror_board_text]\" | Trang trí/Dặn dò: [party.special_request] | Yêu cầu khác: [ăn uống/vị trí]"
 
 # 5. MÓN ĂN (menu_items)
+- CHỈ trích xuất món ăn khách hàng THỰC SỰ ĐẶT / YÊU CẦU trong tin nhắn.
+- TUYỆT ĐỐI KHÔNG tự bịa, không tự ý thêm món từ thực đơn nếu khách không yêu cầu. Nếu khách không đặt món, để menu_items = [].
+- Trích xuất ĐẦY ĐỦ TẤT CẢ các món ăn được gọi, không bỏ sót món.
 - raw_name: Tên món thô trong tin nhắn (xử lý dính chữ: "6hàu" -> 6 hàu, "mì xào2" -> 2 mì xào).
 - matched_name: Khớp chính xác tên từ thực đơn ứng viên nếu có {{MENU_CONTEXT}}, không có để "".
-- quantity: Số lượng (mặc định 1).
-- note: Yêu cầu riêng cho món (vd: "ít cay", "1/2 con").
+- quantity: Số lượng suất gọi (mặc định 1).
+- note: Yêu cầu riêng hoặc quy cách khẩu phần (vd: "ít cay", "1/2 con", "5 con", "10 con", "0.5kg", "dĩa lớn").
 
 # 6. CONFIDENCE & CẢNH BÁO HỢP LỆ
 - Đánh giá từ 0.0 đến 1.0. Nếu trường chính < 0.7, thêm cảnh báo vào needs_review.

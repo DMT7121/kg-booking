@@ -304,7 +304,7 @@ onUnmounted(() => {
 
 <template>
   <div 
-    class="bg-gradient-to-br from-blue-600 to-indigo-700 p-4 rounded-2xl shadow-xl relative overflow-hidden group transition-all"
+    class="bg-gradient-to-br from-blue-600 to-indigo-700 p-4 rounded-2xl shadow-xl relative overflow-hidden group transition-all glow-border"
     :class="{'ring-8 ring-yellow-400 ring-inset scale-[1.02]': isDragging}"
     @dragover="onDragOver"
     @dragleave="onDragLeave"
@@ -370,7 +370,7 @@ onUnmounted(() => {
         </div>
 
         <div class="absolute bottom-2 right-2 flex gap-1.5 z-20">
-          <button v-if="ui.isVoiceSupported" @click="toggleVoiceMode" :class="['w-9 h-9 rounded-full flex items-center justify-center transition-all shadow-lg active-effect', ui.listening ? 'recording-active' : 'bg-white text-blue-600 hover-effect']" title="Voice Assistant"><i class="fa-solid fa-microphone text-sm"></i></button>
+          <button v-if="ui.isVoiceSupported" @click="toggleVoiceMode" :class="['w-9 h-9 rounded-full flex items-center justify-center transition-all shadow-lg active-effect', ui.listening ? 'animate-breathing bg-rose-500 text-white' : 'bg-white text-blue-600 hover-effect']" title="Voice Assistant"><i class="fa-solid fa-microphone text-sm"></i></button>
           <button @click="aiFileIn?.click()" class="w-9 h-9 rounded-full bg-white text-indigo-600 flex items-center justify-center transition-all shadow-lg active-effect hover-effect" title="Upload Image"><i class="fa-solid fa-image text-sm"></i></button>
           <input type="file" ref="aiFileIn" @change="onImageSelect" class="hidden" accept="image/*">
         </div>
@@ -386,8 +386,8 @@ onUnmounted(() => {
       </div>
     </div>
 
-    <button @click="handleAnalyze(false)" class="w-full mt-3 py-3 rounded-xl font-black text-sm shadow-lg border flex justify-center items-center gap-2 active:scale-95 transition-all min-h-[48px] active-effect cursor-pointer"
-      :class="isProcessing ? 'bg-red-500 hover:bg-red-600 text-white border-red-600' : 'bg-white hover:bg-slate-50 text-blue-700 border-white/50'">
+    <button @click="handleAnalyze(false)" class="w-full mt-3 py-3 rounded-xl font-black text-sm shadow-lg border flex justify-center items-center gap-2 hover:-translate-y-1 hover:shadow-blue-500/20 active:scale-95 transition-all duration-300 min-h-[48px] active-effect cursor-pointer"
+      :class="isProcessing ? 'bg-red-500 hover:bg-red-600 text-white border-red-600 animate-pulse' : 'bg-white hover:bg-slate-50 text-blue-700 border-white/50'">
       <i v-if="isProcessing" class="fa-solid fa-spinner animate-spin"></i>
       <i v-else class="fa-solid fa-rocket"></i>
       {{ isProcessing ? 'HỦY PHÂN TÍCH (CANCEL)' : 'PHÂN TÍCH (QUICK EXTRACT)' }}

@@ -22,7 +22,198 @@ export function cleanCustomerName(name: string): string {
   // 4. Double space cleanup
   cleaned = cleaned.replace(/\s+/g, ' ').trim()
 
+  if (!cleaned) return ''
+
+  const cleanLowerNoAccent = stripAccents(cleaned).toLowerCase()
+  // Reject table / zone / room matches
+  if (/^(?:ban|so ban|khu|phong|vip)(?:\s+[a-g0-9]+)?$/i.test(cleanLowerNoAccent) ||
+      /^[a-g]\d+$/i.test(cleanLowerNoAccent) ||
+      /^vip\d*$/i.test(cleanLowerNoAccent) ||
+      /^\d+$/i.test(cleanLowerNoAccent)) {
+    return ''
+  }
+
+  // Reject receiver / staff labels if mistaken for customer name
+  if (/^(?:nhan|nguoi nhan|da nhan|le tan|admin|thuận|thuan|dương|duong|tiên|tien|dmt)$/i.test(cleanLowerNoAccent)) {
+    return ''
+  }
+
+  // Reject decor / note / request / party keywords
+  const requestKeywords = /yeu cau|phong lanh|trang tri|hoa tuoi|hoa lua|bong bong|bong bay|guong|bang chu|bang ten|com chien|thuc don|mon an|coc|chuyen khoan|set menu|combo|bao gia|bia|nuoc ngot|sinh nhat|thoi noi|day thang|happy birthday|hbd/i
+  if (requestKeywords.test(cleanLowerNoAccent)) {
+    return ''
+  }
+
   return cleaned
+}
+
+export interface CrossValidationResult {
+  field: string
+  aiValue: any
+  ruleValue: any
+  chosenValue: any
+  chosenSource: 'ai' | 'rule' | 'merged'
+  aiConfidence: number
+  ruleConfidence: number
+  reason: string
+}
+
+export function crossValidateResults(
+  aiResult: any,
+  ruleResult: any,
+  hardEntities: any
+): { result: any; validations: CrossValidationResult[] } {
+  const result = JSON.parse(JSON.stringify(aiResult))
+  if (!result.customer) result.customer = {}
+  if (!result.booking) result.booking = {}
+  if (!result.warnings) result.warnings = []
+  if (!result.needs_review_fields) result.needs_review_fields = []
+  const validations: CrossValidationResult[] = []
+
+  // --- Cross-validate Customer Name ---
+  const aiName = cleanCustomerName(result.customer.name || '')
+  const ruleName = cleanCustomerName(ruleResult?.customer_name || '')
+  const ruleNameConf = ruleResult?.customer_name_confidence ?? 0
+  const aiNameConf = parseFloat(String(result.confidence?.customer_name || 0.8)) || 0.8
+
+  if (aiName && ruleName && aiName.toLowerCase() !== ruleName.toLowerCase()) {
+    // Conflict: choose higher confidence
+    if (ruleNameConf > aiNameConf && ruleNameConf >= 0.85) {
+      result.customer.name = ruleName
+      validations.push({
+        field: 'customer_name', aiValue: aiName, ruleValue: ruleName,
+        chosenValue: ruleName, chosenSource: 'rule',
+        aiConfidence: aiNameConf, ruleConfidence: ruleNameConf,
+        reason: `Rule Engine (${ruleNameConf.toFixed(2)}) > AI (${aiNameConf.toFixed(2)})`
+      })
+    } else {
+      // Keep AI but flag for review
+      if (!result.needs_review_fields.includes('customer_name_conflict')) {
+        result.needs_review_fields.push('customer_name_conflict')
+      }
+      result.warnings.push(`Xung đột tên: AI="${aiName}" vs Rule="${ruleName}". Giữ AI.`)
+      validations.push({
+        field: 'customer_name', aiValue: aiName, ruleValue: ruleName,
+        chosenValue: aiName, chosenSource: 'ai',
+        aiConfidence: aiNameConf, ruleConfidence: ruleNameConf,
+        reason: `AI kept, confidence AI(${aiNameConf.toFixed(2)}) >= Rule(${ruleNameConf.toFixed(2)})`
+      })
+    }
+  } else if (!aiName && ruleName && ruleNameConf >= 0.65) {
+    // Only set rule name if rule name is not a party owner name
+    const partyOwner = result.party?.owner_name || ruleResult?.party_owner || ''
+    if (!partyOwner || !ruleName.toLowerCase().includes(partyOwner.toLowerCase())) {
+      result.customer.name = ruleName
+      validations.push({
+        field: 'customer_name', aiValue: '', ruleValue: ruleName,
+        chosenValue: ruleName, chosenSource: 'rule',
+        aiConfidence: 0, ruleConfidence: ruleNameConf,
+        reason: 'AI empty, Rule Engine filled'
+      })
+    }
+  } else if (aiName && !ruleName) {
+    // AI has value, Rule doesn't — slightly lower confidence
+    if (result.confidence) {
+      result.confidence.customer_name = Math.max(0, aiNameConf - 0.10)
+    }
+    validations.push({
+      field: 'customer_name', aiValue: aiName, ruleValue: '',
+      chosenValue: aiName, chosenSource: 'ai',
+      aiConfidence: aiNameConf, ruleConfidence: 0,
+      reason: 'AI only (Rule Engine empty), confidence lowered 10%'
+    })
+  }
+
+  // --- Cross-validate Phone ---
+  const aiPhone = result.customer.phone || ''
+  const rulePhone = ruleResult?.phone || ''
+  if (!aiPhone && rulePhone) {
+    result.customer.phone = rulePhone
+    validations.push({
+      field: 'phone', aiValue: '', ruleValue: rulePhone,
+      chosenValue: rulePhone, chosenSource: 'rule',
+      aiConfidence: 0, ruleConfidence: 0.95,
+      reason: 'AI empty, Rule Engine filled'
+    })
+  }
+
+  // --- Cross-validate Date ---
+  const aiDate = result.booking.event_date || ''
+  const ruleDate = ruleResult?.event_date || ''
+  if (!aiDate && ruleDate) {
+    result.booking.event_date = ruleDate
+    validations.push({
+      field: 'event_date', aiValue: '', ruleValue: ruleDate,
+      chosenValue: ruleDate, chosenSource: 'rule',
+      aiConfidence: 0, ruleConfidence: 0.95,
+      reason: 'AI empty, Rule Engine filled'
+    })
+  }
+
+  // --- Cross-validate Time ---
+  const aiTime = result.booking.event_time || ''
+  const ruleTime = ruleResult?.event_time || ''
+  if (!aiTime && ruleTime) {
+    result.booking.event_time = ruleTime
+    validations.push({
+      field: 'event_time', aiValue: '', ruleValue: ruleTime,
+      chosenValue: ruleTime, chosenSource: 'rule',
+      aiConfidence: 0, ruleConfidence: 0.95,
+      reason: 'AI empty, Rule Engine filled'
+    })
+  }
+
+  // --- Cross-validate Guest Count ---
+  const aiPax = result.booking.guest_count
+  const rulePax = ruleResult?.guest_count
+  if ((aiPax === null || aiPax === undefined) && rulePax) {
+    result.booking.guest_count = rulePax
+    validations.push({
+      field: 'guest_count', aiValue: null, ruleValue: rulePax,
+      chosenValue: rulePax, chosenSource: 'rule',
+      aiConfidence: 0, ruleConfidence: 0.95,
+      reason: 'AI empty, Rule Engine filled'
+    })
+  }
+
+  // --- Cross-validate Table ---
+  const aiTable = result.booking.table_number || ''
+  const ruleTable = ruleResult?.table_code || ''
+  if (!aiTable && ruleTable) {
+    result.booking.table_number = ruleTable
+    validations.push({
+      field: 'table_number', aiValue: '', ruleValue: ruleTable,
+      chosenValue: ruleTable, chosenSource: 'rule',
+      aiConfidence: 0, ruleConfidence: 0.95,
+      reason: 'AI empty, Rule Engine filled'
+    })
+  }
+
+  // --- Cross-validate Decoration Details ---
+  const ruleDecoDetails = ruleResult?.decoration_details
+  if (ruleDecoDetails) {
+    if (!result.party) result.party = {}
+    if (!result.party.decor_color && ruleDecoDetails.decor_color) {
+      result.party.decor_color = ruleDecoDetails.decor_color
+    }
+    if (!result.party.display_board_text && ruleDecoDetails.board_text) {
+      result.party.display_board_text = ruleDecoDetails.board_text
+    }
+    if (!result.party.mirror_board_text && ruleDecoDetails.mirror_text) {
+      result.party.mirror_board_text = ruleDecoDetails.mirror_text
+    }
+    if (ruleDecoDetails.special_requests.length > 0 && !result.party.special_request) {
+      result.party.special_request = ruleDecoDetails.special_requests.join('; ')
+    }
+  }
+
+  // Add reasoning summary
+  if (validations.length > 0) {
+    const summary = validations.map(v => `[${v.field}] ${v.reason}`).join(' | ')
+    result.reasoning_summary = (result.reasoning_summary || '') + ` | CrossValidation: ${summary}`
+  }
+
+  return { result, validations }
 }
 
 export function normalizeDateString(dateStr: string): string {
@@ -65,49 +256,19 @@ export function resolveDisplayCustomerName(parsed: any): string {
     if (!name) return ''
     const cleanNameLower = stripAccents(name).toLowerCase()
     // Guard: do not allow request, notes or food keywords to be used as customer name
-    const requestKeywords = /\byeu\s+cau\b|\bphong\s+lanh\b|\btrang\s+tri\b|\bbong\s+bong\b|\bbong\s+bay\b|\bcom\s+chien\b|\bthuc\s+don\b|\bmon\s+an\b|\bcoc\b|\bchuyen\s+khoan\b|\bset\s+menu\b|\bcombo\b|\bbao\s+gia\b|\bbia\b|\bnuoc\s+ngot\b/i
+    const requestKeywords = /\byeu\s+cau\b|\bphong\s+lanh\b|\btrang\s+tri\b|\bhoa\s+tuoi\b|\bhoa\s+lua\b|\bbong\s+bong\b|\bbong\s+bay\b|\bcom\s+chien\b|\bthuc\s+don\b|\bmon\s+an\b|\bcoc\b|\bchuyen\s+khoan\b|\bset\s+menu\b|\bcombo\b|\bbao\s+gia\b|\bbia\b|\bnuoc\s+ngot\b/i
     if (requestKeywords.test(cleanNameLower)) {
       return ''
     }
-    return name;
+    return name
   }
-  if (parsed.party?.owner_name && parsed.party.owner_name.trim()) {
-    if (!parsed.warnings) parsed.warnings = [];
-    if (!parsed.warnings.includes('used_party_owner_as_customer_name')) {
-      parsed.warnings.push('used_party_owner_as_customer_name');
-      parsed.needs_review = parsed.needs_review || [];
-      if (!parsed.needs_review.includes('used_party_owner_as_customer_name')) {
-        parsed.needs_review.push('used_party_owner_as_customer_name');
-      }
-    }
-    return parsed.party.owner_name;
-  }
-  if (parsed.raw_entities?.people_names?.length === 1 && parsed.raw_entities.people_names[0].trim()) {
-    if (!parsed.warnings) parsed.warnings = [];
-    if (!parsed.warnings.includes('used_single_ambiguous_name_as_customer_name')) {
-      parsed.warnings.push('used_single_ambiguous_name_as_customer_name');
-      parsed.needs_review = parsed.needs_review || [];
-      if (!parsed.needs_review.includes('used_single_ambiguous_name_as_customer_name')) {
-        parsed.needs_review.push('used_single_ambiguous_name_as_customer_name');
-      }
-    }
-    return parsed.raw_entities.people_names[0];
-  }
-  if (!parsed.warnings) parsed.warnings = [];
-  if (!parsed.warnings.includes('missing_customer_name')) {
-    parsed.warnings.push('missing_customer_name');
-    parsed.needs_review = parsed.needs_review || [];
-    if (!parsed.needs_review.includes('missing_customer_name')) {
-      parsed.needs_review.push('missing_customer_name');
-    }
-  }
-  return '';
+  return ''
 }
 
 export function buildPartyNote(party: any, existingNote: string): string {
   const lines: string[] = []
   if (party) {
-    const ownerName = party.owner_name || '';
+    const ownerName = party.owner_name || ''
     if (ownerName.trim()) {
       if (ownerName.includes('và') || ownerName.includes(',') || ownerName.includes(';')) {
         lines.push('Chủ tiệc / người được tổ chức:')
@@ -122,11 +283,17 @@ export function buildPartyNote(party: any, existingNote: string): string {
     if (party.decor_color && String(party.decor_color).trim()) {
       lines.push(`Tông màu trang trí: ${String(party.decor_color).trim()}`)
     }
-    if (party.display_board_text || party.text_on_board) {
-      lines.push(`Nội dung bảng/trang trí: ${party.display_board_text || party.text_on_board}`)
+    const boardText = party.display_board_text || party.text_on_board || party.birthday_board_text
+    if (boardText && String(boardText).trim()) {
+      lines.push(`Nội dung bảng/trang trí: ${String(boardText).trim()}`)
     }
-    if (party.special_request) {
-      lines.push(`Ghi chú thêm: ${party.special_request}`)
+    const mirrorText = party.mirror_board_text || party.mirror_text
+    if (mirrorText && String(mirrorText).trim()) {
+      lines.push(`Gương viết tên: ${String(mirrorText).trim()}`)
+    }
+    const specialReq = party.special_request || party.decor_note || party.decoration_note
+    if (specialReq && String(specialReq).trim()) {
+      lines.push(`Ghi chú / Dặn dò trang trí: ${String(specialReq).trim()}`)
     }
   }
   
@@ -233,7 +400,11 @@ export function applyDeterministicRuleLock(aiResult: any, hardEntities: any, rul
 
   // 100% AI Authority: Chỉ bổ sung số ĐT / ngày / giờ nếu AI hoàn toàn không trích xuất được
   if ((!result.customer.name || result.customer.name === '') && ruleBasedResult?.customer_name) {
-    result.customer.name = ruleBasedResult.customer_name
+    const cleanedRuleName = cleanCustomerName(ruleBasedResult.customer_name)
+    const partyOwner = result.party?.owner_name || ruleBasedResult?.party_owner || ''
+    if (cleanedRuleName && (!partyOwner || !cleanedRuleName.toLowerCase().includes(partyOwner.toLowerCase()))) {
+      result.customer.name = cleanedRuleName
+    }
   }
 
   if ((!result.customer.phone || result.customer.phone === '') && hardEntities.phones && hardEntities.phones.length > 0) {
@@ -384,8 +555,9 @@ export function repairAndNormalizeJSON(raw: any, inputType = 'unknown'): any {
   const depositNeedsReview = !!safeGet(parsed, 'deposit.needs_review', false)
 
   const decorationType = safeGet(parsed, 'decoration.type', parsed.decoration_type || "")
-  const textOnBoard = safeGet(parsed, 'decoration.text_on_board', parsed.decoration_text || safeGet(parsed, 'party.display_board_text', ""))
-  const decorationNote = safeGet(parsed, 'decoration.note', parsed.decoration_note || "")
+  const textOnBoard = safeGet(parsed, 'decoration.text_on_board', parsed.decoration_text || safeGet(parsed, 'party.display_board_text', parsed.display_board_text || parsed.birthday_board_text || ""))
+  const mirrorBoardText = safeGet(parsed, 'decoration.mirror_board_text', safeGet(parsed, 'party.mirror_board_text', parsed.mirror_board_text || parsed.mirror_text || ""))
+  const decorationNote = safeGet(parsed, 'decoration.note', parsed.decoration_note || safeGet(parsed, 'party.special_request', ""))
 
   const rawEntities = parsed.raw_entities || { people_names: [] }
   const peopleNames = rawEntities.people_names || []
@@ -395,20 +567,24 @@ export function repairAndNormalizeJSON(raw: any, inputType = 'unknown'): any {
 
   if (!customerName || !String(customerName).trim()) {
     if (partyOwner && String(partyOwner).trim()) {
-      customerName = partyOwner
-      if (!needsReviewFields.includes('used_party_owner_as_customer_name')) {
-        needsReviewFields.push('used_party_owner_as_customer_name')
+      // TUYỆT ĐỐI không gán customerName = partyOwner
+      if (!needsReviewFields.includes('party_owner_detected_but_booker_missing')) {
+        needsReviewFields.push('party_owner_detected_but_booker_missing')
       }
-      if (!warnings.includes('Dùng tên chủ tiệc làm tên khách hàng đặt bàn')) {
-        warnings.push('Dùng tên chủ tiệc làm tên khách hàng đặt bàn')
+      if (!needsReviewFields.includes('missing_customer_name')) {
+        needsReviewFields.push('missing_customer_name')
       }
     } else if (peopleNames.length === 1) {
-      customerName = peopleNames[0]
-      if (!needsReviewFields.includes('used_single_ambiguous_name_as_customer_name')) {
-        needsReviewFields.push('used_single_ambiguous_name_as_customer_name')
-      }
-      if (!warnings.includes('Dùng tên duy nhất trích xuất được làm tên khách hàng')) {
-        warnings.push('Dùng tên duy nhất trích xuất được làm tên khách hàng')
+      const candidateClean = cleanCustomerName(peopleNames[0])
+      if (candidateClean) {
+        customerName = candidateClean
+        if (!needsReviewFields.includes('used_single_ambiguous_name_as_customer_name')) {
+          needsReviewFields.push('used_single_ambiguous_name_as_customer_name')
+        }
+      } else {
+        if (!needsReviewFields.includes('missing_customer_name')) {
+          needsReviewFields.push('missing_customer_name')
+        }
       }
     } else if (peopleNames.length > 1) {
       if (!needsReviewFields.includes('missing_clear_booker_name')) {
@@ -430,8 +606,18 @@ export function repairAndNormalizeJSON(raw: any, inputType = 'unknown'): any {
   const decorColor = safeGet(parsed, 'party.decor_color', safeGet(parsed, 'decoration.color', parsed.decor_color || parsed.tong_mau || ""))
   const partyObj = parsed.party ? {
     ...parsed.party,
-    decor_color: parsed.party.decor_color || decorColor
-  } : { type: need, owner_name: partyOwner, display_board_text: textOnBoard, decor_color: decorColor, special_request: "" }
+    decor_color: parsed.party.decor_color || decorColor,
+    display_board_text: parsed.party.display_board_text || textOnBoard,
+    mirror_board_text: parsed.party.mirror_board_text || mirrorBoardText,
+    special_request: parsed.party.special_request || decorationNote
+  } : {
+    type: need,
+    owner_name: partyOwner,
+    display_board_text: textOnBoard,
+    mirror_board_text: mirrorBoardText,
+    decor_color: decorColor,
+    special_request: decorationNote
+  }
   const receiver = safeGet(parsed, 'booking.receiver', parsed.receiver || parsed.booking_receiver || "")
   const rawNote = safeGet(parsed, 'notes.customer_note', safeGet(parsed, 'notes.note', parsed.note || ""))
   let customerNote = cleanBookingNotes(
@@ -470,8 +656,10 @@ export function repairAndNormalizeJSON(raw: any, inputType = 'unknown'): any {
   fallback.party = partyObj
   fallback.note = customerNote
   fallback.decoration = {
-    type: decorationType || (textOnBoard ? 'Sinh nhật' : ''),
+    type: decorationType || ((textOnBoard || mirrorBoardText || decorColor) ? 'Sinh nhật' : ''),
     text_on_board: textOnBoard,
+    mirror_board_text: mirrorBoardText,
+    decor_color: decorColor,
     note: decorationNote
   }
   fallback.notes = {

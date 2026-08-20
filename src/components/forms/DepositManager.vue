@@ -100,24 +100,35 @@ function onDrop(e: DragEvent) {
 
 <template>
   <div 
-    class="bg-white p-5 rounded-2xl border border-slate-100 shadow-[0_2px_10px_rgba(0,0,0,0.04)] relative overflow-hidden transition-all" 
-    :class="{'ring-4 ring-emerald-500/20 bg-emerald-50/30': formStore.deposit.isPaid, 'ring-8 ring-indigo-500/20 bg-indigo-50/50 scale-[1.02]': isDragging}"
+    class="bg-white p-5 md:p-6 rounded-3xl border border-slate-100 shadow-sm relative overflow-hidden transition-all duration-300" 
+    :class="{'ring-4 ring-emerald-500/20 bg-emerald-50/20 border-emerald-200': formStore.deposit.isPaid, 'ring-8 ring-indigo-500/20 bg-indigo-50/50 scale-[1.02]': isDragging}"
     @dragover="onDragOver"
     @dragleave="onDragLeave"
     @drop="onDrop"
   >
     <!-- Drag Overlay -->
-    <div v-if="isDragging" class="absolute inset-0 bg-indigo-600/40 backdrop-blur-sm z-50 flex flex-col items-center justify-center text-white pointer-events-none border-4 border-dashed border-indigo-400 m-2 rounded-xl">
+    <div v-if="isDragging" class="absolute inset-0 bg-indigo-600/40 backdrop-blur-sm z-50 flex flex-col items-center justify-center text-white pointer-events-none border-4 border-dashed border-indigo-400 m-2 rounded-2xl">
       <i class="fa-solid fa-file-invoice-dollar text-4xl animate-bounce mb-2"></i>
       <div class="font-black text-xs uppercase tracking-widest text-center px-4">Thả Bill Chuyển Khoản Vào Đây</div>
     </div>
     
     <!-- Title & Auto buttons -->
-    <div class="flex justify-between items-center mb-4">
-      <label class="font-black text-[10px] uppercase text-slate-500 tracking-widest"><i class="fa-solid fa-vault text-emerald-600 mr-1"></i> Quản lý Tiền Cọc</label>
-      <div class="flex gap-2">
-        <div class="text-[9px] font-black bg-slate-100 px-3 py-1 rounded text-slate-500 border border-slate-200 uppercase tracking-tighter" title="Nhân viên trực">{{ formStore.staff.name }}</div>
-        <button @click="autoCalcDeposit" class="text-[9px] bg-indigo-50 px-3 py-1 rounded text-indigo-700 font-black hover:bg-indigo-100 transition active:scale-95 min-h-[30px]">AUTO 1/3</button>
+    <div class="flex justify-between items-center mb-4 border-b border-slate-100 pb-3">
+      <div class="flex items-center gap-2">
+        <div class="w-8 h-8 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center text-sm shadow-sm border border-emerald-100">
+          <i class="fa-solid fa-vault"></i>
+        </div>
+        <div>
+          <h3 class="font-black text-slate-800 text-xs uppercase tracking-widest">Quản Lý Tiền Cọc</h3>
+          <p class="text-[10px] font-bold text-slate-400">Theo dõi đặt cọc & Bill chuyển khoản</p>
+        </div>
+      </div>
+      <div class="flex items-center gap-2">
+        <div class="text-[9px] font-black bg-slate-100 px-2.5 py-1 rounded-lg text-slate-500 border border-slate-200 uppercase tracking-tight flex items-center gap-1" title="Nhân viên trực">
+          <i class="fa-regular fa-user text-[9px]"></i>
+          <span>{{ formStore.staff.name }}</span>
+        </div>
+        <button @click="autoCalcDeposit" class="text-[9px] bg-indigo-50 px-2.5 py-1 rounded-lg text-indigo-700 font-black hover:bg-indigo-100 transition active:scale-95 border border-indigo-100 min-h-[28px] cursor-pointer">AUTO 1/3</button>
       </div>
     </div>
 

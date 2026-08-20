@@ -433,7 +433,7 @@ const ambientTheme = computed(() => {
 </script>
 
 <template>
-  <div class="min-h-screen h-[100dvh] md:h-auto overflow-hidden ambient-canvas flex items-center justify-center font-sans text-slate-800 p-0 md:p-4 transition-all duration-500" :class="ambientTheme">
+  <div class="min-h-screen h-[100dvh] md:h-auto overflow-hidden aurora-bg flex items-center justify-center font-sans text-slate-100 p-0 md:p-4 transition-all duration-500">
     <!-- Glowing background orbs -->
     <div class="absolute inset-0 overflow-hidden pointer-events-none z-0">
       <div class="orb orb-1"></div>

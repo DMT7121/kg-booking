@@ -12,17 +12,23 @@ Quy tắc làm sạch & Phân định thực thể:
 1. Loại bỏ các biểu tượng nhiễu (✔, ↳, •, -, +, *, >, emoji, lùi đầu dòng) trước khi phân tích.
 2. customer: Người liên hệ / đặt bàn chính (name, phone). 
    - Tách rõ tên người đặt (người liên hệ giao dịch, đi liền với SĐT hoặc xưng hô Anh/Chị như "Chị Trang", "Anh Nam").
-   - TUYỆT ĐỐI KHÔNG lấy tên nhân vật chính của buổi tiệc (như "Bé Min", "Chị Thảo (chủ tiệc)") làm customer.name.
-   - VÍ DỤ: "Đặt bàn sinh nhật bé Su sđt 0901234567" -> customer.name = null (chưa biết), party.owner_name = "bé Su", phone = "0901234567".
+   - TUYỆT ĐỐI KHÔNG lấy tên nhân vật chính của buổi tiệc (như "Bé Min", "Bé Bún", "Chị Thảo (chủ tiệc)") làm customer.name. Nếu chỉ có tên chủ tiệc/nhân vật chính mà không rõ người đặt, để customer.name = "".
+   - TUYỆT ĐỐI KHÔNG lấy số bàn, mã bàn/khu vực (như "Bàn 5", "Bàn C6", "A12", "VIP2", "Khu A"), tên nhân viên nhận cọc/đơn (như "Thuận", "Dương", "Tiên", "Lễ tân", "Admin"), hoặc thông tin yêu cầu/món ăn làm customer.name. Nếu không có tên khách rõ ràng, để customer.name = "".
+   - VÍ DỤ: "Bàn 5 đặt sinh nhật bé Su sđt 0901234567" -> customer.name = "" (chưa biết), table_number = "5", party.owner_name = "bé Su", phone = "0901234567".
 3. party: Thông tin tiệc và trang trí:
    - owner_name: Chủ tiệc / nhân vật chính được tổ chức mừng (vd: "Bé Min", "Thiên Hào", "Chị Thảo").
-   - display_board_text: Nguyên văn chữ viết trên bảng trang trí / bảng mừng (vd: "Happy 1st Birthday Bé Min", "Chúc mừng sinh nhật Chị Thảo").
+   - display_board_text: Nguyên văn chữ viết trên bảng trang trí / bảng mừng sinh nhật (vd: "Happy 1st Birthday Bé Min", "Chúc mừng sinh nhật Chị Thảo").
+   - mirror_board_text: Nguyên văn chữ viết trên gương / gương viết tên trang trí (vd: "Welcome to Min's Birthday", "Happy Birthday").
    - decor_color: Tông màu trang trí yêu cầu (vd: "Hồng pastel", "Xanh dương", "Vàng kim", "Đen đỏ", "Trắng kem", v.v.). Trích xuất rõ ràng tông màu nếu có đề cập.
-   - special_request: Chi tiết trang trí bổ sung hoặc yêu cầu đặc biệt khác.
-4. booking: Số khách (guest_count), ngày (event_date: DD/MM/YYYY - tự động bổ sung năm hiện tại nếu chỉ có DD/MM), giờ (event_time: HH:mm 24h), mã bàn/khu vực (table_number), nhu cầu tiệc (need).
+   - special_request: Chi tiết dặn dò trang trí bổ sung hoặc yêu cầu đặc biệt khác: hoa tươi ("trang trí hoa tươi", "hoa tươi trên bàn"), hoa lụa, bong bóng, backdrop, vị trí bàn ("gần sân khấu", "phòng lạnh"), giờ đem bánh kem, v.v.
+4. booking: Số khách (guest_count: số nguyên), ngày (event_date: DD/MM/YYYY - tự động bổ sung năm hiện tại nếu chỉ có DD/MM), giờ (event_time: HH:mm 24h), mã bàn/khu vực (table_number), nhu cầu tiệc (need).
 5. deposit: Số tiền cọc (amount: số nguyên), trạng thái (status: "đã cọc", "chờ cọc"), ngân hàng / ref (bank_ref).
-6. menu_items: Trích xuất tên thô (raw_name), tên khớp (matched_name), số lượng (quantity), đơn giá (unit_price) và ghi chú (note). Mặc định số lượng là 1 nếu không đề cập.
-7. note: Tổng hợp đầy đủ mọi ghi chú trang trí, tông màu trang trí, chủ tiệc, bảng tên, yêu cầu ăn uống để đảm bảo không bỏ sót dữ liệu.
+6. menu_items: 
+   - CHỈ trích xuất món ăn khách hàng THỰC SỰ ĐẶT / YÊU CẦU trong tin nhắn.
+   - TUYỆT ĐỐI KHÔNG tự bịa, không tự ý gợi ý hoặc thêm món từ danh sách ứng viên thực đơn nếu khách không yêu cầu. Nếu khách không đặt món ăn nào, bắt buộc để menu_items = [].
+   - Trích xuất ĐẦY ĐỦ TẤT CẢ các món ăn khách gọi, không bỏ sót món nào.
+   - Phân biệt số lượng suất gọi (quantity) vs quy cách khẩu phần (5 con, 10 con, 1/2 con, 0.5kg, dĩa lớn/nhỏ): quy cách khẩu phần ghi vào note hoặc tên món, quantity là số suất gọi.
+7. note: Tổng hợp ĐẦY ĐỦ VÀ CHÍNH XÁC mọi thông tin ghi chú liên quan đến trang trí (tông màu, bảng sinh nhật, gương viết tên, trang trí hoa tươi/hoa lụa/bong bóng, dặn dò đặc biệt, lưu ý ăn uống) để thể hiện trọn vẹn, KHÔNG BỎ SÓT dữ liệu.
 
 Chỉ trích xuất thông tin có thực trong nội dung. Không tự bịa. Trả về ĐÚNG chuẩn JSON Schema yêu cầu. BẮT BUỘC trả về định dạng JSON hợp lệ, KHÔNG bao gồm markdown \`\`\`json hay bất kỳ văn bản giải thích nào khác.`
 
@@ -30,15 +36,16 @@ export const PROMPT_PROFILES: Record<PromptProfile, string> = {
   TEXT_SIMPLE: `${BASE_SYSTEM_INSTRUCTIONS}
 
 Hồ sơ: TEXT_SIMPLE (Tin nhắn đặt bàn đơn giản)
-Quy tắc: Trích xuất thông tin khách hàng, số khách, ngày giờ, bàn, nhu cầu tiệc và cọc. menu_items: [].`,
+Quy tắc: Trích xuất thông tin khách hàng, số khách, ngày giờ, bàn, nhu cầu tiệc, trang trí và cọc. menu_items: [].`,
 
   TEXT_WITH_MENU: `${BASE_SYSTEM_INSTRUCTIONS}
 
 Hồ sơ: TEXT_WITH_MENU (Tin nhắn có danh sách món ăn)
 Quy tắc:
-- Trích xuất đầy đủ thông tin đặt bàn như TEXT_SIMPLE.
-- Trích xuất toàn bộ món ăn vào menu_items. Đối soát với danh sách ứng viên thực đơn được cung cấp bên dưới để nạp matched_name chuẩn xác.
-- Tự động tách giá tiền (129K -> 129000) và trọng lượng/khẩu phần (0.5kg, 1/2 con) vào note.
+- Trích xuất đầy đủ thông tin đặt bàn, trang trí như TEXT_SIMPLE.
+- Trích xuất toàn bộ món ăn khách thực sự gọi vào menu_items. KHÔNG tự thêm món không có trong yêu cầu.
+- Đối soát với danh sách ứng viên thực đơn được cung cấp bên dưới để nạp matched_name chuẩn xác.
+- Tự động tách giá tiền (129K -> 129000) và trọng lượng/khẩu phần (0.5kg, 1/2 con, 5 con, 10 con, dĩa lớn/nhỏ) vào note của món.
 
 {{MENU_CANDIDATES}}`,
 
@@ -53,7 +60,7 @@ Quy tắc:
 
 Hồ sơ: IMAGE_OCR (Phân tích ảnh chụp hóa đơn / tin nhắn / giấy cọc)
 Quy tắc:
-- Trích xuất chính xác thông tin đặt bàn hoặc thông tin giao dịch ngân hàng.
+- Trích xuất chính xác thông tin đặt bàn, danh sách món ăn hoặc thông tin giao dịch ngân hàng.
 - Trích xuất tiền cọc deposit.amount (số nguyên) và cập nhật deposit.status: "đã cọc" nếu giao dịch thành công.`,
 
   COMPLEX_CONVERSATION: `${BASE_SYSTEM_INSTRUCTIONS}

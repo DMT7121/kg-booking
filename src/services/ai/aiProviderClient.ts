@@ -6,6 +6,7 @@ import * as localKeyVault from '@/services/security/localKeyVault'
 import { classifyError, AITransportPolicy } from './aiTransportPolicy'
 import { geminiAdapter } from './providerAdapters/geminiAdapter'
 import { openaiAdapter } from './providerAdapters/openaiAdapter'
+import { useConfigStore } from '@/stores/useConfigStore'
 
 export interface AICompletionRequest {
   model: AIModel
@@ -79,7 +80,6 @@ export async function callAIModel(
   // 1. Load active transport policy (Sử dụng configStore hoặc mặc định local_first)
   let transportPolicy: AITransportPolicy = 'local_first'
   try {
-    const { useConfigStore } = await import('@/stores/useConfigStore')
     const configStore = useConfigStore()
     if (configStore.defaults.aiTransportPolicy) {
       transportPolicy = configStore.defaults.aiTransportPolicy as AITransportPolicy

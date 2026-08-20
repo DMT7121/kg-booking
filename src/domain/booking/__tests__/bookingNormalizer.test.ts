@@ -68,4 +68,70 @@ describe('Booking Normalizer Tests', () => {
     expect(normalized.note).toContain('Tông màu trang trí: Hồng pastel')
     expect(normalized.note).toContain('Nội dung bảng/trang trí: Happy 1st Birthday Bé Min')
   })
+
+  it('should reject table numbers and staff/receiver labels from cleanCustomerName', () => {
+    expect(cleanCustomerName('Bàn 5')).toBe('')
+    expect(cleanCustomerName('Bàn C6')).toBe('')
+    expect(cleanCustomerName('Khu B')).toBe('')
+    expect(cleanCustomerName('VIP2')).toBe('')
+    expect(cleanCustomerName('Nhận')).toBe('')
+    expect(cleanCustomerName('Lễ tân')).toBe('')
+  })
+
+  it('should format mirror_board_text and special requests fully in buildPartyNote and repairAndNormalizeJSON', () => {
+    const parsed = {
+      customer: { name: 'Anh Nam', phone: '0912345678' },
+      party: {
+        type: 'Sinh nhật',
+        owner_name: 'Bé Su',
+        display_board_text: 'Happy Birthday Bé Su',
+        mirror_board_text: 'Welcome to Su Birthday',
+        decor_color: 'Xanh dương pastel',
+        special_request: 'Đem bánh kem lúc 20h'
+      },
+      booking: { date: '20/08/2026', time: '18:30', guest_count: 10 }
+    }
+    const normalized = repairAndNormalizeJSON(parsed)
+    expect(normalized.note).toContain('Chủ tiệc / người được tổ chức: Bé Su')
+    expect(normalized.note).toContain('Tông màu trang trí: Xanh dương pastel')
+    expect(normalized.note).toContain('Nội dung bảng/trang trí: Happy Birthday Bé Su')
+    expect(normalized.note).toContain('Gương viết tên: Welcome to Su Birthday')
+    expect(normalized.note).toContain('Ghi chú / Dặn dò trang trí: Đem bánh kem lúc 20h')
+  })
+
+  it('should NOT overwrite customer.name with party.owner_name when booker is missing', () => {
+    const parsed = {
+      customer: { name: '', phone: '0901234567' },
+      party: {
+        type: 'Sinh nhật',
+        owner_name: 'Bé Bắp',
+        display_board_text: 'Happy Birthday Bé Bắp'
+      },
+      booking: { date: '20/08/2026', time: '19:00', guest_count: 8, tables: '5' }
+    }
+    const normalized = repairAndNormalizeJSON(parsed)
+    // customer.name should be empty, NOT "Bé Bắp"
+    expect(normalized.customer.name).toBe('')
+    expect(normalized.party.owner_name).toBe('Bé Bắp')
+    expect(normalized.needs_review_fields).toContain('party_owner_detected_but_booker_missing')
+    expect(normalized.needs_review_fields).toContain('missing_customer_name')
+  })
+
+  it('should format fresh flower decoration and theme color in party notes', () => {
+    const parsed = {
+      customer: { name: 'Chị Ngọc', phone: '0938009889' },
+      party: {
+        type: 'Sinh nhật',
+        owner_name: 'Thiên Hào',
+        display_board_text: 'Happy Birthday Thiên Hào',
+        decor_color: 'Hồng pastel',
+        special_request: 'Trang trí hoa tươi trên bàn và bóng bay pastel'
+      },
+      booking: { date: '25/08/2026', time: '18:30', guest_count: 10 }
+    }
+    const normalized = repairAndNormalizeJSON(parsed)
+    expect(normalized.customer.name).toBe('Chị Ngọc')
+    expect(normalized.note).toContain('Nội dung bảng/trang trí: Happy Birthday Thiên Hào')
+    expect(normalized.note).toContain('Ghi chú / Dặn dò trang trí: Trang trí hoa tươi trên bàn và bóng bay pastel')
+  })
 })

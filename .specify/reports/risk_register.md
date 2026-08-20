@@ -1,0 +1,11 @@
+# ARCHITECTURE RISK REGISTER
+
+| ID | Rủi ro phát hiện | Mức độ nghiêm trọng | Vùng ảnh hưởng | Chiến lược giảm thiểu / Xử lý | Giai đoạn xử lý |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| **RISK-01** | `useAppStore.ts` quá tải trách nhiệm (God Store), dễ gây race condition khi nhiều component cùng trigger mutation | **HIGH** | `src/stores/useAppStore.ts` | Trích xuất các logic nghiệp vụ sang Domain Services độc lập (`BookingService`, `ConflictService`, `AuditService`), Store chỉ giữ state & actions mỏng. | Phase 0 & Phase 1 |
+| **RISK-02** | Xung đột ghi đè dữ liệu cục bộ khi nhiều thiết bị POS cùng sửa 1 booking offline (Blind Last-Write-Wins) | **HIGH** | `src/infrastructure/outbox/`, `src/infrastructure/dual/` | Bổ sung `record_version` / `revision_id`, ghi nhận diff và mở UI Conflict Resolution Center cho phép Merge / Keep Local / Keep Server. | Phase 0 & Phase 1 |
+| **RISK-03** | Thiếu Audit Trail cho các thao tác nhạy cảm (Sửa tiền cọc, hủy bàn, đổi món, đổi số khách) | **HIGH** | `src/infrastructure/postgres/`, `src/stores/` | Thiết kế schema `audit_logs` có `entityType`, `entityId`, `actorId`, `actorType`, `before`, `after`, `source` (USER/AI/SYNC). | Phase 0 |
+| **RISK-04** | Sai số dấu phẩy động (Floating-point) khi tính toán giá tiền, chiết khấu và tối ưu ngân sách | **MEDIUM** | `src/domain/menu/` | Chuẩn hóa toàn bộ tiền tệ sang số nguyên (VND Integer Cents / Safe Decimal), tuyệt đối không dùng phép toán float trần. | Phase 0 & Phase 3 |
+| **RISK-05** | Timezone lệch giữa máy khách POS và máy chủ Supabase làm đổi ngày đặt bàn | **MEDIUM** | `src/domain/booking/`, `src/utils/` | Cố định `local restaurant timezone` (Asia/Ho_Chi_Minh - GMT+7), chuẩn hóa chuỗi `DD/MM/YYYY` độc lập với timezone trình duyệt. | Phase 0 |
+| **RISK-06** | Nguy cơ rò rỉ API Key nếu người dùng nhập API Key trực tiếp trên client storage | **HIGH** | `src/services/security/` | Tiếp tục củng cố LocalKeyVault mã hóa AES, ưu tiên định tuyến 100% qua Cloudflare Worker / Supabase Edge Gateway. | Phase 0 |
+| **RISK-07** | Quá tải IndexedDB nếu log và cache không có chính sách tự dọn dẹp (TTL eviction) | **LOW** | `src/services/cache.ts`, `src/infrastructure/outbox/` | Thiết lập giới hạn kích thước tối đa (Max 500 records) và tự động dọn dẹp các cache/log quá 30 ngày. | Phase 0 |
