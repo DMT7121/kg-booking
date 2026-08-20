@@ -257,8 +257,11 @@ export function segmentInputBlocksCompat(text: string) {
 }
 
 // Pre-compiled honorific regexes (used in cleanHonorificPrefix — called 100s of times per parse)
-const HONORIFIC_REGEXES = ['anh', 'chi', 'chị', 'em', 'chu', 'chú', 'co', 'cô', 'ong', 'ông', 'ba', 'bà', 'be', 'bé', 'bac', 'bác', 'khach', 'khách', 'mr', 'ms', 'mrs', 'la', 'là']
-  .map(h => new RegExp(`^(?:${h})\\s+`, 'i'))
+const HONORIFIC_REGEXES = [
+  'anh', 'chi', 'chị', 'em', 'chu', 'chú', 'co', 'cô', 'ong', 'ông', 'ba', 'bà', 'be', 'bé', 'bac', 'bác', 'khach', 'khách',
+  'mr', 'ms', 'mrs', 'c\\.', 'c\\/', 'c', 'a\\.', 'a\\/', 'a', 'la', 'là',
+  '(?:[A-G]|VIP)\\d+'
+].map(h => new RegExp(`^(?:${h})\\s+`, 'i'))
 
 export function cleanHonorificPrefix(name: string): string {
   let cleaned = name.trim()

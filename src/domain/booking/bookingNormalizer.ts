@@ -16,10 +16,13 @@ export function cleanCustomerName(name: string): string {
   // e.g. "C6", "A12", "B5", "VIP2"
   cleaned = cleaned.replace(/\b(?:[A-G]|VIP)\d+\b/gi, '')
 
-  // 3. Remove trailing/leading hyphen, comma, slash, colon, or space after stripping
+  // 3. Remove single-letter abbreviation prefixes like "C ", "c ", "C. ", "C/ ", "A. ", "A/ ", "a ", "A "
+  cleaned = cleaned.replace(/^(?:c\.|c\/|c|a\.|a\/|a)\s+/gi, '')
+
+  // 4. Remove trailing/leading hyphen, comma, slash, colon, or space after stripping
   cleaned = cleaned.replace(/^[\s-,\/:]+|[\s-,\/:]+$/g, '')
 
-  // 4. Double space cleanup
+  // 5. Double space cleanup
   cleaned = cleaned.replace(/\s+/g, ' ').trim()
 
   if (!cleaned) return ''
@@ -204,6 +207,19 @@ export function crossValidateResults(
     }
     if (ruleDecoDetails.special_requests.length > 0 && !result.party.special_request) {
       result.party.special_request = ruleDecoDetails.special_requests.join('; ')
+    }
+
+    // Sync note if decoration details were enriched
+    const rawNote = result.notes?.customer_note || result.note || ''
+    const enrichedNote = buildPartyNote(result.party, rawNote)
+    result.note = cleanBookingNotes(
+      enrichedNote,
+      result.customer,
+      result.booking,
+      result.menu_items || []
+    )
+    if (result.notes) {
+      result.notes.customer_note = result.note
     }
   }
 
