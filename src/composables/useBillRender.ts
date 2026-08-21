@@ -190,11 +190,12 @@ function _createBillRender() {
           // Wait for rendering pipeline
           await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)))
 
-          // Render fixed high-quality scale directly (siêu nhanh)
+          // Render fixed high-quality scale directly (Retina 3x - 2400px siêu nét)
           try {
             canvas = await html2canvas(elementToRender, {
-              scale: 2, useCORS: true, logging: false,
+              scale: 3, useCORS: true, logging: false,
               backgroundColor: '#ffffff', width: 800, windowWidth: 800,
+              imageTimeout: 15000,
               ignoreElements: (el: Element) => el.classList.contains('no-print') || (el as HTMLElement).style?.display === 'none'
             })
           } catch (e) {
@@ -208,7 +209,7 @@ function _createBillRender() {
 
           if (!canvas) throw new Error('Render ảnh thất bại. Vui lòng chuyển sang tab Bill rồi thử lại.')
 
-          highResBase64 = canvas.toDataURL('image/jpeg', 0.85)
+          highResBase64 = canvas.toDataURL('image/jpeg', 0.95)
 
           if (highResBase64.length < 500) throw new Error('Render ảnh thất bại (File quá nhỏ). Vui lòng thử lại.')
         } catch (renderErr: any) {
@@ -368,27 +369,28 @@ function _createBillRender() {
                     }))
                   } catch (e) {}
 
-                  // Render fixed scale 2
+                  // Render fixed high-quality scale 3 (2400px siêu nét)
                   const canvas = await html2canvas(clone, {
-                    scale: 2, useCORS: true, logging: false,
+                    scale: 3, useCORS: true, logging: false,
                     backgroundColor: '#ffffff', width: 800, windowWidth: 800,
+                    imageTimeout: 15000,
                     ignoreElements: (el: Element) => el.classList.contains('no-print') || (el as HTMLElement).style?.display === 'none'
                   })
 
                   if (container) document.body.removeChild(container)
 
                   if (canvas) {
-                    currentHighRes = canvas.toDataURL('image/jpeg', 0.85)
+                    currentHighRes = canvas.toDataURL('image/jpeg', 0.95)
                   }
                 } catch (err: any) {
                   console.warn('[BG Sync] Failed to render html2canvas in background:', err.message)
                 }
               }
 
-              // 1. Process bill image optimization & upload in background
+              // 1. Process bill image optimization & upload in background (WebP 1800px 0.94 ultra-crisp & lightweight)
               if (currentHighRes) {
                 try {
-                  const lowResBase64 = await resizeImage(currentHighRes, 1600, 0.92, 'image/webp')
+                  const lowResBase64 = await resizeImage(currentHighRes, 1800, 0.94, 'image/webp')
                   const billUpload = await smartUploadImage(
                     lowResBase64,
                     `${dynamicFileName}.webp`,

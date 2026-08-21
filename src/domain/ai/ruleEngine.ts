@@ -214,18 +214,19 @@ export function segmentInputBlocksCompat(text: string) {
       lastBlockType = 'time'
     }
     const hasPhone = /(0[35789]\d{7,9})/.test(lower)
-    const hasCustomerKeywords = /anh|chi|dat ban|khach/i.test(lower)
+    const hasCustomerKeywords = /\b(anh|chi|chị|khách|khach|cô|co|chú|chu|bác|bac)\b/i.test(lower)
     if (hasPhone || hasCustomerKeywords) {
       blocks.customer_block.push(trimmed)
       lastBlockType = 'customer'
     }
     const isDishNumberPattern = /^\d+[\/\.\-\)]?\s+/ui.test(trimmed) || /^\d+\s*[\/\.\-\)]\s*/ui.test(trimmed)
-    const isDishSuffixPattern = /(?:\s*x\s*\d+|\s+\d{2,3}k|\s+\d{3}\.000|\d+\s*(?:con|phan|dia|set|c))\s*$/i.test(trimmed)
+    const isDishSuffixPattern = /(?:\s*x\s*\d+|\s+\d{2,3}k|\s+\d{3}\.000|\d+\s*(?:con|phan|phần|dia|đĩa|dĩa|set|suat|suất|to|tô|tho|thố|noi|nồi|c|cai|cái))\s*$/i.test(trimmed) || /(?:x|×)\s*\d+(?:\s*(?:con|phan|phần|dia|đĩa|dĩa|set|suat|suất|c|cai|cái))?\s*$/i.test(trimmed)
     const isMenuKeywordPattern = /combo|set menu|thuc don|mon an|thuc an/i.test(lower)
-    const isBulletPattern = /^[-*+•]\s+[\p{L}\s]+/ui.test(trimmed)
+    const isBulletPattern = /^[-*+•●▶▪▫◆✦★✓]\s+[\p{L}\s]+/ui.test(trimmed)
+    const isHeaderPattern = /^(khach\s*hang|khách\s*hàng|ten\s*khach|tên\s*khách|nguoi\s*dat|người\s*đặt|nguoi\s*lien\s*he|người\s*liên\s*hệ|sdt|sđt|dien\s*thoai|thoi\s*gian|thời\s*gian|so\s*luong|số\s*lượng|loai\s*tiec|loại\s*tiệc|trang\s*tri|trang\s*trí|ghi\s*chu|ghi\s*chú|dat\s*coc|đặt\s*cọc)\s*:/i.test(trimmed.replace(/^[-*+•●▶▪▫◆✦★✓]\s*/, ''))
 
-    const isMenuLine = (isDishNumberPattern || isDishSuffixPattern || isMenuKeywordPattern || isBulletPattern) &&
-                       !hasTime && !hasDate && !hasPhone && !isGuestLine
+    const isMenuLine = (isDishNumberPattern || isDishSuffixPattern || isMenuKeywordPattern || (isBulletPattern && !hasCustomerKeywords && !isHeaderPattern)) &&
+                       !hasTime && !hasDate && !hasPhone && !isGuestLine && !isHeaderPattern
     if (isMenuLine) {
       blocks.menu_block.push(trimmed)
       lastBlockType = 'menu'
@@ -723,6 +724,21 @@ export function classifyPeopleNames(text: string) {
     }
   })
 
+  // Parenthetical party owner patterns: "Sinh nhật 2 bé trai (Trần An - Trần Khang)", "Thôi nôi bé (Minh Khôi)", "Sinh nhật (Bảo Ngọc)"
+  const parenOwnerRegex = /(?:sinh\s*nhật|sinh\s*nhat|thôi\s*nôi|thoi\s*noi|đầy\s*tháng|day\s*thang|tiệc|tiec|bảng|bang|chúc\s*mừng|chuc\s*mung)\s+(?:\d+\s+)?(?:bé\s+trai|bé\s+gái|bé|be|con|cháu)?\s*\(([^)]+)\)/ugi
+  let parenMatch
+  while ((parenMatch = parenOwnerRegex.exec(text)) !== null) {
+    const rawInside = parenMatch[1].trim()
+    const individualNames = rawInside.split(/[-–—&,;\+]|\bvà\b|\bva\b/).map(n => n.trim()).filter(Boolean)
+    individualNames.forEach(n => {
+      const cleanName = cleanHonorificPrefix(cleanTrailingInvalidWords(n))
+      if (cleanName && cleanName.length >= 2 && !isInvalidName(cleanName) && !REJECT_NAME_REGEX.test(stripAccents(cleanName))) {
+        if (!peopleNames.includes(cleanName)) peopleNames.push(cleanName)
+        if (!partyOwnerCandidates.includes(cleanName)) partyOwnerCandidates.push(cleanName)
+      }
+    })
+  }
+
   peopleNames.forEach(name => {
     if (bookerCandidates.includes(name) || partyOwnerCandidates.includes(name)) return
 
@@ -805,8 +821,16 @@ function getWeekdayIndex(w: string): number {
 export function preNormalizeInput(rawText: string): string {
   if (!rawText) return ''
   
-  let clean = rawText.replace(/\r\n/g, '\n')
+  // 0. Normalize Unicode whitespaces (Braille space \u2800, NBSP \u00A0, zero-width space, etc.)
+  let clean = rawText.replace(/[\u2800\u00A0\u1680\u180e\u2000-\u200a\u202f\u205f\u3000\ufeff]/g, ' ')
+  clean = clean.replace(/\r\n/g, '\n')
   clean = clean.replace(/[^\S\n]+/g, ' ')
+
+  // Standardize bullet symbols (●, •, ▶, ▪, ▫, ◆, ✦, ★, ✓) to standard dash
+  clean = clean.replace(/^[ ]*[●•▶▪▫◆✦★✓][ ]*/gm, '- ')
+
+  // Standardize multiplication signs (×, ✕, ✖) to standard 'x'
+  clean = clean.replace(/[×✕✖]/g, 'x')
   
   clean = clean
     .split('\n')
@@ -1285,7 +1309,7 @@ export function parseSingleMenuLine(lineStr: string): { raw_name: string; quanti
   if (!cleaned) return null
 
   const lowerRaw = stripAccents(lineStr).toLowerCase().trim()
-  if (/(?:m[oỗ]i\s+m[oó]n|m[oỗ]i\s+lo[aạ]i|m[aấ]y\s+m[oó]n|t[aấ]t\s+c[aả]\s+c[aá]c\s+m[oó]n|c[aá]c\s+m[oó]n\s+tr[eê]n|ri[eê]ng\s+m[oó]n|ri[eê]ng\s+l[aẩ]u|con\s+lai\s+m[oỗ]i\s+m[oó]n)/i.test(lowerRaw)) {
+  if (/^(?:m[oỗ]i\s+m[oó]n|m[oỗ]i\s+lo[aạ]i|m[aấ]y\s+m[oó]n|t[aấ]t\s+c[aả]\s+c[aá]c\s+m[oó]n|c[aá]c\s+m[oó]n\s+tr[eê]n|ri[eê]ng\s+m[oó]n|ri[eê]ng\s+l[aẩ]u|con\s+lai\s+m[oỗ]i\s+m[oó]n)\b/i.test(lowerRaw)) {
     return null
   }
 
@@ -1300,33 +1324,33 @@ export function parseSingleMenuLine(lineStr: string): { raw_name: string; quanti
 
   // 1. Strip STT index prefix: e.g. "1/", "1.", "1)", "1 -", "1/ ", "1 ", "1/ " (excluding decimals like 0.5kg and fractions like 1/2 con)
   cleaned = cleaned.replace(/^(?!\d+[\.,]\d+)(?!1\/[2348]\b)([1-9]\d{0,2})\s*[\/\.\-\)]\s*/, '')
-  // Also strip bullet points
-  cleaned = cleaned.replace(/^[-*+•]\s+/, '')
+  // Also strip bullet points (including Unicode bullets)
+  cleaned = cleaned.replace(/^[-*+•●▶▪▫◆✦★✓]\s*/, '')
 
   cleaned = cleaned.trim()
   if (!cleaned) return null
 
   // Mask portion parens like "(5 con)" so they aren't misparsed as trailing order quantity
   const portionParens: string[] = []
-  cleaned = cleaned.replace(/\(\s*\d+\s*(?:con|c|kg|g|l|ml|phần|phan|đĩa|dia|tô|to|ly|lon|set|suất|suat)\s*\)/gi, (match) => {
+  cleaned = cleaned.replace(/\(\s*\d+\s*(?:con|c|kg|g|l|ml|phần|phan|đĩa|dia|dĩa|tô|to|ly|lon|set|suất|suat)\s*\)/gi, (match) => {
     portionParens.push(match)
     return `__PORTION_PAREN_${portionParens.length - 1}__`
   })
 
-  // 2. Extract portion/qty indicators like "3 phần", "3 đĩa", "3 tô", "3 ly", "3 lon"
+  // 2. Extract portion/qty indicators like "3 phần", "3 đĩa", "3 tô", "3 ly", "3 lon", "6 con"
   let qty = 1
   
-  // Trailing quantity multiplier: "x1", "x 2", "*3", "(x1)", "1 phần"
-  const trailingQtyMatch = cleaned.match(/(?:\((?:[x\*])\s*(\d+)\)|(?:[x\*])\s*(\d+)|\b(\d+)\s*(?:phần|phan|đĩa|dia|tô|to|ly|lon|set|suất|suat))\s*$/i)
+  // Trailing quantity multiplier: "x1", "x 2", "x 2 phần", "x 6 con", "*3", "(x1)", "1 phần", "6 con"
+  const trailingQtyMatch = cleaned.match(/(?:\((?:[x\*])\s*(\d+)\)|(?:[x\*])\s*(\d+)(?:\s*(?:phần|phan|đĩa|dia|dĩa|tô|to|ly|lon|set|suất|suat|con|cái|cai|thố|tho|chén|chen|nồi|noi))?|\b(\d+)\s*(?:phần|phan|đĩa|dia|dĩa|tô|to|ly|lon|set|suất|suat|con|cái|cai|thố|tho|chén|chen|nồi|noi))\s*$/i)
   if (trailingQtyMatch) {
     qty = parseInt(trailingQtyMatch[1] || trailingQtyMatch[2] || trailingQtyMatch[3], 10) || 1
-    cleaned = cleaned.replace(/(?:\((?:[x\*])\s*(\d+)\)|(?:[x\*])\s*(\d+)|\b(\d+)\s*(?:phần|phan|đĩa|dia|tô|to|ly|lon|set|suất|suat))\s*$/i, '').trim()
+    cleaned = cleaned.replace(/(?:\((?:[x\*])\s*(\d+)\)|(?:[x\*])\s*(\d+)(?:\s*(?:phần|phan|đĩa|dia|dĩa|tô|to|ly|lon|set|suất|suat|con|cái|cai|thố|tho|chén|chen|nồi|noi))?|\b(\d+)\s*(?:phần|phan|đĩa|dia|dĩa|tô|to|ly|lon|set|suất|suat|con|cái|cai|thố|tho|chén|chen|nồi|noi))\s*$/i, '').trim()
   } else {
-    // Leading explicit quantity: "2x ", "3* ", "2 phần ", "3 đĩa "
-    const leadingQtyMatch = cleaned.match(/^(?:(\d+)\s*[x\*]\s*|(\d+)\s*(?:phần|phan|đĩa|dia|tô|to|ly|lon|set|suất|suat)\s+)/i)
+    // Leading explicit quantity: "2x ", "3* ", "2 phần ", "3 đĩa ", "2 dĩa "
+    const leadingQtyMatch = cleaned.match(/^(?:(\d+)\s*[x\*]\s*|(\d+)\s*(?:phần|phan|đĩa|dia|dĩa|tô|to|ly|lon|set|suất|suat|con)\s+)/i)
     if (leadingQtyMatch) {
       qty = parseInt(leadingQtyMatch[1] || leadingQtyMatch[2], 10) || 1
-      cleaned = cleaned.replace(/^(?:(\d+)\s*[x\*]\s*|(\d+)\s*(?:phần|phan|đĩa|dia|tô|to|ly|lon|set|suất|suat)\s+)/i, '').trim()
+      cleaned = cleaned.replace(/^(?:(\d+)\s*[x\*]\s*|(\d+)\s*(?:phần|phan|đĩa|dia|dĩa|tô|to|ly|lon|set|suất|suat|con)\s+)/i, '').trim()
     } else {
       // Check if leading "X con" is not a dish portion (5 con, 10 con)
       const leadingConMatch = cleaned.match(/^(\d+)\s*(?:con|c)\s+(.+)$/i)
@@ -1391,7 +1415,10 @@ export function parseSingleMenuLine(lineStr: string): { raw_name: string; quanti
   }
 
   // Guard: if cleaned dish name is just numbers or metadata keywords, skip
-  if (/^\d+$/.test(cleaned) || /^(nam|nu|khach|pax|nguoi|ban|table|sdt|gio|ngay|sinh nhat|hbd|coc|ck|thuc don|menu|mon an|thuc an|do uong|thuc uong)$/i.test(stripAccents(cleaned))) {
+  const strippedCleaned = stripAccents(cleaned).toLowerCase()
+  if (/^\d+$/.test(cleaned) || 
+      /^(?:khach\s*hang|ten\s*khach|nguoi\s*dat|nguoi\s*lien\s*he|sdt|dien\s*thoai|thoi\s*gian|so\s*luong|loai\s*tiec|trang\s*tri|ghi\s*chu|dat\s*coc)\s*:/i.test(strippedCleaned) ||
+      /^(?:nam|nu|khach|pax|nguoi|ban|table|gio|ngay|sinh\s*nhat|hbd|coc|ck|thuc\s*don|menu|mon\s*an|thuc\s*an|do\s*uong|thuc\s*uong)$/i.test(strippedCleaned)) {
     return null
   }
 
@@ -1946,6 +1973,14 @@ export function extractByRules(rawOrNormalizedText: string) {
     }
   }
 
+  const party = {
+    owner_name: nameResults.partyOwnerCandidates.length > 0 ? nameResults.partyOwnerCandidates.join(', ') : null,
+    decor_color: decoration_details.decor_color,
+    special_request: decoration_details.special_requests.length > 0 ? decoration_details.special_requests.join('; ') : null,
+    display_board_text: decoration_details.board_text,
+    mirror_board_text: decoration_details.mirror_text
+  }
+
   return {
     customer_name,
     customer_name_confidence,
@@ -1960,6 +1995,7 @@ export function extractByRules(rawOrNormalizedText: string) {
     decoration_details,
     deposit_amount,
     deposit_status,
+    party,
     note,
     menu_items: resolveDistributiveQuantifiers(menu_items, normalizedText),
     receiver

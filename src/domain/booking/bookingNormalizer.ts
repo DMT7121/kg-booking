@@ -204,21 +204,25 @@ export function crossValidateResults(
     })
   }
 
-  // --- Cross-validate Decoration Details ---
+  // --- Cross-validate Decoration Details & Party Owner ---
   const ruleDecoDetails = ruleResult?.decoration_details
-  if (ruleDecoDetails) {
+  const ruleParty = ruleResult?.party
+  if (ruleDecoDetails || ruleParty) {
     if (!result.party) result.party = {}
-    if (!result.party.decor_color && ruleDecoDetails.decor_color) {
-      result.party.decor_color = ruleDecoDetails.decor_color
+    if (!result.party.owner_name && ruleParty?.owner_name) {
+      result.party.owner_name = ruleParty.owner_name
     }
-    if (!result.party.display_board_text && ruleDecoDetails.board_text) {
-      result.party.display_board_text = ruleDecoDetails.board_text
+    if (!result.party.decor_color && (ruleDecoDetails?.decor_color || ruleParty?.decor_color)) {
+      result.party.decor_color = ruleDecoDetails?.decor_color || ruleParty?.decor_color
     }
-    if (!result.party.mirror_board_text && ruleDecoDetails.mirror_text) {
-      result.party.mirror_board_text = ruleDecoDetails.mirror_text
+    if (!result.party.display_board_text && (ruleDecoDetails?.board_text || ruleParty?.display_board_text)) {
+      result.party.display_board_text = ruleDecoDetails?.board_text || ruleParty?.display_board_text
     }
-    if (ruleDecoDetails.special_requests.length > 0 && !result.party.special_request) {
-      result.party.special_request = ruleDecoDetails.special_requests.join('; ')
+    if (!result.party.mirror_board_text && (ruleDecoDetails?.mirror_text || ruleParty?.mirror_board_text)) {
+      result.party.mirror_board_text = ruleDecoDetails?.mirror_text || ruleParty?.mirror_board_text
+    }
+    if (!result.party.special_request && (ruleDecoDetails?.special_requests?.length > 0 || ruleParty?.special_request)) {
+      result.party.special_request = ruleDecoDetails?.special_requests?.join('; ') || ruleParty?.special_request
     }
 
     // Sync note if decoration details were enriched
