@@ -86,9 +86,11 @@ export default defineConfig(({ mode }) => {
     },
   },
   build: {
+    chunkSizeWarningLimit: 650,
     rollupOptions: {
       output: {
         manualChunks: {
+          'vendor-vue': ['vue'],
           'vendor-html2canvas': ['html2canvas'],
           'vendor-pinia': ['pinia'],
           'vendor-idb': ['idb-keyval'],

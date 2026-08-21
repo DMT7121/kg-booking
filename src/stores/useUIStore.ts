@@ -8,6 +8,7 @@ export interface Toast {
   msg: string
   type: 'success' | 'error' | 'warning' | 'info'
   progress: number
+  timerId?: any
 }
 
 export interface ModalState {
@@ -124,9 +125,14 @@ export const useUIStore = defineStore('ui', () => {
         removeToast(id)
       }
     }, step)
+    toast.timerId = interval
   }
 
   function removeToast(id: number) {
+    const target = toasts.value.find(t => t.id === id)
+    if (target && target.timerId) {
+      clearInterval(target.timerId)
+    }
     toasts.value = toasts.value.filter(t => t.id !== id)
   }
 

@@ -320,13 +320,17 @@ async function uploadImageInBackground(id: string, payload: any, mode: string, t
   }
 }
 
-// Watch network online event
+// Watch network online event with debounce
+let onlineDebounceTimer: any = null
 if (typeof window !== 'undefined' && import.meta.env.MODE !== 'test') {
   window.addEventListener('online', () => {
-    triggerSync()
+    if (onlineDebounceTimer) clearTimeout(onlineDebounceTimer)
+    onlineDebounceTimer = setTimeout(() => {
+      triggerSync()
+    }, 500)
   })
   // Trigger once on startup if online
   if (navigator.onLine) {
-    triggerSync()
+    setTimeout(() => triggerSync(), 300)
   }
 }

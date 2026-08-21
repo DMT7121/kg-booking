@@ -104,6 +104,23 @@ function handleGlobalPaste(e: ClipboardEvent) {
   }
 }
 
+// Lifecycle Listeners Management
+let maxViewportHeight = 0
+function handleViewportResize() {
+  if (window.visualViewport) {
+    if (window.visualViewport.height > maxViewportHeight) {
+      maxViewportHeight = window.visualViewport.height
+    }
+    ui.isKeyboardOpen = window.visualViewport.height < maxViewportHeight * 0.85
+  }
+}
+
+function handlePreviewResize() {
+  if (ui.tab === 'preview') updatePreviewScale()
+}
+
+let billResizeObserver: ResizeObserver | null = null
+
 onMounted(() => {
   if (!formStore.id) formStore.id = crypto.randomUUID()
   ui.isVoiceSupported = 'webkitSpeechRecognition' in window || 'SpeechRecognition' in window
@@ -116,13 +133,8 @@ onMounted(() => {
 
   // Keyboard detection via visualViewport
   if (window.visualViewport) {
-    let maxViewportHeight = window.visualViewport.height
-    window.visualViewport.addEventListener('resize', () => {
-      if (window.visualViewport!.height > maxViewportHeight) {
-        maxViewportHeight = window.visualViewport!.height
-      }
-      ui.isKeyboardOpen = window.visualViewport!.height < maxViewportHeight * 0.85
-    })
+    maxViewportHeight = window.visualViewport.height
+    window.visualViewport.addEventListener('resize', handleViewportResize)
   }
 
   // Visual Viewport height setup
@@ -135,17 +147,15 @@ onMounted(() => {
   window.addEventListener('paste', handleGlobalPaste)
 
   // Preview scaling
-  window.addEventListener('resize', () => {
-    if (ui.tab === 'preview') updatePreviewScale()
-  })
+  window.addEventListener('resize', handlePreviewResize)
 
   setTimeout(() => {
     const observerTarget = document.getElementById('bill-render')
     if (observerTarget && window.ResizeObserver) {
-      const resizeObserver = new ResizeObserver(() => {
+      billResizeObserver = new ResizeObserver(() => {
         if (ui.tab === 'preview') updatePreviewScale()
       })
-      resizeObserver.observe(observerTarget)
+      billResizeObserver.observe(observerTarget)
     }
   }, 500)
 
@@ -167,10 +177,17 @@ onMounted(() => {
 
 onUnmounted(() => {
   window.removeEventListener('keydown', handleGlobalKeydown)
+  window.visualViewport?.removeEventListener('resize', handleViewportResize)
   window.visualViewport?.removeEventListener('resize', setAppHeight)
   window.visualViewport?.removeEventListener('scroll', setAppHeight)
   window.removeEventListener('resize', setAppHeight)
+  window.removeEventListener('resize', handlePreviewResize)
   window.removeEventListener('paste', handleGlobalPaste)
+
+  if (billResizeObserver) {
+    billResizeObserver.disconnect()
+    billResizeObserver = null
+  }
 
   // Remove inactivity listeners
   activityEvents.forEach(evt => {

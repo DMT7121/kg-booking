@@ -303,7 +303,7 @@ export const useConfigStore = defineStore('config', () => {
         if (totalKeys === 0) {
           console.log('[Vault] Auto-importing keys from server...')
           const data = await api.getSharedApiKeysWithoutPassword()
-          if (data.ok && Array.isArray(data.keys)) {
+          if (data && data.ok && Array.isArray(data.keys)) {
             let addedCount = 0
             for (const k of data.keys) {
               let pId = k.provider === 'gemini' ? 'google' : k.provider
