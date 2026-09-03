@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted } from 'vue'
+import { ref, onMounted, onUnmounted, watch } from 'vue'
 import { isIOS } from '@/utils'
 import { useUIStore } from '@/stores/useUIStore'
 import ErrorBoundary from '@/components/core/ErrorBoundary.vue'
@@ -46,8 +46,28 @@ function checkRoute() {
   }
 }
 
+// Bật chế độ cuộn trang tự do (scrollable) cho Form khách đặt bàn
+watch(
+  isCustomerBooking,
+  (val) => {
+    if (typeof document !== 'undefined') {
+      if (val) {
+        document.documentElement.classList.add('customer-booking-mode')
+        document.body.classList.add('customer-booking-mode')
+        document.body.classList.remove('overflow-hidden')
+      } else {
+        document.documentElement.classList.remove('customer-booking-mode')
+        document.body.classList.remove('customer-booking-mode')
+        document.body.classList.add('overflow-hidden')
+      }
+    }
+  },
+  { immediate: true }
+)
+
 // Add iOS class
 if (isIOS) document.documentElement.classList.add('is-ios')
+
 
 onMounted(() => {
   checkRoute()

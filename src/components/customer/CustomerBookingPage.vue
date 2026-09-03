@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import {
   RESTAURANT_NAME,
   COLOR_TONES,
@@ -81,12 +81,23 @@ function adjustChildren(delta: number) {
   delete errors.childrenCount
 }
 
-// Đảm bảo đánh dấu chế độ guest trong sessionStorage để ngăn trỏ về webapp nhân viên
+// Đảm bảo mở khóa cuộn trang tự do (scrollable) trên mọi thiết bị và đánh dấu guest mode
 onMounted(() => {
   try {
     sessionStorage.setItem('kg_guest_mode', '1')
+    document.documentElement.classList.add('customer-booking-mode')
+    document.body.classList.add('customer-booking-mode')
+    document.body.classList.remove('overflow-hidden')
   } catch {}
 })
+
+onUnmounted(() => {
+  try {
+    document.documentElement.classList.remove('customer-booking-mode')
+    document.body.classList.remove('customer-booking-mode')
+  } catch {}
+})
+
 
 // Mở review modal
 function onContinueToReview() {
@@ -136,7 +147,8 @@ function selectColorTone(name: string) {
 </script>
 
 <template>
-  <div class="min-h-screen bg-[#070b14] text-slate-100 flex flex-col justify-between selection:bg-amber-500 selection:text-slate-950 font-sans antialiased">
+  <div class="min-h-screen w-full bg-[#070b14] text-slate-100 flex flex-col justify-between selection:bg-amber-500 selection:text-slate-950 font-sans antialiased overflow-y-auto overscroll-y-auto pb-12">
+
     <!-- Top Ambient Glow -->
     <div class="fixed top-0 left-1/2 -translate-x-1/2 w-full max-w-3xl h-56 bg-gradient-to-b from-amber-500/15 via-amber-600/5 to-transparent blur-3xl pointer-events-none z-0"></div>
 
