@@ -22,6 +22,22 @@ export interface CustomerBookingDraft {
 
 export type BookingSubmissionState = 'DRAFT' | 'READY' | 'REVIEWING' | 'SUBMITTING' | 'SUCCESS' | 'FAILED'
 
+export interface SubmittedCustomerDetails {
+  bookerName?: string
+  hostName?: string
+  phone?: string
+  totalGuests?: number | string
+  adultCount?: number | string
+  childrenCount?: number | string
+  hasChildren?: boolean
+  date?: string
+  time?: string
+  partyType?: string
+  colorTone?: string
+  rawNote?: string
+}
+
+
 export interface ColorToneOption {
   name: string
   hex: string
