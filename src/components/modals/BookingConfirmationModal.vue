@@ -133,6 +133,10 @@ function confirmAndProceed() {
 
   formStore.items = JSON.parse(JSON.stringify(editItems.value))
 
+  if (editDeposit.value.amount !== formStore.deposit.amount) {
+    formStore.deposit.isManualAmount = true
+  }
+
   formStore.deposit.amount = editDeposit.value.amount
   formStore.deposit.isPaid = editDeposit.value.isPaid
 

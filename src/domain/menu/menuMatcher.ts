@@ -155,13 +155,20 @@ export function scoreAndMatchMenu(
     rawName = rawName.replace(/(?:[x\*])\s*(\d+)\s*$/i, '').trim()
   }
 
-  // Strip parenthetical note / discount like "(Giảm 10% tiền thức ăn)" or "(không cay)" before matching
-  const parenMatch = rawName.match(/\s*\(([^)]+)\)\s*$/)
-  if (parenMatch) {
-    const insideParen = parenMatch[1].trim()
-    // Do not strip portion parentheses like (5 con) or (10 con)
-    if (!/^\d+\s*(?:con|c|kg|g|l|ml)$/i.test(insideParen)) {
-      rawName = rawName.replace(/\s*\([^)]+\)\s*$/, '').trim()
+  // Strip parenthetical note / discount like "(Giảm 10% tiền thức ăn)" or "(làm không cay)" before matching
+  // but protect official menu suffixes like (cay), (chay), (5 con), (10 con)
+  const hasExactFullMatch = menuList.some((m: any) => stripAccents(m.name).toLowerCase().trim() === stripAccents(rawName).toLowerCase().trim())
+  if (!hasExactFullMatch) {
+    const parenMatch = rawName.match(/\s*\(([^)]+)\)\s*$/)
+    if (parenMatch) {
+      const insideParen = parenMatch[1].trim()
+      const isOfficialMenuSuffix = menuList.some((m: any) => {
+        const mNorm = stripAccents(m.name).toLowerCase()
+        return mNorm.endsWith(`(${stripAccents(insideParen).toLowerCase()})`)
+      })
+      if (!isOfficialMenuSuffix && !/^\d+\s*(?:con|c|kg|g|l|ml)$/i.test(insideParen)) {
+        rawName = rawName.replace(/\s*\([^)]+\)\s*$/, '').trim()
+      }
     }
   }
   
@@ -425,6 +432,21 @@ export function matchMenuItems(
 
   return expandedItems.map((item) => {
     let rawName = (item.raw_name || item.name || '').trim()
+    let extractedCustomNote = ''
+
+    // 0. Extract trailing custom note if it's placed after quantity (e.g. "... x4 (làm không cay)")
+    const trailingParenCustomNote = rawName.match(/\s*\(([^)]+)\)\s*$/)
+    if (trailingParenCustomNote) {
+      const inside = trailingParenCustomNote[1].trim()
+      const isOfficialMenuSuffix = menuList.some((m: any) => {
+        const mNorm = stripAccents(m.name).toLowerCase()
+        return mNorm.endsWith(`(${stripAccents(inside).toLowerCase()})`)
+      })
+      if (!isOfficialMenuSuffix && !/^\d+\s*(?:con|c|kg|g|l|ml)$/i.test(inside)) {
+        extractedCustomNote = inside
+        rawName = rawName.replace(/\s*\([^)]+\)\s*$/, '').trim()
+      }
+    }
 
     // Kiểm tra xem số ở đầu có phải là quy cách khẩu phần (vd: "5 con", "10 con", "1/2 con", "0.5kg") hay không
     const isPortionPrefix = /^(?:(?:5|10)\s*(?:con|c)|1\/[2348]\s*con|½\s*con|nửa\s*con|nua\s*con|0[\.,]\d+\s*kg|\d+\s*(?:kg|g|l|ml)|dĩa\s*(?:lớn|nhỏ|lon|nho)|phan\s*(?:lon|nho))\b/i.test(rawName)
@@ -435,7 +457,7 @@ export function matchMenuItems(
       item.quantity = parseInt(explicitLeadingQtyMatch[1], 10) || item.quantity || 1
       rawName = explicitLeadingQtyMatch[2].trim()
     } else if (!isPortionPrefix) {
-      // Trích xuất số lượng đứng ở đầu tên món thông thường (vd: "2 cơm chiên hải sản", "2 miến xào cua", "1 tôm cocktail")
+      // Trích xuất số lượng đứng ở đầu tên món thông thường (vd: "2 cơm chiên hải sản", "2 miến xào cua", "10 Coca", "25 chai suối")
       const leadingQtyMatch = rawName.match(/^(\d+)\s+(.+)$/)
       if (leadingQtyMatch) {
         const extractedQty = parseInt(leadingQtyMatch[1], 10)
@@ -449,11 +471,28 @@ export function matchMenuItems(
       }
     }
 
-    // 2. Trích xuất số lượng ở cuối tên món (vd: "cơm chiên hải sản x 2", "hàu phô mai 5 con x 2")
-    const qtyMatch = rawName.match(/(?:[x\*]|\bphần|\bphan|\bđĩa|\bdia)\s*(\d+)\s*$/i)
+    // 2. Trích xuất số lượng ở cuối tên món (vd: "cơm chiên hải sản x 2", "hàu phô mai 5 con x 2", "khoai tây chiên 5", "cánh gà -5", "sụn gà - 10", "cá diêu hồng (x3)")
+    const qtyMatch = rawName.match(/(?:\((?:[x\*])\s*(\d+)\)|(?:[x\*]|\bphần|\bphan|\bđĩa|\bdia)\s*(\d+)|(?:[-–—]\s*|\s+)(\d+))\s*$/i)
     if (qtyMatch) {
-      item.quantity = parseInt(qtyMatch[1], 10)
-      rawName = rawName.replace(/(?:[x\*]|\bphần|\bphan|\bđĩa|\bdia)\s*(\d+)\s*$/i, '').trim()
+      const parsedQty = parseInt(qtyMatch[1] || qtyMatch[2] || qtyMatch[3], 10)
+      if (parsedQty >= 1 && parsedQty <= 100) {
+        item.quantity = parsedQty
+        rawName = rawName.slice(0, qtyMatch.index).trim()
+      }
+    }
+
+    // 2b. Check if there is still a custom parenthetical note before quantity: e.g. "Cơm chiên cá mặn chà bông ớt hiểm (cay) (làm không cay)"
+    const preQtyParenNote = rawName.match(/\s*\(([^)]+)\)\s*$/)
+    if (preQtyParenNote) {
+      const inside = preQtyParenNote[1].trim()
+      const isOfficialMenuSuffix = menuList.some((m: any) => {
+        const mNorm = stripAccents(m.name).toLowerCase()
+        return mNorm.endsWith(`(${stripAccents(inside).toLowerCase()})`)
+      })
+      if (!isOfficialMenuSuffix && !/^\d+\s*(?:con|c|kg|g|l|ml)$/i.test(inside)) {
+        extractedCustomNote = extractedCustomNote ? `${extractedCustomNote} - ${inside}` : inside
+        rawName = rawName.replace(/\s*\([^)]+\)\s*$/, '').trim()
+      }
     }
 
     // 3. Trích xuất khẩu phần để bổ sung vào note nếu cần
@@ -469,6 +508,9 @@ export function matchMenuItems(
 
     if (match) {
       let note = item.note || item.notes || ''
+      if (extractedCustomNote && !note.includes(extractedCustomNote)) {
+        note = note ? `${note} (${extractedCustomNote})` : extractedCustomNote
+      }
       if (detectedPortion && !note.includes(String(detectedPortion)) && !match.name.includes(String(detectedPortion))) {
         note = note ? `${note} (${detectedPortion})` : String(detectedPortion)
       }
@@ -512,6 +554,10 @@ export function matchMenuItems(
       }
     } else {
       if (logCallback) logCallback(`[Khớp món] Không tìm thấy món khớp cho "${rawName}"`, 'error')
+      let note = item.note || item.notes || ''
+      if (extractedCustomNote && !note.includes(extractedCustomNote)) {
+        note = note ? `${note} (${extractedCustomNote})` : extractedCustomNote
+      }
       return {
         raw_name: rawName,
         inputName: rawName,
@@ -522,7 +568,7 @@ export function matchMenuItems(
         qty: item.quantity || item.qty || 1,
         unit_price: 0,
         price: 0,
-        note: (item.note || item.notes || '').trim(),
+        note: note.trim(),
         match_confidence: 0.0,
         confidence: 0.0,
         needs_review: true,

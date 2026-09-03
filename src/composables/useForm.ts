@@ -84,6 +84,7 @@ function _createForm() {
   }
 
   function autoCalcDeposit() {
+    formStore.deposit.isManualAmount = false
     const hasFood = formStore.items.length > 0 && formStore.items.some(item => item.name?.trim() && item.qty > 0)
     
     if (!hasFood) {
@@ -114,7 +115,7 @@ function _createForm() {
       () => formStore.items
     ],
     () => {
-      if (!formStore.deposit.isPaid) autoCalcDeposit()
+      if (!formStore.deposit.isPaid && !formStore.deposit.isManualAmount) autoCalcDeposit()
     },
     { deep: true }
   )
@@ -205,6 +206,7 @@ function _createForm() {
     Object.assign(formStore.customer, o.parsedCustomer)
     formStore.items = JSON.parse(JSON.stringify(o.menuItems))
     formStore.deposit.amount = o.depositAmount
+    formStore.deposit.isManualAmount = true
     formStore.deposit.isPaid = o.isDeposited
     formStore.deposit.image = o.transferImage || (o.deposit && o.deposit.image) || null
     formStore.oldBillFileId = o.billFileId || null
@@ -369,6 +371,7 @@ Cảm ơn anh/chị đã tin tưởng King's Grill 🙏`
   function confirmVerification(useAiData: boolean) {
     if (useAiData) {
       formStore.deposit.amount = uiStore.verifyModal.scanned.amount
+      formStore.deposit.isManualAmount = true
       formStore.deposit.note = uiStore.verifyModal.scanned.content || 'Manual Verified'
       formStore.deposit.isPaid = true
       // Always update the time to the actual action time

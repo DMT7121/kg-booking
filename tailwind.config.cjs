@@ -28,9 +28,10 @@ module.exports = {
         text: '#1F2937',
       },
       fontFamily: {
-        sans: ['Inter', 'Be Vietnam Pro', 'system-ui', 'sans-serif'],
-        display: ['Outfit', 'Be Vietnam Pro', 'system-ui', 'sans-serif'],
+        sans: ['"Be Vietnam Pro"', 'Inter', 'system-ui', 'sans-serif'],
+        display: ['Outfit', '"Be Vietnam Pro"', 'system-ui', 'sans-serif'],
       },
+
       animation: {
         'blob': 'blob 7s infinite',
         'aurora': 'aurora 15s linear infinite',

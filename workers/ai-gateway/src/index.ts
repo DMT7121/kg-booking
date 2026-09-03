@@ -427,9 +427,9 @@ export default {
                     const lowerText = messageText.toLowerCase();
 
                     if (lowerText.includes('menu') || lowerText.includes('thực đơn') || lowerText.includes('giá')) {
-                      aiReply = "Dạ KING'S GRILL kính gửi anh/chị thực đơn Set Combo lẩu nướng ưu đãi:\n🔥 Set Lẩu Nướng 499k (cho 3-4 người)\n🔥 Set Đại Tiệc 699k (cho 5-6 người)\n👉 Anh/chị xem chi tiết và tham gia quay thưởng voucher cọc bàn tại đây ạ: https://kg-booking.pages.dev";
+                      aiReply = "Dạ KING'S GRILL kính gửi anh/chị thực đơn Set Combo lẩu nướng ưu đãi:\n🔥 Set Lẩu Nướng 499k (cho 3-4 người)\n🔥 Set Đại Tiệc 699k (cho 5-6 người)\n👉 Anh/chị gửi yêu cầu đặt bàn trực tiếp tại đây để nhận ưu đãi ạ: https://kg-booking.pages.dev/#/dat-ban";
                     } else if (lowerText.includes('đặt bàn') || lowerText.includes('bàn') || lowerText.includes('đặt') || lowerText.includes('người')) {
-                      aiReply = "Dạ KING'S GRILL đã ghi nhận thông tin đặt bàn của anh/chị! Em đã tạo phiếu giữ chỗ trên hệ thống và xếp vị trí bàn đẹp ở Khu A. Anh/chị xem thông tin phiếu và cọc bàn nhận voucher quà tặng tại đây ạ: https://kg-booking.pages.dev";
+                      aiReply = "Dạ KING'S GRILL xin chào anh/chị! Anh/chị có thể gửi yêu cầu đặt bàn nhanh và chọn loại tiệc/tông màu tại link online của nhà hàng: https://kg-booking.pages.dev/#/dat-ban . Nhân viên sẽ kiểm tra bàn và liên hệ lại quý khách ngay ạ!";
                     }
 
 

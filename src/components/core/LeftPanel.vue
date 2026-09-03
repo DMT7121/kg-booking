@@ -101,6 +101,17 @@ function shareCurrentBill() {
   }).catch(() => ui.showAlert('Link Bill', url))
 }
 
+// --- Share Link Đặt bàn Online cho khách ---
+function copyCustomerBookingLink() {
+  haptic('light')
+  const url = `${window.location.origin}${window.location.pathname}#/dat-ban`
+  navigator.clipboard.writeText(url).then(() => {
+    ui.showToast('📋 Đã sao chép link Đặt bàn Online gửi cho khách!', 'success')
+  }).catch(() => {
+    prompt('Link đặt bàn cho khách:', url)
+  })
+}
+
 // --- Quick Actions ---
 function handleCreateNewForm() {
   haptic('light')
@@ -231,10 +242,16 @@ function goToTomorrowTimeline() {
 
         <div class="h-4 w-[1px] bg-slate-700/50 mx-0.5"></div>
 
-        <!-- Hub 3: Social AI Bot -->
+        <!-- Hub 3: Social AI Bot & Link Đặt Bàn Khách -->
         <button @click="ui.showSocialBotModal = true" class="px-3 py-1.5 rounded-xl text-[11px] font-black uppercase tracking-wider transition-all flex items-center gap-1.5 min-h-[34px] whitespace-nowrap text-amber-300 hover:text-white hover:bg-amber-500/20 bg-slate-900/80 border border-amber-400/40 shadow-sm cursor-pointer" title="Quản lý Messenger Live Chat AI">
           <i class="fa-solid fa-robot text-amber-400 animate-pulse text-xs"></i>
           <span>Social Bot</span>
+        </button>
+
+        <!-- Link Đặt Bàn Khách -->
+        <button @click="copyCustomerBookingLink" class="px-2.5 py-1.5 rounded-xl text-[11px] font-bold transition-all flex items-center gap-1.5 min-h-[34px] whitespace-nowrap text-emerald-300 hover:text-white hover:bg-emerald-500/20 bg-slate-900/80 border border-emerald-500/40 shadow-sm cursor-pointer" title="Sao chép link Đặt bàn Online gửi cho khách hàng">
+          <i class="fa-solid fa-link text-emerald-400 text-xs"></i>
+          <span>Link Khách</span>
         </button>
 
         <div class="h-4 w-[1px] bg-slate-700/50 mx-0.5"></div>
@@ -302,6 +319,10 @@ function goToTomorrowTimeline() {
 
           <transition enter-active-class="transition ease-out duration-100" enter-from-class="transform opacity-0 scale-95" enter-to-class="transform opacity-100 scale-100" leave-active-class="transition ease-in duration-75" leave-from-class="transform opacity-100 scale-100" leave-to-class="transform opacity-0 scale-95">
             <div v-if="showDropdown" class="absolute top-full right-0 mt-2 w-48 bg-white rounded-2xl shadow-xl border border-slate-200 py-1.5 z-[101] text-slate-800">
+              <button @click="copyCustomerBookingLink(); showDropdown = false" class="w-full text-left px-4 py-2.5 flex items-center gap-3 hover:bg-slate-50 transition-colors">
+                <i class="fa-solid fa-link text-emerald-500"></i>
+                <span class="font-bold text-xs text-slate-700">Link Đặt Bàn Khách</span>
+              </button>
               <button @click="reloadApp" class="w-full text-left px-4 py-2.5 flex items-center gap-3 hover:bg-slate-50 transition-colors">
                 <i class="fa-solid fa-rotate-right text-slate-400"></i>
                 <span class="font-bold text-xs text-slate-700">Tải lại (Refresh)</span>

@@ -28,6 +28,7 @@ export interface DepositInfo {
   note: string
   image: string | null
   time: string
+  isManualAmount?: boolean
 }
 
 export interface StaffInfo {
@@ -60,7 +61,7 @@ export const useFormStore = defineStore('form', () => {
   const items = ref<MenuItem[]>([])
 
   const deposit = reactive<DepositInfo>({
-    amount: 0, isPaid: false, note: '', image: null, time: ''
+    amount: 0, isPaid: false, note: '', image: null, time: '', isManualAmount: false
   })
 
   const staff = reactive<StaffInfo>({ name: 'Admin', phone: '0336667301' })
@@ -204,7 +205,7 @@ export const useFormStore = defineStore('form', () => {
     originalState.value = null
     Object.assign(customer, { name: '', phone: '', date: '', time: '', pax: '', tables: '', type: '', note: '' })
     items.value = []
-    Object.assign(deposit, { amount: 0, isPaid: false, note: '', image: null, time: '' })
+    Object.assign(deposit, { amount: 0, isPaid: false, note: '', image: null, time: '', isManualAmount: false })
     Object.assign(staff, { name: 'Admin', phone: '0336667301' })
     rawInput.value = ''
     aiImage.value = null

@@ -37,6 +37,7 @@ function onBlur() {
   isFocused.value = false
   const cleanNum = parseInt(displayAmount.value.replace(/\D/g, '')) || 0
   formStore.deposit.amount = cleanNum
+  formStore.deposit.isManualAmount = true
   displayAmount.value = formatDeposit(cleanNum)
   handleInputBlur()
 }

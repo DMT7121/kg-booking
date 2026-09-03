@@ -21,12 +21,12 @@ export function cleanCustomerName(name: string): string {
   cleaned = cleaned.replace(/\s+(?:đặt\s*bàn|đặt\s*tiệc|book\s*bàn|book\s*tiệc)$/gi, '')
 
   // 1. Remove table prefixes followed by zone/number combinations (case-insensitive)
-  // e.g. "bàn A12", "bàn C6", "khu B5", "phòng D8", "bàn 5", "bàn 12", "bàn A", "khu B"
-  cleaned = cleaned.replace(/\b(?:ban|b\u00e0n|so\s*ban|s\u1ed1\s*b\u00e0n|khu|phong|vip)\s+[A-G]?\d*\b/gi, '')
+  // e.g. "bàn A12", "bàn C6", "khu B5", "phòng D8", "bàn 5", "bàn 12", "bàn A", "khu B", "bàn A.01", "bàn C5,6"
+  cleaned = cleaned.replace(/\b(?:ban|b\u00e0n|so\s*ban|s\u1ed1\s*b\u00e0n|khu|phong|vip)\s+[A-G]?(?:\.0?|\s*,\s*\d+)*\d*\b/gi, '')
 
-  // 2. Remove standalone table/room codes (a letter A-G or VIP prefix followed by digits)
-  // e.g. "C6", "A12", "B5", "VIP2"
-  cleaned = cleaned.replace(/\b(?:[A-G]|VIP)\d+\b/gi, '')
+  // 2. Remove standalone table/room codes (a letter A-G or VIP prefix followed by digits/dots/commas)
+  // e.g. "C6", "A12", "B5", "VIP2", "A.01", "C5,6", "D1,4"
+  cleaned = cleaned.replace(/\b(?:[A-G]|VIP)(?:\.0?|\s*,\s*\d+)*\d+\b/gi, '')
 
   // 3. Remove single-letter abbreviation & English title prefixes like "C ", "c ", "C. ", "A. ", "Mr. ", "Ms. ", "Mrs. "
   cleaned = cleaned.replace(/^(?:mr\.|mr|ms\.|ms|mrs\.|mrs|c\.|c\/|c|a\.|a\/|a)\s+/gi, '')
@@ -41,8 +41,8 @@ export function cleanCustomerName(name: string): string {
 
   const cleanLowerNoAccent = stripAccents(cleaned).toLowerCase()
   // Reject table / zone / room matches
-  if (/^(?:ban|so ban|khu|phong|vip)(?:\s+[a-g0-9]+)?$/i.test(cleanLowerNoAccent) ||
-      /^[a-g]\d+$/i.test(cleanLowerNoAccent) ||
+  if (/^(?:ban|so ban|khu|phong|vip)(?:\s+[a-g0-9\.,]+)?$/i.test(cleanLowerNoAccent) ||
+      /^[a-g](?:\.0?|\s*,\s*\d+)*\d+$/i.test(cleanLowerNoAccent) ||
       /^vip\d*$/i.test(cleanLowerNoAccent) ||
       /^\d+$/i.test(cleanLowerNoAccent)) {
     return ''
@@ -410,15 +410,17 @@ export function cleanBookingNotes(noteText: string, customer: any, booking: any,
 export function normalizePartyType(typeStr: string): string {
   if (!typeStr) return 'Ăn thường'
   const s = stripAccents(typeStr).toLowerCase().trim()
-  if (/sinh nhat|sn|mung tho/i.test(s)) return 'Sinh nhật'
-  if (/thoi noi/i.test(s)) return 'Thôi nôi (1st)'
-  if (/cong ty|cty|doanh nghiep|ortholite/i.test(s)) return 'Công ty'
-  if (/tat nien/i.test(s)) return 'Tất niên'
-  if (/tan nien/i.test(s)) return 'Tân niên'
-  if (/cuoi|bao hy/i.test(s)) return 'Cưới/Báo hỷ'
-  if (/farewell|chia tay/i.test(s)) return 'Farewell (Tiệc chia tay)'
-  if (/ky niem/i.test(s)) return 'Kỉ niệm'
-  if (/lien hoan|tiec|hop lop/i.test(s)) return 'Liên hoan'
+  if (/sinh nhat|sn|hpbd|happy birthday|cmsn|mung tho|mung sinh nhat/i.test(s)) return 'Sinh nhật'
+  if (/thoi noi|1st/i.test(s)) return 'Thôi nôi (1st)'
+  if (/day thang/i.test(s)) return 'Đầy tháng'
+  if (/cuoi|bao hy|dam cuoi|tiec cuoi/i.test(s)) return 'Báo hỷ'
+  if (/hop mat|gap mat|hop lop|ban be/i.test(s)) return 'Họp mặt'
+  if (/farewell|chia tay|tiec chia tay/i.test(s)) return 'Tiệc chia tay (Farewell)'
+  if (/tat nien|year end|yep/i.test(s)) return 'Tất niên'
+  if (/tan nien|khai xuan/i.test(s)) return 'Tân niên'
+  if (/ky niem|ki niem|anniversary/i.test(s)) return 'Kỉ niệm'
+  if (/lien hoan|party/i.test(s)) return 'Liên hoan'
+  if (/cong ty|cty|doanh nghiep|doan|ortholite/i.test(s)) return 'Công ty'
   return 'Ăn thường'
 }
 

@@ -49,9 +49,21 @@ export function parseTableCodes(input: string): TableCode[] {
   const results: TableCode[] = []
   let s = stripAccents(input).toUpperCase().trim()
   
-  // Normalize "BAN 5" -> "A5", "TABLE 12" -> "A12"
+  // 1. Normalize dot notations like A.01 -> A1, A.1 -> A1, B.05 -> B5, C.10 -> C10
+  s = s.replace(/\b([A-G])\.(?:0)?(\d+)\b/g, '$1$2')
+
+  // 2. Normalize "BAN 5" -> "A5", "TABLE 12" -> "A12"
   s = s.replace(/\b(BAN|TABLE|GHE)\s+(\d+)\b/g, 'A$2')
   
+  // 3. Normalize table prefixes followed by zone: "BÀN C5", "KHU C5", "PHÒNG VIP 1"
+  s = s.replace(/\b(BAN|KHU|PHONG|TABLE|GHE)\s+([A-G])\b/g, '$2')
+
+  // 4. Expand comma-separated tables in same zone: "C5,6" -> "C5,C6", "C5, 6" -> "C5,C6", "D1,4" -> "D1,D4", "A1,2,3" -> "A1,A2,A3"
+  s = s.replace(/\b([A-G])(\d+)(?:\s*,\s*(\d+))+\b/g, (match, zone, firstNum) => {
+    const numbers = match.replace(new RegExp(`^${zone}`, 'i'), '').split(/[\s,]+/).filter(Boolean)
+    return numbers.map(num => `${zone}${num}`).join(',')
+  })
+
   s = s.replace(/[+\/]/g, ',')
   s = s.replace(/\b([A-G])(\d+)\s*[-–—]\s*([A-G])?(\d+)\b/gi, (match, z1, n1, z2, n2) => {
     const zone = z1.toUpperCase()
@@ -77,7 +89,10 @@ export function parseTableCodes(input: string): TableCode[] {
     const fullMatch = token.match(/^([A-G])(\d+)$/)
     if (fullMatch) {
       currentZone = fullMatch[1]
-      results.push({ zone: currentZone, number: fullMatch[2], raw: token })
+      const exists = results.some(r => r.zone === currentZone && r.number === fullMatch[2])
+      if (!exists) {
+        results.push({ zone: currentZone, number: fullMatch[2], raw: token })
+      }
       lastTableIdx = idx
       continue
     }
@@ -88,7 +103,11 @@ export function parseTableCodes(input: string): TableCode[] {
       const isNextUnit = /^(NG|NGUOI|KHACH|PAX|TUOI|T|TRE|LON|NHO|NAM|THANG|CUOI)$/i.test(nextToken)
       
       if (idx - lastTableIdx <= 2 && !isNextUnit) {
-        results.push({ zone: currentZone, number: numMatch[1], raw: currentZone + numMatch[1] })
+        const rawCode = currentZone + numMatch[1]
+        const exists = results.some(r => r.zone === currentZone && r.number === numMatch[1])
+        if (!exists) {
+          results.push({ zone: currentZone, number: numMatch[1], raw: rawCode })
+        }
         lastTableIdx = idx
       }
       continue
@@ -574,11 +593,21 @@ export function classifyPeopleNames(text: string) {
     const lineClean = line.trim()
     if (!lineClean) continue
 
-    // Check explicit field labels like "● Khách hàng: Serena", "Tên khách: Serena", "Người đặt: Serena"
-    const labelMatch = lineClean.match(/^(?:[▶•●\*\-]\s*)?(?:khách\s*hàng|khach\s*hang|tên\s*khách|ten\s*khach|người\s*đặt|nguoi\s*dat|người\s*liên\s*hệ|nguoi\s*lien\s*he|tên|ten|khách|khach)\s*[:\-–—]\s*([A-Za-z\p{L}\s\.\-]+)$/iu)
+    // Check explicit field labels like "● Khách hàng: Serena", "Tên khách: Serena", "Người đặt: Serena", "Chủ tiệc: ..."
+    const labelMatch = lineClean.match(/^(?:[▶•●\*\-]\s*)?(?:khách\s*hàng|khach\s*hang|tên\s*khách|ten\s*khach|người\s*đặt|nguoi\s*dat|người\s*liên\s*hệ|nguoi\s*lien\s*he|người\s*book|nguoi\s*book|tên|ten|khách|khach)\s*[:\-–—]\s*([A-Za-z\p{L}\s\.\-]+)$/iu)
     if (labelMatch) {
       const explicitName = cleanHonorificPrefix(labelMatch[1].trim())
       if (explicitName && !isInvalidName(explicitName) && !REJECT_NAME_REGEX.test(stripAccents(explicitName))) {
+        if (!peopleNames.includes(explicitName)) peopleNames.push(explicitName)
+        if (!bookerCandidates.includes(explicitName)) bookerCandidates.unshift(explicitName)
+      }
+    }
+
+    // Pattern: Line starting with Table code followed by customer name (e.g., "A1 Lan Thương", "A5 Chị Lan", "Bàn C5 Chị Hoa", "C6 Anh Tuấn", "A.01 Chị Mai", "D1,4 Lan Anh")
+    const tablePrefixNameMatch = lineClean.match(/^(?:(?:bàn|ban|khu|phòng|phong|vip)\s+)?(?:[A-G])(?:\.0?|\s*,\s*\d+)*\d+\s+([A-Za-z\p{L}\s\.\-]+)$/iu)
+    if (tablePrefixNameMatch) {
+      const explicitName = cleanHonorificPrefix(tablePrefixNameMatch[1].trim())
+      if (explicitName && explicitName.length >= 2 && !isInvalidName(explicitName) && !REJECT_NAME_REGEX.test(stripAccents(explicitName))) {
         if (!peopleNames.includes(explicitName)) peopleNames.push(explicitName)
         if (!bookerCandidates.includes(explicitName)) bookerCandidates.unshift(explicitName)
       }
@@ -858,9 +887,19 @@ export function preNormalizeInput(rawText: string): string {
     clean = clean.replace(pattern, replacement)
   })
 
-  // Safe replacement for Vietnamese short abbreviations to avoid breaking words like "người" and "khách"
-  clean = clean.replace(/(^|[ ])(kh)(?=[ ]|$|[\.,\?!])/gi, '$1khách')
-  clean = clean.replace(/(^|[ ])(ng)(?=[ ]|$|[\.,\?!])/gi, '$1người')
+  // Sum adults + kids FIRST: "12 người lớn 3 trẻ em", "8 người lớn + 2 trẻ em", "12 lớn 3 bé", "12 ng lớn + 3 trẻ em"
+  clean = clean.replace(/(?<![:\d])\b(\d+)[ ]*(?:người lớn|nguoi lon|ng lớn|ng lon|lớn|lon)[ ]*(?:\+|\-|–|—|,|và|va)?[ ]*(\d+)[ ]*(?:nhỏ|bé|trẻ em|tre em|nho|be|trẻ|tre)\b/gi, (match, adults, kids) => {
+    const total = parseInt(adults, 10) + parseInt(kids, 10)
+    return `${total} khách`
+  })
+
+  // Expand pax shorthand like 15ng, 15kh
+  clean = clean.replace(/(\d+)\s*(?:ng\b|nguoi\b)(?!\s*(?:lon|lớn))/gi, '$1 người')
+  clean = clean.replace(/(\d+)\s*(?:kh\b|khach\b)/gi, '$1 khách')
+
+  // Safe replacement for standalone Vietnamese short abbreviations
+  clean = clean.replace(/(^|[ ])(kh)(?=[ ]|$|[\.,\?!])/g, '$1khách')
+  clean = clean.replace(/(^|[ ])(ng)(?=[ ]|$|[\.,\?!])/g, '$1người')
 
   const spellingAliases = [
     { pattern: /\b(dut lo|dut\s+lo)\b/gi, replacement: 'đốt lò' },
@@ -872,7 +911,50 @@ export function preNormalizeInput(rawText: string): string {
     clean = clean.replace(pattern, replacement)
   })
 
-  clean = clean.replace(/\bthu\s+(\d)\b/gi, (match, num) => {
+  // Voice-to-text / Vietnamese words for time
+  clean = clean.replace(/\b(?:mười chín|muoi chin)\s*giờ\s*(?:ba mươi|ba muoi|rưỡi|ruoi|30)\b/gi, '19:30')
+  clean = clean.replace(/\b(?:mười chín|muoi chin)\s*giờ\b/gi, '19:00')
+  clean = clean.replace(/\b(?:mười tám|muoi tam)\s*giờ\s*(?:ba mươi|ba muoi|rưỡi|ruoi|30)\b/gi, '18:30')
+  clean = clean.replace(/\b(?:mười tám|muoi tam)\s*giờ\b/gi, '18:00')
+  clean = clean.replace(/\b(?:hai mươi|hai muoi)\s*giờ\s*(?:ba mươi|ba muoi|rưỡi|ruoi|30)\b/gi, '20:30')
+  clean = clean.replace(/\b(?:hai mươi|hai muoi)\s*giờ\b/gi, '20:00')
+  clean = clean.replace(/\b(?:hai mốt|hai mot|hai mươi mốt)\s*giờ\b/gi, '21:00')
+  clean = clean.replace(/\b(?:bảy|bay)\s*giờ\s*(?:rưỡi|ruoi|30|ba mươi|ba muoi)\b/gi, '19:30')
+  clean = clean.replace(/\b(?:sáu|sau)\s*giờ\s*(?:rưỡi|ruoi|30|ba mươi|ba muoi)\b/gi, '18:30')
+  clean = clean.replace(/\b(?:tám|tam)\s*giờ\s*(?:rưỡi|ruoi|30|ba mươi|ba muoi)\b/gi, '20:30')
+  clean = clean.replace(/\b(?:chín|chin)\s*giờ\s*(?:rưỡi|ruoi|30|ba mươi|ba muoi)\b/gi, '21:30')
+  clean = clean.replace(/\b(?:bảy|bay)\s*giờ\b/gi, '19:00')
+  clean = clean.replace(/\b(?:sáu|sau)\s*giờ\b/gi, '18:00')
+  clean = clean.replace(/\b(?:tám|tam)\s*giờ\b/gi, '20:00')
+  clean = clean.replace(/\b(?:chín|chin)\s*giờ\b/gi, '21:00')
+  clean = clean.replace(/\b(?:mười|muoi)\s*giờ\b/gi, '22:00')
+
+  const hasMorningIndicator = /sáng|sang|trưa|trua|\bam\b/i.test(rawText)
+
+  // Number followed by "giờ" / "g" / "h" with or without "rưỡi" / minutes
+  clean = clean.replace(/\b(\d{1,2})\s*(?:giờ|gio)\s*(?:rưỡi|ruoi)\b/gi, (match, h) => {
+    let hour = parseInt(h, 10)
+    if (hour < 12 && !hasMorningIndicator) hour += 12
+    return `${String(hour).padStart(2, '0')}:30`
+  })
+  clean = clean.replace(/\b(\d{1,2})\s*(?:giờ|gio)\s*(\d{2})\b/gi, (match, h, m) => {
+    let hour = parseInt(h, 10)
+    if (hour < 12 && !hasMorningIndicator) hour += 12
+    return `${String(hour).padStart(2, '0')}:${m}`
+  })
+  clean = clean.replace(/\b(\d{1,2})\s*(?:giờ|gio)\b/gi, (match, h) => {
+    let hour = parseInt(h, 10)
+    if (hour < 12 && !hasMorningIndicator) hour += 12
+    return `${String(hour).padStart(2, '0')}:00`
+  })
+
+  // Voice-to-text / Vietnamese words for guest counts
+  clean = clean.replace(/\b(?:mười lăm|muoi lam)\s*(?:người|nguoi|khách|khach|ng|pax)\b/gi, '15 khách')
+  clean = clean.replace(/\b(?:hai mươi|hai muoi)\s*(?:người|nguoi|khách|khach|ng|pax)\b/gi, '20 khách')
+  clean = clean.replace(/\b(?:mười hai|muoi hai)\s*(?:người|nguoi|khách|khach|ng|pax)\b/gi, '12 khách')
+  clean = clean.replace(/\b(?:mười|muoi)\s*(?:người|nguoi|khách|khach|ng|pax)\b/gi, '10 khách')
+
+  clean = clean.replace(/\b(?:thứ|thu)\s*(\d)\b/gi, (match, num) => {
     const mapping: Record<string, string> = {
       '2': 'thứ hai',
       '3': 'thứ ba',
@@ -888,11 +970,27 @@ export function preNormalizeInput(rawText: string): string {
     return (p1 && p2 && p3) ? `0${p1}${p2}${p3}` : m
   })
 
-  clean = clean.replace(/\b(\d{1,2})h(\d{2})m\b/gi, '$1:$2')
-  clean = clean.replace(/\b(\d{1,2})h(\d{2})\b/gi, '$1:$2')
-  clean = clean.replace(/\b(\d{1,2})h\b/gi, '$1:00')
-  clean = clean.replace(/(?<![\.\d])\b([0-2]?\d)g(\d{2})\b/gi, '$1:$2')
-  clean = clean.replace(/(?<![\.\d])\b(1[0-9]|2[0-4]|[6-9])g\b(?!\s*(?:k|ram|r|con|kg))/gi, '$1:00')
+  // King's Grill standard dinner restaurant hours: all 1..11h convert to PM (13..23h) unless morning indicated
+  clean = clean.replace(/\b(\d{1,2})h(\d{2})m?\b/gi, (match, h, m) => {
+    let hour = parseInt(h, 10)
+    if (hour < 12 && !hasMorningIndicator) hour += 12
+    return `${String(hour).padStart(2, '0')}:${m}`
+  })
+  clean = clean.replace(/\b(\d{1,2})h\b/gi, (match, h) => {
+    let hour = parseInt(h, 10)
+    if (hour < 12 && !hasMorningIndicator) hour += 12
+    return `${String(hour).padStart(2, '0')}:00`
+  })
+  clean = clean.replace(/(?<![\.\d])\b([0-2]?\d)g(\d{2})\b/gi, (match, h, m) => {
+    let hour = parseInt(h, 10)
+    if (hour < 12 && !hasMorningIndicator) hour += 12
+    return `${String(hour).padStart(2, '0')}:${m}`
+  })
+  clean = clean.replace(/(?<![\.\d])\b(1[0-9]|2[0-4]|[1-9])g\b(?!\s*(?:k|ram|r|con|kg))/gi, (match, h) => {
+    let hour = parseInt(h, 10)
+    if (hour < 12 && !hasMorningIndicator) hour += 12
+    return `${String(hour).padStart(2, '0')}:00`
+  })
 
   clean = clean.replace(/(\d+)(pax|người|khách|cho|nguoi|khach|ban)/gi, '$1 $2')
   clean = clean.replace(/([\p{L}]{2,})(\d+)\b/ugi, (match, word, num) => {
@@ -905,31 +1003,21 @@ export function preNormalizeInput(rawText: string): string {
   clean = clean.replace(/(?<!\.)(\d+)(?![hg\d\s\/:\-\.,]|kg|ml)([\p{L}])/ugi, '$1 $2')
   clean = clean.replace(/(\d+(?:[\.,]\d+)?)\s*(kg|g|ml|l)\b/gi, '$1$2')
 
-  clean = clean.replace(/\b(\d+)\s*(?:-|–|—|đến|den|to)\s*(\d+)\s*(pax|người|khách|cho|nguoi|khach|guest)/gi, (match, min, max, unit) => {
+  clean = clean.replace(/(?<![:\d\/])\b(\d+)[ ]*(?:-|–|—|đến|den|to)[ ]*(\d+)\s*(pax|người|khách|cho|nguoi|khach|guest)/gi, (match, min, max, unit) => {
     return `${max} ${unit}`
-  })
-  
-  clean = clean.replace(/(?<![:\d])\b(\d+)[ ]*(?:người lớn|nguoi lon|lớn|lon)[ ]*(?:\+|,|và|va)?[ ]*(\d+)[ ]*(?:nhỏ|bé|trẻ em|tre em|nho|be)\b/gi, (match, adults, kids) => {
-    const total = parseInt(adults) + parseInt(kids)
-    return `${total} khách`
   })
 
   clean = clean.replace(/\b(\d{1,2}:\d{2})\s*(?:[-–—]|đến|den|to)\s*(\d{1,2}:\d{2})\b/g, (match, t1, t2) => t1)
 
   clean = clean.replace(/\b(\d{1,2}):(\d{2})\s*(chiều|tối|pm|chieu|toi)\b/gi, (match, h, m) => {
-    let hour = parseInt(h)
+    let hour = parseInt(h, 10)
     if (hour < 12) hour += 12
     return `${String(hour).padStart(2, '0')}:${m}`
   })
 
-  const hasMorningIndicator = /sáng|trưa|am/i.test(rawText)
   clean = clean.replace(/\b(vào lúc|lúc|tầm|khoảng|gio|giao|luc|tam|khoang)?\s*(\d{1,2}):(\d{2})\b/gi, (match, prefix, h, m) => {
-    let hour = parseInt(h)
-    if (hour >= 1 && hour <= 11 && !hasMorningIndicator) {
-      if (hour >= 5 && hour <= 11) {
-        hour += 12
-      }
-    }
+    let hour = parseInt(h, 10)
+    if (hour < 12 && !hasMorningIndicator) hour += 12
     return ` ${prefix || ''} ${String(hour).padStart(2, '0')}:${m} `
   })
 
@@ -966,8 +1054,8 @@ export function preNormalizeInput(rawText: string): string {
   })
 
   clean = clean.replace(/\b(?:ngày\s+|ngay\s+)?(\d{1,2})\s+(?:tháng|thang|thg|\bt\b)\s*(\d{1,2})\b/gi, (match, d, m) => {
-    const day = parseInt(d)
-    const month = parseInt(m)
+    const day = parseInt(d, 10)
+    const month = parseInt(m, 10)
     if (day >= 1 && day <= 31 && month >= 1 && month <= 12) {
       const dd = String(day).padStart(2, '0')
       const mm = String(month).padStart(2, '0')
@@ -996,8 +1084,8 @@ export function preNormalizeInput(rawText: string): string {
     if (regexNext.test(clean)) {
       const dayIndex = vnDays.indexOf(day) % 7
       const currentDay = today.getDay()
-      let diff = dayIndex - currentDay
-      diff += 7
+      let diff = (dayIndex - currentDay + 7) % 7
+      if (diff === 0) diff = 7
       const targetDate = new Date(today)
       targetDate.setDate(today.getDate() + diff)
       clean = clean.replace(regexNext, formatDate(targetDate))
@@ -1327,6 +1415,11 @@ export function parseSingleMenuLine(lineStr: string): { raw_name: string; quanti
   // Also strip bullet points (including Unicode bullets)
   cleaned = cleaned.replace(/^[-*+•●▶▪▫◆✦★✓]\s*/, '')
 
+  // Insert space between leading attached count and item name: "2pepsi" -> "2 pepsi", "10Coca" -> "10 Coca" (excluding portion suffixes like 0.5kg, 5con)
+  if (!/^\d+(?:kg|g|l|ml|c|con)\b/i.test(cleaned)) {
+    cleaned = cleaned.replace(/^(\d+)([a-zA-Z\p{L}])/u, '$1 $2')
+  }
+
   cleaned = cleaned.trim()
   if (!cleaned) return null
 
@@ -1337,20 +1430,28 @@ export function parseSingleMenuLine(lineStr: string): { raw_name: string; quanti
     return `__PORTION_PAREN_${portionParens.length - 1}__`
   })
 
-  // 2. Extract portion/qty indicators like "3 phần", "3 đĩa", "3 tô", "3 ly", "3 lon", "6 con"
+  // 2. Extract portion/qty indicators like "3 phần", "3 đĩa", "3 tô", "3 ly", "3 lon", "6 con", "x5", "-5", "- 10", "(x3)"
   let qty = 1
   
-  // Trailing quantity multiplier: "x1", "x 2", "x 2 phần", "x 6 con", "*3", "(x1)", "1 phần", "6 con"
-  const trailingQtyMatch = cleaned.match(/(?:\((?:[x\*])\s*(\d+)\)|(?:[x\*])\s*(\d+)(?:\s*(?:phần|phan|đĩa|dia|dĩa|tô|to|ly|lon|set|suất|suat|con|cái|cai|thố|tho|chén|chen|nồi|noi))?|\b(\d+)\s*(?:phần|phan|đĩa|dia|dĩa|tô|to|ly|lon|set|suất|suat|con|cái|cai|thố|tho|chén|chen|nồi|noi))\s*$/i)
+  // Trailing quantity multiplier: "x1", "x 2", "x 2 phần", "*3", "(x1)", "(x3)", "-5", "- 10", "1 phần", "6 con", "5", "10"
+  const trailingQtyMatch = cleaned.match(/(?:\((?:[x\*])\s*(\d+)\)|(?:[x\*])\s*(\d+)(?:\s*(?:phần|phan|đĩa|dia|dĩa|tô|to|ly|lon|set|suất|suat|con|cái|cai|thố|tho|chén|chen|nồi|noi|chai|lon))?|\b(\d+)\s*(?:phần|phan|đĩa|dia|dĩa|tô|to|ly|lon|set|suất|suat|con|cái|cai|thố|tho|chén|chen|nồi|noi|chai|lon)|(?:[-–—]\s*|\s+)(\d+))\s*$/i)
   if (trailingQtyMatch) {
-    qty = parseInt(trailingQtyMatch[1] || trailingQtyMatch[2] || trailingQtyMatch[3], 10) || 1
-    cleaned = cleaned.replace(/(?:\((?:[x\*])\s*(\d+)\)|(?:[x\*])\s*(\d+)(?:\s*(?:phần|phan|đĩa|dia|dĩa|tô|to|ly|lon|set|suất|suat|con|cái|cai|thố|tho|chén|chen|nồi|noi))?|\b(\d+)\s*(?:phần|phan|đĩa|dia|dĩa|tô|to|ly|lon|set|suất|suat|con|cái|cai|thố|tho|chén|chen|nồi|noi))\s*$/i, '').trim()
+    const rawVal = trailingQtyMatch[1] || trailingQtyMatch[2] || trailingQtyMatch[3] || trailingQtyMatch[4]
+    const parsedVal = parseInt(rawVal, 10)
+    // Only accept trailing standalone number if it's a realistic quantity (1..99)
+    if (parsedVal >= 1 && parsedVal <= 99) {
+      qty = parsedVal
+      cleaned = cleaned.slice(0, trailingQtyMatch.index).trim()
+    }
   } else {
-    // Leading explicit quantity: "2x ", "3* ", "2 phần ", "3 đĩa ", "2 dĩa "
-    const leadingQtyMatch = cleaned.match(/^(?:(\d+)\s*[x\*]\s*|(\d+)\s*(?:phần|phan|đĩa|dia|dĩa|tô|to|ly|lon|set|suất|suat|con)\s+)/i)
+    // Leading explicit quantity: "2x ", "3* ", "2 phần ", "3 đĩa ", "2 dĩa ", "7 lon ", "25 chai ", "10 "
+    const leadingQtyMatch = cleaned.match(/^(?:(\d+)\s*[x\*]\s*|(\d+)\s*(?:phần|phan|đĩa|dia|dĩa|tô|to|ly|lon|set|suất|suat|con|chai|lon|ket|két|thung|thùng)\s+|(\d+)\s+)/i)
     if (leadingQtyMatch) {
-      qty = parseInt(leadingQtyMatch[1] || leadingQtyMatch[2], 10) || 1
-      cleaned = cleaned.replace(/^(?:(\d+)\s*[x\*]\s*|(\d+)\s*(?:phần|phan|đĩa|dia|dĩa|tô|to|ly|lon|set|suất|suat|con)\s+)/i, '').trim()
+      const parsedVal = parseInt(leadingQtyMatch[1] || leadingQtyMatch[2] || leadingQtyMatch[3], 10) || 1
+      if (parsedVal >= 1 && parsedVal <= 100) {
+        qty = parsedVal
+        cleaned = cleaned.replace(/^(?:(\d+)\s*[x\*]\s*|(\d+)\s*(?:phần|phan|đĩa|dia|dĩa|tô|to|ly|lon|set|suất|suat|con|chai|lon|ket|két|thung|thùng)\s+|(\d+)\s+)/i, '').trim()
+      }
     } else {
       // Check if leading "X con" is not a dish portion (5 con, 10 con)
       const leadingConMatch = cleaned.match(/^(\d+)\s*(?:con|c)\s+(.+)$/i)
@@ -1384,7 +1485,7 @@ export function parseSingleMenuLine(lineStr: string): { raw_name: string; quanti
     note = decimalNote || weightNotes[weightNotes.length - 1]
   }
 
-  // 3b. Extract trailing parenthetical notes like "(Giảm 10% tiền thức ăn)", "(không cay)"
+  // 3b. Extract trailing parenthetical notes like "(Giảm 10% tiền thức ăn)", "(không cay)", "(làm không cay)"
   const parenNoteMatch = cleaned.match(/\s*\(([^)]+)\)\s*$/)
   if (parenNoteMatch) {
     const insideParen = parenNoteMatch[1].trim()
@@ -1471,7 +1572,7 @@ export function extractDecorationDetails(decorationBlock: string): DecorationDet
       continue
     }
 
-    // 1. Decor color: "tông hồng pastel", "tông màu: xanh dương", "tone: blue", "màu hồng", "tone hồng pastel"
+    // 1. Decor color: "tông hồng pastel", "tông màu: xanh dương", "tone: blue", "màu hồng", "tone hồng pastel", "TONE TRẮNG", "tone trắng"
     const colorMatch = cleanDecorLine.match(/(?:t[oô]ng\s*(?:m[aà]u)?|m[aà]u|tone|color)\s*[:\-]?\s*([^,\n;]+)/i)
     if (colorMatch && !result.decor_color) {
       result.decor_color = colorMatch[1].trim()
@@ -1489,14 +1590,14 @@ export function extractDecorationDetails(decorationBlock: string): DecorationDet
       continue
     }
 
-    // 3. Board text: "Bảng: HBD Bé Su", "bảng sinh nhật: ...", "bảng chữ: ...", "bảng tên: ..."
+    // 3. Board text: "Bảng: HBD Bé Su", "bảng sinh nhật: ...", "bảng chữ: ...", "bảng tên: ...", "BẢNG \"HPBD ...\""
     const boardMatch = line.match(/(?:b[aả]ng(?:\s+t[eê]n|\s+ch[uữ]|\s+sinh\s*nh[aậ]t|\s+m[uừ]ng)?|bang(?:\s+ten|\s+chu|\s+sinh\s*nhat|\s+mung)?)\s*[:\-]?\s*(.+)/i)
     if (boardMatch && !result.board_text) {
       result.board_text = boardMatch[1].trim()
       continue
     }
 
-    // 4. Mirror text: "Gương viết: Welcome", "gương: ...", "mirror: ..."
+    // 4. Mirror text: "Gương viết: Welcome", "gương: ...", "mirror: ...", "Gương \"HPBD ...\""
     const mirrorMatch = line.match(/(?:g[uư][oơ]ng(?:\s+vi[eế]t(?:\s+t[eê]n)?)?|mirror)\s*[:\-]?\s*(.+)/i)
     if (mirrorMatch && !result.mirror_text) {
       result.mirror_text = mirrorMatch[1].trim()
@@ -1511,7 +1612,15 @@ export function extractDecorationDetails(decorationBlock: string): DecorationDet
       continue
     }
 
-    // 6. If line contains HBD or Happy Birthday text and no board_text yet, extract the message
+    // 6. Background / Space setup: "ƯU TIÊN BACKGROUND", "CHỪA KHÔNG GIAN ĐỂ KHÁCH SETUP BACKGROUND", "background check-in"
+    if (/background|check-in|checkin|khong\s+gian|khung\s+checkin|san\s+khau/i.test(lower)) {
+      if (!result.special_requests.includes(line)) {
+        result.special_requests.push(line)
+      }
+      continue
+    }
+
+    // 7. If line contains HBD or Happy Birthday text and no board_text yet, extract the message
     if (!result.board_text) {
       const hbdMatch = line.match(/(?:happy\s*birthday|hbd|hpbd|ch[uú]c\s*m[uừ]ng)\s+(.+)/i)
       if (hbdMatch) {
