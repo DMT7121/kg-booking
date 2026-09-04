@@ -63,7 +63,7 @@ function setQuickDateWeekend(dayOfWeek: number) {
 }
 
 // Quick Times & Pax
-const QUICK_TIMES = ['11:30', '12:00', '18:00', '18:30', '19:00', '19:30', '20:00']
+const QUICK_TIMES = ['17:00', '17:30', '18:00', '18:30', '19:00', '19:30', '20:00', '20:30']
 const QUICK_PAX = [2, 4, 6, 8, 10, 12, 15, 20]
 
 // Guest adjustments (+ / -)
@@ -793,7 +793,7 @@ function selectColorTone(name: string) {
           © {{ RESTAURANT_NAME }}
         </p>
         <p class="text-[11px] text-slate-500 font-medium">
-          Hotline đặt tiệc: <span class="text-blue-600 font-mono font-bold">{{ RESTAURANT_HOTLINE }}</span> · Giờ đón khách: 10:00 – 23:00 hàng ngày
+          Hotline đặt tiệc: <span class="text-blue-600 font-mono font-bold">{{ RESTAURANT_HOTLINE }}</span> · Giờ đón khách: 15:00 – 23:30 hàng ngày
         </p>
       </footer>
     </div>
