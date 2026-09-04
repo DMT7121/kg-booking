@@ -214,6 +214,36 @@ Tôm cocktail (5 con) x2"`
       expect(result.menu_items[3].raw_name).toBe('Tôm cocktail (5 con)')
       expect(result.menu_items[3].quantity).toBe(2)
     })
+
+    it('should extract Kim Hằng booking template without regex escape crash', () => {
+      const rawInput = `Người đặt/Chủ tiệc: _____kim hằng
+• Số điện thoại/Zalo:  _____0949917117
+• Thời gian (ngày và giờ): _____7/9/2026-18h00
+• Lượng khách: _____40
+• Nhu cầu đặt bàn (trang trí Sinh Nhật)
+• Yêu cầu đặt trước (thức ăn,...):  _____
+5 chả giò bát bửu 
+5 thị heo nướng xuyên
+5giò heo muối hoa tiêu xôi hạt sen
+3Cơm chiên hs 
+2 cơm chiên bò
+5 Gỏi gà hoa chuối 
+3lẩu chua cay hs
+2lẩu riêu cua`
+
+      const result = extractByRules(rawInput)
+      expect(result.customer_name).toBe('kim hằng')
+      expect(result.phone).toBe('0949917117')
+      expect(result.event_date).toBe('07/09/2026')
+      expect(result.event_time).toBe('18:00')
+      expect(result.guest_count).toBe(40)
+      expect(result.booking_need).toBe('Sinh nhật')
+      expect(result.menu_items.length).toBe(8)
+      expect(result.menu_items[0].raw_name).toBe('chả giò bát bửu')
+      expect(result.menu_items[0].quantity).toBe(5)
+      expect(result.menu_items[5].raw_name).toBe('Gỏi gà hoa chuối')
+      expect(result.menu_items[5].quantity).toBe(5)
+    })
   })
 })
 
