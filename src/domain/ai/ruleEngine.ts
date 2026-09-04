@@ -1636,14 +1636,15 @@ export function parseSingleMenuLine(lineStr: string): { raw_name: string; quanti
   cleaned = cleaned.replace(/\(\s*\)/g, '').replace(/^[\s-,\/:]+|[\s-,\/:]+$/g, '').replace(/\s+/g, ' ').trim()
 
   // Reject distributive quantifier statements like "Mỗi món 2 phần", "Mỗi loại 1 đĩa", "Riêng lẩu 1 phần", "Mấy món trên lấy 2 suất"
-  if (/^(?:m[oỗ]i\s+m[oó]n|m[oỗ]i\s+lo[aạ]i|m[aấ]y\s+m[oó]n|t[aấ]t\s+c[aả]\s+c[aá]c\s+m[oó]n|c[aá]c\s+m[oó]n\s+tr[eê]n|ri[eê]ng\s+m[oó]n|ri[eê]ng\s+l[aẩ]u|con\s+lai\s+m[oỗ]i\s+m[oó]n)\b/i.test(stripAccents(cleaned))) {
+  // and cancellation statements like "Bỏ món X giúp mình", "Không lấy món Y", "Hủy món Z"
+  if (/^(?:m[oỗ]i\s+m[oó]n|m[oỗ]i\s+lo[aạ]i|m[aấ]y\s+m[oó]n|t[aấ]t\s+c[aả]\s+c[aá]c\s+m[oó]n|c[aá]c\s+m[oó]n\s+tr[eê]n|ri[eê]ng\s+m[oó]n|ri[eê]ng\s+l[aẩ]u|con\s+lai\s+m[oỗ]i\s+m[oó]n|b[oỏ]\s+m[oó]n|h[uủ]y\s+m[oó]n|b[oỏ]\s+gi[uú]p|kh[oô]ng\s+l[aấ]y|b[oớ]t\s+m[oó]n|kh[oô]ng\s+l[aà]m\s+m[oó]n|d[uừ]ng\s+m[oó]n)\b/i.test(stripAccents(cleaned))) {
     return null
   }
 
   // Guard 1: if cleaned dish name is just numbers or metadata keywords / labels, skip
   const strippedCleaned = stripAccents(cleaned).toLowerCase()
   if (/^\d+$/.test(cleaned) || 
-      /^(?:khach\s*hang|ten\s*khach|nguoi\s*dat|nguoi\s*lien\s*he|sdt|dien\s*thoai|thoi\s*gian|so\s*luong|loai\s*tiec|trang\s*tri|ghi\s*chu|dat\s*coc|nhan|nv)\s*:/i.test(strippedCleaned) ||
+      /^(?:khach\s*hang|ten\s*khach|nguoi\s*dat|nguoi\s*lien\s*he|sdt|dien\s*thoai|thoi\s*gian|so\s*luong|loai\s*tiec|trang\s*tri|ghi\s*chu|dat\s*coc|nhan|nv|khu\s*vuc|vi\s*tri|cho\s*ngoi|khong\s*gian)\s*:/i.test(strippedCleaned) ||
       /^(?:nam|nu|khach|pax|nguoi|ban|table|gio|ngay|sinh\s*nhat|hbd|coc|ck|thuc\s*don|menu|mon\s*an|thuc\s*an|do\s*uong|thuc\s*uong|dmt|nv)$/i.test(strippedCleaned)) {
     return null
   }
@@ -2440,7 +2441,7 @@ export function extractByRules(rawOrNormalizedText: string) {
       if (tblNorm && lower === tblNorm) continue
       if (recNorm && (lower === recNorm || lower.includes(recNorm))) continue
       if (/^(?:nh[aậ]n|staff|thu\s*ng[aâ]n|nv)\s*[:\-–—]/i.test(lower)) continue
-      if (/happy\s*birthday|hbd|hpbd|chuc\s*mung|chúc\s*mừng|bang\s*chu|bảng\s*chữ|bang\s*ten|bảng\s*tên|bang|bảng|bong\s*bay|bóng\s*bay|bong\s*bong|bong\s*bóng|bóng\s*pastel|trang\s*tri|trang\s*trí|tong\s*mau|tông\s*màu|tone\s*màu|tone\s*mau|tone|tông|tong|guong|gương|mirror|dan\s*do|dặn\s*dò|luu\s*y|lưu\s*ý|sinh\s*nhat|sinh\s*nhật|thoi\s*noi|thôi\s*nôi|day\s*thang|đầy\s*tháng|hoa\s*tuoi|hoa\s*tươi|hoa\s*lua|hoa\s*lụa|hoa\s*sap|hoa\s*sáp|cam\s*hoa|cắm\s*hoa|backdrop|background|phong\s*nen|phông\s*nền|khung\s*check\-?in|san\s*khau|sân\s*khấu|chua\s*khong\s*gian|chừa\s*không\s*gian|banh\s*kem|bánh\s*kem|phao|pháo|nen|nến|decor|setup/i.test(lower)) continue
+      if (/happy\s*birthday|hbd|hpbd|chuc\s*mung|chúc\s*mừng|bang\s*chu|bảng\s*chữ|bang\s*ten|bảng\s*tên|bang|bảng|bong\s*bay|bóng\s*bay|bong\s*bong|bong\s*bóng|bóng\s*pastel|trang\s*tri|trang\s*trí|tong\s*mau|tông\s*màu|tone\s*màu|tone\s*mau|tone|tông|tong|guong|gương|mirror|dan\s*do|dặn\s*dò|luu\s*y|lưu\s*ý|sinh\s*nhat|sinh\s*nhật|thoi\s*noi|thôi\s*nôi|day\s*thang|đầy\s*tháng|hoa\s*tuoi|hoa\s*tươi|hoa\s*lua|hoa\s*lụa|hoa\s*sap|hoa\s*sáp|cam\s*hoa|cắm\s*hoa|backdrop|background|phong\s*nen|phông\s*nền|khung\s*check\-?in|san\s*khau|sân\s*khấu|chua\s*khong\s*gian|chừa\s*không\s*gian|banh\s*kem|bánh\s*kem|phao|pháo|nen|nến|decor|setup|khu\s*vực|khu\s*vuc|vị\s*trí|vi\s*tri|chỗ\s*ngồi|cho\s*ngoi|ngoài\s*trời|ngoai\s*troi|phòng\s*lạnh|phong\s*lanh|phòng\s*vip|phong\s*vip/i.test(lower)) continue
       if (/da chuyen|\bcoc\b|\bck\b|bill|ngan hang|chuyen khoan|ref|tien coc/i.test(lower)) continue
 
       const parsed = parseSingleMenuLine(trimmedLine)
@@ -2480,9 +2481,21 @@ export function extractByRules(rawOrNormalizedText: string) {
   const tblNorm = table_code ? stripAccents(table_code).toLowerCase().trim() : ''
   const peopleNorms = nameResults.peopleNames.map(p => stripAccents(p).toLowerCase().trim())
 
+  // Detect dish exclusions like "Bỏ món bò cuộn nấm phô mai nướng", "Không lấy lẩu", etc.
+  const exclusionRegex = /(?:b[oỏ]\s+m[oó]n|h[uủ]y\s+m[oó]n|b[oỏ]\s+gi[uú]p|kh[oô]ng\s+l[aấ]y|b[oớ]t\s+m[oó]n)\s+(.+?)(?:gi[uú]p|nh[eé]|nha|ạ|\.|\n|$)/gi
+  const excludedDishes: string[] = []
+  let exclMatch
+  while ((exclMatch = exclusionRegex.exec(normalizedText)) !== null) {
+    const rawDish = exclMatch[1].trim()
+    if (rawDish.length > 2) {
+      excludedDishes.push(stripAccents(rawDish).toLowerCase().trim())
+    }
+  }
+
   menu_items = menu_items.filter(item => {
     const dName = stripAccents(item.raw_name || '').toLowerCase().trim()
     if (!dName) return false
+    if (excludedDishes.some(ex => ex && (dName.includes(ex) || ex.includes(dName)))) return false
     if (custNameNorm && (dName === custNameNorm || dName.includes(custNameNorm))) return false
     if (peopleNorms.some(p => p && (dName === p || dName.includes(p)))) return false
     if (tblNorm && dName === tblNorm) return false

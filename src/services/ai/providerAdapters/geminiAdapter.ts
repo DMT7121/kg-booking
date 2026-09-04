@@ -31,7 +31,7 @@ export const geminiAdapter: ProviderAdapter = {
     }
 
     if (jsonMode && responseSchema) {
-      generationConfig.responseSchema = responseSchema
+      generationConfig.responseSchema = sanitizeGeminiSchema(responseSchema)
     }
 
     const body: any = {
@@ -68,4 +68,23 @@ export const geminiAdapter: ProviderAdapter = {
 
     throw new Error('Không tìm thấy nội dung phản hồi từ Gemini')
   }
+}
+
+export function sanitizeGeminiSchema(schema: any): any {
+  if (!schema || typeof schema !== 'object') return schema
+  if (Array.isArray(schema)) return schema.map(sanitizeGeminiSchema)
+
+  const clean: any = {}
+  for (const [k, v] of Object.entries(schema)) {
+    if (k === 'type' && Array.isArray(v)) {
+      const nonNull = v.find(t => t !== 'null') || 'string'
+      clean.type = nonNull
+      clean.nullable = true
+    } else if (typeof v === 'object' && v !== null) {
+      clean[k] = sanitizeGeminiSchema(v)
+    } else {
+      clean[k] = v
+    }
+  }
+  return clean
 }

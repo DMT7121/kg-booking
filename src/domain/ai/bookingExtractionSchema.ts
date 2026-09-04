@@ -34,8 +34,8 @@ export const BOOKING_EXTRACTION_SCHEMA = {
       properties: {
         date: { type: 'string', description: 'Ngày đặt bàn định dạng DD/MM/YYYY' },
         time: { type: 'string', description: 'Giờ đặt bàn định dạng HH:mm' },
-        guest_count: { type: ['integer', 'null'], description: 'Số lượng khách (người lớn + trẻ em)' },
-        table_count: { type: ['integer', 'null'], description: 'Số lượng bàn ăn' },
+        guest_count: { type: 'integer', description: 'Số lượng khách (người lớn + trẻ em)', nullable: true },
+        table_count: { type: 'integer', description: 'Số lượng bàn ăn', nullable: true },
         tables: { type: 'string', description: 'Mã số bàn được xếp' },
         confidence: { type: 'number', description: 'Độ tin cậy của trường booking (0.0 - 1.0)' }
       },
@@ -49,7 +49,7 @@ export const BOOKING_EXTRACTION_SCHEMA = {
         properties: {
           raw_name: { type: 'string', description: 'Tên món ăn thô viết trong tin nhắn' },
           matched_name: { type: 'string', description: 'Tên món chính thức khớp với thực đơn hoặc chuỗi rỗng' },
-          quantity: { type: ['integer', 'null'], description: 'Số lượng món ăn' },
+          quantity: { type: 'integer', description: 'Số lượng món ăn', nullable: true },
           note: { type: 'string', description: 'Ghi chú cho món ăn này' },
           confidence: { type: 'number', description: 'Độ tin cậy khớp món (0.0 - 1.0)' },
           needs_review: { type: 'boolean', description: 'Đánh dấu cần xem lại nếu không chắc chắn' }
