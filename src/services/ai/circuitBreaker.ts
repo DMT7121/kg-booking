@@ -467,9 +467,11 @@ export function reportGatewayFailure(gateway: string, kind: string, errorMsg: st
   state.consecutiveFailures++
   state.lastFailureKind = kind
   
-  const cooldownDuration = 30 * 1000 // 30s cooldown
-  state.status = 'open'
-  state.cooldownUntil = Date.now() + cooldownDuration
-  console.warn(`[Circuit Breaker] Gateway [${gateway}] circuit OPEN. Cooldown for 30s. Reason: ${errorMsg}`)
-  saveStateToDB()
+  if (state.consecutiveFailures >= 3) {
+    const cooldownDuration = 30 * 1000 // 30s cooldown
+    state.status = 'open'
+    state.cooldownUntil = Date.now() + cooldownDuration
+    console.warn(`[Circuit Breaker] Gateway [${gateway}] circuit OPEN after ${state.consecutiveFailures} failures. Cooldown for 30s. Reason: ${errorMsg}`)
+    saveStateToDB()
+  }
 }

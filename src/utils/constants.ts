@@ -46,9 +46,9 @@ export const AI_MODELS: AIModel[] = [
   // Tier 0: Ultra-Fast — Groq LPU (1000+ tok/s)
   { id: 'llama-3.3-70b-versatile', name: 'Llama 3.3 70B (Groq)', provider: 'groq', type: 'text', tier: 0, url: 'https://api.groq.com/openai/v1/chat/completions', format: 'openai' },
   // Tier 1: Google Gemini Fleet (Super Reliable & Free 15 RPM)
-  { id: 'gemini-2.0-flash', name: 'Gemini 2.0 Flash (Google)', provider: 'google', type: 'text', tier: 1, url: 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent', format: 'gemini' },
-  { id: 'gemini-2.0-flash-lite', name: 'Gemini 2.0 Flash Lite (Google)', provider: 'google', type: 'text', tier: 1, url: 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-lite:generateContent', format: 'gemini' },
   { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash (Google)', provider: 'google', type: 'text', tier: 1, url: 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent', format: 'gemini' },
+  { id: 'gemini-2.5-flash-lite', name: 'Gemini 2.5 Flash Lite (Google)', provider: 'google', type: 'text', tier: 1, url: 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent', format: 'gemini' },
+  { id: 'gemini-flash-latest', name: 'Gemini Flash Latest (Google)', provider: 'google', type: 'text', tier: 1, url: 'https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent', format: 'gemini' },
   { id: 'llama-3.2-11b-vision-instruct', name: 'Llama 3.2 11B (Groq)', provider: 'groq', type: 'text', tier: 1, url: 'https://api.groq.com/openai/v1/chat/completions', format: 'openai' },
   // Tier 2: Cerebras Wafer-Scale (2000+ tok/s) - Verified IDs
   { id: 'llama-3.3-70b', name: 'Llama 3.3 70B (Cerebras)', provider: 'cerebras', type: 'text', tier: 1, url: 'https://api.cerebras.ai/v1/chat/completions', format: 'openai' },
@@ -80,9 +80,9 @@ export const AI_MODELS: AIModel[] = [
   // Tier 0: Fastest — Groq LPU Hardware - Verified Vision Model
   { id: 'llama-3.2-11b-vision-instruct', name: 'Llama 3.2 11B (Groq)', provider: 'groq', type: 'vision', tier: 0, url: 'https://api.groq.com/openai/v1/chat/completions', format: 'openai' },
   // Tier 1: Google Gemini Fleet
-  { id: 'gemini-2.0-flash', name: 'Gemini 2.0 Flash', provider: 'google', type: 'vision', tier: 1, url: 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent', format: 'gemini' },
-  { id: 'gemini-2.0-flash-lite', name: 'Gemini 2.0 Flash Lite', provider: 'google', type: 'vision', tier: 1, url: 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-lite:generateContent', format: 'gemini' },
   { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash', provider: 'google', type: 'vision', tier: 1, url: 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent', format: 'gemini' },
+  { id: 'gemini-2.5-flash-lite', name: 'Gemini 2.5 Flash Lite', provider: 'google', type: 'vision', tier: 1, url: 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent', format: 'gemini' },
+  { id: 'gemini-flash-latest', name: 'Gemini Flash Latest', provider: 'google', type: 'vision', tier: 1, url: 'https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent', format: 'gemini' },
   // Tier 2: Mistral Vision
   { id: 'pixtral-large-latest', name: 'Pixtral Large (Vision)', provider: 'mistral', type: 'vision', tier: 2, url: 'https://api.mistral.ai/v1/chat/completions', format: 'openai' },
   { id: 'mistral-small-latest', name: 'Mistral Small 4 (Vision)', provider: 'mistral', type: 'vision', tier: 2, url: 'https://api.mistral.ai/v1/chat/completions', format: 'openai' },

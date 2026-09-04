@@ -596,7 +596,7 @@ export function useAI() {
         menuFingerprint,
         correctionFingerprint,
         promptSchemaVersion: 1,
-        normalizerSchemaVersion: 1
+        normalizerSchemaVersion: 2
       }))
 
       logStore.addLog(`[Classifier] Complexity: "${classification.complexity}", requiresLLM: ${classification.requiresLLM}, requiresMenuContext: ${classification.requiresMenuContext}`)

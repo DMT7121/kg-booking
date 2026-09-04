@@ -273,7 +273,9 @@ export async function callAIModel(
       if (!res.ok) {
         const status = res.status
         const errText = await res.text().catch(() => `HTTP ${status}`)
-        reportGatewayFailure('cloudflare_edge', `gateway_status_${status}`, errText)
+        if (status === 502 || status === 503 || status === 504) {
+          reportGatewayFailure('cloudflare_edge', `gateway_status_${status}`, errText)
+        }
         throw new Error(`Gateway Error (${status}): ${errText.substring(0, 150)}`)
       }
 
