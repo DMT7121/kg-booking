@@ -16,26 +16,30 @@ Quy tắc làm sạch & Phân định thực thể:
    - Tên riêng thuần túy, TUYỆT ĐỐI KHÔNG bao gồm danh xưng tiền tố như "Chị", "C", "C.", "Anh", "A", "A.", "Cô", "Chú", "Bác", "Em" và TUYỆT ĐỐI KHÔNG nhầm từ khóa "hàng" trong "Khách hàng" làm tên.
    - TUYỆT ĐỐI KHÔNG lấy tên nhân vật chính của buổi tiệc làm customer.name nếu người đặt là người khác.
    - TUYỆT ĐỐI KHÔNG lấy số bàn, mã bàn/khu vực (như "Bàn 5", "Bàn C6", "A.01", "C5,6", "D1,4", "VIP2", "Khu A"), tên nhân viên nhận cọc/đơn, hoặc thông tin yêu cầu/món ăn làm customer.name. Nếu không có tên khách rõ ràng, để customer.name = "".
-3. party: Thông tin tiệc và trang trí:
-   - owner_name: Chủ tiệc / nhân vật chính được tổ chức mừng (vd: "Bé Min", "Thiên Hào", "Chị Thảo").
-   - display_board_text: Chữ viết trên bảng trang trí / bảng mừng (vd: "Happy 1st Birthday Bé Min", 'BẢNG "HPBD Lan Thương"').
-   - mirror_board_text: Chữ viết trên gương / gương viết tên trang trí (vd: "Welcome to Min's Birthday", 'Gương "HPBD..."').
-   - decor_color: Tông màu trang trí yêu cầu (vd: "TONE TRẮNG", "tông hồng", "Trắng-Hồng-Xanh").
-   - special_request: Chi tiết dặn dò trang trí bổ sung hoặc không gian setup: "TRANG TRÍ HOA TƯƠI", "ƯU TIÊN BACKGROUND", "CHỪA KHÔNG GIAN ĐỂ KHÁCH SETUP BACKGROUND", "phòng lạnh", "hoa tươi trên bàn", v.v.
-4. booking: 
-   - Số khách: guest_count (số nguyên, hỗ trợ tính tổng "12 người lớn 3 trẻ em" -> 15).
-   - Ngày: event_date (DD/MM/YYYY - tính toán ngày hiện tại nếu chưa tới giờ tiệc; nếu giờ tiệc nhỏ hơn giờ hiện tại thì ưu tiên ngày hôm sau; "chiều mai", "ngày mốt", "thứ 7 tuần sau").
-   - Giờ: event_time (HH:mm định dạng 24h, luôn >= 15:00 hàng ngày, vd: 7h -> 19:00, 6h30 -> 18:30, 8h -> 20:00).
-   - Bàn: table_number (vd: "A1", "A.01" -> "A1", "C5,6" -> "C5,C6", "D1,4" -> "D1,D4").
-   - Nhu cầu tiệc (need): "Sinh nhật", "Báo hỷ", "Ăn thường", "Họp mặt", "Liên hoan", "Kỉ niệm", "Tất niên", "Tân niên", "Tiệc chia tay (Farewell)", "Thôi nôi (1st)", "Đầy tháng", "Công ty".
-5. deposit: Số tiền cọc (amount: số nguyên), trạng thái (status: "đã cọc", "chờ cọc"), ngân hàng / ref (bank_ref).
-6. menu_items: 
-   - CHỈ trích xuất món ăn / đồ uống khách hàng THỰC SỰ ĐẶT.
-   - Nhận diện số lượng đứng trước ("10 Coca", "2pepsi", "7 lon sting", "25 chai suối") hoặc đứng sau ("Khoai tây chiên 5", "Cánh gà chiên mắm tỏi -5", "Sụn gà chiên mắm - 10", "Cá diêu hồng (x3)", "Gà x5").
-   - Bảo toàn nguyên văn tên món khi có ngoặc đơn thực đơn (như "Cơm chiên cá mặn chà bông ớt hiểm (cay)"), đồng thời tách đúng ghi chú biến tấu (như "(làm không cay)") vào trường note của món.
-7. note: Tổng hợp ĐẦY ĐỦ VÀ CHÍNH XÁC mọi thông tin ghi chú liên quan đến trang trí, không gian, background, dặn dò khẩu vị, v.v.
+3. party: Thông tin tiệc, trang trí, không gian & khẩu vị:
+    - owner_name: Chủ tiệc / nhân vật chính được tổ chức mừng (vd: "Bé Min", "Thiên Hào", "Chị Thảo").
+    - display_board_text: Chữ viết trên bảng trang trí / bảng mừng (vd: "Happy 1st Birthday Bé Min", 'BẢNG "HPBD Lan Thương"').
+    - mirror_board_text: Chữ viết trên gương / gương viết tên trang trí (vd: "Welcome to Min's Birthday", 'Gương "HPBD..."').
+    - decor_color: Tông màu trang trí yêu cầu (vd: "TONE TRẮNG", "tông hồng", "Trắng-Hồng-Xanh").
+    - special_request: Chi tiết dặn dò trang trí bổ sung: "TRANG TRÍ HOA TƯƠI", "ƯU TIÊN BACKGROUND", "CHỪA KHÔNG GIAN ĐỂ KHÁCH SETUP BACKGROUND", "hoa tươi trên bàn", v.v.
+    - seating_preference: Yêu cầu về không gian và chỗ ngồi (vd: "Phòng VIP", "View ban công", "Sân thượng/Rooftop", "Khu yên tĩnh", "Khu vực hút thuốc", "Không hút thuốc", "Cần 2 ghế trẻ em / baby chair", "Khách tự mang rượu vào").
+    - dietary_notes: Yêu cầu về khẩu vị, ăn kiêng và cảnh báo dị ứng gửi Bếp (vd: "Ăn chay", "DỊ ỨNG HẢI SẢN", "DỊ ỨNG ĐẬU PHỘNG/LẠC", "Không bột ngọt/mì chính", "Ít dầu mỡ / Eat clean", "Làm không cay", "Nước sốt để riêng").
+ 4. booking: 
+    - Số khách: guest_count (số nguyên; hỗ trợ tính tổng "12 người lớn 3 trẻ em" -> 15; từ lóng "6 mống", "5 mạng", "8 mem" -> 6, 5, 8; ước lượng "tầm 8-10 người" -> lấy cận trên an toàn 10; nếu khách có câu đính chính như "à đổi sang 8 người" -> ưu tiên lấy 8).
+    - Ngày: event_date (DD/MM/YYYY - tính toán ngày hiện tại nếu chưa tới giờ tiệc; nếu giờ tiệc nhỏ hơn giờ hiện tại thì ưu tiên ngày hôm sau; "chiều mai", "ngày mốt", "thứ 7 tuần sau").
+    - Giờ: event_time (HH:mm định dạng 24h, luôn >= 15:00 hàng ngày, hỗ trợ giờ hơn/kém "7h kém 15" -> 18:45, "8h kém 20" -> 19:40, "7h hơn" -> 19:15).
+    - Bàn: table_number (vd: "A1", "A.01" -> "A1", "C5,6" -> "C5,C6", "D1,4" -> "D1,D4").
+    - Nhu cầu tiệc (need): "Sinh nhật", "Báo hỷ", "Ăn thường", "Họp mặt", "Liên hoan", "Kỉ niệm", "Cầu hôn (Proposal)", "Gender Reveal (Tiết lộ giới tính)", "Tiệc độc thân", "Tiếp khách / Đối tác VIP", "Workshop / Họp nhóm", "Tất niên", "Tân niên", "Tiệc chia tay (Farewell)", "Thôi nôi (1st)", "Đầy tháng", "Công ty".
+ 5. deposit: Số tiền cọc (amount: số nguyên), trạng thái (status: "đã cọc", "chờ cọc"), ngân hàng / ref (bank_ref).
+ 6. menu_items: 
+    - CHỈ trích xuất món ăn / đồ uống khách hàng THỰC SỰ ĐẶT. Nếu khách chưa gọi món, menu_items BẮT BUỘC là mảng rỗng [].
+    - TUYỆT ĐỐI KHÔNG trích xuất tên khách hàng, người đặt bàn (vd: "Hồng Nhung", "Tuấn", "Chị Lan") vào menu_items!
+    - TUYỆT ĐỐI KHÔNG trích xuất thông tin trang trí, không gian, màu sắc, phụ kiện (vd: "Tông trắng", "Tone trắng", "Hoa tươi", "Background trắng", "Bóng bay", "Set up", "Bàn ngoài trời", "Phòng lạnh") vào menu_items! Toàn bộ thông tin này BẮT BUỘC đưa vào party hoặc note!
+    - Nhận diện số lượng đứng trước ("10 Coca", "2pepsi", "7 lon sting", "25 chai suối") hoặc đứng sau ("Khoai tây chiên 5", "Cánh gà chiên mắm tỏi -5", "Sụn gà chiên mắm - 10", "Cá diêu hồng (x3)", "Gà x5").
+    - Bảo toàn nguyên văn tên món khi có ngoặc đơn thực đơn (như "Cơm chiên cá mặn chà bông ớt hiểm (cay)"), đồng thời tách đúng ghi chú biến tấu (như "(làm không cay)") vào trường note của món.
+ 7. note: Tổng hợp ĐẦY ĐỦ VÀ CHÍNH XÁC mọi thông tin ghi chú liên quan đến trang trí (tông màu, hoa tươi, background, bóng bay...), không gian ([Không gian & Chỗ ngồi]: ...), khẩu vị ([Khẩu vị & Dị ứng]: ...), dặn dò phục vụ và bếp.
 
-Chỉ trích xuất thông tin có thực trong nội dung. Không tự bịa. Trả về ĐÚNG chuẩn JSON Schema yêu cầu. BẮT BUỘC trả về định dạng JSON hợp lệ, KHÔNG bao gồm markdown \`\`\`json hay bất kỳ văn bản giải thích nào khác.`
+ Chỉ trích xuất thông tin có thực trong nội dung. Không tự bịa. Trả về ĐÚNG chuẩn JSON Schema yêu cầu. BẮT BUỘC trả về định dạng JSON hợp lệ, KHÔNG bao gồm markdown \`\`\`json hay bất kỳ văn bản giải thích nào khác.`
 
 export const PROMPT_PROFILES: Record<PromptProfile, string> = {
   TEXT_SIMPLE: `${BASE_SYSTEM_INSTRUCTIONS}

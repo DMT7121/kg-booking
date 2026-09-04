@@ -76,7 +76,7 @@ export interface CrossValidationResult {
 export function crossValidateResults(
   aiResult: any,
   ruleResult: any,
-  hardEntities: any
+  hardEntities: any = {}
 ): { result: any; validations: CrossValidationResult[] } {
   const result = JSON.parse(JSON.stringify(aiResult))
   if (!result.customer) result.customer = {}
@@ -224,8 +224,81 @@ export function crossValidateResults(
     if (!result.party.special_request && (ruleDecoDetails?.special_requests?.length > 0 || ruleParty?.special_request)) {
       result.party.special_request = ruleDecoDetails?.special_requests?.join('; ') || ruleParty?.special_request
     }
+    if (!result.party.seating_preference && ruleParty?.seating_preference) {
+      result.party.seating_preference = ruleParty.seating_preference
+    }
+    if (!result.party.dietary_notes && ruleParty?.dietary_notes) {
+      result.party.dietary_notes = ruleParty.dietary_notes
+    }
+  }
 
-    // Sync note if decoration details were enriched
+  // --- Cross-validate & Sanitize Menu Items (Prevent customer name & decor as dishes) ---
+  if (Array.isArray(result.menu_items) && result.menu_items.length > 0) {
+    const custName = result.customer?.name || ruleResult?.customer_name || ''
+    const cleanCustName = stripAccents(custName).toLowerCase().trim()
+    const decorRegex = /(?:t[oô]ng|tone|m[aà]u)\s*(?:tr[aắ]ng|h[oồ]ng|xanh|v[aà]ng|[đd][oỏ]|t[ií]m|cam|[đd]en|n[aâ]u|b[aạ]c|gold|silver|pastel|kem|be)|hoa\s*t[uư][oơ]i|hoa\s*l[uụ]a|hoa\s*s[aá]p|b[oó]ng\s*bay|bong\s*b[oó]ng|background|backdrop|b[aả]ng\s*t[eê]n|g[uư][oơ]ng/i
+
+    const validDishes: any[] = []
+    const divertedDecor: string[] = []
+
+    for (const item of result.menu_items) {
+      const name = (item.raw_name || item.name || '').trim()
+      const cleanName = stripAccents(name).toLowerCase().trim()
+      if (!name || cleanName.length < 2) continue
+
+      // 1. Check if it matches customer name
+      if (cleanCustName && (cleanName === cleanCustName || cleanName.includes(cleanCustName))) {
+        validations.push({
+          field: 'menu_items',
+          aiValue: name,
+          ruleValue: null,
+          chosenValue: 'removed',
+          chosenSource: 'rule',
+          aiConfidence: 0,
+          ruleConfidence: 0.99,
+          reason: `Removed customer name "${name}" from menu_items`
+        })
+        continue
+      }
+
+      // 2. Check if it's table code or staff
+      if (/^(?:[A-G]|VIP)\d*$/i.test(name) || /^(?:nhan|nv)\s*[:\-]/i.test(cleanName) || cleanName === 'nhan: dmt') {
+        continue
+      }
+
+      // 3. Check if it's a decor request
+      if (decorRegex.test(name)) {
+        divertedDecor.push(name)
+        validations.push({
+          field: 'menu_items',
+          aiValue: name,
+          ruleValue: null,
+          chosenValue: 'diverted_to_decor',
+          chosenSource: 'rule',
+          aiConfidence: 0,
+          ruleConfidence: 0.99,
+          reason: `Diverted decor item "${name}" from menu_items to decoration special_request`
+        })
+        continue
+      }
+
+      validDishes.push(item)
+    }
+
+    result.menu_items = validDishes
+
+    if (divertedDecor.length > 0) {
+      if (!result.party) result.party = {}
+      const existingReq = result.party.special_request || ''
+      const newReqs = divertedDecor.filter(d => !existingReq.toLowerCase().includes(d.toLowerCase()))
+      if (newReqs.length > 0) {
+        result.party.special_request = existingReq ? `${existingReq}; ${newReqs.join('; ')}` : newReqs.join('; ')
+      }
+    }
+  }
+
+  // Sync note if party or decoration details are present
+  if (result.party || ruleDecoDetails || ruleParty) {
     const rawNote = result.notes?.customer_note || result.note || ''
     const enrichedNote = buildPartyNote(result.party, rawNote)
     result.note = cleanBookingNotes(
@@ -327,6 +400,14 @@ export function buildPartyNote(party: any, existingNote: string): string {
     if (specialReq && String(specialReq).trim()) {
       lines.push(`Ghi chú / Dặn dò trang trí: ${String(specialReq).trim()}`)
     }
+    const seating = party.seating_preference || party.seating_notes || party.seating
+    if (seating && String(seating).trim()) {
+      lines.push(`[Không gian & Chỗ ngồi]: ${String(seating).trim()}`)
+    }
+    const dietary = party.dietary_notes || party.dietary || party.allergy_notes
+    if (dietary && String(dietary).trim()) {
+      lines.push(`[Khẩu vị & Dị ứng]: ${String(dietary).trim()}`)
+    }
   }
   
   const blockText = lines.join('\n')
@@ -384,12 +465,20 @@ export function cleanBookingNotes(noteText: string, customer: any, booking: any,
       }
     }
     
-    // 4. Remove menu items from the notes
+    // 4. Remove menu items from the notes (protecting explicit decor, seating, dietary & party note lines)
+    if (/^(?:tong mau trang tri|ghi chu \/ dan do trang tri|noi dung bang|guong viet ten|chu tiec \/ nguoi duoc to chuc|\[khong gian & cho ngoi\]|\[khau vi & di ung\]|\[loai tiec & phong cach\]):/i.test(cleanLine)) {
+      return true
+    }
+
     if (Array.isArray(menuItems)) {
       for (const item of menuItems) {
         const rawName = item.raw_name || item.name || ''
         const itemBase = stripAccents(rawName).toLowerCase().trim()
         if (itemBase && itemBase.length > 2) {
+          // Do not treat decor keywords as menu items for removal
+          if (/^(?:hoa tươi|hoa tuoi|hoa lua|hoa sap|bong bay|bong bong|background|backdrop|tong trang|tone trang)/i.test(itemBase)) {
+            continue
+          }
           let lineContent = cleanLine.replace(/^[-+\d\s.*]+/, '').trim()
           lineContent = lineContent.replace(/(?:[x\*]|\bphan|\bcon)\s*\d+\s*$/i, '').trim()
           lineContent = lineContent.replace(/^\d+\s*(?:[x\*]|\bphan|\bcon)/i, '').trim()

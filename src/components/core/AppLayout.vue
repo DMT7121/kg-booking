@@ -583,9 +583,9 @@ const ambientTheme = computed(() => {
           <i class="fa-solid fa-chevron-right text-slate-300 text-sm"></i>
         </div>
 
-        <!-- Section: Content -->
+        <!-- Section 1: Quản lý Thực Đơn & Dịch Vụ -->
         <div class="space-y-3">
-          <h4 class="text-[11px] font-black text-slate-400 uppercase tracking-widest pl-2">Quản lý nội dung</h4>
+          <h4 class="text-[11px] font-black text-slate-400 uppercase tracking-widest pl-2">Thực đơn & Nhân sự</h4>
           <div class="bg-white rounded-3xl shadow-sm border border-slate-100 overflow-hidden">
             <!-- Menu -->
             <button @click="ui.openConfig('menu')" :class="['w-full px-4 py-4 flex items-center gap-4 transition-colors border-b border-slate-50 group', ui.activeSettingModal === 'menu' ? 'bg-blue-50/50' : 'hover:bg-slate-50 active:bg-slate-100']">
@@ -593,44 +593,20 @@ const ambientTheme = computed(() => {
                 <i class="fa-solid fa-bell-concierge"></i>
               </div>
               <div class="flex-1 text-left">
-                <div class="font-black text-slate-800 text-[13px] mb-0.5">Thêm thực đơn</div>
-                <div class="text-[10px] font-bold text-slate-400 leading-tight">Quản lý và cập nhật các món ăn, đồ uống<br>hiển thị trên phiếu đặt bàn</div>
+                <div class="font-black text-slate-800 text-[13px] mb-0.5">Quản lý thực đơn</div>
+                <div class="text-[10px] font-bold text-slate-400 leading-tight">Cập nhật danh mục món ăn, đồ uống,<br>giá cả hiển thị trên phiếu đặt bàn</div>
               </div>
               <i class="fa-solid fa-chevron-right text-sm" :class="ui.activeSettingModal === 'menu' ? 'text-blue-500' : 'text-slate-300'"></i>
             </button>
             
-            <!-- AI -->
-            <button @click="handleOpenConfig('ai')" :class="['w-full px-4 py-4 flex items-center gap-4 transition-colors border-b border-slate-50 group', ui.activeSettingModal === 'ai' ? 'bg-blue-50/50' : 'hover:bg-slate-50 active:bg-slate-100']">
-              <div class="w-12 h-12 rounded-2xl bg-purple-50 text-purple-500 flex items-center justify-center text-xl shrink-0 group-hover:scale-110 transition-transform">
-                <i class="fa-solid fa-wand-magic-sparkles"></i>
-              </div>
-              <div class="flex-1 text-left">
-                <div class="font-black text-slate-800 text-[13px] mb-0.5">Thêm cấu hình AI</div>
-                <div class="text-[10px] font-bold text-slate-400 leading-tight">Thiết lập và tùy chỉnh AI hỗ trợ gợi ý số bàn,<br>phân tích và nhắc nhở</div>
-              </div>
-              <i class="fa-solid fa-chevron-right text-sm" :class="ui.activeSettingModal === 'ai' ? 'text-blue-500' : 'text-slate-300'"></i>
-            </button>
-
-            <!-- Social AI Bot -->
-            <button @click="ui.showSocialBotModal = true; ui.showSettingsHub = false" class="w-full px-4 py-4 flex items-center gap-4 transition-colors border-b border-slate-50 group hover:bg-slate-50 active:bg-slate-100">
-              <div class="w-12 h-12 rounded-2xl bg-indigo-50 text-indigo-600 flex items-center justify-center text-xl shrink-0 group-hover:scale-110 transition-transform">
-                <i class="fa-solid fa-robot"></i>
-              </div>
-              <div class="flex-1 text-left">
-                <div class="font-black text-slate-800 text-[13px] mb-0.5">Quản lý Social AI Bot (Fanpage)</div>
-                <div class="text-[10px] font-bold text-slate-400 leading-tight">Theo dõi hội thoại, xem lịch sử tin nhắn thật<br>và bật/tắt AI trả lời Facebook Messenger</div>
-              </div>
-              <i class="fa-solid fa-chevron-right text-sm text-slate-300"></i>
-            </button>
-
             <!-- Staff -->
             <button @click="ui.openConfig('staff')" :class="['w-full px-4 py-4 flex items-center gap-4 transition-colors border-b border-slate-50 group', ui.activeSettingModal === 'staff' ? 'bg-blue-50/50' : 'hover:bg-slate-50 active:bg-slate-100']">
               <div class="w-12 h-12 rounded-2xl bg-emerald-50 text-emerald-500 flex items-center justify-center text-xl shrink-0 group-hover:scale-110 transition-transform">
                 <i class="fa-regular fa-user"></i>
               </div>
               <div class="flex-1 text-left">
-                <div class="font-black text-slate-800 text-[13px] mb-0.5">Thêm nhân viên nhận bàn</div>
-                <div class="text-[10px] font-bold text-slate-400 leading-tight">Thêm và quản lý nhân viên nhận bàn.<br>Thông tin sẽ hiển thị trên phiếu để khách hàng<br>liên hệ khi cần</div>
+                <div class="font-black text-slate-800 text-[13px] mb-0.5">Nhân viên nhận bàn</div>
+                <div class="text-[10px] font-bold text-slate-400 leading-tight">Thêm và quản lý nhân viên trực ca nhận bàn.<br>Hiển thị trên phiếu để khách liên hệ</div>
               </div>
               <i class="fa-solid fa-chevron-right text-sm" :class="ui.activeSettingModal === 'staff' ? 'text-blue-500' : 'text-slate-300'"></i>
             </button>
@@ -641,35 +617,66 @@ const ambientTheme = computed(() => {
                 <i class="fa-solid fa-building-columns"></i>
               </div>
               <div class="flex-1 text-left">
-                <div class="font-black text-slate-800 text-[13px] mb-0.5">Thêm ngân hàng</div>
-                <div class="text-[10px] font-bold text-slate-400 leading-tight">Quản lý thông tin tài khoản ngân hàng<br>hiển thị trên phiếu đặt bàn</div>
+                <div class="font-black text-slate-800 text-[13px] mb-0.5">Tài khoản ngân hàng & QR Cọc</div>
+                <div class="text-[10px] font-bold text-slate-400 leading-tight">Quản lý số tài khoản VietQR / SeAPay<br>tự động tạo mã QR trên phiếu</div>
               </div>
               <i class="fa-solid fa-chevron-right text-sm" :class="ui.activeSettingModal === 'bank' ? 'text-blue-500' : 'text-slate-300'"></i>
             </button>
           </div>
         </div>
 
-        <!-- Section: UI -->
+        <!-- Section 2: Trí Tuệ Nhân Tạo & Live Chat -->
         <div class="space-y-3">
-          <h4 class="text-[11px] font-black text-slate-400 uppercase tracking-widest pl-2">Tùy chỉnh giao diện</h4>
+          <h4 class="text-[11px] font-black text-slate-400 uppercase tracking-widest pl-2">Trí tuệ nhân tạo (AI)</h4>
+          <div class="bg-white rounded-3xl shadow-sm border border-slate-100 overflow-hidden">
+            <!-- AI Config -->
+            <button @click="handleOpenConfig('ai')" :class="['w-full px-4 py-4 flex items-center gap-4 transition-colors border-b border-slate-50 group', ui.activeSettingModal === 'ai' ? 'bg-blue-50/50' : 'hover:bg-slate-50 active:bg-slate-100']">
+              <div class="w-12 h-12 rounded-2xl bg-purple-50 text-purple-500 flex items-center justify-center text-xl shrink-0 group-hover:scale-110 transition-transform">
+                <i class="fa-solid fa-wand-magic-sparkles"></i>
+              </div>
+              <div class="flex-1 text-left">
+                <div class="font-black text-slate-800 text-[13px] mb-0.5">Cấu hình AI & Prompt</div>
+                <div class="text-[10px] font-bold text-slate-400 leading-tight">Mô hình AI, phân tích tin nhắn, gợi ý số bàn,<br>khẩu vị dị ứng và quy tắc nghiệp vụ</div>
+              </div>
+              <i class="fa-solid fa-chevron-right text-sm" :class="ui.activeSettingModal === 'ai' ? 'text-blue-500' : 'text-slate-300'"></i>
+            </button>
+
+            <!-- Social AI Bot -->
+            <button @click="ui.showSocialBotModal = true; ui.showSettingsHub = false" class="w-full px-4 py-4 flex items-center gap-4 transition-colors group hover:bg-slate-50 active:bg-slate-100">
+              <div class="w-12 h-12 rounded-2xl bg-indigo-50 text-indigo-600 flex items-center justify-center text-xl shrink-0 group-hover:scale-110 transition-transform">
+                <i class="fa-solid fa-robot"></i>
+              </div>
+              <div class="flex-1 text-left">
+                <div class="font-black text-slate-800 text-[13px] mb-0.5">Quản lý Social AI Bot (Fanpage)</div>
+                <div class="text-[10px] font-bold text-slate-400 leading-tight">Theo dõi hội thoại, xem lịch sử tin nhắn thật<br>và bật/tắt AI trả lời Facebook Messenger</div>
+              </div>
+              <i class="fa-solid fa-chevron-right text-sm text-slate-300"></i>
+            </button>
+          </div>
+        </div>
+
+        <!-- Section 3: Giao Diện & Hệ Thống -->
+        <div class="space-y-3">
+          <h4 class="text-[11px] font-black text-slate-400 uppercase tracking-widest pl-2">Giao diện & Hệ thống</h4>
           <div class="bg-white rounded-3xl shadow-sm border border-slate-100 overflow-hidden">
             <button @click="ui.openConfig('branding')" :class="['w-full px-4 py-4 flex items-center gap-4 transition-colors border-b border-slate-50 group', ui.activeSettingModal === 'branding' ? 'bg-blue-50/50' : 'hover:bg-slate-50 active:bg-slate-100']">
               <div class="w-12 h-12 rounded-2xl bg-orange-50 text-orange-500 flex items-center justify-center text-xl shrink-0 group-hover:scale-110 transition-transform">
                 <i class="fa-solid fa-pen-nib"></i>
               </div>
               <div class="flex-1 text-left">
-                <div class="font-black text-slate-800 text-[13px] mb-0.5">Tinh chỉnh giao diện</div>
-                <div class="text-[10px] font-bold text-slate-400 leading-tight">Tùy chỉnh logo, màu sắc, font chữ và<br>các yếu tố hiển thị trên phiếu đặt bàn</div>
+                <div class="font-black text-slate-800 text-[13px] mb-0.5">Tinh chỉnh thương hiệu & Phiếu in</div>
+                <div class="text-[10px] font-bold text-slate-400 leading-tight">Logo nhà hàng, màu sắc, font chữ và<br>mẫu phiếu xuất K80</div>
               </div>
               <i class="fa-solid fa-chevron-right text-sm" :class="ui.activeSettingModal === 'branding' ? 'text-blue-500' : 'text-slate-300'"></i>
             </button>
-            <button @click="ui.toggleDarkMode()" class="w-full px-4 py-4 flex items-center gap-4 transition-colors group hover:bg-slate-50 active:bg-slate-100">
+
+            <button @click="ui.toggleDarkMode()" class="w-full px-4 py-4 flex items-center gap-4 transition-colors border-b border-slate-50 group hover:bg-slate-50 active:bg-slate-100">
               <div class="w-12 h-12 rounded-2xl flex items-center justify-center text-xl shrink-0 group-hover:scale-110 transition-transform" :class="ui.isDarkMode ? 'bg-slate-800 text-yellow-400' : 'bg-slate-100 text-slate-600'">
                 <i class="fa-solid" :class="ui.isDarkMode ? 'fa-moon' : 'fa-sun'"></i>
               </div>
               <div class="flex-1 text-left">
                 <div class="font-black text-slate-800 text-[13px] mb-0.5">Chế độ ban đêm (Dark Mode)</div>
-                <div class="text-[10px] font-bold text-slate-400 leading-tight">Giao diện tối giúp bảo vệ mắt khi làm việc<br>vào buổi tối hoặc môi trường thiếu sáng</div>
+                <div class="text-[10px] font-bold text-slate-400 leading-tight">Giao diện tối giúp làm việc ban đêm dịu mắt</div>
               </div>
               <div class="w-12 flex justify-end">
                 <div class="w-10 h-6 bg-slate-200 rounded-full relative transition-colors" :class="{'!bg-blue-500': ui.isDarkMode}">
@@ -677,30 +684,56 @@ const ambientTheme = computed(() => {
                 </div>
               </div>
             </button>
-          </div>
-        </div>
 
-        <!-- Section: Other -->
-        <div class="space-y-3">
-          <h4 class="text-[11px] font-black text-slate-400 uppercase tracking-widest pl-2">Khác</h4>
-          <div class="bg-white rounded-3xl shadow-sm border border-slate-100 overflow-hidden">
             <button @click="handleOpenConfig('webhook')" :class="['w-full px-4 py-4 flex items-center gap-4 transition-colors group', ui.activeSettingModal === 'webhook' ? 'bg-blue-50/50' : 'hover:bg-slate-50 active:bg-slate-100']">
               <div class="w-12 h-12 rounded-2xl bg-slate-100 text-slate-600 flex items-center justify-center text-xl shrink-0 group-hover:scale-110 transition-transform">
                 <i class="fa-solid fa-gear"></i>
               </div>
               <div class="flex-1 text-left">
-                <div class="font-black text-slate-800 text-[13px] mb-0.5">Cài đặt hệ thống</div>
-                <div class="text-[10px] font-bold text-slate-400 leading-tight">Quản lý thông báo Telegram, cấu hình chung<br>và các thiết lập khác</div>
+                <div class="font-black text-slate-800 text-[13px] mb-0.5">Cài đặt hệ thống & Webhook</div>
+                <div class="text-[10px] font-bold text-slate-400 leading-tight">Thông báo Telegram Bot, kết nối Cloudflare Worker<br>và đồng bộ cơ sở dữ liệu</div>
               </div>
               <i class="fa-solid fa-chevron-right text-sm" :class="ui.activeSettingModal === 'webhook' ? 'text-blue-500' : 'text-slate-300'"></i>
             </button>
-            <button @click="ui.openConfig('guide')" :class="['w-full px-4 py-4 flex items-center gap-4 transition-colors group border-t border-slate-50', ui.activeSettingModal === 'guide' ? 'bg-blue-50/50' : 'hover:bg-slate-50 active:bg-slate-100']">
+          </div>
+        </div>
+
+        <!-- Section 4: Kỹ Thuật & Kiểm Thử (Developer & Admin Tools) -->
+        <div class="space-y-3">
+          <h4 class="text-[11px] font-black text-slate-400 uppercase tracking-widest pl-2">Kỹ thuật & Hỗ trợ</h4>
+          <div class="bg-white rounded-3xl shadow-sm border border-slate-100 overflow-hidden">
+            <!-- Test Dashboard -->
+            <button @click="ui.tab = 'test'; ui.showSettingsHub = false" class="w-full px-4 py-4 flex items-center gap-4 transition-colors border-b border-slate-50 group hover:bg-slate-50 active:bg-slate-100">
+              <div class="w-12 h-12 rounded-2xl bg-rose-50 text-rose-500 flex items-center justify-center text-xl shrink-0 group-hover:scale-110 transition-transform">
+                <i class="fa-solid fa-flask"></i>
+              </div>
+              <div class="flex-1 text-left">
+                <div class="font-black text-slate-800 text-[13px] mb-0.5">Kiểm thử AI & Parser (Benchmark)</div>
+                <div class="text-[10px] font-bold text-slate-400 leading-tight">Chạy bộ kiểm thử tự động, đánh giá độ chính xác<br>và tốc độ xử lý ngôn ngữ tự nhiên</div>
+              </div>
+              <i class="fa-solid fa-arrow-up-right-from-square text-sm text-slate-300"></i>
+            </button>
+
+            <!-- Logs Viewer -->
+            <button @click="ui.tab = 'logs'; ui.showSettingsHub = false" class="w-full px-4 py-4 flex items-center gap-4 transition-colors border-b border-slate-50 group hover:bg-slate-50 active:bg-slate-100">
+              <div class="w-12 h-12 rounded-2xl bg-slate-800 text-slate-200 flex items-center justify-center text-xl shrink-0 group-hover:scale-110 transition-transform">
+                <i class="fa-solid fa-terminal"></i>
+              </div>
+              <div class="flex-1 text-left">
+                <div class="font-black text-slate-800 text-[13px] mb-0.5">Nhật ký hoạt động (System Logs)</div>
+                <div class="text-[10px] font-bold text-slate-400 leading-tight">Theo dõi tiến trình đồng bộ dữ liệu ngoại tuyến,<br>lỗi mạng và lịch sử gọi API</div>
+              </div>
+              <i class="fa-solid fa-arrow-up-right-from-square text-sm text-slate-300"></i>
+            </button>
+
+            <!-- User Guide -->
+            <button @click="ui.openConfig('guide')" :class="['w-full px-4 py-4 flex items-center gap-4 transition-colors group', ui.activeSettingModal === 'guide' ? 'bg-blue-50/50' : 'hover:bg-slate-50 active:bg-slate-100']">
               <div class="w-12 h-12 rounded-2xl bg-indigo-50 text-indigo-500 flex items-center justify-center text-xl shrink-0 group-hover:scale-110 transition-transform">
                 <i class="fa-solid fa-book-open"></i>
               </div>
               <div class="flex-1 text-left">
                 <div class="font-black text-slate-800 text-[13px] mb-0.5">Hướng dẫn sử dụng</div>
-                <div class="text-[10px] font-bold text-slate-400 leading-tight">Hướng dẫn chi tiết quy trình tạo phiếu,<br>sử dụng AI và đồng bộ dữ liệu</div>
+                <div class="text-[10px] font-bold text-slate-400 leading-tight">Cẩm nang vận hành quy trình tạo phiếu,<br>sử dụng AI và phím tắt nhanh</div>
               </div>
               <i class="fa-solid fa-chevron-right text-sm" :class="ui.activeSettingModal === 'guide' ? 'text-blue-500' : 'text-slate-300'"></i>
             </button>

@@ -206,7 +206,9 @@ export function segmentInputBlocksCompat(text: string) {
     if (!trimmed) continue
     const lower = stripAccents(trimmed).toLowerCase()
     
-    if (/happy birthday|hbd|chuc mung|bang chu|bang ten|bang|bảng|bong bay|bong bong|trang tri|tong mau|tone|màu|mau|guong|gương|dan do|dặn dò|sinh nhat|thoi noi|day thang|hoa tuoi|hoa lua|hoa sap|cam hoa|backdrop|banh kem/i.test(lower)) {
+    const isDecorLine = /happy\s*birthday|hbd|hpbd|chuc\s*mung|chúc\s*mừng|bang\s*chu|bảng\s*chữ|bang\s*ten|bảng\s*tên|bang\s*hpbd|bảng\s*hpbd|bang|bảng|bong\s*bay|bóng\s*bay|bong\s*bong|bong\s*bóng|bóng\s*pastel|trang\s*tri|trang\s*trí|tong\s*mau|tông\s*màu|tone\s*màu|tone\s*mau|tone|tông|tong|guong|gương|mirror|dan\s*do|dặn\s*dò|luu\s*y|lưu\s*ý|sinh\s*nhat|sinh\s*nhật|thoi\s*noi|thôi\s*nôi|day\s*thang|đầy\s*tháng|hoa\s*tuoi|hoa\s*tươi|hoa\s*lua|hoa\s*lụa|hoa\s*sap|hoa\s*sáp|cam\s*hoa|cắm\s*hoa|backdrop|background|phong\s*nen|phông\s*nền|khung\s*check\-?in|san\s*khau|sân\s*khấu|chua\s*khong\s*gian|chừa\s*không\s*gian|banh\s*kem|bánh\s*kem|phao|pháo|nen|nến|decor|setup/i.test(lower)
+    
+    if (isDecorLine) {
       blocks.decoration_block.push(trimmed)
       lastBlockType = 'decoration'
       continue
@@ -245,7 +247,7 @@ export function segmentInputBlocksCompat(text: string) {
     const isHeaderPattern = /^(khach\s*hang|khách\s*hàng|ten\s*khach|tên\s*khách|nguoi\s*dat(?:\s*[\/\&,]\s*chu\s*tiec)?|người\s*đặt(?:\s*[\/\&,]\s*chủ\s*tiệc)?|chu\s*tiec|chủ\s*tiệc|nguoi\s*lien\s*he|người\s*liên\s*hệ|sdt|sđt|dien\s*thoai|thoi\s*gian|thời\s*gian|so\s*luong|số\s*lượng|loai\s*tiec|loại\s*tiệc|nhu\s*cau(?:\s*dat\s*ban)?|nhu\s*cầu(?:\s*đặt\s*bàn)?|(?:yeu\s*cau|yêu\s*cầu)(?:\s*(?:dat\s*truoc|đặt\s*trước))?|trang\s*tri|trang\s*trí|ghi\s*chu|ghi\s*chú|dat\s*coc|đặt\s*cọc)(?:\s*\([^)]*\))?\s*:/i.test(trimmed.replace(/^[-*+•●▶▪▫◆✦★✓]\s*/, ''))
 
     const isMenuLine = (isDishNumberPattern || isDishSuffixPattern || isMenuKeywordPattern || (isBulletPattern && !hasCustomerKeywords && !isHeaderPattern)) &&
-                       !hasTime && !hasDate && !hasPhone && !isGuestLine && !isHeaderPattern
+                       !hasTime && !hasDate && !hasPhone && !isGuestLine && !isHeaderPattern && !isDecorLine
     if (isMenuLine) {
       blocks.menu_block.push(trimmed)
       lastBlockType = 'menu'
@@ -319,7 +321,8 @@ const INVALID_NAME_SET = new Set([
   'lam', 'làm', 'sao', 'nao', 'nào', 'chua', 'chưa', 'co', 'có', 'hoi', 'hỏi', 'xin', 'xem', 'gui', 'gửi', 'nhan', 'nhận',
   'con', 'còn', 'la', 'là', 'luc', 'lúc', 'trua', 'trưa', 'sang', 'sáng', 'chieu', 'chiều', 'tai', 'tại',
   'lon', 'lớn', 'nho', 'nhỏ', 'tre', 'trẻ', 'em', 'vip', 'khu', 'phong', 'phòng', 'guong', 'gương', 'bang', 'bảng', 'hang', 'hàng',
-  'vui', 'long', 'lòng', 'nhu', 'cầu', 'cau', 'yeu', 'yêu'
+  'vui', 'long', 'lòng', 'nhu', 'cầu', 'cau', 'yeu', 'yêu',
+  'tông', 'tong', 'tone', 'tuoi', 'tươi', 'lua', 'lụa', 'sap', 'sáp', 'bong', 'bóng', 'bay', 'background', 'backdrop', 'khung', 'checkin', 'setup', 'decor', 'phong', 'nen', 'dmt', 'nv'
 ])
 
 const STOP_WORDS = new Set([
@@ -341,11 +344,12 @@ const STOP_WORDS = new Set([
   'ech', 'luon', 'ghe', 'bach', 'tuoc', 'hau', 'so', 'ngheu', 'oc', 'hen', 'cha',
   'xuc', 'xich', 'lap', 'xuong', 'roi', 'chi', 'linh', 'long', 'doi', 'tai', 'mui', 'luoi', 'chan', 'dui',
   'uc', 'tim', 'cat', 'pheo', 'day', 'tu', 'sun', 'duoi', 'co', 'mo', 'nac',
-  'than', 'vai', 'nong', 'ma', 'nhu'
+  'than', 'vai', 'nong', 'ma', 'nhu',
+  'tong', 'tone', 'background', 'backdrop', 'setup', 'decor', 'checkin', 'tuoi', 'lua', 'sap'
 ])
 
 // Pre-compiled regex for rejecting common non-name tokens (used 5x in classifyPeopleNames)
-const REJECT_NAME_REGEX = /^(nay|kia|truoc|sau|sang|chieu|toi|ngay|gio|pax|khach|nguoi|ban|mon|set|combo|happy|birthday|hbd|hpbd|sinh|nhat|thoi|noi|giup|giom|cho|sdt|lien|he|table|pax|duoc|khong|hang|hàng|nhu|cầu|cau|yeu|yêu)$/i
+const REJECT_NAME_REGEX = /^(nay|kia|truoc|sau|sang|chieu|toi|ngay|gio|pax|khach|nguoi|ban|mon|set|combo|happy|birthday|hbd|hpbd|sinh|nhat|thoi|noi|giup|giom|cho|sdt|lien|he|table|pax|duoc|khong|hang|hàng|nhu|cầu|cau|yeu|yêu|tông|tong|tone|background|backdrop|trắng|decor|setup|dmt|nv)$/i
 
 export function evaluateNameConfidence(name: string, normalizedText: string): {
   confidence: number
@@ -581,6 +585,19 @@ export function classifyPeopleNames(text: string) {
           return false
         }
       }
+      if (w === 'trang') {
+        const raw = rawWords[idx] || ''
+        // If raw has 'trắng' (ă with accents), it is the color white, NOT the name Trang!
+        if (/tr[aắằắẳẵặ]ng/i.test(raw) && (raw.includes('ắ') || raw.includes('ă'))) {
+          return true
+        }
+      }
+      if (w === 'hoa') {
+        if (/\b(?:hoa\s+(?:tuoi|tươi|lua|lụa|sap|sáp)|cam\s+hoa|cắm\s+hoa)\b/i.test(nameValStr)) {
+          return true
+        }
+        return false
+      }
       return invalidNameSet.has(w)
     })
   }
@@ -634,8 +651,8 @@ export function classifyPeopleNames(text: string) {
       }
     }
 
-    // Pattern: Line starting with Table code followed by customer name (e.g., "A1 Lan Thương", "A5 Chị Lan", "Bàn C5 Chị Hoa", "C6 Anh Tuấn", "A.01 Chị Mai", "D1,4 Lan Anh")
-    const tablePrefixNameMatch = lineClean.match(/^(?:(?:bàn|ban|khu|phòng|phong|vip)\s+)?(?:[A-G])(?:\.0?|\s*,\s*\d+)*\d+\s+([A-Za-z\p{L}\s\.\-]+)$/iu)
+    // Pattern: Line starting with Table code followed by customer name (e.g., "A1 Lan Thương", "A5 Chị Lan", "Bàn C5 Chị Hoa", "C6 Anh Tuấn", "A.01 Chị Mai", "D1,4 Lan Anh", "C2 Hồng Nhung 0901234567...")
+    const tablePrefixNameMatch = lineClean.match(/^(?:(?:bàn|ban|khu|phòng|phong|vip)\s+)?(?:[A-G])(?:\.0?|\s*,\s*\d+)*\d+\s+([A-Za-z\p{L}\s\.\-]+?)(?:\s+(?:0[35789]\d{7,9}|\d{1,2}[h:]|\d+\s*(?:ng|người|pax|khách)|ngày|lúc|$)|$)/iu)
     if (tablePrefixNameMatch) {
       const explicitName = cleanHonorificPrefix(tablePrefixNameMatch[1].trim())
       if (explicitName && explicitName.length >= 2 && !isInvalidName(explicitName) && !REJECT_NAME_REGEX.test(stripAccents(explicitName))) {
@@ -669,17 +686,33 @@ export function classifyPeopleNames(text: string) {
     let phoneMatch
     while ((phoneMatch = phoneRegex.exec(lineClean)) !== null) {
       const phoneIndex = phoneMatch.index!
-      const beforeText = lineClean.slice(Math.max(0, phoneIndex - 20), phoneIndex).trim()
+      const beforeText = lineClean.slice(Math.max(0, phoneIndex - 25), phoneIndex).trim()
       const afterText = lineClean.slice(phoneIndex + phoneMatch[0].length, phoneIndex + phoneMatch[0].length + 20).trim()
       
-      // Look for a single word before the phone
+      // Look for capitalized name words before the phone (e.g. "Hồng Nhung 0901...", "Anh Tuấn 0901...", "C2 Hồng Nhung 0901...")
       const beforeWords = beforeText.split(/\s+/)
-      const lastWord = beforeWords[beforeWords.length - 1]
-      if (lastWord && /^[A-Z\p{Lu}][\p{Ll}]+$/u.test(lastWord)) {
-        const cleanName = cleanHonorificPrefix(lastWord)
-        if (cleanName && !REJECT_NAME_REGEX.test(stripAccents(cleanName))) {
-          if (!isInvalidName(cleanName) && !peopleNames.includes(cleanName)) {
-            peopleNames.push(cleanName)
+      const candidateWords: string[] = []
+      for (let i = beforeWords.length - 1; i >= 0; i--) {
+        const w = beforeWords[i]
+        const wNorm = stripAccents(w).toLowerCase()
+        if (/^(?:[A-G]\d+|\d+|bàn|ban)$/i.test(w) || (STOP_WORDS.has(wNorm) && !COMMON_VN_FIRST_NAMES.has(wNorm))) {
+          break
+        }
+        if (/^[A-Z\p{Lu}][\p{Ll}]+$/u.test(w)) {
+          candidateWords.unshift(w)
+          if (candidateWords.length >= 3) break
+        } else {
+          break
+        }
+      }
+      if (candidateWords.length > 0) {
+        const candidateFullName = cleanHonorificPrefix(candidateWords.join(' '))
+        if (candidateFullName && candidateFullName.length >= 2 && !REJECT_NAME_REGEX.test(stripAccents(candidateFullName)) && !isInvalidName(candidateFullName)) {
+          if (!peopleNames.includes(candidateFullName)) {
+            peopleNames.push(candidateFullName)
+          }
+          if (!bookerCandidates.includes(candidateFullName)) {
+            bookerCandidates.unshift(candidateFullName)
           }
         }
       }
@@ -697,7 +730,7 @@ export function classifyPeopleNames(text: string) {
       }
     }
 
-    const nameRegex = /(?:khách\s+hàng|khach\s+hang|tên\s+khách|ten\s+khach|người\s+đặt|nguoi\s+dat|anh|chị|chi|em|chú|chu|cô|co|ông|ong|bà|ba|bé|be|bác|bac|khách|khach|tên|ten|đặt|dat|cho|liên\s+hệ|lien\s+he)\s*[:\-]?\s+((?!hang\b|hàng\b|cho\b|dat\b|đặt\b|dat\s+ban|đặt\s+bàn|xin\b|gui\b|gửi\b|nha\b|nhà\b|ngay\b|ngày\b|luc\b|lúc\b|vao\b|vào\b|sdt\b|sđt\b|ban\b|bàn\b|trua\b|trưa\b|sang\b|sáng\b|chieu\b|chiều\b|toi\b|tối\b|tai\b|tại\b|lon\b|lớn\b|nho\b|nhỏ\b|tre\b|trẻ\b|em\b|pax\b|khach\b|khách\b|nguoi\b|người\b)\p{L}+(?:\s+(?!hang\b|hàng\b|cho\b|dat\b|đặt\b|dat\s+ban|đặt\s+bàn|xin\b|gui\b|gửi\b|nha\b|nhà\b|ngay\b|ngày\b|luc\b|lúc\b|vao\b|vào\b|sdt\b|sđt\b|ban\b|bàn\b|trua\b|trưa\b|sang\b|sáng\b|chieu\b|chiều\b|toi\b|tối\b|tai\b|tại\b|lon\b|lớn\b|nho\b|nhỏ\b|tre\b|trẻ\b|em\b|pax\b|khach\b|khách\b|nguoi\b|người\b)\p{L}+){0,3})/gui
+    const nameRegex = /(?<!\p{L})(?:khách\s+hàng|khach\s+hang|tên\s+khách|ten\s+khach|người\s+đặt|nguoi\s+dat|anh|chị|chi|em|chú|chu|cô|co|ông|ong|bà|ba|bé|be|bác|bac|khách|khach|tên|ten|đặt|dat|cho|liên\s+hệ|lien\s+he)(?!\p{L})\s*[:\-]?\s+((?!hang\b|hàng\b|cho\b|dat\b|đặt\b|dat\s+ban|đặt\s+bàn|xin\b|gui\b|gửi\b|nha\b|nhà\b|ngay\b|ngày\b|luc\b|lúc\b|vao\b|vào\b|sdt\b|sđt\b|ban\b|bàn\b|trua\b|trưa\b|sang\b|sáng\b|chieu\b|chiều\b|toi\b|tối\b|tai\b|tại\b|lon\b|lớn\b|nho\b|nhỏ\b|tre\b|trẻ\b|em\b|pax\b|khach\b|khách\b|nguoi\b|người\b)\p{L}+(?:\s+(?!hang\b|hàng\b|cho\b|dat\b|đặt\b|dat\s+ban|đặt\s+bàn|xin\b|gui\b|gửi\b|nha\b|nhà\b|ngay\b|ngày\b|luc\b|lúc\b|vao\b|vào\b|sdt\b|sđt\b|ban\b|bàn\b|trua\b|trưa\b|sang\b|sáng\b|chieu\b|chiều\b|toi\b|tối\b|tai\b|tại\b|lon\b|lớn\b|nho\b|nhỏ\b|tre\b|trẻ\b|em\b|pax\b|khach\b|khách\b|nguoi\b|người\b)\p{L}+){0,3})/gui
     let match
     while ((match = nameRegex.exec(lineClean)) !== null) {
       const cleanedRaw = cleanTrailingInvalidWords(match[1])
@@ -750,7 +783,7 @@ export function classifyPeopleNames(text: string) {
     { regex: /(?:sinh nhật|sinh nhat|hbd|hpbd|happy birthday|thôi nôi|thoi noi|đầy tháng|day thang|bé|be)\s+((?!cho\b|dat\b|đặt\b|dat\s+ban|đặt\s+bàn|xin\b|gui\b|gửi\b|nha\b|nhà\b|ngay\b|ngày\b|luc\b|lúc\b|vao\b|vào\b|sdt\b|sđt\b|ban\b|bàn\b|trua\b|trưa\b|sang\b|sáng\b|chieu\b|chiều\b|toi\b|tối\b|tai\b|tại\b|lon\b|lớn\b|nho\b|nhỏ\b|tre\b|trẻ\b|em\b|pax\b|khach\b|khách\b|nguoi\b|người\b)\p{L}+(?:\s+(?!cho\b|dat\b|đặt\b|dat\s+ban|đặt\s+bàn|xin\b|gui\b|gửi\b|nha\b|nhà\b|ngay\b|ngày\b|luc\b|lúc\b|vao\b|vào\b|sdt\b|sđt\b|ban\b|bàn\b|trua\b|trưa\b|sang\b|sáng\b|chieu\b|chiều\b|toi\b|tối\b|tai\b|tại\b|lon\b|lớn\b|nho\b|nhỏ\b|tre\b|trẻ\b|em\b|pax\b|khach\b|khách\b|nguoi\b|người\b)\p{L}+){0,3})/ugi, isPartyOwner: true },
     { regex: /(?:bảng tên|bang ten|chữ|chu)\s+((?!cho\b|dat\b|đặt\b|dat\s+ban|đặt\s+bàn|xin\b|gui\b|gửi\b|nha\b|nhà\b|ngay\b|ngày\b|luc\b|lúc\b|vao\b|vào\b|sdt\b|sđt\b|ban\b|bàn\b|trua\b|trưa\b|sang\b|sáng\b|chieu\b|chiều\b|toi\b|tối\b|tai\b|tại\b|lon\b|lớn\b|nho\b|nhỏ\b|tre\b|trẻ\b|em\b|pax\b|khach\b|khách\b|nguoi\b|người\b)\p{L}+(?:\s+(?!cho\b|dat\b|đặt\b|dat\s+ban|đặt\s+bàn|xin\b|gui\b|gửi\b|nha\b|nhà\b|ngay\b|ngày\b|luc\b|lúc\b|vao\b|vào\b|sdt\b|sđt\b|ban\b|bàn\b|trua\b|trưa\b|sang\b|sáng\b|chieu\b|chiều\b|toi\b|tối\b|tai\b|tại\b|lon\b|lớn\b|nho\b|nhỏ\b|tre\b|trẻ\b|em\b|pax\b|khach\b|khách\b|nguoi\b|người\b)\p{L}+){0,3})/ugi, isPartyOwner: true },
     { regex: /(?:tên|ten)\s+(?:em|mình|minh|tôi|toi|anh|chị|chi)\s+(?:là\s+)?(\p{L}+(?:\s+\p{L}+){0,2})/ugi, isBooker: true },
-    { regex: /(?:người đặt|nguoi dat|liên hệ|lien he|anh|chị|chi|sđt|sdt|tên|ten)\s+((?!dat\b|đặt\b|cho\b|xin\b|gui\b|gửi\b|nha\b|nhà\b|ngay\b|ngày\b|luc\b|lúc\b|vao\b|vào\b|sdt\b|sđt\b|ban\b|bàn\b|trua\b|trưa\b|sang\b|sáng\b|chieu\b|chiều\b|toi\b|tối\b|tai\b|tại\b|lon\b|lớn\b|nho\b|nhỏ\b|tre\b|trẻ\b|em\b|pax\b|khach\b|khách\b|nguoi\b|người\b)\p{L}+(?:\s+(?!dat\b|đặt\b|cho\b|xin\b|gui\b|gửi\b|nha\b|nhà\b|ngay\b|ngày\b|luc\b|lúc\b|vao\b|vào\b|sdt\b|sđt\b|ban\b|bàn\b|trua\b|trưa\b|sang\b|sáng\b|chieu\b|chiều\b|toi\b|tối\b|tai\b|tại\b|lon\b|lớn\b|nho\b|nhỏ\b|tre\b|trẻ\b|em\b|pax\b|khach\b|khách\b|nguoi\b|người\b)\p{L}+){0,3})/ugi, isBooker: true },
+    { regex: /(?<!\p{L})(?:người đặt|nguoi dat|liên hệ|lien he|anh|chị|chi|sđt|sdt|tên|ten)(?!\p{L})\s+((?!dat\b|đặt\b|cho\b|xin\b|gui\b|gửi\b|nha\b|nhà\b|ngay\b|ngày\b|luc\b|lúc\b|vao\b|vào\b|sdt\b|sđt\b|ban\b|bàn\b|trua\b|trưa\b|sang\b|sáng\b|chieu\b|chiều\b|toi\b|tối\b|tai\b|tại\b|lon\b|lớn\b|nho\b|nhỏ\b|tre\b|trẻ\b|em\b|pax\b|khach\b|khách\b|nguoi\b|người\b)\p{L}+(?:\s+(?!dat\b|đặt\b|cho\b|xin\b|gui\b|gửi\b|nha\b|nhà\b|ngay\b|ngày\b|luc\b|lúc\b|vao\b|vào\b|sdt\b|sđt\b|ban\b|bàn\b|trua\b|trưa\b|sang\b|sáng\b|chieu\b|chiều\b|toi\b|tối\b|tai\b|tại\b|lon\b|lớn\b|nho\b|nhỏ\b|tre\b|trẻ\b|em\b|pax\b|khach\b|khách\b|nguoi\b|người\b)\p{L}+){0,3})/ugi, isBooker: true },
     { regex: /\b((?:cty|công ty|đoàn|doan|team|group|phòng|phong)\s+(?!cho\b|dat\b|đặt\b|dat\s+ban|đặt\s+bàn|xin\b|gui\b|gửi\b|nha\b|nhà\b|ngay\b|ngày\b|luc\b|lúc\b|vao\b|vào\b|sdt\b|sđt\b|ban\b|bàn\b|trua\b|trưa\b|sang\b|sáng\b|chieu\b|chiều\b|toi\b|tối\b|tai\b|tại\b|lon\b|lớn\b|nho\b|nhỏ\b|tre\b|trẻ\b|em\b|pax\b|khach\b|khách\b|nguoi\b|người\b)\p{L}+(?:\s+(?!cho\b|dat\b|đặt\b|dat\s+ban|đặt\s+bàn|xin\b|gui\b|gửi\b|nha\b|nhà\b|ngay\b|ngày\b|luc\b|lúc\b|vao\b|vào\b|sdt\b|sđt\b|ban\b|bàn\b|trua\b|trưa\b|sang\b|sáng\b|chieu\b|chiều\b|toi\b|tối\b|tai\b|tại\b|lon\b|lớn\b|nho\b|nhỏ\b|tre\b|trẻ\b|em\b|pax\b|khach\b|khách\b|nguoi\b|người\b)\p{L}+){0,4})\b/ugi, isBooker: true, isPartyOwner: true }
   ]
 
@@ -915,10 +948,39 @@ export function preNormalizeInput(rawText: string): string {
     { pattern: /\b(tn)\b/gi, replacement: 'thôi nôi' },
     { pattern: /\b(thoi noi)\b/gi, replacement: 'thôi nôi' },
     { pattern: /\b(day thang)\b/gi, replacement: 'đầy tháng' },
-    { pattern: /\b(hn)\b/gi, replacement: 'hôm nay' }
+    { pattern: /\b(hn)\b/gi, replacement: 'hôm nay' },
+    { pattern: /(?<!\p{L})(?:đc|dc)\s*(?:ko|k|khong|hông|hong)(?!\p{L})/ugi, replacement: 'được không' },
+    { pattern: /\b(?:ib|inbox)\b/gi, replacement: 'nhắn tin' },
+    { pattern: /\bmn\b/gi, replacement: 'mọi người' }
   ]
   abbreviations.forEach(({ pattern, replacement }) => {
     clean = clean.replace(pattern, replacement)
+  })
+
+  // Slang & casual counting for guests: "6 mống", "5 mạng", "8 mem", "10 bạn"
+  clean = clean.replace(/(?<!\d)(\d+)\s*(?:mống|mong|mạng|mang|mem|bạn|thành viên|thanh vien)(?!\p{L})/ugi, '$1 khách')
+
+  // Guest count range estimation: "tầm 8-10 khách" -> "10 khách", "khoảng 5 đến 6 người" -> "6 người"
+  clean = clean.replace(/(?:tầm|khoảng|cỡ|chừng|tam|khoang|co|chung)\s*(\d+)[ ]*(?:-|–|—|đến|den|to)[ ]*(\d+)\s*(?:pax|người|khách|cho|nguoi|khach|guest|mống|mạng|mem)(?!\p{L})/ugi, '$2 khách')
+
+  // Voice-to-text: Written Vietnamese words for adults + children
+  const wordToNumMap: Record<string, number> = {
+    'một': 1, 'mot': 1, 'hai': 2, 'ba': 3, 'bốn': 4, 'bon': 4, 'tư': 4, 'tu': 4,
+    'năm': 5, 'nam': 5, 'sáu': 6, 'sau': 6, 'bảy': 7, 'bay': 7, 'tám': 8, 'tam': 8,
+    'chín': 9, 'chin': 9, 'mười': 10, 'muoi': 10, 'mười một': 11, 'mười hai': 12,
+    'mười lăm': 15, 'hai mươi': 20
+  }
+  clean = clean.replace(/\b(một|hai|ba|bốn|năm|sáu|bảy|tám|chín|mười|mười hai|mười lăm|hai mươi)\s*(?:người lớn|nguoi lon|lớn|lon)\s*(?:\+|\-|–|—|,|và|va)?\s*(một|hai|ba|bốn|năm)?\s*(?:trẻ em|bé|nhỏ|con|tre em|nho|be|tre)\b/gi, (match, aWord, kWord) => {
+    const adults = wordToNumMap[stripAccents(aWord).toLowerCase()] || 0
+    const kids = kWord ? (wordToNumMap[stripAccents(kWord).toLowerCase()] || 0) : 0
+    const total = adults + kids
+    return total > 0 ? `${total} khách` : match
+  })
+
+  // Standalone written numbers for guests: "bảy người", "tám khách", "sáu người", "chín khách"
+  clean = clean.replace(/(?<!(?:thứ|thu|t)\s*)\b(hai|ba|bốn|năm|sáu|bảy|tám|chín|mười|mười lăm|hai mươi)\s*(?:người|nguoi|khách|khach)\b/gi, (match, word) => {
+    const num = wordToNumMap[stripAccents(word).toLowerCase()]
+    return num ? `${num} khách` : match
   })
 
   // Sum adults + kids FIRST: "12 người lớn 3 trẻ em", "8 người lớn + 2 trẻ em", "12 lớn 3 bé", "12 ng lớn + 3 trẻ em"
@@ -928,12 +990,12 @@ export function preNormalizeInput(rawText: string): string {
   })
 
   // Expand pax shorthand like 15ng, 15kh
-  clean = clean.replace(/(\d+)\s*(?:ng\b|nguoi\b)(?!\s*(?:lon|lớn))/gi, '$1 người')
-  clean = clean.replace(/(\d+)\s*(?:kh\b|khach\b)/gi, '$1 khách')
+  clean = clean.replace(/(\d+)\s*(?:ng(?!\p{L})|nguoi(?!\p{L}))(?!\s*(?:lon|lớn))/gui, '$1 người')
+  clean = clean.replace(/(\d+)\s*(?:kh(?!\p{L})|khach(?!\p{L}))/gui, '$1 khách')
 
   // Safe replacement for standalone Vietnamese short abbreviations
-  clean = clean.replace(/(^|[ ])(kh)(?=[ ]|$|[\.,\?!])/g, '$1khách')
-  clean = clean.replace(/(^|[ ])(ng)(?=[ ]|$|[\.,\?!])/g, '$1người')
+  clean = clean.replace(/(^|[ ])(kh)(?=[ ]|$|[\.,\?!])/gui, '$1khách')
+  clean = clean.replace(/(^|[ ])(ng)(?=[ ]|$|[\.,\?!])/gui, '$1người')
 
   const spellingAliases = [
     { pattern: /\b(dut lo|dut\s+lo)\b/gi, replacement: 'đốt lò' },
@@ -945,48 +1007,73 @@ export function preNormalizeInput(rawText: string): string {
     clean = clean.replace(pattern, replacement)
   })
 
-  // Voice-to-text / Vietnamese words for time
-  clean = clean.replace(/\b(?:mười chín|muoi chin)\s*giờ\s*(?:ba mươi|ba muoi|rưỡi|ruoi|30)\b/gi, '19:30')
-  clean = clean.replace(/\b(?:mười chín|muoi chin)\s*giờ\b/gi, '19:00')
-  clean = clean.replace(/\b(?:mười tám|muoi tam)\s*giờ\s*(?:ba mươi|ba muoi|rưỡi|ruoi|30)\b/gi, '18:30')
-  clean = clean.replace(/\b(?:mười tám|muoi tam)\s*giờ\b/gi, '18:00')
-  clean = clean.replace(/\b(?:hai mươi|hai muoi)\s*giờ\s*(?:ba mươi|ba muoi|rưỡi|ruoi|30)\b/gi, '20:30')
-  clean = clean.replace(/\b(?:hai mươi|hai muoi)\s*giờ\b/gi, '20:00')
-  clean = clean.replace(/\b(?:hai mốt|hai mot|hai mươi mốt)\s*giờ\b/gi, '21:00')
-  clean = clean.replace(/\b(?:bảy|bay)\s*giờ\s*(?:rưỡi|ruoi|30|ba mươi|ba muoi)\b/gi, '19:30')
-  clean = clean.replace(/\b(?:sáu|sau)\s*giờ\s*(?:rưỡi|ruoi|30|ba mươi|ba muoi)\b/gi, '18:30')
-  clean = clean.replace(/\b(?:tám|tam)\s*giờ\s*(?:rưỡi|ruoi|30|ba mươi|ba muoi)\b/gi, '20:30')
-  clean = clean.replace(/\b(?:chín|chin)\s*giờ\s*(?:rưỡi|ruoi|30|ba mươi|ba muoi)\b/gi, '21:30')
-  clean = clean.replace(/\b(?:bảy|bay)\s*giờ\b/gi, '19:00')
-  clean = clean.replace(/\b(?:sáu|sau)\s*giờ\b/gi, '18:00')
-  clean = clean.replace(/\b(?:tám|tam)\s*giờ\b/gi, '20:00')
-  clean = clean.replace(/\b(?:chín|chin)\s*giờ\b/gi, '21:00')
-  clean = clean.replace(/\b(?:mười|muoi)\s*giờ\b/gi, '22:00')
-
   const hasMorningIndicator = /sáng|sang|trưa|trua|\bam\b/i.test(rawText)
 
+  // 1. Voice-to-text giờ kém FIRST: "bảy giờ kém mười lăm" -> 18:45, "tám giờ kém hai mươi" -> 19:40
+  clean = clean.replace(/(?<!\p{L})(?:bảy|bay)\s*(?:giờ|gio)\s*kém\s*(?:mười lăm|15)(?!\p{L})/ugi, '18:45')
+  clean = clean.replace(/(?<!\p{L})(?:tám|tam)\s*(?:giờ|gio)\s*kém\s*(?:mười lăm|15)(?!\p{L})/ugi, '19:45')
+  clean = clean.replace(/(?<!\p{L})(?:bảy|bay)\s*(?:giờ|gio)\s*kém\s*(?:hai mươi|20)(?!\p{L})/ugi, '18:40')
+  clean = clean.replace(/(?<!\p{L})(?:tám|tam)\s*(?:giờ|gio)\s*kém\s*(?:hai mươi|20)(?!\p{L})/ugi, '19:40')
+
+  // Giờ kém: "7h kém 15" -> "18:45", "8h kém 20" -> "19:40", "7 giờ kém 15" -> "18:45"
+  clean = clean.replace(/\b(\d{1,2})\s*(?:h|giờ|gio)\s*kém\s*(\d{1,2})(?!\p{L})/ugi, (match, h, m) => {
+    let hour = parseInt(h, 10)
+    const minDiff = parseInt(m, 10)
+    if (hour < 12 && !hasMorningIndicator) hour += 12
+    hour = hour - 1
+    const finalMin = 60 - minDiff
+    return `${String(hour).padStart(2, '0')}:${String(finalMin).padStart(2, '0')}`
+  })
+
+  // 2. Voice-to-text giờ rưỡi / ba mươi:
+  clean = clean.replace(/(?<!\p{L})(?:mười chín|muoi chin)\s*(?:giờ|gio)\s*(?:ba mươi|ba muoi|rưỡi|ruoi|30)(?!\p{L})/ugi, '19:30')
+  clean = clean.replace(/(?<!\p{L})(?:mười tám|muoi tam)\s*(?:giờ|gio)\s*(?:ba mươi|ba muoi|rưỡi|ruoi|30)(?!\p{L})/ugi, '18:30')
+  clean = clean.replace(/(?<!\p{L})(?:hai mươi|hai muoi)\s*(?:giờ|gio)\s*(?:ba mươi|ba muoi|rưỡi|ruoi|30)(?!\p{L})/ugi, '20:30')
+  clean = clean.replace(/(?<!\p{L})(?:bảy|bay)\s*(?:giờ|gio)\s*(?:rưỡi|ruoi|30|ba mươi|ba muoi)(?!\p{L})/ugi, '19:30')
+  clean = clean.replace(/(?<!\p{L})(?:sáu|sau)\s*(?:giờ|gio)\s*(?:rưỡi|ruoi|30|ba mươi|ba muoi)(?!\p{L})/ugi, '18:30')
+  clean = clean.replace(/(?<!\p{L})(?:tám|tam)\s*(?:giờ|gio)\s*(?:rưỡi|ruoi|30|ba mươi|ba muoi)(?!\p{L})/ugi, '20:30')
+  clean = clean.replace(/(?<!\p{L})(?:chín|chin)\s*(?:giờ|gio)\s*(?:rưỡi|ruoi|30|ba mươi|ba muoi)(?!\p{L})/ugi, '21:30')
+
+  // Giờ hơn: "7h hơn" -> "19:15", "8h hơn" -> "20:15", "19h hơn" -> "19:15"
+  clean = clean.replace(/\b(\d{1,2})\s*(?:h|giờ|gio)\s*(?:hơn|hon)(?!\p{L})/ugi, (match, h) => {
+    let hour = parseInt(h, 10)
+    if (hour < 12 && !hasMorningIndicator) hour += 12
+    return `${String(hour).padStart(2, '0')}:15`
+  })
+
+  // 3. Simple voice-to-text hours (runs after compound kém/rưỡi/hơn)
+  clean = clean.replace(/(?<!\p{L})(?:mười chín|muoi chin)\s*(?:giờ|gio)(?!\p{L})/ugi, '19:00')
+  clean = clean.replace(/(?<!\p{L})(?:mười tám|muoi tam)\s*(?:giờ|gio)(?!\p{L})/ugi, '18:00')
+  clean = clean.replace(/(?<!\p{L})(?:hai mươi|hai muoi)\s*(?:giờ|gio)(?!\p{L})/ugi, '20:00')
+  clean = clean.replace(/(?<!\p{L})(?:hai mốt|hai mot|hai mươi mốt)\s*(?:giờ|gio)(?!\p{L})/ugi, '21:00')
+  clean = clean.replace(/(?<!\p{L})(?:bảy|bay)\s*(?:giờ|gio)(?!\p{L})/ugi, '19:00')
+  clean = clean.replace(/(?<!\p{L})(?:sáu|sau)\s*(?:giờ|gio)(?!\p{L})/ugi, '18:00')
+  clean = clean.replace(/(?<!\p{L})(?:tám|tam)\s*(?:giờ|gio)(?!\p{L})/ugi, '20:00')
+  clean = clean.replace(/(?<!\p{L})(?:chín|chin)\s*(?:giờ|gio)(?!\p{L})/ugi, '21:00')
+  clean = clean.replace(/(?<!\p{L})(?:mười|muoi)\s*(?:giờ|gio)(?!\p{L})/ugi, '22:00')
+
   // Number followed by "giờ" / "g" / "h" with or without "rưỡi" / minutes
-  clean = clean.replace(/\b(\d{1,2})\s*(?:giờ|gio)\s*(?:rưỡi|ruoi)\b/gi, (match, h) => {
+  clean = clean.replace(/\b(\d{1,2})\s*(?:giờ|gio)\s*(?:rưỡi|ruoi)(?!\p{L})/ugi, (match, h) => {
     let hour = parseInt(h, 10)
     if (hour < 12 && !hasMorningIndicator) hour += 12
     return `${String(hour).padStart(2, '0')}:30`
   })
-  clean = clean.replace(/\b(\d{1,2})\s*(?:giờ|gio)\s*(\d{2})\b/gi, (match, h, m) => {
+  clean = clean.replace(/\b(\d{1,2})\s*(?:giờ|gio)\s*(\d{2})(?!\p{L})/ugi, (match, h, m) => {
     let hour = parseInt(h, 10)
     if (hour < 12 && !hasMorningIndicator) hour += 12
     return `${String(hour).padStart(2, '0')}:${m}`
   })
-  clean = clean.replace(/\b(\d{1,2})\s*(?:giờ|gio)\b/gi, (match, h) => {
+  clean = clean.replace(/\b(\d{1,2})\s*(?:giờ|gio)(?!\p{L})/ugi, (match, h) => {
     let hour = parseInt(h, 10)
     if (hour < 12 && !hasMorningIndicator) hour += 12
     return `${String(hour).padStart(2, '0')}:00`
   })
 
   // Voice-to-text / Vietnamese words for guest counts
-  clean = clean.replace(/\b(?:mười lăm|muoi lam)\s*(?:người|nguoi|khách|khach|ng|pax)\b/gi, '15 khách')
-  clean = clean.replace(/\b(?:hai mươi|hai muoi)\s*(?:người|nguoi|khách|khach|ng|pax)\b/gi, '20 khách')
-  clean = clean.replace(/\b(?:mười hai|muoi hai)\s*(?:người|nguoi|khách|khach|ng|pax)\b/gi, '12 khách')
-  clean = clean.replace(/\b(?:mười|muoi)\s*(?:người|nguoi|khách|khach|ng|pax)\b/gi, '10 khách')
+  clean = clean.replace(/(?<!\p{L})(?:mười lăm|muoi lam)\s*(?:người|nguoi|khách|khach|ng|pax)(?!\p{L})/ugi, '15 khách')
+  clean = clean.replace(/(?<!\p{L})(?:hai mươi|hai muoi)\s*(?:người|nguoi|khách|khach|ng|pax)(?!\p{L})/ugi, '20 khách')
+  clean = clean.replace(/(?<!\p{L})(?:mười hai|muoi hai)\s*(?:người|nguoi|khách|khach|ng|pax)(?!\p{L})/ugi, '12 khách')
+  clean = clean.replace(/(?<!\p{L})(?:mười|muoi)\s*(?:người|nguoi|khách|khach|ng|pax)(?!\p{L})/ugi, '10 khách')
 
   clean = clean.replace(/\b(?:thứ|thu)\s*(\d)\b/gi, (match, num) => {
     const mapping: Record<string, string> = {
@@ -1553,11 +1640,34 @@ export function parseSingleMenuLine(lineStr: string): { raw_name: string; quanti
     return null
   }
 
-  // Guard: if cleaned dish name is just numbers or metadata keywords, skip
+  // Guard 1: if cleaned dish name is just numbers or metadata keywords / labels, skip
   const strippedCleaned = stripAccents(cleaned).toLowerCase()
   if (/^\d+$/.test(cleaned) || 
-      /^(?:khach\s*hang|ten\s*khach|nguoi\s*dat|nguoi\s*lien\s*he|sdt|dien\s*thoai|thoi\s*gian|so\s*luong|loai\s*tiec|trang\s*tri|ghi\s*chu|dat\s*coc)\s*:/i.test(strippedCleaned) ||
-      /^(?:nam|nu|khach|pax|nguoi|ban|table|gio|ngay|sinh\s*nhat|hbd|coc|ck|thuc\s*don|menu|mon\s*an|thuc\s*an|do\s*uong|thuc\s*uong)$/i.test(strippedCleaned)) {
+      /^(?:khach\s*hang|ten\s*khach|nguoi\s*dat|nguoi\s*lien\s*he|sdt|dien\s*thoai|thoi\s*gian|so\s*luong|loai\s*tiec|trang\s*tri|ghi\s*chu|dat\s*coc|nhan|nv)\s*:/i.test(strippedCleaned) ||
+      /^(?:nam|nu|khach|pax|nguoi|ban|table|gio|ngay|sinh\s*nhat|hbd|coc|ck|thuc\s*don|menu|mon\s*an|thuc\s*an|do\s*uong|thuc\s*uong|dmt|nv)$/i.test(strippedCleaned)) {
+    return null
+  }
+
+  // Guard 2: reject customer name & person patterns
+  // E.g. "Anh Tuấn", "Chị Hồng Nhung", "Hồng Nhung", "A Tuấn", "C2 Hồng Nhung", "Mr John"
+  if (/^(?:anh|chi|chị|em|chu|chú|co|cô|ong|ông|ba|bà|be|bé|bac|bác|khach|khách|mr|ms|mrs|c\.|a\.)\s+[\p{L}]+/ui.test(cleaned) ||
+      /^(?:[A-G]|VIP)\d*\s+[\p{L}]+/ui.test(cleaned) ||
+      /^(?:nhan|nv)\s*[:\-]?\s*[a-z0-9]+/i.test(strippedCleaned)) {
+    return null
+  }
+
+  // Guard 3: reject decoration & event setup keywords
+  // E.g. "Tông trắng", "Tone trắng", "Hoa tươi", "Background trắng", "Bóng bay", "Bong bóng", "Bảng tên...", "Gương..."
+  if (/(?:t[oô]ng(?:\s*m[aà]u)?|tone(?:\s*m[aà]u)?|m[aà]u\s*s[aắ]c|m[aà]u)\s*(?:tr[aắ]ng|h[oồ]ng|xanh|v[aà]ng|[đd][oỏ]|t[ií]m|cam|[đd]en|n[aâ]u|b[aạ]c|gold|silver|pastel|kem|be)/i.test(cleaned) ||
+      /hoa\s*t[uư][oơ]i|hoa\s*l[uụ]a|hoa\s*s[aá]p|c[aắ]m\s*hoa|b[oó]ng\s*bay|bong\s*b[oó]ng|b[oó]ng\s*pastel|background|backdrop|khung\s*check\-?in|s[aâ]n\s*kh[aấ]u|ch[uừ]a\s*kh[oô]ng\s*gian/i.test(cleaned) ||
+      /b[aả]ng\s*t[eê]n|b[aả]ng\s*ch[uữ]|b[aả]ng\s*hpbd|b[aả]ng\s*hbd|g[uư][oơ]ng\s*vi[eế]t|g[uư][oơ]ng|mirror|b[aá]nh\s*kem|ph[aá]o\s*[đd]i[eệ]n|n[eế]n/i.test(cleaned) ||
+      /trang\s*tr[ií]|decor|setup\s*ti[eệ]c|setup\s*b[aà]n|d[aặ]n\s*d[oò]|l[uư]u\s*[yý]/i.test(cleaned)) {
+    return null
+  }
+
+  // Guard 4: reject table space / seating requests & deposit phrases
+  // E.g. "Bàn ngoài trời", "Phòng lạnh", "Phòng VIP", "Đợi cọc 500k", "Có món - đợi cọc"
+  if (/b[aà]n\s*(?:ng[oà]i\s*tr[oờ]i|s[aâ]n\s*v[uư][oờ]n|c[aạ]nh\s*c[uử]a|view)|ph[oò]ng\s*(?:l[aạ]nh|vip)|[đd][oợ]i\s*c[oọ]c|[đd][aã]\s*c[oọ]c|ch[oờ]\s*c[oọ]c/i.test(cleaned)) {
     return null
   }
 
@@ -1592,83 +1702,248 @@ export function extractDecorationDetails(decorationBlock: string): DecorationDet
   const lines = decorationBlock.split('\n').map(l => l.trim()).filter(Boolean)
   result.raw_decoration_lines = [...lines]
 
+  // Helper to split line by comma or semicolon when not inside quotes or parentheses
+  const splitSubPhrases = (text: string): string[] => {
+    const parts: string[] = []
+    let current = ''
+    let inQuotes = false
+    let parenDepth = 0
+
+    for (let i = 0; i < text.length; i++) {
+      const ch = text[i]
+      if (ch === '"' || ch === '“' || ch === '”') {
+        inQuotes = !inQuotes
+        current += ch
+      } else if (ch === '(' && !inQuotes) {
+        parenDepth++
+        current += ch
+      } else if (ch === ')' && !inQuotes) {
+        if (parenDepth > 0) parenDepth--
+        current += ch
+      } else if ((ch === ',' || ch === ';') && !inQuotes && parenDepth === 0) {
+        const trimmed = current.trim()
+        if (trimmed) parts.push(trimmed)
+        current = ''
+      } else {
+        current += ch
+      }
+    }
+    const trimmed = current.trim()
+    if (trimmed) parts.push(trimmed)
+    return parts
+  }
+
   for (const line of lines) {
     const cleanDecorLine = line.replace(/^[▶•●\*\-–—\u2800\s]+/g, '').trim()
-    const lower = stripAccents(cleanDecorLine).toLowerCase()
+    if (!cleanDecorLine) continue
 
     // 0. Line starting with "Trang trí:" or "Decor:" or "Setup:"
     const decorPrefixMatch = cleanDecorLine.match(/^(?:trang\s*tr[ií]|decor|setup)(?:\s*ti[eệ]c)?\s*[:\-–—]\s*(.+)/i)
+    let contentToProcess = cleanDecorLine
     if (decorPrefixMatch) {
-      const content = decorPrefixMatch[1].trim()
-      if (!result.special_requests.includes(content)) {
-        result.special_requests.push(content)
-      }
-      const parenColorMatch = content.match(/\(([^)]*(?:tr[aắ]ng|h[oồ]ng|xanh|v[aà]ng|[đd][oỏ]|t[ií]m|cam|[đd]en|n[aâ]u|b[aạ]c|gold|silver|pastel)[^)]*)\)/i)
-      if (parenColorMatch && !result.decor_color) {
-        result.decor_color = parenColorMatch[1].trim()
-      }
-      continue
+      contentToProcess = decorPrefixMatch[1].trim()
     }
 
-    // 1. Decor color: "tông hồng pastel", "tông màu: xanh dương", "tone: blue", "màu hồng", "tone hồng pastel", "TONE TRẮNG", "tone trắng"
-    const colorMatch = cleanDecorLine.match(/(?:t[oô]ng\s*(?:m[aà]u)?|m[aà]u|tone|color)\s*[:\-]?\s*([^,\n;]+)/i)
-    if (colorMatch && !result.decor_color) {
-      result.decor_color = colorMatch[1].trim()
-    }
+    // Split content into subphrases if multiple items are separated by commas/semicolons
+    const subPhrases = splitSubPhrases(contentToProcess)
 
-    const genericParenColor = cleanDecorLine.match(/\(([^)]*(?:tr[aắ]ng|h[oồ]ng|xanh|v[aà]ng|[đd][oỏ]|t[ií]m|cam|[đd]en|n[aâ]u|b[aạ]c|gold|silver|pastel)[^)]*)\)/i)
-    if (genericParenColor && !result.decor_color) {
-      result.decor_color = genericParenColor[1].trim()
-    }
+    for (let phrase of subPhrases) {
+      phrase = phrase.replace(/^[▶•●\*\-–—\u2800\s]+|[.\s]+$/g, '').trim()
+      if (!phrase || phrase.length < 2) continue
 
-    // 2. Special requests with labels: "Dặn dò: ...", "lưu ý: ...", "nhắc: ...", "yêu cầu: ...", "note: ..."
-    const reqMatch = cleanDecorLine.match(/^(?:d[aặ]n\s*d[oò]|l[uư]u\s*[yý]|nh[aắ]c|y[eê]u\s*c[aầ]u|note)\s*[:\-]?\s*(.+)/i)
-    if (reqMatch) {
-      result.special_requests.push(reqMatch[1].trim())
-      continue
-    }
+      const pLower = stripAccents(phrase).toLowerCase()
 
-    // 3. Board text: "Bảng: HBD Bé Su", "bảng sinh nhật: ...", "bảng chữ: ...", "bảng tên: ...", "BẢNG \"HPBD ...\""
-    const boardMatch = line.match(/(?:b[aả]ng(?:\s+t[eê]n|\s+ch[uữ]|\s+sinh\s*nh[aậ]t|\s+m[uừ]ng)?|bang(?:\s+ten|\s+chu|\s+sinh\s*nhat|\s+mung)?)\s*[:\-]?\s*(.+)/i)
-    if (boardMatch && !result.board_text) {
-      result.board_text = boardMatch[1].trim()
-      continue
-    }
-
-    // 4. Mirror text: "Gương viết: Welcome", "gương: ...", "mirror: ...", "Gương \"HPBD ...\""
-    const mirrorMatch = line.match(/(?:g[uư][oơ]ng(?:\s+vi[eế]t(?:\s+t[eê]n)?)?|mirror)\s*[:\-]?\s*(.+)/i)
-    if (mirrorMatch && !result.mirror_text) {
-      result.mirror_text = mirrorMatch[1].trim()
-      continue
-    }
-
-    // 5. Flower & Balloon Decoration: "Trang trí hoa tươi", "Hoa tươi trên bàn", "Bong bóng tone hồng", "Bóng bay pastel"
-    if (/hoa\s+tuoi|hoa\s+lua|hoa\s+sap|cam\s+hoa|bong\s+bong|bong\s+bay|backdrop|banh\s+kem|phao|nen/i.test(lower)) {
-      if (!result.special_requests.includes(line)) {
-        result.special_requests.push(line)
-      }
-      continue
-    }
-
-    // 6. Background / Space setup: "ƯU TIÊN BACKGROUND", "CHỪA KHÔNG GIAN ĐỂ KHÁCH SETUP BACKGROUND", "background check-in"
-    if (/background|check-in|checkin|khong\s+gian|khung\s+checkin|san\s+khau/i.test(lower)) {
-      if (!result.special_requests.includes(line)) {
-        result.special_requests.push(line)
-      }
-      continue
-    }
-
-    // 7. If line contains HBD or Happy Birthday text and no board_text yet, extract the message
-    if (!result.board_text) {
-      const hbdMatch = line.match(/(?:happy\s*birthday|hbd|hpbd|ch[uú]c\s*m[uừ]ng)\s+(.+)/i)
-      if (hbdMatch) {
-        result.board_text = hbdMatch[1].trim()
+      // 1. Board text: "Bảng: HBD Bé Su", "bảng sinh nhật: ...", "bảng chữ: ...", "bảng tên: ...", "BẢNG \"HPBD ...\""
+      const boardMatch = phrase.match(/^(?:b[aả]ng(?:\s+t[eê]n|\s+ch[uữ]|\s+sinh\s*nh[aậ]t|\s+m[uừ]ng|\s*hpbd)?|bang(?:\s+ten|\s+chu|\s+sinh\s*nhat|\s+mung|\s*hpbd)?)\s*[:\-–—]?\s*(.+)/i)
+      if (boardMatch && !result.board_text) {
+        result.board_text = boardMatch[1].replace(/^["'\u201c\u201d]+|["'\u201c\u201d]+$/g, '').trim()
         continue
+      }
+
+      // 2. Mirror text: "Gương viết: Welcome", "gương: ...", "mirror: ...", "Gương \"HPBD ...\""
+      const mirrorMatch = phrase.match(/^(?:g[uư][oơ]ng(?:\s+vi[eế]t(?:\s+t[eê]n)?)?|mirror)\s*[:\-–—]?\s*(.+)/i)
+      if (mirrorMatch && !result.mirror_text) {
+        result.mirror_text = mirrorMatch[1].replace(/^["'\u201c\u201d]+|["'\u201c\u201d]+$/g, '').trim()
+        continue
+      }
+
+      // 3. Special requests with labels: "Dặn dò: ...", "lưu ý: ...", "nhắc: ...", "yêu cầu: ...", "note: ..."
+      const reqMatch = phrase.match(/^(?:d[aặ]n\s*d[oò]|l[uư]u\s*[yý]|nh[aắ]c|y[eê]u\s*c[aầ]u|note)\s*[:\-–—]?\s*(.+)/i)
+      if (reqMatch) {
+        const reqContent = reqMatch[1].trim()
+        if (reqContent && !result.special_requests.includes(reqContent)) {
+          result.special_requests.push(reqContent)
+        }
+        continue
+      }
+
+      // 4. Decor color: "tông hồng pastel", "tông màu: xanh dương", "tone: blue", "màu hồng", "tone hồng pastel", "TONE TRẮNG", "tone trắng", "Tông trắng"
+      const colorMatch = phrase.match(/^(?:t[oô]ng\s*(?:m[aà]u)?|m[aà]u|tone|color)\s*[:\-–—]?\s*([^,\n;]+)/i)
+      if (colorMatch) {
+        const colorVal = colorMatch[1].trim()
+        if (!result.decor_color) {
+          result.decor_color = colorVal
+        }
+        continue
+      }
+
+      const genericParenColor = phrase.match(/\(([^)]*(?:tr[aắ]ng|h[oồ]ng|xanh|v[aà]ng|[đd][oỏ]|t[ií]m|cam|[đd]en|n[aâ]u|b[aạ]c|gold|silver|pastel)[^)]*)\)/i)
+      if (genericParenColor && !result.decor_color) {
+        result.decor_color = genericParenColor[1].trim()
+      }
+
+      // 5. Flower & Balloon Decoration: "Trang trí hoa tươi", "Hoa tươi trên bàn", "Bong bóng tone hồng", "Bóng bay pastel"
+      if (/hoa\s+tuoi|hoa\s+lua|hoa\s+sap|cam\s+hoa|bong\s+bong|bong\s+bay|backdrop|banh\s+kem|phao|nen/i.test(pLower)) {
+        if (!result.special_requests.includes(phrase)) {
+          result.special_requests.push(phrase)
+        }
+        continue
+      }
+
+      // 6. Background / Space setup: "ƯU TIÊN BACKGROUND", "CHỪA KHÔNG GIAN ĐỂ KHÁCH SETUP BACKGROUND", "background check-in"
+      if (/background|check\-?in|khong\s+gian|khung\s+checkin|san\s+khau|phong\s+nen/i.test(pLower)) {
+        if (!result.special_requests.includes(phrase)) {
+          result.special_requests.push(phrase)
+        }
+        continue
+      }
+
+      // 7. If phrase contains HBD or Happy Birthday text and no board_text yet, extract the message
+      if (!result.board_text) {
+        const hbdMatch = phrase.match(/(?:happy\s*birthday|hbd|hpbd|ch[uú]c\s*m[uừ]ng)\s+(.+)/i)
+        if (hbdMatch) {
+          result.board_text = hbdMatch[1].replace(/^["'\u201c\u201d]+|["'\u201c\u201d]+$/g, '').trim()
+          continue
+        }
+      }
+
+      // 8. Any other meaningful decor requirement (e.g. "bàn gallery", "ảnh bé")
+      if (phrase.length >= 3 && !/^(?:trang\s*tri|decor|setup)$/i.test(pLower)) {
+        if (!result.special_requests.includes(phrase)) {
+          result.special_requests.push(phrase)
+        }
       }
     }
   }
 
   return result
+}
+
+export function extractSeatingPreferences(text: string): string[] {
+  if (!text) return []
+  const clean = stripAccents(text).toLowerCase()
+  const results: string[] = []
+
+  // 1. VIP / Private Room
+  if (/phong\s*vip|vip\s*room|private\s*room|phong\s*rieng|phong\s*kin/i.test(clean)) {
+    results.push('Phòng riêng / VIP')
+  } else if (/phong\s*lanh|may\s*lanh|dieu\s*hoa/i.test(clean)) {
+    results.push('Phòng máy lạnh')
+  }
+
+  // 2. View / Outdoor / Rooftop
+  if (/rooftop|san\s*thuong|tang\s*thuong/i.test(clean)) {
+    results.push('Khu vực sân thượng / Rooftop')
+  } else if (/view\s*ban\s*cong|ban\s*cong/i.test(clean)) {
+    results.push('View ban công')
+  } else if (/ngoai\s*troi|outdoor|san\s*vuon/i.test(clean)) {
+    results.push('Khu vực ngoài trời thoáng đãng')
+  } else if (/gan\s*cua\s*so|view\s*cua\s*so|view\s*duong/i.test(clean)) {
+    results.push('Bàn gần cửa sổ / view đường')
+  }
+
+  // 3. Atmosphere / Table position
+  if (/yen\s*tinh|khong\s*on|khong\s*on\s*ao/i.test(clean)) {
+    results.push('Bàn yên tĩnh, không ồn')
+  }
+  if (/gan\s*san\s*khau|canh\s*san\s*khau/i.test(clean)) {
+    results.push('Gần sân khấu')
+  }
+
+  // 4. Smoking vs Non-smoking
+  if (/hut\s*thuoc|smoking/i.test(clean) && !/khong\s*hut\s*thuoc|non[\-\s]*smoking/i.test(clean)) {
+    results.push('Khu vực được hút thuốc')
+  } else if (/khong\s*hut\s*thuoc|non[\-\s]*smoking/i.test(clean)) {
+    results.push('Khu vực không hút thuốc')
+  }
+
+  // 5. Baby chair / Kid amenities
+  const babyChairMatch = clean.match(/(\d+)\s*(?:ghe\s*em\s*be|ghe\s*tre\s*em|ghe\s*be|baby\s*chair|ghe\s*an\s*dam)/i)
+    || clean.match(/(?:ghe\s*em\s*be|ghe\s*tre\s*em|ghe\s*be|baby\s*chair|ghe\s*an\s*dam)\s*(\d+)?/i)
+  if (babyChairMatch) {
+    const qty = babyChairMatch[1] ? `${babyChairMatch[1]} ` : ''
+    results.push(`Cần ${qty}ghế trẻ em (baby chair)`.trim())
+  }
+
+  // 6. Outside drinks / cake (Corkage)
+  if (/mang\s*ruou|dem\s*ruou|ruou\s*ngoai|corkage/i.test(clean)) {
+    results.push('Khách mang rượu từ ngoài vào')
+  }
+  if (/mang\s*banh\s*kem|dem\s*banh\s*kem/i.test(clean)) {
+    results.push('Khách tự mang bánh kem vào')
+  }
+
+  return results
+}
+
+export function extractDietaryNotes(text: string): string[] {
+  if (!text) return []
+  const clean = stripAccents(text).toLowerCase()
+  const results: string[] = []
+
+  // 1. Vegetarian / Vegan
+  if (/an\s*chay|mon\s*chay|thuan\s*chay|vegan|vegetarian/i.test(clean)) {
+    results.push('Ăn chay / Vegetarian')
+  }
+
+  // 2. Allergies (Crucial for F&B safety!)
+  if (/di\s*ung\s*hai\s*san|di\s*ung\s*tom|di\s*ung\s*cua/i.test(clean)) {
+    results.push('DỊ ỨNG HẢI SẢN')
+  }
+  if (/di\s*ung\s*dau\s*phong|di\s*ung\s*lac|di\s*ung\s*hat/i.test(clean)) {
+    results.push('DỊ ỨNG ĐẬU PHỘNG / LẠC')
+  }
+  if (/di\s*ung\s*me\b|di\s*ung\s*vung\b/i.test(clean)) {
+    results.push('DỊ ỨNG MÈ / VỪNG')
+  }
+  if (/di\s*ung\s*sua|lactose/i.test(clean)) {
+    results.push('DỊ ỨNG SỮA / LACTOSE')
+  }
+
+  // 3. Health & Dietary preferences
+  if (/khong\s*bot\s*ngot|khong\s*mi\s*chinh|it\s*bot\s*ngot|it\s*mi\s*chinh/i.test(clean)) {
+    results.push('Không / ít bột ngọt (mì chính)')
+  }
+  if (/it\s*dau\s*mo|it\s*beo|eat\s*clean|healthy|keto/i.test(clean)) {
+    results.push('Ít dầu mỡ / Eat clean')
+  }
+  if (/it\s*duong|it\s*ngot/i.test(clean)) {
+    results.push('Ít đường / ít ngọt')
+  }
+
+  // 4. Taste & Seasoning Customizations
+  if (/khong\s*cay|khong\s*an\s*cay|dung\s*cay|ko\s*cay/i.test(clean)) {
+    results.push('Làm không cay')
+  } else if (/it\s*cay|cay\s*nhe|cay\s*vua/i.test(clean)) {
+    results.push('Làm ít cay')
+  } else if (/cay\s*nhieu|an\s*cay/i.test(clean) && !/khong|it/i.test(clean)) {
+    results.push('Ăn cay nhiều')
+  }
+
+  if (/ot\s*de\s*rieng|sot\s*de\s*rieng|nuoc\s*sot\s*de\s*rieng|nuoc\s*cham\s*de\s*rieng/i.test(clean)) {
+    results.push('Nước sốt / ớt để riêng')
+  }
+  if (/bo\s*hanh|khong\s*hanh|khong\s*an\s*hanh|dung\s*bo\s*hanh/i.test(clean)) {
+    results.push('Không ăn hành')
+  }
+  if (/khong\s*ngo|khong\s*rau\s*mui|khong\s*tieu/i.test(clean)) {
+    results.push('Không ngò / tiêu')
+  }
+  if (/cho\s*tre\s*em\s*an|be\s*an\s*duoc|nau\s*mem/i.test(clean)) {
+    results.push('Nấu mềm, phù hợp cho trẻ em / người lớn tuổi')
+  }
+
+  return results
 }
 
 export function resolveDistributiveQuantifiers(menuItems: any[], text: string): any[] {
@@ -1952,6 +2227,56 @@ export function extractByRules(rawOrNormalizedText: string) {
       }
     }
   }
+
+  // Amendment override for guest count: "À đổi sang 8 người nhé", "tăng lên 10 khách", "bớt 2 còn 6 người", "đổi thành 8 người"
+  const amendmentGuestMatch = clean.match(/(?:doi\s*sang|doi\s*thanh|sua\s*thanh|tang\s*len|giam\s*xuong|chuyen\s*sang|thay\s*doi\s*thanh|bot\s*xuong)\s*(\d{1,3})\s*(?:nguoi|khach|pax|\bng\b|mong|mang|cho|guest)?/i)
+    || clean.match(/\bthanh\s*(\d{1,3})\s*(?:nguoi|khach|pax|\bng\b|mong|mang|cho|guest)\b/i)
+  if (amendmentGuestMatch) {
+    const val = parseInt(amendmentGuestMatch[1], 10)
+    if (val > 0 && val <= 500) {
+      guest_count = val
+    }
+  }
+
+  // Amendment override for time: "đổi sang 19h30", "chuyển sang 20h"
+  const amendmentTimeMatch = clean.match(/(?:doi\s*sang|doi\s*thanh|chuyen\s*sang|doi\s*gio|doi\s*lai|doi\s*qua|gio\s*moi)\s*(?:luc\s*)?(\d{1,2}(?::\d{2}|h\d{2}|h))\b/i)
+  if (amendmentTimeMatch) {
+    let tStr = amendmentTimeMatch[1]
+    if (tStr.includes(':')) {
+      const [h, m] = tStr.split(':')
+      let hour = parseInt(h, 10)
+      if (hour < 12 && !/sang|trua|am/i.test(clean)) hour += 12
+      event_time = `${String(hour).padStart(2, '0')}:${m}`
+    } else if (tStr.includes('h')) {
+      const parts = tStr.split('h')
+      let hour = parseInt(parts[0], 10)
+      let min = parts[1] ? parts[1] : '00'
+      if (hour < 12 && !/sang|trua|am/i.test(clean)) hour += 12
+      event_time = `${String(hour).padStart(2, '0')}:${min.padStart(2, '0')}`
+    }
+  } else {
+    // Clause amendment override: check if there is an amendment trigger and a time after it
+    const amendmentClauseMatch = clean.match(/(?:doi\s*sang|doi\s*thanh|chuyen\s*sang|nhung\s+chuyen|nhung\s+doi|a\s*thoi)([\s\S]+)$/i)
+    if (amendmentClauseMatch) {
+      const afterTrigger = amendmentClauseMatch[1]
+      const afterTimeMatch = afterTrigger.match(/(?:luc\s*)?(\d{1,2}(?::\d{2}|h\d{2}|h))\b/i)
+      if (afterTimeMatch) {
+        let tStr = afterTimeMatch[1]
+        if (tStr.includes(':')) {
+          const [h, m] = tStr.split(':')
+          let hour = parseInt(h, 10)
+          if (hour < 12 && !/sang|trua|am/i.test(clean)) hour += 12
+          event_time = `${String(hour).padStart(2, '0')}:${m}`
+        } else if (tStr.includes('h')) {
+          const parts = tStr.split('h')
+          let hour = parseInt(parts[0], 10)
+          let min = parts[1] ? parts[1] : '00'
+          if (hour < 12 && !/sang|trua|am/i.test(clean)) hour += 12
+          event_time = `${String(hour).padStart(2, '0')}:${min.padStart(2, '0')}`
+        }
+      }
+    }
+  }
   
   let table_code: string | null = null
   const tableWithLetterMatch = clean.match(/ban\s+([a-g]\d{1,2})\b/i)
@@ -1989,12 +2314,17 @@ export function extractByRules(rawOrNormalizedText: string) {
   let booking_need = 'Ăn thường'
   if (/sinh nhat|sn|mung tho/i.test(clean)) booking_need = 'Sinh nhật'
   else if (/thoi noi/i.test(clean)) booking_need = 'Thôi nôi (1st)'
+  else if (/cau hon|proposal/i.test(clean)) booking_need = 'Cầu hôn (Proposal)'
+  else if (/gender reveal|tiet lo gioi tinh/i.test(clean)) booking_need = 'Gender Reveal (Tiết lộ giới tính)'
+  else if (/ky niem ngay cuoi|wedding anniversary|anniversary|ky niem yeu|ki niem|ky niem/i.test(clean)) booking_need = 'Kỉ niệm'
+  else if (/tiec doc than|bachelor|bachelorette/i.test(clean)) booking_need = 'Tiệc độc thân'
   else if (/cong ty|cty|doanh nghiep|ortholite/i.test(clean)) booking_need = 'Công ty'
+  else if (/tiep khach|doi tac|vip guest/i.test(clean)) booking_need = 'Tiếp khách / Đối tác'
+  else if (/workshop|offline|hoi thao|hop team/i.test(clean)) booking_need = 'Workshop / Họp nhóm'
   else if (/tat nien/i.test(clean)) booking_need = 'Tất niên'
   else if (/tan nien/i.test(clean)) booking_need = 'Tân niên'
   else if (/cuoi|bao hy/i.test(clean)) booking_need = 'Cưới/Báo hỷ'
   else if (/farewell|chia tay/i.test(clean)) booking_need = 'Farewell (Tiệc chia tay)'
-  else if (/ky niem/i.test(clean)) booking_need = 'Kỉ niệm'
   else if (/lien hoan|tiec|hop lop/i.test(clean)) booking_need = 'Liên hoan'
 
   let decoration_text = ''
@@ -2037,7 +2367,7 @@ export function extractByRules(rawOrNormalizedText: string) {
     receiver = receiverMatch[1].toUpperCase()
   }
 
-  const menu_items: any[] = []
+  let menu_items: any[] = []
 
   const isTableFormat = /stt|s\s*t\s*t|món ăn|mon an|số lượng|so luong|đơn giá|don gia/i.test(normalizedText)
   if (isTableFormat) {
@@ -2095,10 +2425,25 @@ export function extractByRules(rawOrNormalizedText: string) {
   // Fallback scan: if menu_block yielded no dishes, scan full normalizedText line by line
   if (menu_items.length === 0) {
     const allLines = normalizedText.split('\n')
+    const custNorm = customer_name ? stripAccents(customer_name).toLowerCase().trim() : ''
+    const recNorm = receiver ? stripAccents(receiver).toLowerCase().trim() : ''
+    const tblNorm = table_code ? stripAccents(table_code).toLowerCase().trim() : ''
+    const peopleNorms = nameResults.peopleNames.map(p => stripAccents(p).toLowerCase().trim())
+
     for (const line of allLines) {
-      const lower = stripAccents(line).toLowerCase()
-      if (/(0[35789]\d{7,9})/.test(lower) || /\b\d{1,2}:\d{2}\b/.test(lower) || /\d+ng\b|\d+\s*pax|\d+\s*khach/i.test(lower)) continue
-      const parsed = parseSingleMenuLine(line)
+      const trimmedLine = line.trim()
+      if (!trimmedLine) continue
+      const lower = stripAccents(trimmedLine).toLowerCase()
+      if (/(0[35789]\d{7,9})/.test(lower) || /\b\d{1,2}:\d{2}\b/.test(lower) || /\b\d{1,2}h\d{2}\b/.test(lower) || /\d+ng\b|\d+\s*pax|\d+\s*khach/i.test(lower)) continue
+      if (custNorm && (lower === custNorm || lower.includes(custNorm))) continue
+      if (peopleNorms.some(p => p && (lower === p || lower.includes(p)))) continue
+      if (tblNorm && lower === tblNorm) continue
+      if (recNorm && (lower === recNorm || lower.includes(recNorm))) continue
+      if (/^(?:nh[aậ]n|staff|thu\s*ng[aâ]n|nv)\s*[:\-–—]/i.test(lower)) continue
+      if (/happy\s*birthday|hbd|hpbd|chuc\s*mung|chúc\s*mừng|bang\s*chu|bảng\s*chữ|bang\s*ten|bảng\s*tên|bang|bảng|bong\s*bay|bóng\s*bay|bong\s*bong|bong\s*bóng|bóng\s*pastel|trang\s*tri|trang\s*trí|tong\s*mau|tông\s*màu|tone\s*màu|tone\s*mau|tone|tông|tong|guong|gương|mirror|dan\s*do|dặn\s*dò|luu\s*y|lưu\s*ý|sinh\s*nhat|sinh\s*nhật|thoi\s*noi|thôi\s*nôi|day\s*thang|đầy\s*tháng|hoa\s*tuoi|hoa\s*tươi|hoa\s*lua|hoa\s*lụa|hoa\s*sap|hoa\s*sáp|cam\s*hoa|cắm\s*hoa|backdrop|background|phong\s*nen|phông\s*nền|khung\s*check\-?in|san\s*khau|sân\s*khấu|chua\s*khong\s*gian|chừa\s*không\s*gian|banh\s*kem|bánh\s*kem|phao|pháo|nen|nến|decor|setup/i.test(lower)) continue
+      if (/da chuyen|\bcoc\b|\bck\b|bill|ngan hang|chuyen khoan|ref|tien coc/i.test(lower)) continue
+
+      const parsed = parseSingleMenuLine(trimmedLine)
       if (parsed) {
         menu_items.push(parsed)
       }
@@ -2115,6 +2460,8 @@ export function extractByRules(rawOrNormalizedText: string) {
         if (parsed) {
           menu_items.push(parsed)
         } else {
+          const dLower = stripAccents(dish).toLowerCase()
+          if (/t[oô]ng|tone|hoa\s*t[uư][oơ]i|b[oó]ng|background|backdrop/i.test(dLower)) continue
           menu_items.push({
             raw_name: dish,
             quantity: 1,
@@ -2126,12 +2473,41 @@ export function extractByRules(rawOrNormalizedText: string) {
     }
   }
 
+  // Sanitize menu_items: eliminate any items that are customer names, table codes, receivers, or decor
+  const decorKeywordsFilter = /t[oô]ng\s*(?:m[aà]u)?|tone|hoa\s*t[uư][oơ]i|b[oó]ng\s*(?:bay|b[oó]ng)|background|backdrop|b[aả]ng\s*(?:ch[uữ]|t[eê]n|hpbd)|g[uư][oơ]ng/i
+  const custNameNorm = customer_name ? stripAccents(customer_name).toLowerCase().trim() : ''
+  const recNorm = receiver ? stripAccents(receiver).toLowerCase().trim() : ''
+  const tblNorm = table_code ? stripAccents(table_code).toLowerCase().trim() : ''
+  const peopleNorms = nameResults.peopleNames.map(p => stripAccents(p).toLowerCase().trim())
+
+  menu_items = menu_items.filter(item => {
+    const dName = stripAccents(item.raw_name || '').toLowerCase().trim()
+    if (!dName) return false
+    if (custNameNorm && (dName === custNameNorm || dName.includes(custNameNorm))) return false
+    if (peopleNorms.some(p => p && (dName === p || dName.includes(p)))) return false
+    if (tblNorm && dName === tblNorm) return false
+    if (recNorm && (dName === recNorm || dName.includes(recNorm))) return false
+    if (/^(?:nh[aậ]n|staff|thu\s*ng[aâ]n|nv)\s*[:\-–—]/i.test(dName)) return false
+    if (decorKeywordsFilter.test(dName)) {
+      if (!decoration_details.special_requests.includes(item.raw_name)) {
+        decoration_details.special_requests.push(item.raw_name)
+      }
+      return false
+    }
+    return true
+  })
+
+  const seatingPreferences = extractSeatingPreferences(normalizedText)
+  const dietaryNotes = extractDietaryNotes(normalizedText)
+
   const party = {
     owner_name: nameResults.partyOwnerCandidates.length > 0 ? nameResults.partyOwnerCandidates.join(', ') : null,
     decor_color: decoration_details.decor_color,
     special_request: decoration_details.special_requests.length > 0 ? decoration_details.special_requests.join('; ') : null,
     display_board_text: decoration_details.board_text,
-    mirror_board_text: decoration_details.mirror_text
+    mirror_board_text: decoration_details.mirror_text,
+    seating_preference: seatingPreferences.length > 0 ? seatingPreferences.join('; ') : null,
+    dietary_notes: dietaryNotes.length > 0 ? dietaryNotes.join('; ') : null
   }
 
   return {

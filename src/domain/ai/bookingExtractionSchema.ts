@@ -23,6 +23,8 @@ export const BOOKING_EXTRACTION_SCHEMA = {
         mirror_board_text: { type: 'string', description: 'Nội dung gương viết tên trang trí' },
         decor_color: { type: 'string', description: 'Tông màu trang trí (vd: Hồng pastel, Xanh dương, Vàng kim, Trắng kem, v.v.)' },
         special_request: { type: 'string', description: 'Yêu cầu đặc biệt về tiệc' },
+        seating_preference: { type: 'string', description: 'Yêu cầu không gian, chỗ ngồi (Phòng VIP, view ban công, ghế trẻ em...)' },
+        dietary_notes: { type: 'string', description: 'Yêu cầu khẩu vị, ăn kiêng và cảnh báo dị ứng' },
         confidence: { type: 'number', description: 'Độ tin cậy của trường party (0.0 - 1.0)' }
       },
       required: ['type', 'owner_name', 'display_board_text', 'mirror_board_text', 'decor_color', 'special_request', 'confidence']

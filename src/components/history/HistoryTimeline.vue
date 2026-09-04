@@ -406,12 +406,22 @@ async function handleDrop(e: DragEvent, hour: string, table: string) {
         </div>
       </div>
       
-      <button @click="showQuickView = true" class="h-12 w-12 bg-indigo-50 text-indigo-600 rounded-xl font-black text-xl shadow-sm hover:bg-indigo-100 active:scale-95 transition-all flex justify-center items-center shrink-0 border border-indigo-100">
+      <!-- Quick View Floor Plan -->
+      <button 
+        @click="ui.showFloorPlan = true" 
+        class="h-12 px-3.5 bg-amber-50 text-amber-700 hover:bg-amber-100 rounded-xl font-black text-xs uppercase tracking-wider shadow-sm active:scale-95 transition-all flex justify-center items-center gap-1.5 shrink-0 border border-amber-200 cursor-pointer"
+        title="Xem sơ đồ mặt bằng bàn khu A, C, VIP"
+      >
+        <i class="fa-solid fa-map text-amber-600 text-sm"></i>
+        <span class="hidden sm:inline">Sơ Đồ Bàn</span>
+      </button>
+
+      <button @click="showQuickView = true" class="h-12 w-12 bg-indigo-50 text-indigo-600 rounded-xl font-black text-xl shadow-sm hover:bg-indigo-100 active:scale-95 transition-all flex justify-center items-center shrink-0 border border-indigo-100" title="Danh sách đơn đặt ngày này">
         <i class="fa-solid fa-list-ul"></i>
       </button>
       
-      <button @click="resetForm(); ui.tab = 'create'" class="h-12 px-6 bg-blue-900 text-white rounded-xl font-black text-sm shadow-lg shadow-blue-900/20 active:scale-95 transition-all flex justify-center items-center gap-2 whitespace-nowrap">
-        <i class="fa-solid fa-plus text-white/70"></i> Tạo lịch đặt mới
+      <button @click="resetForm(); ui.tab = 'create'" class="h-12 px-5 bg-blue-900 text-white rounded-xl font-black text-xs uppercase tracking-wider shadow-lg shadow-blue-900/20 active:scale-95 transition-all flex justify-center items-center gap-2 whitespace-nowrap">
+        <i class="fa-solid fa-plus text-white/70"></i> <span class="hidden sm:inline">Tạo lịch đặt mới</span><span class="sm:hidden">Tạo mới</span>
       </button>
     </div>
 

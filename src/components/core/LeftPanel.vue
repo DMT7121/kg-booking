@@ -204,67 +204,57 @@ function goToTomorrowTimeline() {
         </div>
       </div>
 
-      <!-- CENTER: NAVIGATION TABS (DESKTOP) - Structured Hub Categories -->
-      <div class="hidden md:flex items-center gap-1.5 bg-slate-800/60 p-1.5 rounded-2xl border border-slate-700/40 mx-4 max-w-4xl flex-1 justify-start lg:justify-center relative z-10 overflow-x-auto overflow-y-hidden scrollbar-none flex-nowrap backdrop-blur-md">
-        <!-- Hub 1: Vận Hành -->
-        <div class="flex items-center gap-1 bg-slate-900/60 p-1 rounded-xl border border-slate-700/30">
-          <button @click="ui.tab = 'create'" :class="['px-3 py-1.5 rounded-lg text-[11px] font-black uppercase tracking-wider transition-all flex items-center gap-1.5 min-h-[34px] whitespace-nowrap cursor-pointer', ui.tab === 'create' ? 'bg-blue-600 text-white shadow-md shadow-blue-600/30' : 'text-slate-300 hover:text-white hover:bg-slate-800/60']" title="Tạo phiếu đặt bàn mới">
-            <i class="fa-solid fa-plus text-xs"></i>
+      <!-- CENTER: NAVIGATION TABS (DESKTOP) - 3 Phân Hệ Workspace Vận Hành Chuyên Nghiệp -->
+      <div class="hidden md:flex items-center gap-2 bg-slate-800/60 p-1.5 rounded-2xl border border-slate-700/40 mx-4 max-w-4xl flex-1 justify-start lg:justify-center relative z-10 overflow-x-auto overflow-y-hidden scrollbar-none flex-nowrap backdrop-blur-md">
+        <!-- Phân hệ 1: TIẾP NHẬN ĐƠN (Booking Intake) -->
+        <div class="flex items-center gap-1 bg-slate-900/70 p-1 rounded-xl border border-blue-500/20 shadow-sm">
+          <button @click="ui.tab = 'create'" :class="['px-3.5 py-1.5 rounded-lg text-[11px] font-black uppercase tracking-wider transition-all flex items-center gap-1.5 min-h-[34px] whitespace-nowrap cursor-pointer', ui.tab === 'create' ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-md shadow-blue-600/30' : 'text-slate-300 hover:text-white hover:bg-slate-800/60']" title="Tạo phiếu đặt bàn mới (AI / Nhập tay)">
+            <i class="fa-solid fa-plus text-xs text-blue-300"></i>
             <span>Tạo Phiếu</span>
           </button>
-          <button @click="ui.tab = 'timeline'; appStore.loadHistory(false)" :class="['px-3 py-1.5 rounded-lg text-[11px] font-black uppercase tracking-wider transition-all flex items-center gap-1.5 min-h-[34px] whitespace-nowrap cursor-pointer', ui.tab === 'timeline' ? 'bg-blue-600 text-white shadow-md shadow-blue-600/30' : 'text-slate-300 hover:text-white hover:bg-slate-800/60']" title="Sơ đồ lịch bàn">
-            <i class="fa-solid fa-calendar-days text-xs"></i>
-            <span>Lịch Bàn</span>
-          </button>
-          <button v-if="formStore.customer.name || formStore.id" @click="ui.tab = 'preview'" :class="['px-3 py-1.5 rounded-lg text-[11px] font-black uppercase tracking-wider transition-all flex items-center gap-1.5 min-h-[34px] whitespace-nowrap cursor-pointer', ui.tab === 'preview' ? 'bg-blue-600 text-white shadow-md shadow-blue-600/30' : 'text-slate-300 hover:text-white hover:bg-slate-800/60']" title="Xem & In phiếu">
-            <i class="fa-solid fa-eye text-xs"></i>
+          <button v-if="formStore.customer.name || formStore.id" @click="ui.tab = 'preview'" :class="['px-3 py-1.5 rounded-lg text-[11px] font-black uppercase tracking-wider transition-all flex items-center gap-1.5 min-h-[34px] whitespace-nowrap cursor-pointer', ui.tab === 'preview' ? 'bg-blue-600 text-white shadow-md shadow-blue-600/30' : 'text-slate-300 hover:text-white hover:bg-slate-800/60']" title="Xem & In phiếu Cukcuk K80">
+            <i class="fa-solid fa-eye text-xs text-cyan-300"></i>
             <span>Xem Phiếu</span>
           </button>
         </div>
 
         <div class="h-4 w-[1px] bg-slate-700/50 mx-0.5"></div>
 
-        <!-- Hub 2: Quản Lý & Lịch Sử -->
-        <div class="flex items-center gap-1 bg-slate-900/60 p-1 rounded-xl border border-slate-700/30">
-          <button @click="ui.tab = 'dashboard'" :class="['px-3 py-1.5 rounded-lg text-[11px] font-black uppercase tracking-wider transition-all flex items-center gap-1.5 min-h-[34px] whitespace-nowrap cursor-pointer', ui.tab === 'dashboard' ? 'bg-blue-600 text-white shadow-md shadow-blue-600/30' : 'text-slate-300 hover:text-white hover:bg-slate-800/60']" title="Bảng tổng quan số liệu">
-            <i class="fa-solid fa-gauge-high text-xs"></i>
+        <!-- Phân hệ 2: ĐIỀU PHỐI CA TRỰC TIẾP (Live Shift Operations) -->
+        <div class="flex items-center gap-1 bg-slate-900/70 p-1 rounded-xl border border-emerald-500/20 shadow-sm">
+          <button @click="ui.tab = 'timeline'; appStore.loadHistory(false)" :class="['px-3.5 py-1.5 rounded-lg text-[11px] font-black uppercase tracking-wider transition-all flex items-center gap-1.5 min-h-[34px] whitespace-nowrap cursor-pointer', ui.tab === 'timeline' ? 'bg-gradient-to-r from-emerald-600 to-teal-600 text-white shadow-md shadow-emerald-600/30' : 'text-slate-300 hover:text-white hover:bg-slate-800/60']" title="Lịch bàn tiệc theo khung giờ">
+            <i class="fa-solid fa-calendar-days text-xs text-emerald-300"></i>
+            <span>Lịch Bàn</span>
+          </button>
+          <button @click="ui.showFloorPlan = true" class="px-3 py-1.5 rounded-lg text-[11px] font-black uppercase tracking-wider transition-all flex items-center gap-1.5 min-h-[34px] whitespace-nowrap text-slate-300 hover:text-white hover:bg-slate-800/60 cursor-pointer" title="Sơ đồ mặt bằng phòng & bàn (Khu A, C, VIP)">
+            <i class="fa-solid fa-map text-xs text-amber-300"></i>
+            <span>Sơ Đồ Bàn</span>
+          </button>
+          <button @click="ui.tab = 'dashboard'" :class="['px-3 py-1.5 rounded-lg text-[11px] font-black uppercase tracking-wider transition-all flex items-center gap-1.5 min-h-[34px] whitespace-nowrap cursor-pointer', ui.tab === 'dashboard' ? 'bg-emerald-600 text-white shadow-md shadow-emerald-600/30' : 'text-slate-300 hover:text-white hover:bg-slate-800/60']" title="Bảng tổng quan ca trực">
+            <i class="fa-solid fa-gauge-high text-xs text-teal-300"></i>
             <span>Tổng Quan</span>
-          </button>
-          <button @click="ui.tab = 'history'; appStore.loadHistory(false)" :class="['px-3 py-1.5 rounded-lg text-[11px] font-black uppercase tracking-wider transition-all flex items-center gap-1.5 min-h-[34px] whitespace-nowrap cursor-pointer', ui.tab === 'history' ? 'bg-blue-600 text-white shadow-md shadow-blue-600/30' : 'text-slate-300 hover:text-white hover:bg-slate-800/60']" title="Danh sách lịch sử đặt bàn">
-            <i class="fa-solid fa-list-ul text-xs"></i>
-            <span>Lịch Sử</span>
-          </button>
-          <button @click="ui.tab = 'analytics'; appStore.loadHistory(false)" :class="['px-3 py-1.5 rounded-lg text-[11px] font-black uppercase tracking-wider transition-all flex items-center gap-1.5 min-h-[34px] whitespace-nowrap cursor-pointer', ui.tab === 'analytics' ? 'bg-blue-600 text-white shadow-md shadow-blue-600/30' : 'text-slate-300 hover:text-white hover:bg-slate-800/60']" title="Báo cáo & thống kê">
-            <i class="fa-solid fa-chart-pie text-xs"></i>
-            <span>Báo Cáo</span>
           </button>
         </div>
 
         <div class="h-4 w-[1px] bg-slate-700/50 mx-0.5"></div>
 
-        <!-- Hub 3: Social AI Bot & Link Đặt Bàn Khách -->
-        <button @click="ui.showSocialBotModal = true" class="px-3 py-1.5 rounded-xl text-[11px] font-black uppercase tracking-wider transition-all flex items-center gap-1.5 min-h-[34px] whitespace-nowrap text-amber-300 hover:text-white hover:bg-amber-500/20 bg-slate-900/80 border border-amber-400/40 shadow-sm cursor-pointer" title="Quản lý Messenger Live Chat AI">
-          <i class="fa-solid fa-robot text-amber-400 animate-pulse text-xs"></i>
-          <span>Social Bot</span>
-        </button>
-
-        <!-- Link Đặt Bàn Khách -->
-        <button @click="copyCustomerBookingLink" class="px-2.5 py-1.5 rounded-xl text-[11px] font-bold transition-all flex items-center gap-1.5 min-h-[34px] whitespace-nowrap text-emerald-300 hover:text-white hover:bg-emerald-500/20 bg-slate-900/80 border border-emerald-500/40 shadow-sm cursor-pointer" title="Sao chép link Đặt bàn Online gửi cho khách hàng">
-          <i class="fa-solid fa-link text-emerald-400 text-xs"></i>
-          <span>Link Khách</span>
-        </button>
-
-        <div class="h-4 w-[1px] bg-slate-700/50 mx-0.5"></div>
-
-        <!-- Hub 4: Tools & Logs -->
-        <div class="flex items-center gap-1 bg-slate-900/60 p-1 rounded-xl border border-slate-700/30">
-          <button @click="ui.tab = 'test'" :class="['px-2.5 py-1.5 rounded-lg text-[11px] font-black uppercase tracking-wider transition-all flex items-center gap-1 min-h-[34px] whitespace-nowrap cursor-pointer', ui.tab === 'test' ? 'bg-purple-600 text-white shadow-md' : 'text-slate-400 hover:text-white hover:bg-slate-800/60']" title="Kiểm thử AI & Parser">
-            <i class="fa-solid fa-flask text-xs"></i>
-            <span>Kiểm Thử</span>
+        <!-- Phân hệ 3: KHÁCH HÀNG & DỮ LIỆU (CRM & Analytics Hub) -->
+        <div class="flex items-center gap-1 bg-slate-900/70 p-1 rounded-xl border border-purple-500/20 shadow-sm">
+          <button @click="ui.tab = 'history'; appStore.loadHistory(false)" :class="['px-3 py-1.5 rounded-lg text-[11px] font-black uppercase tracking-wider transition-all flex items-center gap-1.5 min-h-[34px] whitespace-nowrap cursor-pointer', ui.tab === 'history' ? 'bg-gradient-to-r from-purple-600 to-indigo-600 text-white shadow-md shadow-purple-600/30' : 'text-slate-300 hover:text-white hover:bg-slate-800/60']" title="Danh sách lịch sử đặt bàn">
+            <i class="fa-solid fa-list-ul text-xs text-purple-300"></i>
+            <span>Lịch Sử</span>
           </button>
-          <button @click="ui.tab = 'logs'" :class="['px-2.5 py-1.5 rounded-lg text-[11px] font-black uppercase tracking-wider transition-all flex items-center gap-1 min-h-[34px] whitespace-nowrap cursor-pointer', ui.tab === 'logs' ? 'bg-purple-600 text-white shadow-md' : 'text-slate-400 hover:text-white hover:bg-slate-800/60']" title="Nhật ký hoạt động">
-            <i class="fa-solid fa-terminal text-xs"></i>
-            <span>Log</span>
+          <button @click="ui.tab = 'analytics'; appStore.loadHistory(false)" :class="['px-3 py-1.5 rounded-lg text-[11px] font-black uppercase tracking-wider transition-all flex items-center gap-1.5 min-h-[34px] whitespace-nowrap cursor-pointer', ui.tab === 'analytics' ? 'bg-purple-600 text-white shadow-md shadow-purple-600/30' : 'text-slate-300 hover:text-white hover:bg-slate-800/60']" title="Báo cáo doanh số & phân tích">
+            <i class="fa-solid fa-chart-pie text-xs text-indigo-300"></i>
+            <span>Báo Cáo</span>
+          </button>
+          <button @click="ui.showSocialBotModal = true" class="px-2.5 py-1.5 rounded-lg text-[11px] font-black uppercase tracking-wider transition-all flex items-center gap-1.5 min-h-[34px] whitespace-nowrap text-amber-300 hover:text-white hover:bg-amber-500/20 cursor-pointer" title="Quản lý Live Chat Fanpage AI">
+            <i class="fa-solid fa-robot text-amber-400 animate-pulse text-xs"></i>
+            <span>Social Bot</span>
+          </button>
+          <button @click="copyCustomerBookingLink" class="px-2.5 py-1.5 rounded-lg text-[11px] font-bold transition-all flex items-center gap-1.5 min-h-[34px] whitespace-nowrap text-emerald-300 hover:text-white hover:bg-emerald-500/20 cursor-pointer" title="Sao chép link Đặt bàn Online gửi cho khách hàng">
+            <i class="fa-solid fa-link text-emerald-400 text-xs"></i>
+            <span>Link Khách</span>
           </button>
         </div>
       </div>
@@ -583,24 +573,30 @@ function goToTomorrowTimeline() {
                 <i class="fa-solid fa-chevron-right text-slate-400 text-xs"></i>
               </button>
 
-              <!-- Group 1: Quản lý & Báo cáo -->
+              <!-- Group 1: Quản lý & Vận hành -->
               <div>
-                <div class="text-[10px] font-black text-slate-400 uppercase tracking-wider mb-2 pl-1">Quản lý & Báo cáo</div>
-                <div class="grid grid-cols-3 gap-2.5">
-                  <button @click="ui.tab = 'analytics'; appStore.loadHistory(false); showMoreSheet = false" class="bg-slate-50 text-slate-700 p-2.5 rounded-2xl font-bold text-[11px] hover:bg-slate-100 transition-all active:scale-95 flex flex-col items-center justify-center gap-1.5 border border-slate-100">
-                    <div class="w-9 h-9 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center text-base">
-                      <i class="fa-solid fa-chart-pie"></i>
+                <div class="text-[10px] font-black text-slate-400 uppercase tracking-wider mb-2 pl-1">Vận hành & Lịch sử</div>
+                <div class="grid grid-cols-4 gap-2">
+                  <button @click="ui.showFloorPlan = true; showMoreSheet = false" class="bg-slate-50 text-slate-700 p-2 rounded-2xl font-bold text-[10px] hover:bg-slate-100 transition-all active:scale-95 flex flex-col items-center justify-center gap-1.5 border border-slate-100">
+                    <div class="w-8 h-8 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center text-sm">
+                      <i class="fa-solid fa-map"></i>
                     </div>
-                    <span>Báo cáo</span>
+                    <span>Sơ đồ bàn</span>
                   </button>
-                  <button @click="ui.tab = 'history'; appStore.loadHistory(false); showMoreSheet = false" class="bg-slate-50 text-slate-700 p-2.5 rounded-2xl font-bold text-[11px] hover:bg-slate-100 transition-all active:scale-95 flex flex-col items-center justify-center gap-1.5 border border-slate-100">
-                    <div class="w-9 h-9 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center text-base">
+                  <button @click="ui.tab = 'history'; appStore.loadHistory(false); showMoreSheet = false" class="bg-slate-50 text-slate-700 p-2 rounded-2xl font-bold text-[10px] hover:bg-slate-100 transition-all active:scale-95 flex flex-col items-center justify-center gap-1.5 border border-slate-100">
+                    <div class="w-8 h-8 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center text-sm">
                       <i class="fa-solid fa-list-ul"></i>
                     </div>
                     <span>Lịch sử</span>
                   </button>
-                  <button @click="ui.showSettingsHub = true; showMoreSheet = false" class="bg-slate-50 text-slate-700 p-2.5 rounded-2xl font-bold text-[11px] hover:bg-slate-100 transition-all active:scale-95 flex flex-col items-center justify-center gap-1.5 border border-slate-100">
-                    <div class="w-9 h-9 rounded-xl bg-slate-100 text-slate-600 flex items-center justify-center text-base">
+                  <button @click="ui.tab = 'analytics'; appStore.loadHistory(false); showMoreSheet = false" class="bg-slate-50 text-slate-700 p-2 rounded-2xl font-bold text-[10px] hover:bg-slate-100 transition-all active:scale-95 flex flex-col items-center justify-center gap-1.5 border border-slate-100">
+                    <div class="w-8 h-8 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center text-sm">
+                      <i class="fa-solid fa-chart-pie"></i>
+                    </div>
+                    <span>Báo cáo</span>
+                  </button>
+                  <button @click="ui.showSettingsHub = true; showMoreSheet = false" class="bg-slate-50 text-slate-700 p-2 rounded-2xl font-bold text-[10px] hover:bg-slate-100 transition-all active:scale-95 flex flex-col items-center justify-center gap-1.5 border border-slate-100">
+                    <div class="w-8 h-8 rounded-xl bg-slate-100 text-slate-600 flex items-center justify-center text-sm">
                       <i class="fa-solid fa-gear"></i>
                     </div>
                     <span>Cài đặt</span>
