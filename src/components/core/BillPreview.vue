@@ -300,94 +300,89 @@ function openZaloChat() {
       'flex md:hidden flex-col border-b shrink-0 z-[120] shadow-sm transition-colors duration-250 w-full relative',
       isFullscreen ? 'bg-slate-900 border-slate-800 text-white' : 'bg-white border-slate-200 text-slate-700'
     ]">
-      <!-- Row 1: Back, Title, Status, More button -->
-      <div class="px-3 py-2 flex items-center justify-between gap-2 border-b border-slate-100/50">
+      <!-- Row 1: Back, Title, Status, More button (All min 44-48px hit areas) -->
+      <div class="px-3 py-2 flex items-center justify-between gap-2 border-b border-slate-100/60">
         <div class="flex items-center gap-2">
-          <button @click="ui.tab = 'create'" class="w-8 h-8 rounded-xl bg-slate-100 flex items-center justify-center hover:bg-slate-200 transition-colors text-slate-700">
+          <button @click="ui.tab = 'create'" class="w-10 h-10 rounded-xl bg-slate-100 flex items-center justify-center hover:bg-slate-200 transition-colors text-slate-700 active:scale-95" aria-label="Quay lại tạo đơn">
             <i class="fa-solid fa-arrow-left text-sm"></i>
           </button>
-          <span class="font-black text-slate-800 text-[11px] uppercase tracking-wider">Phiếu đặt</span>
+          <span class="font-black text-slate-800 text-xs uppercase tracking-wider">Phiếu đặt</span>
           <span :class="[
-            'px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider shadow-sm',
+            'px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider shadow-xs',
             formStore.deposit.isPaid 
-              ? 'bg-emerald-500/10 text-emerald-550 border border-emerald-500/20' 
-              : 'bg-amber-500/10 text-amber-550 border border-amber-500/20'
+              ? 'bg-emerald-500/15 text-emerald-700 border border-emerald-500/25' 
+              : 'bg-amber-500/15 text-amber-700 border border-amber-500/25'
           ]">
-            {{ formStore.deposit.isPaid ? 'Đã cọc' : 'Chưa cọc' }}
+            {{ formStore.deposit.isPaid ? '✓ Đã cọc' : 'Chưa cọc' }}
           </span>
         </div>
         
-        <!-- More Actions Dropdown Toggle -->
-        <div class="relative">
-          <button @click="showMoreMenu = !showMoreMenu" class="w-8 h-8 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-650 flex items-center justify-center transition-all">
+        <!-- More Actions Dropdown Toggle (min 44px) -->
+        <div class="relative flex items-center gap-1.5">
+          <button @click="setZoomMode('fit-width')" class="px-2.5 py-2 rounded-xl text-[10px] font-black text-slate-600 bg-slate-100 hover:bg-slate-200 transition-all active:scale-95 min-h-[40px] flex items-center gap-1" title="Vừa chiều ngang">
+            <i class="fa-solid fa-arrows-left-right text-xs"></i> Vừa ngang
+          </button>
+          <button @click="showMoreMenu = !showMoreMenu" class="w-10 h-10 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 flex items-center justify-center transition-all active:scale-95" aria-label="Menu thêm">
             <i class="fa-solid fa-ellipsis-vertical text-sm"></i>
           </button>
           
           <!-- Dropdown Menu -->
-          <div v-show="showMoreMenu" class="absolute right-0 top-full mt-2 w-48 bg-white border border-slate-200 rounded-2xl shadow-2xl z-50 py-2 animate-in fade-in slide-in-from-top-2 duration-150 text-slate-700">
-            <button @click="copyBookingConfirmation(); showMoreMenu = false" class="w-full px-4 py-2.5 text-left text-xs font-black uppercase tracking-wider hover:bg-slate-50 active:bg-slate-100 flex items-center gap-2">
-              <i class="fa-solid fa-copy text-slate-400 w-4 text-center text-xs"></i> Copy tin nhắn
+          <div v-show="showMoreMenu" class="absolute right-0 top-full mt-2 w-52 bg-white border border-slate-200 rounded-2xl shadow-2xl z-50 py-2 animate-in fade-in slide-in-from-top-2 duration-150 text-slate-700">
+            <button @click="copyBookingConfirmation(); showMoreMenu = false" class="w-full px-4 py-3 text-left text-xs font-black uppercase tracking-wider hover:bg-slate-50 active:bg-slate-100 flex items-center gap-2.5 min-h-[44px]">
+              <i class="fa-solid fa-copy text-slate-400 w-4 text-center text-sm"></i> Copy tin nhắn
             </button>
-            <button @click="shareCurrentBill(); showMoreMenu = false" class="w-full px-4 py-2.5 text-left text-xs font-black uppercase tracking-wider hover:bg-slate-50 active:bg-slate-100 flex items-center gap-2">
-              <i class="fa-solid fa-link text-slate-400 w-4 text-center text-xs"></i> Chia sẻ link
+            <button @click="shareCurrentBill(); showMoreMenu = false" class="w-full px-4 py-3 text-left text-xs font-black uppercase tracking-wider hover:bg-slate-50 active:bg-slate-100 flex items-center gap-2.5 min-h-[44px]">
+              <i class="fa-solid fa-link text-slate-400 w-4 text-center text-sm"></i> Chia sẻ link
             </button>
-            <button v-if="formStore.billUrl" @click="copyBillImageUrl(); showMoreMenu = false" class="w-full px-4 py-2.5 text-left text-xs font-black uppercase tracking-wider hover:bg-slate-50 active:bg-slate-100 flex items-center gap-2 text-indigo-650">
-              <i class="fa-solid fa-image text-indigo-400 w-4 text-center text-xs"></i> Copy Link Ảnh
+            <button v-if="formStore.billUrl" @click="copyBillImageUrl(); showMoreMenu = false" class="w-full px-4 py-3 text-left text-xs font-black uppercase tracking-wider hover:bg-slate-50 active:bg-slate-100 flex items-center gap-2.5 text-indigo-700 min-h-[44px]">
+              <i class="fa-solid fa-image text-indigo-500 w-4 text-center text-sm"></i> Copy Link Ảnh
             </button>
-            <button @click="openZaloChat(); showMoreMenu = false" class="w-full px-4 py-2.5 text-left text-xs font-black uppercase tracking-wider hover:bg-slate-50 active:bg-slate-100 flex items-center gap-2">
-              <i class="fa-solid fa-comment-dots text-slate-400 w-4 text-center text-xs"></i> Nhắn Zalo
+            <button @click="openZaloChat(); showMoreMenu = false" class="w-full px-4 py-3 text-left text-xs font-black uppercase tracking-wider hover:bg-slate-50 active:bg-slate-100 flex items-center gap-2.5 min-h-[44px]">
+              <i class="fa-solid fa-comment-dots text-slate-400 w-4 text-center text-sm"></i> Nhắn Zalo
             </button>
-            <div class="h-[1px] bg-slate-105 my-1"></div>
-            <button @click="isFullscreen = !isFullscreen; updatePreviewScale(); showMoreMenu = false" class="w-full px-4 py-2.5 text-left text-xs font-black uppercase tracking-wider hover:bg-slate-50 active:bg-slate-100 flex items-center gap-2">
-              <i class="fa-solid text-slate-400 w-4 text-center text-xs" :class="isFullscreen ? 'fa-compress text-blue-600' : 'fa-expand'"></i> 
+            <div class="h-[1px] bg-slate-100 my-1"></div>
+            <!-- Segregated Destructive Deposit Action in More Menu -->
+            <button @click="toggleDepositState(); showMoreMenu = false" class="w-full px-4 py-3 text-left text-xs font-black uppercase tracking-wider flex items-center gap-2.5 min-h-[44px]" :class="formStore.deposit.isPaid ? 'text-rose-600 hover:bg-rose-50' : 'text-emerald-600 hover:bg-emerald-50'">
+              <i class="fa-solid w-4 text-center text-sm" :class="formStore.deposit.isPaid ? 'fa-arrow-rotate-left' : 'fa-circle-check'"></i>
+              {{ formStore.deposit.isPaid ? 'Hủy trạng thái cọc' : 'Xác nhận cọc' }}
+            </button>
+            <div class="h-[1px] bg-slate-100 my-1"></div>
+            <button @click="isFullscreen = !isFullscreen; updatePreviewScale(); showMoreMenu = false" class="w-full px-4 py-3 text-left text-xs font-black uppercase tracking-wider hover:bg-slate-50 active:bg-slate-100 flex items-center gap-2.5 min-h-[44px]">
+              <i class="fa-solid text-slate-400 w-4 text-center text-sm" :class="isFullscreen ? 'fa-compress text-blue-600' : 'fa-expand'"></i> 
               {{ isFullscreen ? 'Thoát Tràn Viền' : 'Xem Tràn Viền' }}
             </button>
           </div>
         </div>
       </div>
 
-      <!-- Row 2: Main action buttons grid -->
-      <div class="px-3 py-1.5 flex items-center justify-between gap-1.5 border-b border-slate-100/50 bg-slate-550/5">
-        <!-- Confirm/Cancel Deposit -->
-        <button @click="toggleDepositState" :class="[
-          'flex-grow py-2 rounded-xl font-black text-[9px] uppercase tracking-wider flex items-center justify-center gap-1 shadow-sm active:scale-95 border transition-all',
-          formStore.deposit.isPaid 
-            ? 'bg-red-50 hover:bg-red-100 text-red-700 border-red-200' 
-            : 'bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border-emerald-200'
-        ]">
-          <i class="fa-solid text-[9px]" :class="formStore.deposit.isPaid ? 'fa-xmark' : 'fa-check'"></i>
-          <span>{{ formStore.deposit.isPaid ? 'Hủy cọc' : 'Xác nhận cọc' }}</span>
-        </button>
-
+      <!-- Row 2: Clean Export Actions (PNG, PDF, Share) — min 44-48px height, destructive action segregated! -->
+      <div class="px-3 py-2 flex items-center justify-between gap-2 border-b border-slate-100/50 bg-slate-50/50">
         <!-- PNG -->
-        <button @click="triggerSave('image')" class="px-3 py-2 bg-indigo-600 text-white rounded-xl font-black text-[9px] uppercase tracking-wider flex items-center justify-center gap-1 shadow-md active:scale-95 transition-all">
-          <i class="fa-solid fa-image text-[9px]"></i> <span>PNG</span>
+        <button @click="triggerSave('image')" class="flex-1 min-h-[44px] bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-black text-xs uppercase tracking-wider flex items-center justify-center gap-1.5 shadow-sm active:scale-95 transition-all">
+          <i class="fa-solid fa-image text-xs"></i> <span>Tải PNG</span>
         </button>
 
         <!-- PDF -->
-        <button @click="triggerSave('pdf')" class="px-3 py-2 bg-rose-600 text-white rounded-xl font-black text-[9px] uppercase tracking-wider flex items-center justify-center gap-1 shadow-md active:scale-95 transition-all">
-          <i class="fa-solid fa-file-pdf text-[9px]"></i> <span>PDF</span>
+        <button @click="triggerSave('pdf')" class="flex-1 min-h-[44px] bg-rose-600 hover:bg-rose-700 text-white rounded-xl font-black text-xs uppercase tracking-wider flex items-center justify-center gap-1.5 shadow-sm active:scale-95 transition-all">
+          <i class="fa-solid fa-file-pdf text-xs"></i> <span>Tải PDF</span>
         </button>
 
-        <!-- Fit Width -->
-        <button @click="setZoomMode('fit-width')" :class="[
-          'px-2.5 py-2 rounded-xl font-black text-[9px] uppercase tracking-wider flex items-center justify-center gap-1 transition-all active:scale-95 border',
-          zoomMode === 'fit-width' ? 'bg-blue-600 text-white border-blue-650 shadow-sm' : 'bg-white hover:bg-slate-100 border-slate-200 text-slate-500'
-        ]">
-          <span>Vừa màn hình</span>
+        <!-- Share Link -->
+        <button @click="shareCurrentBill" class="min-h-[44px] px-3.5 bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 rounded-xl font-black text-xs uppercase tracking-wider flex items-center justify-center gap-1.5 shadow-xs active:scale-95 transition-all">
+          <i class="fa-solid fa-share-nodes text-xs text-blue-600"></i> <span>Gửi link</span>
         </button>
       </div>
 
-      <!-- Row 3: Zoom Controls -->
-      <div class="px-3 py-1 flex items-center justify-center gap-4 bg-slate-50/50">
-        <button @click="adjustZoom(-0.1)" class="w-6 h-6 rounded-full flex items-center justify-center hover:bg-slate-200 text-slate-650 transition-colors">
-          <i class="fa-solid fa-minus text-[10px]"></i>
+      <!-- Row 3: Compact Zoom Controls -->
+      <div class="px-3 py-1.5 flex items-center justify-center gap-4 bg-slate-50/70 border-t border-slate-100/40">
+        <button @click="adjustZoom(-0.1)" class="w-8 h-8 rounded-full flex items-center justify-center hover:bg-slate-200 text-slate-650 transition-colors active:scale-90" aria-label="Thu nhỏ">
+          <i class="fa-solid fa-minus text-xs"></i>
         </button>
-        <span class="text-[9px] font-black text-slate-500 uppercase tracking-widest">
-          Zoom: {{ Math.round(zoomScale * 100) }}%
+        <span class="text-[10px] font-black text-slate-600 uppercase tracking-widest font-tabular">
+          {{ Math.round(zoomScale * 100) }}%
         </span>
-        <button @click="adjustZoom(0.1)" class="w-6 h-6 rounded-full flex items-center justify-center hover:bg-slate-200 text-slate-650 transition-colors">
-          <i class="fa-solid fa-plus text-[10px]"></i>
+        <button @click="adjustZoom(0.1)" class="w-8 h-8 rounded-full flex items-center justify-center hover:bg-slate-200 text-slate-650 transition-colors active:scale-90" aria-label="Phóng to">
+          <i class="fa-solid fa-plus text-xs"></i>
         </button>
       </div>
     </div>

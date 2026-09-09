@@ -70,10 +70,75 @@ body.customer-booking-mode #app {
     pointer-events: none;
 }
 
-/* --- THEMES --- */
+/* --- THEMES & SEMANTIC DESIGN TOKENS --- */
 :root {
     --app-height: 100%;
-    /* Default: Blue Theme */
+
+    /* Typography */
+    --font-sans: 'Be Vietnam Pro', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    --font-display: 'Outfit', 'Be Vietnam Pro', sans-serif;
+
+    /* Spacing Scale (4px base) */
+    --space-0-5: 2px;
+    --space-1: 4px;
+    --space-2: 8px;
+    --space-3: 12px;
+    --space-4: 16px;
+    --space-5: 20px;
+    --space-6: 24px;
+    --space-8: 32px;
+    --space-10: 40px;
+    --space-12: 48px;
+    --space-16: 64px;
+
+    /* Border Radius */
+    --radius-xs: 4px;
+    --radius-sm: 6px;
+    --radius-md: 8px;
+    --radius-lg: 12px;
+    --radius-xl: 16px;
+    --radius-2xl: 24px;
+    --radius-full: 9999px;
+
+    /* Surfaces & Backgrounds (Light Mode) */
+    --bg-app: #f8fafc;
+    --bg-surface: #ffffff;
+    --bg-surface-elevated: #ffffff;
+    --bg-muted: #f1f5f9;
+    --bg-input: #ffffff;
+
+    /* Text Colors */
+    --text-primary: #0f172a;
+    --text-secondary: #475569;
+    --text-muted: #94a3b8;
+
+    /* Borders */
+    --border-subtle: #e2e8f0;
+    --border-strong: #cbd5e1;
+
+    /* Semantic Brand & Accents */
+    --primary: #2563eb;
+    --primary-hover: #1d4ed8;
+    --primary-subtle: rgba(37, 99, 235, 0.08);
+
+    --success: #10b981;
+    --success-hover: #059669;
+    --success-subtle: rgba(16, 185, 129, 0.1);
+
+    --warning: #f59e0b;
+    --warning-hover: #d97706;
+    --warning-subtle: rgba(245, 158, 11, 0.1);
+
+    --danger: #ef4444;
+    --danger-hover: #dc2626;
+    --danger-subtle: rgba(239, 68, 68, 0.1);
+
+    /* Elevation Shadows */
+    --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+    --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.07), 0 2px 4px -2px rgba(0, 0, 0, 0.05);
+    --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.08), 0 4px 6px -4px rgba(0, 0, 0, 0.04);
+
+    /* Default: Blue Theme Palette for Tailwind extended colors */
     --color-primary-50: 239 246 255;
     --color-primary-100: 219 234 254;
     --color-primary-200: 191 219 254;
@@ -83,16 +148,50 @@ body.customer-booking-mode #app {
     --color-primary-600: 37 99 235;
     --color-primary-700: 29 78 216;
     --color-primary-800: 30 64 175;
-    --color-primary-900: 26 35 126; /* Custom #1A237E */
+    --color-primary-900: 26 35 126;
     --color-primary-950: 23 37 84;
 
     --accent: #22C55E;
-    --success: #10b981;
-    --warning: #f59e0b;
-    --danger: #ef4444;
     --glass: rgba(255, 255, 255, 0.85);
     --border-radius-xl: 1.5rem;
     --border-radius-2xl: 2rem;
+}
+
+/* --- TRUE DARK MODE TOKENS --- */
+.dark, .dark-theme {
+    --bg-app: #090d16;
+    --bg-surface: #0f172a;
+    --bg-surface-elevated: #1e293b;
+    --bg-muted: #1a2234;
+    --bg-input: #090d16;
+
+    --text-primary: #f8fafc;
+    --text-secondary: #94a3b8;
+    --text-muted: #64748b;
+
+    --border-subtle: rgba(255, 255, 255, 0.08);
+    --border-strong: rgba(255, 255, 255, 0.16);
+
+    --primary: #3b82f6;
+    --primary-hover: #60a5fa;
+    --primary-subtle: rgba(59, 130, 246, 0.15);
+
+    --success: #10b981;
+    --success-hover: #34d399;
+    --success-subtle: rgba(16, 185, 129, 0.15);
+
+    --warning: #f59e0b;
+    --warning-hover: #fbbf24;
+    --warning-subtle: rgba(245, 158, 11, 0.15);
+
+    --danger: #ef4444;
+    --danger-hover: #f87171;
+    --danger-subtle: rgba(239, 68, 68, 0.15);
+
+    --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.4);
+    --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.5), 0 2px 4px -2px rgba(0, 0, 0, 0.4);
+    --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.6), 0 4px 6px -4px rgba(0, 0, 0, 0.5);
+    --glass: rgba(15, 23, 42, 0.85);
 }
 
 [data-theme="red"] {
@@ -312,13 +411,54 @@ html.haptic-none button:active, html.haptic-none .active-effect:active, html.hap
     50% { box-shadow: 0 0 16px rgba(59, 130, 246, 0.65); }
 }
 body { 
-    font-family: 'Be Vietnam Pro', system-ui, sans-serif; 
-    background-color: #f8fafc; 
-    color: #1F2937;
+    font-family: var(--font-sans), 'Be Vietnam Pro', system-ui, sans-serif; 
+    background-color: var(--bg-app); 
+    color: var(--text-primary);
     overscroll-behavior-y: none; 
     -webkit-font-smoothing: antialiased; 
     -moz-osx-font-smoothing: grayscale;
     text-rendering: optimizeLegibility;
+    transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+/* --- WCAG 2.2 AA REDUCED MOTION SUPPORT --- */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* --- SAAS COMPONENT PRIMITIVES --- */
+.saas-card {
+  background-color: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-sm);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.saas-card:hover {
+  border-color: var(--border-strong);
+}
+.saas-card-elevated {
+  background-color: var(--bg-surface-elevated);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-md);
+}
+.saas-input {
+  background-color: var(--bg-input);
+  border: 1px solid var(--border-subtle);
+  color: var(--text-primary);
+  border-radius: var(--radius-lg);
+  transition: all 0.15s ease;
+}
+.saas-input:focus {
+  outline: 2px solid var(--primary);
+  outline-offset: 1px;
+  border-color: var(--primary);
 }
 
 /* --- UTILS --- */
@@ -1318,5 +1458,71 @@ html.dark-theme .orb {
   50% { transform: translate(100px, 80px) scale(1.2); }
   100% { transform: translate(-60px, -100px) scale(0.85); }
 }
+
+/* --- MOBILE ERGONOMICS & TOUCH TARGET SYSTEM (>= 48px) --- */
+.touch-target-48 {
+  min-height: 48px !important;
+  min-width: 48px !important;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Mobile hit-box expansion without changing visual icon size */
+.touch-hitbox {
+  position: relative;
+}
+.touch-hitbox::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  min-width: 48px;
+  min-height: 48px;
+  width: 100%;
+  height: 100%;
+  pointer-events: auto;
+}
+
+/* Vietnamese-safe Typography & Tabular Numbers */
+.tabular-nums,
+[data-numeric="true"],
+.font-tabular {
+  font-variant-numeric: tabular-nums;
+  -webkit-font-feature-settings: "tnum";
+  font-feature-settings: "tnum";
+}
+
+/* Input font size >= 16px on mobile to prevent iOS Safari auto-zoom */
+@media screen and (max-width: 768px) {
+  input:not([type="checkbox"]):not([type="radio"]),
+  select,
+  textarea {
+    font-size: 16px !important;
+  }
+}
+
+/* Safe-area Inset Utilities */
+.pb-safe {
+  padding-bottom: max(16px, env(safe-area-inset-bottom, 16px));
+}
+.pt-safe {
+  padding-top: max(12px, env(safe-area-inset-top, 12px));
+}
+.h-safe-screen {
+  height: 100dvh;
+}
+
+/* Reduced Motion Support */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
 
 

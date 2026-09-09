@@ -444,81 +444,87 @@ function triggerKitchenPrint() {
           </button>
         </div>
 
-        <!-- Quick Stats Grid -->
-        <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <!-- Quick Stats Grid (font-tabular, clear hierarchy) -->
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4 font-tabular">
           <div class="bg-white rounded-2xl p-4 shadow-sm border border-slate-100 flex flex-col items-center md:items-start">
-            <div class="w-10 h-10 rounded-xl bg-blue-50 text-blue-500 flex items-center justify-center text-lg mb-3"><i class="fa-solid fa-money-bill-trend-up"></i></div>
-            <div class="text-[11px] font-black text-slate-400 uppercase tracking-widest mb-1">Tổng Doanh Thu</div>
-            <div class="text-lg md:text-xl font-black text-blue-900">{{ formatVND(stats.totalRevenue) }}</div>
+            <div class="w-10 h-10 rounded-xl bg-blue-50 text-blue-500 flex items-center justify-center text-lg mb-2.5"><i class="fa-solid fa-money-bill-trend-up"></i></div>
+            <div class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Tổng Doanh Thu</div>
+            <div class="text-lg md:text-xl font-black text-blue-900 font-tabular">{{ formatVND(stats.totalRevenue) }}</div>
           </div>
           
           <div class="bg-white rounded-2xl p-4 shadow-sm border border-slate-100 flex flex-col items-center md:items-start">
-            <div class="w-10 h-10 rounded-xl bg-purple-50 text-purple-500 flex items-center justify-center text-lg mb-3"><i class="fa-solid fa-users"></i></div>
-            <div class="text-[11px] font-black text-slate-400 uppercase tracking-widest mb-1">Tổng Khách</div>
-            <div class="text-lg md:text-xl font-black text-slate-800">{{ stats.totalPax }} <span class="text-xs font-bold text-slate-400 normal-case">khách</span></div>
+            <div class="w-10 h-10 rounded-xl bg-purple-50 text-purple-500 flex items-center justify-center text-lg mb-2.5"><i class="fa-solid fa-users"></i></div>
+            <div class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Tổng Khách</div>
+            <div class="text-lg md:text-xl font-black text-slate-800 font-tabular">{{ stats.totalPax }} <span class="text-xs font-bold text-slate-400 normal-case">khách</span></div>
           </div>
           
           <div class="bg-white rounded-2xl p-4 shadow-sm border border-slate-100 flex flex-col items-center md:items-start">
-            <div class="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-500 flex items-center justify-center text-lg mb-3"><i class="fa-solid fa-file-invoice"></i></div>
-            <div class="text-[11px] font-black text-slate-400 uppercase tracking-widest mb-1">Tổng Đơn</div>
-            <div class="text-lg md:text-xl font-black text-slate-800">{{ stats.totalBookings }} <span class="text-xs font-bold text-slate-400 normal-case">phiếu</span></div>
+            <div class="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-500 flex items-center justify-center text-lg mb-2.5"><i class="fa-solid fa-file-invoice"></i></div>
+            <div class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Tổng Đơn</div>
+            <div class="text-lg md:text-xl font-black text-slate-800 font-tabular">{{ stats.totalBookings }} <span class="text-xs font-bold text-slate-400 normal-case">phiếu</span></div>
           </div>
           
           <div class="bg-white rounded-2xl p-4 shadow-sm border border-slate-100 flex flex-col items-center md:items-start">
-            <div class="w-10 h-10 rounded-xl bg-amber-50 text-amber-500 flex items-center justify-center text-lg mb-3"><i class="fa-solid fa-percent"></i></div>
-            <div class="text-[11px] font-black text-slate-400 uppercase tracking-widest mb-1">Tỷ Lệ Chốt Cọc</div>
-            <div class="text-lg md:text-xl font-black text-slate-800">{{ stats.depositRate }}%</div>
+            <div class="w-10 h-10 rounded-xl bg-amber-50 text-amber-500 flex items-center justify-center text-lg mb-2.5"><i class="fa-solid fa-percent"></i></div>
+            <div class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Tỷ Lệ Chốt Cọc</div>
+            <div class="text-lg md:text-xl font-black text-slate-800 font-tabular">{{ stats.depositRate }}%</div>
           </div>
         </div>
 
         <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          
-          <!-- Top Dishes -->
-          <div class="lg:col-span-1 bg-white rounded-3xl p-6 shadow-sm border border-slate-100 flex flex-col">
-            <h3 class="text-sm font-black text-slate-700 uppercase tracking-wide mb-4 flex items-center gap-2">
+          <!-- Charts Area (Prioritized first on mobile) -->
+          <div class="lg:col-span-2 bg-white rounded-3xl p-5 md:p-7 shadow-sm border border-slate-100 flex flex-col min-h-[300px]">
+            <div class="flex justify-between items-center mb-6">
+              <h3 class="text-xs sm:text-sm font-black text-slate-700 uppercase tracking-wide flex items-center gap-2">
+                <i class="fa-solid fa-chart-simple text-blue-500"></i> Xu hướng doanh thu 7 ngày qua
+              </h3>
+              <span class="text-[10px] font-bold text-slate-400 font-tabular">Đỉnh: {{ formatVND(stats.maxRevenue) }}</span>
+            </div>
+            
+            <div class="flex-1 flex items-end gap-2 md:gap-4 h-[200px] mt-auto relative">
+              <div 
+                v-for="day in stats.last7Days" 
+                :key="day.date" 
+                class="flex-1 flex flex-col items-center gap-2 group h-full cursor-pointer"
+              >
+                <div class="relative w-full flex justify-center flex-1 items-end">
+                  <div class="absolute -top-10 bg-blue-900 text-white text-[10px] font-bold py-1 px-2 rounded opacity-0 group-hover:opacity-100 group-active:opacity-100 transition-opacity whitespace-nowrap pointer-events-none z-20 shadow-lg font-tabular after:content-[''] after:absolute after:top-full after:left-1/2 after:-translate-x-1/2 after:border-4 after:border-transparent after:border-t-blue-900">
+                    {{ formatVND(day.revenue) }}
+                  </div>
+                  <div class="w-full max-w-[36px] bg-slate-100 group-hover:bg-blue-100 rounded-t-lg transition-all duration-300 relative overflow-hidden" 
+                       :style="{ height: `${(day.revenue / stats.maxRevenue) * 100}%`, minHeight: day.revenue > 0 ? '6px' : '2px' }">
+                    <div class="absolute bottom-0 w-full bg-blue-500 rounded-t-lg shadow-[inset_0_2px_4px_rgba(255,255,255,0.3)] transition-all duration-300 group-hover:bg-blue-600" :style="{ height: '100%' }"></div>
+                  </div>
+                </div>
+                <div class="text-[10px] font-bold text-slate-400 group-hover:text-blue-900 transition-colors font-tabular">{{ day.display }}</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Top Dishes (Following trend chart) -->
+          <div class="lg:col-span-1 bg-white rounded-3xl p-5 md:p-6 shadow-sm border border-slate-100 flex flex-col">
+            <h3 class="text-xs sm:text-sm font-black text-slate-700 uppercase tracking-wide mb-4 flex items-center gap-2">
               <i class="fa-solid fa-fire text-orange-500"></i> Top 5 Món Bán Chạy
             </h3>
             
-            <div v-if="stats.topDishes.length > 0" class="space-y-4 flex-1">
+            <div v-if="stats.topDishes.length > 0" class="space-y-3.5 flex-1 font-tabular">
               <div v-for="(dish, index) in stats.topDishes" :key="dish.name" class="flex items-center gap-3">
-                <div class="w-8 h-8 rounded-full flex items-center justify-center font-black text-xs shrink-0" 
+                <div class="w-8 h-8 rounded-full flex items-center justify-center font-black text-xs shrink-0 font-tabular" 
                      :class="index === 0 ? 'bg-amber-100 text-amber-600' : index === 1 ? 'bg-slate-100 text-slate-500' : index === 2 ? 'bg-orange-50 text-orange-400' : 'bg-slate-50 text-slate-400'">
                   {{ index + 1 }}
                 </div>
                 <div class="flex-1 min-w-0">
                   <div class="font-bold text-[13px] text-slate-800 truncate">{{ dish.name }}</div>
-                  <div class="text-[10px] font-bold text-slate-400">{{ dish.qty }} phần</div>
+                  <div class="text-[10px] font-bold text-slate-400 font-tabular">{{ dish.qty }} phần</div>
                 </div>
                 <div class="text-right shrink-0">
-                  <div class="font-black text-blue-900 text-[13px]">{{ formatVND(dish.revenue) }}</div>
+                  <div class="font-black text-blue-900 text-[13px] font-tabular">{{ formatVND(dish.revenue) }}</div>
                 </div>
               </div>
             </div>
             <div v-else class="flex-1 flex flex-col items-center justify-center text-center py-8">
               <i class="fa-solid fa-plate-wheat text-3xl text-slate-200 mb-2"></i>
               <p class="text-xs font-bold text-slate-400">Chưa có dữ liệu món ăn</p>
-            </div>
-          </div>
-
-          <!-- Charts Area -->
-          <div class="lg:col-span-2 bg-white rounded-3xl p-6 md:p-8 shadow-sm border border-slate-100 flex flex-col min-h-[300px]">
-            <h3 class="text-sm font-black text-slate-700 uppercase tracking-wide mb-8 flex items-center gap-2">
-              <i class="fa-solid fa-chart-simple text-blue-500"></i> Xu hướng doanh thu 7 ngày qua
-            </h3>
-            
-            <div class="flex-1 flex items-end gap-2 md:gap-4 h-[200px] mt-auto">
-              <div v-for="day in stats.last7Days" :key="day.date" class="flex-1 flex flex-col items-center gap-2 group h-full">
-                <div class="relative w-full flex justify-center flex-1 items-end">
-                  <div class="absolute -top-10 bg-blue-900 text-white text-[10px] font-bold py-1 px-2 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none z-10 shadow-lg after:content-[''] after:absolute after:top-full after:left-1/2 after:-translate-x-1/2 after:border-4 after:border-transparent after:border-t-blue-900">
-                    {{ formatVND(day.revenue) }}
-                  </div>
-                  <div class="w-full max-w-[40px] bg-slate-100 group-hover:bg-blue-100 rounded-t-lg transition-all duration-500 relative overflow-hidden" 
-                       :style="{ height: `${(day.revenue / stats.maxRevenue) * 100}%`, minHeight: day.revenue > 0 ? '4px' : '2px' }">
-                    <div class="absolute bottom-0 w-full bg-blue-500 rounded-t-lg shadow-[inset_0_2px_4px_rgba(255,255,255,0.3)] transition-all duration-500 group-hover:bg-blue-600" :style="{ height: '100%' }"></div>
-                  </div>
-                </div>
-                <div class="text-[10px] font-bold text-slate-400 group-hover:text-blue-900 transition-colors">{{ day.display }}</div>
-              </div>
             </div>
           </div>
         </div>

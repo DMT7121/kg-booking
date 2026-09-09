@@ -172,46 +172,47 @@ function selectColorTone(name: string) {
 
         <!-- FORM NHẬP THÔNG TIN (DRAFT / REVIEWING / SUBMITTING / FAILED) -->
         <div v-else class="space-y-4 sm:space-y-5">
-          <!-- BRANDING HEADER WITH OFFICIAL WEBAPP LOGO & STYLE -->
-          <header class="bg-white rounded-3xl p-5 sm:p-6 shadow-sm border border-slate-200/80 text-center space-y-3 relative overflow-hidden">
+          <!-- BRANDING HEADER (COMPACT HERO TO BRING FIRST FIELD ABOVE THE FOLD - Spec #20) -->
+          <header class="bg-white rounded-3xl p-4 sm:p-5 shadow-xs border border-slate-200/80 text-center space-y-2 relative overflow-hidden">
             <!-- Subtle background orb -->
-            <div class="absolute -top-10 -right-10 w-36 h-36 bg-blue-500/10 rounded-full blur-2xl pointer-events-none"></div>
+            <div class="absolute -top-10 -right-10 w-32 h-32 bg-blue-500/10 rounded-full blur-2xl pointer-events-none"></div>
 
-            <!-- Logo Webapp Chính Thức -->
-            <div class="flex justify-center">
-              <div class="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl bg-white border border-slate-200 p-2 shadow-md flex items-center justify-center transform hover:scale-105 transition duration-300">
+            <div class="flex items-center justify-center gap-3">
+              <!-- Compact Logo -->
+              <div class="w-11 h-11 sm:w-14 sm:h-14 rounded-xl bg-white border border-slate-200 p-1.5 shadow-xs flex items-center justify-center shrink-0">
                 <img src="/favicon.svg" :alt="RESTAURANT_NAME" class="w-full h-full object-contain" />
+              </div>
+
+              <div class="text-left">
+                <!-- Restaurant Name Badge -->
+                <div class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-blue-50 border border-blue-200 text-blue-700 text-[10px] font-black tracking-widest uppercase shadow-xs">
+                  <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                  <span>{{ RESTAURANT_NAME }}</span>
+                </div>
+                <h1 class="text-lg sm:text-2xl font-black tracking-tight text-slate-900 uppercase font-display leading-tight mt-0.5">
+                  Đặt bàn online
+                </h1>
               </div>
             </div>
 
-            <!-- Restaurant Name Badge -->
-            <div class="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-blue-50 border border-blue-200 text-blue-700 text-xs font-black tracking-widest uppercase shadow-sm">
-              <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-              <span>{{ RESTAURANT_NAME }}</span>
-            </div>
-
-            <h1 class="text-2xl sm:text-3xl font-black tracking-tight text-slate-900 uppercase font-display">
-              Đặt bàn online
-            </h1>
-
-            <p class="text-xs sm:text-sm text-slate-600 max-w-md mx-auto leading-relaxed">
-              Quý khách chỉ mất 1 phút gửi thông tin. Nhân viên <strong class="text-blue-700">{{ RESTAURANT_NAME }}</strong> sẽ kiểm tra bàn và gọi lại xác nhận ngay!
+            <p class="text-[11px] sm:text-xs text-slate-500 max-w-md mx-auto leading-relaxed">
+              Điền thông tin trong 1 phút — Nhà hàng kiểm tra bàn và gọi lại xác nhận ngay!
             </p>
 
-            <!-- Step Progress Indicator -->
-            <div class="flex items-center justify-center gap-2 pt-2 text-[11px] text-slate-500">
-              <span class="flex items-center gap-1.5 text-blue-600 font-bold">
-                <span class="w-5 h-5 rounded-full bg-blue-600 text-white flex items-center justify-center text-[10px] font-black">1</span>
+            <!-- Compact Step Progress Indicator -->
+            <div class="flex items-center justify-center gap-2 pt-1 text-[10px] text-slate-500 font-tabular">
+              <span class="flex items-center gap-1 text-blue-600 font-bold">
+                <span class="w-4 h-4 rounded-full bg-blue-600 text-white flex items-center justify-center text-[9px] font-black">1</span>
                 Điền thông tin
               </span>
               <span class="text-slate-300">———</span>
-              <span class="flex items-center gap-1.5">
-                <span class="w-5 h-5 rounded-full bg-slate-100 border border-slate-200 text-slate-500 flex items-center justify-center text-[10px] font-bold">2</span>
+              <span class="flex items-center gap-1">
+                <span class="w-4 h-4 rounded-full bg-slate-100 border border-slate-200 text-slate-500 flex items-center justify-center text-[9px] font-bold">2</span>
                 Xem lại
               </span>
               <span class="text-slate-300">———</span>
-              <span class="flex items-center gap-1.5">
-                <span class="w-5 h-5 rounded-full bg-slate-100 border border-slate-200 text-slate-500 flex items-center justify-center text-[10px] font-bold">3</span>
+              <span class="flex items-center gap-1">
+                <span class="w-4 h-4 rounded-full bg-slate-100 border border-slate-200 text-slate-500 flex items-center justify-center text-[9px] font-bold">3</span>
                 Nhận phiếu
               </span>
             </div>

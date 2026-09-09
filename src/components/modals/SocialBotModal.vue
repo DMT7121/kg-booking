@@ -527,12 +527,12 @@ function saveBotConfig() {
                 <button
                   v-for="conv in conversations"
                   :key="conv.id"
-                  @click="selectedConvId = conv.id"
-                  :class="['w-full p-3 text-left flex items-start gap-3 transition-colors relative', selectedConvId === conv.id ? 'bg-blue-50/80 border-l-4 border-blue-600' : 'hover:bg-slate-50']"
+                  @click="selectedConvId = conv.id; mobileShowDetail = true"
+                  :class="['w-full p-3.5 text-left flex items-start gap-3 transition-colors relative min-h-[64px]', selectedConvId === conv.id ? 'bg-blue-50/80 border-l-4 border-blue-600' : 'hover:bg-slate-50 active:bg-slate-100']"
                 >
                   <div class="relative shrink-0">
-                    <img :src="conv.avatar" class="w-9 h-9 rounded-full bg-slate-100 border border-slate-200" alt="Avatar" />
-                    <span class="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full bg-white flex items-center justify-center text-[9px] shadow-sm">
+                    <img :src="conv.avatar" class="w-10 h-10 rounded-full bg-slate-100 border border-slate-200" alt="Avatar" />
+                    <span class="absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-full bg-white flex items-center justify-center text-[10px] shadow-xs">
                       <i class="fa-brands fa-facebook-messenger text-blue-500"></i>
                     </span>
                   </div>
@@ -540,7 +540,7 @@ function saveBotConfig() {
                   <div class="flex-1 min-w-0">
                     <div class="flex items-center justify-between mb-0.5">
                       <h4 class="font-black text-slate-800 text-xs truncate">{{ conv.customerName }}</h4>
-                      <span class="text-[9px] font-bold text-slate-400 shrink-0">{{ conv.timestamp }}</span>
+                      <span class="text-[9px] font-bold text-slate-400 shrink-0 font-tabular">{{ conv.timestamp }}</span>
                     </div>
                     <p class="text-[11px] font-medium text-slate-500 truncate leading-tight mb-1">{{ conv.lastMessage }}</p>
 
@@ -561,36 +561,37 @@ function saveBotConfig() {
               <!-- CLEAN CHAT HEADER (SINGLE COMPACT ROW) -->
               <div class="p-2.5 md:p-3 bg-white border-b border-slate-200 flex items-center justify-between shrink-0 shadow-xs gap-2 z-10">
                 
-                <!-- Left Info & Mobile Back -->
+                <!-- Left Info & Mobile Back (min 44px target) -->
                 <div class="flex items-center gap-2 min-w-0">
                   <button 
                     @click="mobileShowDetail = false"
-                    class="md:hidden px-2 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-bold flex items-center gap-1 shrink-0 border border-slate-200"
+                    class="md:hidden min-h-[44px] px-3 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold flex items-center gap-1.5 shrink-0 border border-slate-200 active:scale-95"
+                    aria-label="Quay lại danh sách hội thoại"
                   >
-                    <i class="fa-solid fa-chevron-left text-[10px]"></i>
+                    <i class="fa-solid fa-chevron-left text-xs"></i>
                     <span>Danh sách</span>
                   </button>
                   
-                  <img :src="selectedConv.avatar" class="w-8 h-8 md:w-9 md:h-9 rounded-full bg-slate-100 border border-slate-200 shrink-0" />
+                  <img :src="selectedConv.avatar" class="w-9 h-9 md:w-10 md:h-10 rounded-full bg-slate-100 border border-slate-200 shrink-0" />
                   
                   <div class="min-w-0">
                     <h3 class="font-black text-slate-900 text-xs md:text-sm flex items-center gap-1 truncate">
                       {{ selectedConv.customerName }}
                       <i class="fa-brands fa-facebook-messenger text-blue-500 text-xs"></i>
                     </h3>
-                    <p class="text-[9px] font-bold text-slate-400 truncate hidden sm:block">PSID: {{ selectedConv.psid }}</p>
+                    <p class="text-[9px] font-bold text-slate-400 truncate hidden sm:block font-tabular">PSID: {{ selectedConv.psid }}</p>
                   </div>
                 </div>
 
-                <!-- Right Action Toolbar (Compact Pill Buttons) -->
-                <div class="flex items-center gap-1 shrink-0">
+                <!-- Right Action Toolbar (min 40-44px buttons) -->
+                <div class="flex items-center gap-1.5 shrink-0">
                   <!-- Copy Name Button -->
                   <button 
                     @click="copyCustomerName(selectedConv.customerName)"
-                    class="px-2 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-[10px] font-bold flex items-center gap-1 border border-slate-200 active:scale-95"
+                    class="min-h-[40px] px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-[10px] font-bold flex items-center gap-1 border border-slate-200 active:scale-95"
                     title="Copy tên Facebook chuẩn"
                   >
-                    <i class="fa-solid fa-copy text-[9px] text-slate-500"></i>
+                    <i class="fa-solid fa-copy text-[10px] text-slate-500"></i>
                     <span class="hidden sm:inline">Copy</span>
                   </button>
                   
@@ -598,10 +599,10 @@ function saveBotConfig() {
                   <a 
                     :href="`https://www.facebook.com/search/top/?q=${encodeURIComponent(selectedConv.customerName)}`" 
                     target="_blank"
-                    class="px-2 py-1 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-lg text-[10px] font-bold flex items-center gap-1 border border-blue-200 active:scale-95"
+                    class="min-h-[40px] px-2.5 py-1 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-xl text-[10px] font-bold flex items-center gap-1 border border-blue-200 active:scale-95"
                     title="Tìm Facebook khách"
                   >
-                    <i class="fa-solid fa-magnifying-glass text-[9px] text-blue-600"></i>
+                    <i class="fa-solid fa-magnifying-glass text-[10px] text-blue-600"></i>
                     <span class="hidden sm:inline">Tìm FB</span>
                   </a>
 
@@ -609,17 +610,17 @@ function saveBotConfig() {
                   <a 
                     :href="`https://www.facebook.com/messages/t/${selectedConv.psid}`" 
                     target="_blank"
-                    class="px-2 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-lg text-[10px] font-bold flex items-center gap-1 border border-indigo-200 active:scale-95"
+                    class="min-h-[40px] px-2.5 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-xl text-[10px] font-bold flex items-center gap-1 border border-indigo-200 active:scale-95"
                     title="Mở Messenger FB"
                   >
-                    <i class="fa-brands fa-facebook-messenger text-[9px] text-indigo-600"></i>
+                    <i class="fa-brands fa-facebook-messenger text-[10px] text-indigo-600"></i>
                     <span class="hidden sm:inline">Chat FB</span>
                   </a>
 
                   <!-- Handover Toggle Switch -->
                   <button 
                     @click="toggleHandover(selectedConv)"
-                    :class="['px-2.5 py-1 rounded-lg font-black text-[10px] transition-all flex items-center gap-1 shadow-xs border shrink-0', selectedConv.isHandover ? 'bg-amber-500 text-white border-amber-600' : 'bg-slate-100 text-slate-700 border-slate-200 hover:bg-slate-200']"
+                    :class="['min-h-[40px] px-3 py-1 rounded-xl font-black text-[10px] transition-all flex items-center gap-1 shadow-xs border shrink-0 active:scale-95', selectedConv.isHandover ? 'bg-amber-500 text-white border-amber-600' : 'bg-slate-100 text-slate-700 border-slate-200 hover:bg-slate-200']"
                   >
                     <i :class="selectedConv.isHandover ? 'fa-solid fa-user-check' : 'fa-solid fa-robot'"></i>
                     <span>{{ selectedConv.isHandover ? 'Đang nhắn tay' : 'Nhắn tay' }}</span>

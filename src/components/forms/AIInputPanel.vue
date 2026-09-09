@@ -19,6 +19,13 @@ const showAiReview = ref(false)
 const isProcessing = ref(false)
 const isEditing = ref(false)
 const isOcrProcessing = ref(false)
+const isPanelCollapsed = ref(false)
+
+watch(() => formStore.customer.name, (val) => {
+  if (val && formStore.aiMetadata) {
+    isPanelCollapsed.value = true
+  }
+})
 
 const hasWarnings = computed(() => {
   const confs = formStore.aiMetadata?.confidences
@@ -303,36 +310,75 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div 
-    class="bg-gradient-to-br from-blue-600 to-indigo-700 p-4 rounded-2xl shadow-xl relative overflow-hidden group transition-all glow-border"
-    :class="{'ring-8 ring-yellow-400 ring-inset scale-[1.02]': isDragging}"
-    @dragover="onDragOver"
-    @dragleave="onDragLeave"
-    @drop="onDrop"
-  >
-    <!-- Drag Overlay -->
-    <div v-if="isDragging" class="absolute inset-0 bg-blue-600/60 backdrop-blur-sm z-50 flex flex-col items-center justify-center text-white pointer-events-none border-4 border-dashed border-white/50 m-2 rounded-xl">
-      <i class="fa-solid fa-cloud-arrow-up text-5xl animate-bounce mb-2"></i>
-      <div class="font-black text-lg uppercase tracking-tighter">THẢ ẢNH VÀO ĐÂY</div>
-      <div class="text-xs opacity-80 uppercase tracking-widest mt-1">AI Sẽ Tự Động Phân Tích</div>
+  <div>
+    <!-- Compact Collapsed State (Preserves viewport space) -->
+    <div 
+      v-if="isPanelCollapsed"
+      class="bg-gradient-to-r from-blue-600 to-indigo-700 p-3 rounded-2xl shadow-md flex items-center justify-between text-white transition-all duration-200 mb-3"
+    >
+      <div class="flex items-center gap-2.5 min-w-0">
+        <div class="w-8 h-8 rounded-xl bg-white/20 flex items-center justify-center shrink-0">
+          <i class="fa-solid fa-wand-sparkles text-yellow-300 text-xs"></i>
+        </div>
+        <div class="min-w-0">
+          <div class="font-black text-xs uppercase tracking-wide flex items-center gap-1.5">
+            <span>AI Đã Trích Xuất</span>
+            <span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
+          </div>
+          <div class="text-[11px] text-blue-100 truncate">
+            {{ formStore.customer.name ? `Khách: ${formStore.customer.name}` : 'Đã nạp dữ liệu' }}
+          </div>
+        </div>
+      </div>
+      <button 
+        @click="isPanelCollapsed = false" 
+        class="touch-target-48 px-3 py-1.5 bg-white/20 hover:bg-white/30 active:scale-95 text-white rounded-xl text-xs font-bold transition-all flex items-center gap-1 shrink-0"
+        aria-label="Mở rộng AI Core"
+      >
+        <i class="fa-solid fa-pen-to-square text-xs"></i>
+        <span>Mở lại</span>
+      </button>
     </div>
 
-    <div class="absolute top-0 right-0 p-6 opacity-10 pointer-events-none transform translate-x-4 -translate-y-4"><i class="fa-solid fa-bolt-lightning text-7xl text-white"></i></div>
-    <div class="flex justify-between items-center mb-3 relative z-10">
-      <h3 class="font-black text-white text-[9px] uppercase tracking-widest flex items-center gap-2"><i class="fa-solid fa-wand-sparkles text-yellow-300"></i> AI Core v7.0</h3>
-      <div class="flex items-center gap-2">
-        <button 
-          @click.prevent="configStore.defaults.enableAutoRecognize = !configStore.defaults.enableAutoRecognize; ui.showToast(configStore.defaults.enableAutoRecognize ? '⚡ Đã BẬT Tự động nhận diện' : '🛡️ Đã TẮT Tự động nhận diện', configStore.defaults.enableAutoRecognize ? 'success' : 'info')"
-          class="px-2 py-0.5 rounded-full font-black text-[8px] uppercase tracking-wider flex items-center gap-1 transition-all select-none cursor-pointer shadow-sm border"
-          :class="configStore.defaults.enableAutoRecognize ? 'bg-amber-400 text-slate-900 border-amber-300' : 'bg-white/20 text-white/80 border-white/30 hover:bg-white/30'"
-          :title="configStore.defaults.enableAutoRecognize ? 'Tự động nhận diện nhanh: ĐANG BẬT' : 'Tự động nhận diện nhanh: ĐANG TẮT'"
-        >
-          <i class="fa-solid fa-bolt-lightning text-[8px]"></i>
-          {{ configStore.defaults.enableAutoRecognize ? 'Tự động: BẬT' : 'Tự động: TẮT' }}
-        </button>
-        <span class="text-[8px] px-2 py-0.5 bg-white text-blue-700 rounded-full font-black uppercase shadow-sm border border-white/50" :class="{'animate-pulse': ui.listening}">{{ ui.listening ? 'LISTENING...' : 'SMART ROUTING ON' }}</span>
+    <!-- Full AI Core Panel -->
+    <div 
+      v-else
+      class="bg-gradient-to-br from-blue-600 to-indigo-700 p-4 rounded-2xl shadow-xl relative overflow-hidden group transition-all glow-border"
+      :class="{'ring-8 ring-yellow-400 ring-inset scale-[1.02]': isDragging}"
+      @dragover="onDragOver"
+      @dragleave="onDragLeave"
+      @drop="onDrop"
+    >
+      <!-- Drag Overlay -->
+      <div v-if="isDragging" class="absolute inset-0 bg-blue-600/60 backdrop-blur-sm z-50 flex flex-col items-center justify-center text-white pointer-events-none border-4 border-dashed border-white/50 m-2 rounded-xl">
+        <i class="fa-solid fa-cloud-arrow-up text-5xl animate-bounce mb-2"></i>
+        <div class="font-black text-lg uppercase tracking-tighter">THẢ ẢNH VÀO ĐÂY</div>
+        <div class="text-xs opacity-80 uppercase tracking-widest mt-1">AI Sẽ Tự Động Phân Tích</div>
       </div>
-    </div>
+
+      <div class="absolute top-0 right-0 p-6 opacity-10 pointer-events-none transform translate-x-4 -translate-y-4"><i class="fa-solid fa-bolt-lightning text-7xl text-white"></i></div>
+      <div class="flex justify-between items-center mb-3 relative z-10">
+        <h3 class="font-black text-white text-[9px] uppercase tracking-widest flex items-center gap-2"><i class="fa-solid fa-wand-sparkles text-yellow-300"></i> AI Core v7.0</h3>
+        <div class="flex items-center gap-2">
+          <button 
+            @click="isPanelCollapsed = true"
+            class="px-2 py-0.5 rounded-full font-black text-[8px] uppercase tracking-wider bg-white/20 hover:bg-white/30 text-white border border-white/30 transition-all select-none cursor-pointer"
+            title="Thu gọn panel AI"
+          >
+            <i class="fa-solid fa-chevron-up text-[8px]"></i> Thu gọn
+          </button>
+          <button 
+            @click.prevent="configStore.defaults.enableAutoRecognize = !configStore.defaults.enableAutoRecognize; ui.showToast(configStore.defaults.enableAutoRecognize ? '⚡ Đã BẬT Tự động nhận diện' : '🛡️ Đã TẮT Tự động nhận diện', configStore.defaults.enableAutoRecognize ? 'success' : 'info')"
+            class="px-2 py-0.5 rounded-full font-black text-[8px] uppercase tracking-wider flex items-center gap-1 transition-all select-none cursor-pointer shadow-sm border"
+            :class="configStore.defaults.enableAutoRecognize ? 'bg-amber-400 text-slate-900 border-amber-300' : 'bg-white/20 text-white/80 border-white/30 hover:bg-white/30'"
+            :title="configStore.defaults.enableAutoRecognize ? 'Tự động nhận diện nhanh: ĐANG BẬT' : 'Tự động nhận diện nhanh: ĐANG TẮT'"
+          >
+            <i class="fa-solid fa-bolt-lightning text-[8px]"></i>
+            {{ configStore.defaults.enableAutoRecognize ? 'Tự động: BẬT' : 'Tự động: TẮT' }}
+          </button>
+          <span class="text-[8px] px-2 py-0.5 bg-white text-blue-700 rounded-full font-black uppercase shadow-sm border border-white/50" :class="{'animate-pulse': ui.listening}">{{ ui.listening ? 'LISTENING...' : 'SMART ROUTING ON' }}</span>
+        </div>
+      </div>
 
     <!-- Clipboard Toast Pill -->
     <transition name="fade">
@@ -738,7 +784,8 @@ onUnmounted(() => {
         </div>
       </div>
     </div>
-  </transition>
+    </transition>
+  </div>
 </template>
 
 <style scoped>

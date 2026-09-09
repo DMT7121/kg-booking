@@ -437,58 +437,74 @@ async function handleDrop(e: DragEvent, hour: string, table: string) {
       </div>
     </div>
 
-    <!-- Zone Selector Tabs -->
-    <div class="px-4 py-2.5 bg-white border-b border-slate-200 flex flex-wrap gap-2 shrink-0 z-10 shadow-sm">
-      <button 
-        v-for="z in ['A', 'B', 'C', 'D', 'E']" 
-        :key="z"
-        @click="activeZone = z"
-        class="px-4 py-2 rounded-xl font-black text-xs uppercase tracking-wider transition-all cursor-pointer"
-        :class="activeZone === z ? 'bg-blue-900 text-white shadow-md shadow-blue-900/10' : 'bg-slate-50 text-slate-500 border border-slate-200 hover:bg-slate-100'"
-      >
-        Khu {{ z }}
-      </button>
+    <!-- Zone Selector Tabs & Quick Summary (Horizontal scrollable, min 44-48px touch targets) -->
+    <div class="bg-white border-b border-slate-200 shrink-0 z-10 shadow-xs">
+      <!-- Zone Tabs -->
+      <div class="px-3 py-2 flex items-center gap-2 overflow-x-auto no-scrollbar">
+        <button 
+          v-for="z in ['A', 'B', 'C', 'D', 'E']" 
+          :key="z"
+          @click="activeZone = z"
+          class="min-h-[44px] min-w-[72px] px-3.5 py-2 rounded-xl font-black text-xs uppercase tracking-wider transition-all cursor-pointer flex items-center justify-center shrink-0 active:scale-95"
+          :class="activeZone === z ? 'bg-blue-900 text-white shadow-md shadow-blue-900/15' : 'bg-slate-50 text-slate-600 border border-slate-200 hover:bg-slate-100'"
+        >
+          Khu {{ z }}
+        </button>
+      </div>
+
+      <!-- Quick Summary for Current Day -->
+      <div class="px-3.5 py-1.5 bg-slate-50/80 border-t border-slate-100 flex items-center justify-between text-xs font-bold text-slate-500">
+        <div class="flex items-center gap-1.5">
+          <i class="fa-regular fa-calendar-check text-blue-600"></i>
+          <span>Ngày {{ selectedDateStr }} (Khu {{ activeZone }}):</span>
+        </div>
+        <div class="flex items-center gap-2 font-tabular">
+          <span class="text-blue-700 font-black">{{ bookingsForSelectedDate.filter(b => (b.parsedCustomer?.tables || '').includes(activeZone)).length }} đã đặt</span>
+          <span class="text-slate-300">•</span>
+          <span class="text-emerald-600 font-black">{{ activeZoneTables.length - bookingsForSelectedDate.filter(b => (b.parsedCustomer?.tables || '').includes(activeZone)).length }} bàn trống</span>
+        </div>
+      </div>
     </div>
 
     <!-- Timeline Grid Container -->
     <div class="flex-grow w-full overflow-auto bg-slate-50 relative custom-scrollbar p-0 md:p-2 box-border">
       <div class="min-w-[1200px] bg-white shadow-sm border border-slate-100 flex flex-col rounded-xl">
         
-        <!-- Header Row -->
+        <!-- Header Row: Sticky top -->
         <div class="flex bg-blue-950 text-white sticky top-0 z-30 shadow-md">
           <div class="w-20 flex-shrink-0 py-3 text-center font-bold text-xs uppercase tracking-widest border-r border-white/10 sticky left-0 bg-blue-950 z-40">Bàn</div>
-          <div v-for="h in HOURS" :key="h" class="flex-1 py-3 text-center font-bold text-xs border-r border-white/10 last:border-0 min-w-[100px]">{{ h }}</div>
+          <div v-for="h in HOURS" :key="h" class="flex-1 py-3 text-center font-bold text-xs border-r border-white/10 last:border-0 min-w-[100px] font-tabular">{{ h }}</div>
         </div>
 
         <!-- Table Rows -->
         <div class="flex flex-col relative z-10">
           <div v-for="t in activeZoneTables" :key="t" class="flex border-b border-slate-100 last:border-0">
-            <!-- Table Name Column -->
+            <!-- Table Name Column: Sticky left -->
             <div class="w-20 flex-shrink-0 flex flex-col items-center justify-center py-4 border-r border-slate-100 bg-slate-50/95 backdrop-blur-md sticky left-0 z-20 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">
-              <span class="font-black text-slate-800 text-sm">{{ t }}</span>
+              <span class="font-black text-slate-800 text-sm font-tabular">{{ t }}</span>
             </div>
             
-            <!-- Hour Columns -->
+            <!-- Hour Columns: Full cell tappable -->
             <div 
               v-for="h in HOURS" 
               :key="h" 
-              class="flex-1 p-1.5 border-r border-slate-100 last:border-0 flex items-center justify-center min-w-[100px] min-h-[90px] transition-all duration-200"
+              class="flex-1 p-1 border-r border-slate-100 last:border-0 flex items-center justify-center min-w-[100px] min-h-[90px] transition-all duration-200"
               :class="{'border-2 border-dashed border-blue-500 bg-blue-50/40 scale-95 shadow-inner rounded-xl': isDropTarget(h, t)}"
               @dragover.prevent="handleDragOver($event, h, t)"
               @dragleave="handleDragLeave($event, h, t)"
               @drop="handleDrop($event, h, t)"
             >
               <template v-if="timelineData[h][t]">
-                <!-- Booked Slot -->
+                <!-- Booked Slot (Full cell touchable) -->
                 <div 
                   @click="openBookingDetail(timelineData[h][t])"
                   draggable="true"
                   @dragstart="handleDragStart($event, timelineData[h][t])"
-                  class="w-full h-full rounded-xl flex flex-col items-center justify-start p-1.5 text-center shadow-sm border cursor-pointer active:scale-95 transition-transform relative overflow-hidden select-none hover:shadow-md cursor-grab active:cursor-grabbing"
-                  :class="timelineData[h][t].isDeposited ? 'bg-blue-50 border-blue-200 text-blue-900 hover:bg-blue-100' : 'bg-rose-50 border-rose-200 text-rose-700 hover:bg-rose-100'"
+                  class="w-full h-full rounded-xl flex flex-col items-center justify-start p-1.5 text-center shadow-xs border cursor-pointer active:scale-95 transition-transform relative overflow-hidden select-none hover:shadow-md cursor-grab active:cursor-grabbing"
+                  :class="timelineData[h][t].isDeposited ? 'bg-blue-50/90 border-blue-200 text-blue-900 hover:bg-blue-100' : 'bg-rose-50/90 border-rose-200 text-rose-700 hover:bg-rose-100'"
                 >
                   <!-- Table Badge -->
-                  <div v-if="timelineData[h][t].parsedCustomer?.tables" class="absolute top-1 right-1 px-1.5 py-0.5 rounded-full text-[8.5px] font-black shadow-[0_2px_4px_rgba(0,0,0,0.05)] border bg-white text-slate-700 border-slate-200">
+                  <div v-if="timelineData[h][t].parsedCustomer?.tables" class="absolute top-1 right-1 px-1.5 py-0.5 rounded-full text-[8.5px] font-black shadow-xs border bg-white text-slate-700 border-slate-200 font-tabular">
                     {{ t }}
                   </div>
 
@@ -496,13 +512,13 @@ async function handleDrop(e: DragEvent, hour: string, table: string) {
                   <div class="font-black text-[11px] leading-tight line-clamp-1 break-all w-full pr-4 mt-1">{{ timelineData[h][t].parsedCustomer?.name }}</div>
                   
                   <!-- Phone Number -->
-                  <div v-if="timelineData[h][t].parsedCustomer?.phone" class="text-[9px] font-bold opacity-75 mt-0.5">
+                  <div v-if="timelineData[h][t].parsedCustomer?.phone" class="text-[9px] font-bold opacity-75 mt-0.5 font-tabular">
                     {{ timelineData[h][t].parsedCustomer?.phone }}
                   </div>
 
                   <!-- Pax & Party Type -->
                   <div class="text-[10px] font-bold opacity-80 mt-1 flex flex-col items-center">
-                    <span>{{ timelineData[h][t].parsedCustomer?.pax }} người</span>
+                    <span class="font-tabular">{{ timelineData[h][t].parsedCustomer?.pax }} người</span>
                     <span v-if="timelineData[h][t].parsedCustomer?.type" class="text-[8.5px] font-semibold opacity-70 mt-0.5 px-1.5 py-[1px] bg-black/5 rounded text-inherit">
                       {{ timelineData[h][t].parsedCustomer?.type }}
                     </span>
@@ -517,9 +533,14 @@ async function handleDrop(e: DragEvent, hour: string, table: string) {
                 </div>
               </template>
               <template v-else>
-                <!-- Empty Slot -->
-                <div @click="prefillBooking(t, h)" class="w-8 h-8 rounded-lg bg-emerald-50/50 border border-emerald-100 flex items-center justify-center text-emerald-400 opacity-60 cursor-pointer hover:bg-emerald-100 transition-colors">
-                  <i class="fa-solid fa-chair text-sm"></i>
+                <!-- Empty Slot (Entire Cell Tappable!) -->
+                <div 
+                  @click="prefillBooking(t, h)" 
+                  class="w-full h-full min-h-[82px] rounded-xl bg-emerald-50/30 hover:bg-emerald-50/70 border border-dashed border-emerald-100 hover:border-emerald-300 flex flex-col items-center justify-center gap-1 text-emerald-500 cursor-pointer active:scale-95 transition-all group p-2"
+                  title="Bấm để xếp bàn vào giờ này"
+                >
+                  <i class="fa-solid fa-chair text-sm opacity-60 group-hover:opacity-100 group-hover:scale-110 transition-transform"></i>
+                  <span class="text-[9px] font-black uppercase tracking-widest opacity-0 group-hover:opacity-100 transition-opacity">Đặt bàn</span>
                 </div>
               </template>
             </div>

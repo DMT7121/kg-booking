@@ -6,12 +6,59 @@ import { useFormStore } from '@/stores/useFormStore'
 import { useForm } from '@/composables/useForm'
 import { useAI } from '@/composables/useAI'
 import { formatVND } from '@/utils'
+import BookingCommandCenter from '@/components/operations/BookingCommandCenter.vue'
 
 const appStore = useAppStore()
 const ui = useUIStore()
 const formStore = useFormStore()
 const { editHistoricOrder } = useForm()
 const { processAI } = useAI()
+
+// View Switcher: Summary vs Real-time Shift Operations
+const activeView = ref<'summary' | 'operations'>('summary')
+
+// Adapt appStore history to Domain Booking format for Command Center
+const domainBookings = computed(() => {
+  if (!appStore.historyList) return []
+  return appStore.historyList.map((order: any) => ({
+    id: order.id,
+    order_id: order.id,
+    customer_name: order.parsedCustomer?.name || 'Khách vãng lai',
+    phone: order.parsedCustomer?.phone || '',
+    customer: {
+      name: order.parsedCustomer?.name || 'Khách vãng lai',
+      phone: order.parsedCustomer?.phone || ''
+    },
+    guest_count: parseInt(order.parsedCustomer?.pax || '0') || 0,
+    booking: {
+      guest_count: parseInt(order.parsedCustomer?.pax || '0') || 0,
+      booking_date: order.parsedCustomer?.date,
+      booking_time: order.parsedCustomer?.time || '18:00',
+      table_number: order.parsedCustomer?.tables || '',
+      note: order.parsedCustomer?.note || ''
+    },
+    table_assigned: order.parsedCustomer?.tables || '',
+    assigned_tables: order.parsedCustomer?.tables ? order.parsedCustomer.tables.split(/[,+]/).map((s: string) => s.trim()) : [],
+    deposit_amount: order.depositAmount || 0,
+    deposit_status: order.isDeposited ? 'PAID' : (order.depositAmount > 0 ? 'PARTIAL' : 'UNPAID'),
+    deposit: {
+      amount: order.depositAmount || 0,
+      status: order.isDeposited ? 'PAID' : 'UNPAID'
+    },
+    total_amount: order.totalAmount || 0,
+    menu_items: order.menuItems || [],
+    status: 'CONFIRMED',
+    rawOrder: order
+  }))
+})
+
+function handleCommandCenterDetail(booking: any) {
+  if (booking?.rawOrder) {
+    editHistoricOrder(booking.rawOrder)
+    ui.tab = 'create'
+    ui.showToast(`Đã mở đơn của ${booking.customer_name}`, 'info')
+  }
+}
 
 // Input for Quick AI paste
 const quickInputText = ref('')
@@ -263,331 +310,385 @@ function handleRecentClick(order: any) {
 </script>
 
 <template>
-  <div class="flex-grow overflow-y-auto p-4 space-y-5 bg-slate-50/50 scroll-smooth custom-scrollbar">
-    <!-- Top Welcoming & Quick Stats -->
-    <div class="bg-gradient-to-br from-blue-900 via-indigo-900 to-slate-900 rounded-3xl p-4 text-white shadow-xl relative overflow-hidden">
-      <div class="absolute inset-0 bg-gradient-to-r from-blue-500/10 to-transparent pointer-events-none"></div>
-      <div class="relative z-10 flex flex-col md:flex-row justify-between items-start md:items-center gap-3">
-        <div>
-          <h2 class="text-base font-black tracking-tight" style="font-family: 'Be Vietnam Pro', sans-serif;">
-            BẢNG ĐIỀU KHIỂN NHÀ HÀNG
-          </h2>
-          <p class="text-[10px] text-blue-200 mt-0.5 font-medium">Tóm tắt vận hành và việc cần xử lý hôm nay.</p>
-        </div>
-        <div class="flex gap-2">
-          <button @click="appStore.loadHistory(false)" class="px-3 py-1.5 bg-white/10 hover:bg-white/20 active:scale-95 border border-white/10 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all flex items-center gap-1.5">
-            <i class="fa-solid fa-rotate"></i> Cập nhật
-          </button>
-        </div>
-      </div>
-      
-      <!-- Summary mini widgets (Compact 2x2 grid on mobile/tablet) -->
-      <div class="grid grid-cols-2 lg:grid-cols-4 gap-2 mt-4 relative z-10">
-        <div class="bg-white/5 rounded-2xl py-2 px-3 border border-white/5">
-          <div class="text-[9px] text-blue-200 font-bold uppercase tracking-widest leading-tight">Tiệc hôm nay</div>
-          <div class="text-base font-black mt-0.5">
-            {{ calendarSummary[0]?.bookings || 0 }} <span class="text-[10px] text-slate-300 font-normal">bàn</span>
-          </div>
-        </div>
-        <div class="bg-white/5 rounded-2xl py-2 px-3 border border-white/5">
-          <div class="text-[9px] text-blue-200 font-bold uppercase tracking-widest leading-tight">Khách hôm nay</div>
-          <div class="text-base font-black mt-0.5">
-            {{ calendarSummary[0]?.guests || 0 }} <span class="text-[10px] text-slate-300 font-normal">người</span>
-          </div>
-        </div>
-        <div class="bg-white/5 rounded-2xl py-2 px-3 border border-white/5">
-          <div class="text-[9px] text-blue-200 font-bold uppercase tracking-widest leading-tight">Việc cần làm</div>
-          <div class="text-base font-black mt-0.5 text-yellow-300">
-            {{ todoItems.length }} <span class="text-[10px] text-slate-300 font-normal">việc</span>
-          </div>
-        </div>
-        <div class="bg-white/5 rounded-2xl py-2 px-3 border border-white/5">
-          <div class="text-[9px] text-blue-200 font-bold uppercase tracking-widest leading-tight">Tổng đơn</div>
-          <div class="text-base font-black mt-0.5">
-            {{ Object.keys(appStore.groupedHistory).length }} <span class="text-[10px] text-slate-300 font-normal">đơn</span>
-          </div>
-        </div>
-      </div>
-
-      <!-- Quick Action Chips -->
-      <div class="flex items-center gap-1.5 overflow-x-auto scrollbar-none pt-3 pb-1 flex-nowrap -mx-1 border-t border-white/10 mt-3.5">
-        <button @click="ui.tab = 'create'" class="px-3 py-1.5 bg-white/10 hover:bg-white/20 text-white rounded-full text-[10px] font-black uppercase tracking-wider transition-all flex items-center gap-1 shrink-0 border border-white/10">
-          <i class="fa-solid fa-plus text-[8px] text-blue-300"></i> Tạo nhanh
-        </button>
-        <button @click="ui.selectedTimelineDate = todayStr; ui.tab = 'timeline'" class="px-3 py-1.5 bg-white/10 hover:bg-white/20 text-white rounded-full text-[10px] font-black uppercase tracking-wider transition-all flex items-center gap-1 shrink-0 border border-white/10">
-          <i class="fa-solid fa-calendar-day text-[8px] text-indigo-300"></i> Hôm nay
-        </button>
-        <button @click="ui.tab = 'history'; ui.historyFilters.deposit = 'unpaid'; appStore.loadHistory(false)" class="px-3 py-1.5 bg-white/10 hover:bg-white/20 text-white rounded-full text-[10px] font-black uppercase tracking-wider transition-all flex items-center gap-1 shrink-0 border border-white/10">
-          <i class="fa-solid fa-hourglass-half text-[8px] text-amber-300"></i> Chưa cọc
-        </button>
-        <button @click="ui.tab = 'history'; ui.historyFilters.deposit = 'all'; ui.historyFilters.time = 'today'; appStore.loadHistory(false)" class="px-3 py-1.5 bg-white/10 hover:bg-white/20 text-white rounded-full text-[10px] font-black uppercase tracking-wider transition-all flex items-center gap-1 shrink-0 border border-white/10">
-          <i class="fa-solid fa-bell-concierge text-[8px] text-purple-300"></i> Chưa món
-        </button>
-        <button @click="ui.tab = 'preview'" class="px-3 py-1.5 bg-white/10 hover:bg-white/20 text-white rounded-full text-[10px] font-black uppercase tracking-wider transition-all flex items-center gap-1 shrink-0 border border-white/10">
-          <i class="fa-solid fa-eye text-[8px] text-emerald-300"></i> Xem phiếu
-        </button>
-      </div>
-    </div>
-
-    <!-- Fanpage AI Chatbot Live Control Banner -->
-    <div 
-      class="bg-white border rounded-3xl p-4 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4 transition-all"
-      :class="isFbBotActive ? 'border-emerald-200 bg-emerald-50/20' : 'border-rose-200 bg-rose-50/20'"
-    >
-      <div class="flex items-center gap-3">
-        <div :class="['w-10 h-10 rounded-2xl flex items-center justify-center text-lg shadow-sm shrink-0', isFbBotActive ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700']">
-          <i :class="isFbBotActive ? 'fa-solid fa-robot' : 'fa-solid fa-robot-slashed'"></i>
-        </div>
-        <div>
-          <div class="flex flex-wrap items-center gap-2">
-            <h4 class="font-black text-xs uppercase tracking-wider text-slate-800">Chatbot AI Fanpage Facebook</h4>
-            <span :class="['px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase flex items-center gap-1', isFbBotActive ? 'bg-emerald-100 text-emerald-800 border border-emerald-300/50' : 'bg-rose-100 text-rose-800 border border-rose-300/50']">
-              <span :class="['w-1.5 h-1.5 rounded-full', isFbBotActive ? 'bg-emerald-500 animate-pulse' : 'bg-rose-500']"></span>
-              {{ isFbBotActive ? 'Đang Bật (Tự Động 24/7)' : 'Đã Tắt (Chế Độ Nhắn Tay)' }}
-            </span>
-          </div>
-          <p class="text-[10px] text-slate-500 font-medium mt-0.5">
-            {{ isFbBotActive ? 'AI đang tự động tư vấn và bóc tách phiếu đặt bàn khi khách nhắn tin tới Fanpage' : 'AI Bot đã tạm dừng. Nhân viên sẽ tự tiếp quản nhắn tay cho khách trên Messenger' }}
-          </p>
-        </div>
-      </div>
-
-      <div class="flex items-center gap-2 shrink-0">
+  <div class="flex-grow overflow-y-auto p-4 space-y-5 bg-slate-50/50 dark:bg-slate-950 text-slate-800 dark:text-slate-100 scroll-smooth custom-scrollbar">
+    <!-- View Switcher & Executive Header Bar -->
+    <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pb-1">
+      <!-- Segmented View Mode Controls -->
+      <div class="inline-flex p-1 bg-slate-200/80 dark:bg-slate-900 rounded-2xl border border-slate-300/60 dark:border-slate-800 shadow-inner">
         <button 
-          @click="toggleFbBotStatus"
-          :class="['px-4 py-2 rounded-xl text-xs font-black uppercase tracking-wider transition-all shadow-md active:scale-95 flex items-center gap-2', isFbBotActive ? 'bg-rose-600 hover:bg-rose-700 text-white' : 'bg-emerald-600 hover:bg-emerald-700 text-white']"
+          @click="activeView = 'summary'"
+          :class="[
+            'px-3.5 py-1.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all flex items-center gap-2',
+            activeView === 'summary' 
+              ? 'bg-white dark:bg-slate-800 text-blue-600 dark:text-blue-400 shadow-sm' 
+              : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
+          ]"
         >
-          <i :class="isFbBotActive ? 'fa-solid fa-power-off' : 'fa-solid fa-play'"></i>
-          <span>{{ isFbBotActive ? 'Tắt Chatbot Fanpage' : 'Bật Lại Chatbot Fanpage' }}</span>
+          <i class="fa-solid fa-chart-pie"></i>
+          <span>Tổng Quan Nhanh</span>
         </button>
         <button 
-          @click="ui.showSocialBotModal = true"
-          class="w-9 h-9 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 flex items-center justify-center transition-all border border-slate-200"
-          title="Mở Cửa Sổ Quản Lý Social Bot"
+          @click="activeView = 'operations'"
+          :class="[
+            'px-3.5 py-1.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all flex items-center gap-2',
+            activeView === 'operations' 
+              ? 'bg-white dark:bg-slate-800 text-amber-600 dark:text-amber-400 shadow-sm' 
+              : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
+          ]"
         >
-          <i class="fa-solid fa-gear"></i>
-        </button>
-      </div>
-    </div>
-
-    <!-- Quick Create Panel -->
-    <div class="bg-white border border-slate-200/80 rounded-3xl p-5 shadow-sm space-y-4">
-      <div class="flex items-center gap-2">
-        <div class="w-8 h-8 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center text-sm shadow-sm"><i class="fa-solid fa-wand-magic-sparkles"></i></div>
-        <div>
-          <h3 class="font-black text-slate-800 text-sm uppercase tracking-wide">Nhập Đơn Nhanh Bằng AI</h3>
-          <p class="text-[10px] text-slate-400 font-medium mt-0.5">Dán tin nhắn Zalo, Facebook hoặc Messenger để tạo đơn ngay lập tức</p>
-        </div>
-      </div>
-      <div class="space-y-3">
-        <textarea
-          v-model="quickInputText"
-          rows="3"
-          class="w-full p-4 border border-slate-200 rounded-2xl text-xs font-bold text-slate-800 focus:outline-none focus:ring-4 focus:ring-blue-100 focus:border-blue-500 bg-slate-50/50 shadow-inner placeholder-slate-400 transition-all custom-scrollbar resize-none"
-          placeholder="Dán tin nhắn đặt bàn của khách tại đây..."
-        ></textarea>
-        <div class="flex flex-wrap items-center justify-between gap-3">
-          <div class="text-[10px] text-slate-400 font-bold">
-            <span class="bg-slate-100 px-2 py-1 rounded text-slate-500">Ctrl + K</span> để tìm kiếm nhanh mọi lúc
-          </div>
-          <button
-            @click="handleQuickAnalyze"
-            :disabled="isAnalyzing"
-            class="px-5 py-3 bg-blue-600 text-white rounded-xl font-black uppercase text-[10px] tracking-wider hover:bg-blue-700 active:scale-95 shadow-md shadow-blue-600/10 flex items-center gap-2 transition-all"
-          >
-            <i v-if="isAnalyzing" class="fa-solid fa-spinner animate-spin"></i>
-            <i v-else class="fa-solid fa-bolt-lightning text-yellow-300"></i>
-            {{ isAnalyzing ? 'ĐANG PHÂN TÍCH...' : 'PHÂN TÍCH NHANH' }}
-          </button>
-        </div>
-      </div>
-    </div>
-
-    <!-- Layout Grid: Smart To-do & Quick Calendar Summary -->
-    <div class="grid grid-cols-1 md:grid-cols-12 gap-5">
-      <!-- Left: Smart To-do (7 cols) -->
-      <div class="md:col-span-7 bg-white border border-slate-200/80 rounded-3xl p-5 shadow-sm flex flex-col min-h-[300px]">
-        <div class="flex items-center justify-between mb-4">
-          <div class="flex items-center gap-2">
-            <div class="w-8 h-8 rounded-lg bg-yellow-50 text-yellow-600 flex items-center justify-center text-sm shadow-sm"><i class="fa-solid fa-list-check"></i></div>
-            <div>
-              <h3 class="font-black text-slate-800 text-sm uppercase tracking-wide">Việc Cần Xử Lý</h3>
-              <p class="text-[10px] text-slate-400 font-medium mt-0.5">Các đơn tiệc cần chăm sóc, gọi điện nhắc cọc, hoàn tất món</p>
-            </div>
-          </div>
-          <span class="px-2.5 py-0.5 bg-yellow-50 text-yellow-700 rounded-full font-black text-[10px]">
+          <i class="fa-solid fa-tower-broadcast"></i>
+          <span>Điều Hành Ca</span>
+          <span v-if="todoItems.length > 0" class="px-1.5 py-0.2 bg-amber-500 text-slate-950 rounded-full text-[9px] font-black">
             {{ todoItems.length }}
           </span>
-        </div>
-
-        <div class="space-y-2 pr-1">
-          <div v-if="todoItems.length === 0" class="flex flex-col items-center justify-center py-12 text-slate-400">
-            <i class="fa-solid fa-circle-check text-4xl text-green-300 mb-3"></i>
-            <div class="font-black text-xs uppercase tracking-wider text-slate-700">Tất cả đã hoàn tất!</div>
-            <div class="text-[10px] text-slate-400 mt-1">Không có công việc nào đang chờ xử lý.</div>
-          </div>
-          
-          <div
-            v-for="todo in displayedTodoItems"
-            :key="todo.id"
-            class="p-3 border rounded-2xl flex items-center justify-between gap-3 transition-all hover:bg-slate-50"
-            :class="{
-              'border-rose-100 bg-rose-50/20': todo.type === 'danger',
-              'border-amber-100 bg-amber-50/20': todo.type === 'warning',
-              'border-blue-100 bg-blue-50/20': todo.type === 'info'
-            }"
-          >
-            <div class="flex items-center gap-3 min-w-0">
-              <div class="w-8 h-8 rounded-xl flex items-center justify-center text-xs shrink-0"
-                   :class="{
-                     'bg-rose-100 text-rose-600': todo.type === 'danger',
-                     'bg-amber-100 text-amber-600': todo.type === 'warning',
-                     'bg-blue-100 text-blue-600': todo.type === 'info'
-                   }">
-                <i class="fa-solid" :class="todo.icon"></i>
-              </div>
-              <div class="min-w-0">
-                <div class="font-black text-xs text-slate-800">{{ todo.title }}</div>
-                <div class="text-[10px] text-slate-400 font-bold truncate mt-0.5">{{ todo.desc }}</div>
-              </div>
-            </div>
-            <button
-              @click="handleTodoAction(todo)"
-              class="px-3 py-2 bg-white border rounded-xl font-black text-[9px] uppercase tracking-wider text-slate-700 hover:border-blue-500 hover:text-blue-600 active:scale-95 transition-all shrink-0 shadow-sm"
-            >
-              {{ todo.actionLabel }}
-            </button>
-          </div>
-
-          <!-- Xem tất cả / Thu gọn toggle button -->
-          <div v-if="todoItems.length > 3" class="pt-2 flex justify-center border-t border-slate-100 mt-2">
-            <button @click="showAllTodo = !showAllTodo" class="text-[11px] font-black text-blue-600 hover:text-blue-700 flex items-center gap-1.5 uppercase tracking-wider">
-              <span>{{ showAllTodo ? 'Thu gọn' : `Xem tất cả (${todoItems.length})` }}</span>
-              <i class="fa-solid" :class="showAllTodo ? 'fa-chevron-up' : 'fa-chevron-down'"></i>
-            </button>
-          </div>
-        </div>
+        </button>
       </div>
 
-      <!-- Right: Quick Calendar Summary (5 cols) -->
-      <div class="md:col-span-5 bg-white border border-slate-200/80 rounded-3xl p-5 shadow-sm flex flex-col min-h-[300px]">
-        <div class="flex items-center gap-2 mb-4">
-          <div class="w-8 h-8 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center text-sm shadow-sm"><i class="fa-solid fa-calendar-days"></i></div>
-          <div>
-            <h3 class="font-black text-slate-800 text-sm uppercase tracking-wide">Lịch Nhanh 7 Ngày</h3>
-            <p class="text-[10px] text-slate-400 font-medium mt-0.5">Số lượng bàn đặt trước trong 7 ngày tới</p>
-          </div>
-        </div>
-
-        <div class="flex-grow overflow-y-auto space-y-2 max-h-[320px] custom-scrollbar pr-1">
-          <div
-            v-for="day in calendarSummary"
-            :key="day.dateStr"
-            @click="openTimelineDate(day.dateStr)"
-            class="p-3 border border-slate-100 rounded-2xl flex items-center justify-between hover:bg-slate-50 transition-all cursor-pointer active:scale-[0.99]"
-            :class="{
-              'ring-2 ring-blue-600 ring-offset-2 bg-blue-50/10': day.isToday,
-              'bg-slate-50/20': day.isTomorrow
-            }"
-          >
-            <div class="flex items-center gap-3">
-              <div class="w-11 h-11 rounded-xl flex flex-col items-center justify-center font-black shrink-0 border border-slate-200/50"
-                   :class="day.isToday ? 'bg-blue-600 text-white border-blue-600' : 'bg-slate-100 text-slate-600'">
-                <span class="text-xs leading-none font-black mt-1">{{ day.dayOfMonth }}</span>
-                <span class="text-[9px] uppercase font-black tracking-wider leading-none mb-1 mt-0.5" :class="day.isToday ? 'text-blue-100' : 'text-slate-400'">{{ day.shortLabel }}</span>
-              </div>
-              <div>
-                <div class="font-black text-xs text-slate-800 flex items-center gap-2">
-                  <span>{{ day.label }}</span>
-                  <span v-if="day.isToday" class="text-[8px] bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded font-black uppercase">Hôm nay</span>
-                </div>
-                <div class="text-[9px] text-slate-400 font-bold mt-0.5">{{ day.dateStr }}</div>
-              </div>
-            </div>
-            
-            <div class="flex items-center gap-2 shrink-0">
-              <div v-if="day.bookings > 0" class="text-right flex flex-col items-end gap-0.5">
-                <span class="px-2.5 py-0.5 bg-indigo-50 border border-indigo-100 text-indigo-700 rounded-lg font-black text-[10px] uppercase tracking-wide">
-                  {{ day.bookings }} tiệc
-                </span>
-                <span class="text-[9px] font-black text-slate-500 uppercase tracking-wider pr-1">
-                  {{ day.guests }} khách
-                </span>
-              </div>
-              <div v-else class="text-[10px] text-slate-300 font-semibold italic pr-1">
-                Trống
-              </div>
-              <i class="fa-solid fa-chevron-right text-[10px] text-slate-300"></i>
-            </div>
-          </div>
-        </div>
+      <!-- Quick Actions / Live Refresh -->
+      <div class="flex items-center gap-2 self-end sm:self-auto">
+        <button 
+          @click="appStore.loadHistory(false)" 
+          class="px-3.5 py-2 min-h-[44px] bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800 active:scale-95 rounded-xl text-xs font-black uppercase tracking-wider text-slate-700 dark:text-slate-300 transition-all flex items-center gap-2 shadow-sm touch-target-48"
+          aria-label="Làm mới dữ liệu ca trực"
+        >
+          <i class="fa-solid fa-rotate text-blue-600 dark:text-blue-400" :class="{'animate-spin': ui.isFetchingAPI}"></i>
+          <span>Làm mới</span>
+        </button>
       </div>
     </div>
 
-    <!-- Recent Operations Section -->
-    <div class="bg-white border border-slate-200/80 rounded-3xl p-5 shadow-sm">
-      <div class="flex items-center gap-2 mb-4">
-        <div class="w-8 h-8 rounded-lg bg-teal-50 text-teal-600 flex items-center justify-center text-sm shadow-sm"><i class="fa-solid fa-clock-rotate-left"></i></div>
-        <div>
-          <h3 class="font-black text-slate-800 text-sm uppercase tracking-wide">Thao Tác Gần Đây</h3>
-          <p class="text-[10px] text-slate-400 font-medium mt-0.5">Các phiếu đặt bàn vừa được tạo hoặc sửa đổi trên hệ thống</p>
+    <!-- VIEW 1: REAL-TIME SHIFT COMMAND CENTER -->
+    <div v-if="activeView === 'operations'" class="space-y-4">
+      <BookingCommandCenter 
+        :all-bookings="domainBookings"
+        @view-detail="handleCommandCenterDetail"
+        @quick-seat="handleCommandCenterDetail"
+        @quick-complete="handleCommandCenterDetail"
+      />
+    </div>
+
+    <!-- VIEW 2: EXECUTIVE SUMMARY & DASHBOARD -->
+    <div v-else class="space-y-5">
+      <!-- Top Welcoming & Quick Stats -->
+      <div class="bg-gradient-to-br from-blue-900 via-indigo-900 to-slate-900 rounded-3xl p-4 text-white shadow-xl relative overflow-hidden border border-blue-800/40 dark:border-slate-800">
+        <div class="absolute inset-0 bg-gradient-to-r from-blue-500/10 to-transparent pointer-events-none"></div>
+        <div class="relative z-10 flex flex-col md:flex-row justify-between items-start md:items-center gap-3">
+          <div>
+            <h2 class="text-base font-black tracking-tight uppercase" style="font-family: 'Be Vietnam Pro', sans-serif;">
+              BẢNG ĐIỀU KHIỂN NHÀ HÀNG
+            </h2>
+            <p class="text-[11px] text-blue-200 mt-0.5 font-medium">Tóm tắt vận hành và việc cần xử lý hôm nay.</p>
+          </div>
+        </div>
+        
+        <!-- Summary mini widgets (Compact 2x2 grid on mobile/tablet) -->
+        <div class="grid grid-cols-2 lg:grid-cols-4 gap-2.5 mt-3.5 relative z-10">
+          <div class="bg-white/10 dark:bg-white/5 rounded-2xl py-2.5 px-3.5 border border-white/10">
+            <div class="text-[10px] text-blue-200 font-bold uppercase tracking-wider leading-tight">Tiệc hôm nay</div>
+            <div class="text-lg font-black mt-0.5 tabular-nums">
+              {{ calendarSummary[0]?.bookings || 0 }} <span class="text-xs text-slate-300 font-normal">bàn</span>
+            </div>
+          </div>
+          <div class="bg-white/10 dark:bg-white/5 rounded-2xl py-2.5 px-3.5 border border-white/10">
+            <div class="text-[10px] text-blue-200 font-bold uppercase tracking-wider leading-tight">Khách hôm nay</div>
+            <div class="text-lg font-black mt-0.5 tabular-nums">
+              {{ calendarSummary[0]?.guests || 0 }} <span class="text-xs text-slate-300 font-normal">người</span>
+            </div>
+          </div>
+          <div class="bg-white/10 dark:bg-white/5 rounded-2xl py-2.5 px-3.5 border border-white/10">
+            <div class="text-[10px] text-yellow-300 font-bold uppercase tracking-wider leading-tight">Cần xử lý</div>
+            <div class="text-lg font-black mt-0.5 text-yellow-300 tabular-nums">
+              {{ todoItems.length }} <span class="text-xs text-slate-300 font-normal">việc</span>
+            </div>
+          </div>
+          <div class="bg-white/10 dark:bg-white/5 rounded-2xl py-2.5 px-3.5 border border-white/10">
+            <div class="text-[10px] text-blue-200 font-bold uppercase tracking-wider leading-tight">Tổng đơn</div>
+            <div class="text-lg font-black mt-0.5 tabular-nums">
+              {{ Object.keys(appStore.groupedHistory).length }} <span class="text-xs text-slate-300 font-normal">đơn</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Quick Action Chips -->
+        <div class="flex items-center gap-2 overflow-x-auto scrollbar-none pt-3 pb-1 flex-nowrap -mx-1 border-t border-white/10 mt-3.5">
+          <button @click="ui.tab = 'create'" class="px-3.5 py-2 min-h-[40px] bg-white/15 hover:bg-white/25 active:scale-95 text-white rounded-full text-[11px] font-black uppercase tracking-wider transition-all flex items-center gap-1.5 shrink-0 border border-white/15">
+            <i class="fa-solid fa-plus text-[9px] text-blue-300"></i> Tạo nhanh
+          </button>
+          <button @click="ui.selectedTimelineDate = todayStr; ui.tab = 'timeline'" class="px-3.5 py-2 min-h-[40px] bg-white/15 hover:bg-white/25 active:scale-95 text-white rounded-full text-[11px] font-black uppercase tracking-wider transition-all flex items-center gap-1.5 shrink-0 border border-white/15">
+            <i class="fa-solid fa-calendar-day text-[9px] text-indigo-300"></i> Hôm nay
+          </button>
+          <button @click="ui.tab = 'history'; ui.historyFilters.deposit = 'unpaid'; appStore.loadHistory(false)" class="px-3.5 py-2 min-h-[40px] bg-white/15 hover:bg-white/25 active:scale-95 text-white rounded-full text-[11px] font-black uppercase tracking-wider transition-all flex items-center gap-1.5 shrink-0 border border-white/15">
+            <i class="fa-solid fa-hourglass-half text-[9px] text-amber-300"></i> Chưa cọc
+          </button>
+          <button @click="ui.tab = 'history'; ui.historyFilters.deposit = 'all'; ui.historyFilters.time = 'today'; appStore.loadHistory(false)" class="px-3.5 py-2 min-h-[40px] bg-white/15 hover:bg-white/25 active:scale-95 text-white rounded-full text-[11px] font-black uppercase tracking-wider transition-all flex items-center gap-1.5 shrink-0 border border-white/15">
+            <i class="fa-solid fa-bell-concierge text-[9px] text-purple-300"></i> Chưa món
+          </button>
+          <button @click="ui.tab = 'preview'" class="px-3.5 py-2 min-h-[40px] bg-white/15 hover:bg-white/25 active:scale-95 text-white rounded-full text-[11px] font-black uppercase tracking-wider transition-all flex items-center gap-1.5 shrink-0 border border-white/15">
+            <i class="fa-solid fa-eye text-[9px] text-emerald-300"></i> Xem phiếu
+          </button>
         </div>
       </div>
 
-      <div class="overflow-x-auto w-full border border-slate-100 rounded-2xl bg-slate-50/30">
-        <table class="w-full text-left border-collapse min-w-[600px] text-xs">
-          <thead>
-            <tr class="bg-slate-100 text-slate-500 font-black uppercase tracking-wider border-b border-slate-200">
-              <th class="p-3 w-36">Thời gian sửa</th>
-              <th class="p-3">Khách hàng</th>
-              <th class="p-3 w-28">Số bàn</th>
-              <th class="p-3 w-28">Trạng thái cọc</th>
-              <th class="p-3 w-32 text-right">Tổng tiền</th>
-              <th class="p-3 w-20 text-center">Thao tác</th>
-            </tr>
-          </thead>
-          <tbody class="divide-y divide-slate-100">
-            <tr v-if="recentOperations.length === 0">
-              <td colspan="6" class="p-8 text-center text-slate-400 font-semibold">Chưa có thao tác nào gần đây. Hãy tạo một phiếu mới!</td>
-            </tr>
-            <tr v-for="order in recentOperations" :key="order.id" class="hover:bg-slate-50 transition-colors">
-              <td class="p-3 text-[10px] font-mono text-slate-400 font-semibold">
-                {{ new Date(order.timestamp || Date.now()).toLocaleString('vi-VN', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit' }) }}
-              </td>
-              <td class="p-3">
-                <div class="font-black text-slate-800">{{ order.parsedCustomer.name }}</div>
-                <div class="text-[10px] text-slate-400 font-bold mt-0.5 flex items-center gap-2">
-                  <span>{{ order.parsedCustomer.phone }}</span>
-                  <span>•</span>
-                  <span>{{ order.parsedCustomer.date }} ({{ order.parsedCustomer.time || '18:00' }})</span>
+      <!-- Fanpage AI Chatbot Live Control Banner -->
+      <div 
+        class="bg-white dark:bg-slate-900 border rounded-3xl p-4 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4 transition-all"
+        :class="isFbBotActive ? 'border-emerald-200 dark:border-emerald-900/60 bg-emerald-50/20 dark:bg-emerald-950/20' : 'border-rose-200 dark:border-rose-900/60 bg-rose-50/20 dark:bg-rose-950/20'"
+      >
+        <div class="flex items-center gap-3">
+          <div :class="['w-10 h-10 rounded-2xl flex items-center justify-center text-lg shadow-sm shrink-0', isFbBotActive ? 'bg-emerald-100 dark:bg-emerald-900/60 text-emerald-700 dark:text-emerald-300' : 'bg-rose-100 dark:bg-rose-900/60 text-rose-700 dark:text-rose-300']">
+            <i :class="isFbBotActive ? 'fa-solid fa-robot' : 'fa-solid fa-robot-slashed'"></i>
+          </div>
+          <div>
+            <div class="flex flex-wrap items-center gap-2">
+              <h4 class="font-black text-xs uppercase tracking-wider text-slate-800 dark:text-slate-100">Chatbot AI Fanpage Facebook</h4>
+              <span :class="['px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase flex items-center gap-1', isFbBotActive ? 'bg-emerald-100 dark:bg-emerald-900/50 text-emerald-800 dark:text-emerald-300 border border-emerald-300/50 dark:border-emerald-700/50' : 'bg-rose-100 dark:bg-rose-900/50 text-rose-800 dark:text-rose-300 border border-rose-300/50 dark:border-rose-700/50']">
+                <span :class="['w-1.5 h-1.5 rounded-full', isFbBotActive ? 'bg-emerald-500 animate-pulse' : 'bg-rose-500']"></span>
+                {{ isFbBotActive ? 'Đang Bật (Tự Động 24/7)' : 'Đã Tắt (Chế Độ Nhắn Tay)' }}
+              </span>
+            </div>
+            <p class="text-[10px] text-slate-500 dark:text-slate-400 font-medium mt-0.5">
+              {{ isFbBotActive ? 'AI đang tự động tư vấn và bóc tách phiếu đặt bàn khi khách nhắn tin tới Fanpage' : 'AI Bot đã tạm dừng. Nhân viên sẽ tự tiếp quản nhắn tay cho khách trên Messenger' }}
+            </p>
+          </div>
+        </div>
+
+        <div class="flex items-center gap-2 shrink-0">
+          <button 
+            @click="toggleFbBotStatus"
+            :class="['px-4 py-2 rounded-xl text-xs font-black uppercase tracking-wider transition-all shadow-md active:scale-95 flex items-center gap-2', isFbBotActive ? 'bg-rose-600 hover:bg-rose-700 text-white' : 'bg-emerald-600 hover:bg-emerald-700 text-white']"
+          >
+            <i :class="isFbBotActive ? 'fa-solid fa-power-off' : 'fa-solid fa-play'"></i>
+            <span>{{ isFbBotActive ? 'Tắt Chatbot Fanpage' : 'Bật Lại Chatbot Fanpage' }}</span>
+          </button>
+          <button 
+            @click="ui.showSocialBotModal = true"
+            class="w-9 h-9 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 flex items-center justify-center transition-all border border-slate-200 dark:border-slate-700"
+            title="Mở Cửa Sổ Quản Lý Social Bot"
+          >
+            <i class="fa-solid fa-gear"></i>
+          </button>
+        </div>
+      </div>
+
+      <!-- Quick Create Panel -->
+      <div class="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-3xl p-5 shadow-sm space-y-4">
+        <div class="flex items-center gap-2">
+          <div class="w-8 h-8 rounded-lg bg-blue-50 dark:bg-blue-950 text-blue-600 dark:text-blue-400 flex items-center justify-center text-sm shadow-sm"><i class="fa-solid fa-wand-magic-sparkles"></i></div>
+          <div>
+            <h3 class="font-black text-slate-800 dark:text-slate-100 text-sm uppercase tracking-wide">Nhập Đơn Nhanh Bằng AI</h3>
+            <p class="text-[10px] text-slate-400 dark:text-slate-500 font-medium mt-0.5">Dán tin nhắn Zalo, Facebook hoặc Messenger để tạo đơn ngay lập tức</p>
+          </div>
+        </div>
+        <div class="space-y-3">
+          <textarea
+            v-model="quickInputText"
+            rows="3"
+            class="w-full p-4 border border-slate-200 dark:border-slate-700 rounded-2xl text-xs font-bold text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-4 focus:ring-blue-100 dark:focus:ring-blue-900/40 focus:border-blue-500 bg-slate-50/50 dark:bg-slate-800/60 shadow-inner placeholder-slate-400 dark:placeholder-slate-500 transition-all custom-scrollbar resize-none"
+            placeholder="Dán tin nhắn đặt bàn của khách tại đây..."
+          ></textarea>
+          <div class="flex flex-wrap items-center justify-between gap-3">
+            <div class="text-[10px] text-slate-400 dark:text-slate-500 font-bold">
+              <span class="bg-slate-100 dark:bg-slate-800 px-2 py-1 rounded text-slate-500 dark:text-slate-400 border border-slate-200/60 dark:border-slate-700">Ctrl + K</span> để tìm kiếm nhanh mọi lúc
+            </div>
+            <button
+              @click="handleQuickAnalyze"
+              :disabled="isAnalyzing"
+              class="px-5 py-3 bg-blue-600 text-white rounded-xl font-black uppercase text-[10px] tracking-wider hover:bg-blue-700 active:scale-95 shadow-md shadow-blue-600/10 flex items-center gap-2 transition-all disabled:opacity-50"
+            >
+              <i v-if="isAnalyzing" class="fa-solid fa-spinner animate-spin"></i>
+              <i v-else class="fa-solid fa-bolt-lightning text-yellow-300"></i>
+              {{ isAnalyzing ? 'ĐANG PHÂN TÍCH...' : 'PHÂN TÍCH NHANH' }}
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Layout Grid: Smart To-do & Quick Calendar Summary -->
+      <div class="grid grid-cols-1 md:grid-cols-12 gap-5">
+        <!-- Left: Smart To-do (7 cols) -->
+        <div class="md:col-span-7 bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-3xl p-5 shadow-sm flex flex-col min-h-[300px]">
+          <div class="flex items-center justify-between mb-4">
+            <div class="flex items-center gap-2">
+              <div class="w-8 h-8 rounded-lg bg-yellow-50 dark:bg-yellow-950/60 text-yellow-600 dark:text-yellow-400 flex items-center justify-center text-sm shadow-sm"><i class="fa-solid fa-list-check"></i></div>
+              <div>
+                <h3 class="font-black text-slate-800 dark:text-slate-100 text-sm uppercase tracking-wide">Việc Cần Xử Lý</h3>
+                <p class="text-[10px] text-slate-400 dark:text-slate-500 font-medium mt-0.5">Các đơn tiệc cần chăm sóc, gọi điện nhắc cọc, hoàn tất món</p>
+              </div>
+            </div>
+            <span class="px-2.5 py-0.5 bg-yellow-50 dark:bg-yellow-950/60 text-yellow-700 dark:text-yellow-400 border border-yellow-200/50 dark:border-yellow-800/40 rounded-full font-black text-[10px]">
+              {{ todoItems.length }}
+            </span>
+          </div>
+
+          <div class="space-y-2 pr-1">
+            <div v-if="todoItems.length === 0" class="flex flex-col items-center justify-center py-12 text-slate-400">
+              <i class="fa-solid fa-circle-check text-4xl text-green-400 mb-3"></i>
+              <div class="font-black text-xs uppercase tracking-wider text-slate-700 dark:text-slate-300">Tất cả đã hoàn tất!</div>
+              <div class="text-[10px] text-slate-400 dark:text-slate-500 mt-1">Không có công việc nào đang chờ xử lý.</div>
+            </div>
+            
+            <div
+              v-for="todo in displayedTodoItems"
+              :key="todo.id"
+              class="p-3 border rounded-2xl flex items-center justify-between gap-3 transition-all hover:bg-slate-50 dark:hover:bg-slate-800/60"
+              :class="{
+                'border-rose-200/70 dark:border-rose-900/60 bg-rose-50/20 dark:bg-rose-950/20': todo.type === 'danger',
+                'border-amber-200/70 dark:border-amber-900/60 bg-amber-50/20 dark:bg-amber-950/20': todo.type === 'warning',
+                'border-blue-200/70 dark:border-blue-900/60 bg-blue-50/20 dark:bg-blue-950/20': todo.type === 'info'
+              }"
+            >
+              <div class="flex items-center gap-3 min-w-0">
+                <div class="w-8 h-8 rounded-xl flex items-center justify-center text-xs shrink-0"
+                     :class="{
+                       'bg-rose-100 dark:bg-rose-900/60 text-rose-600 dark:text-rose-300': todo.type === 'danger',
+                       'bg-amber-100 dark:bg-amber-900/60 text-amber-600 dark:text-amber-300': todo.type === 'warning',
+                       'bg-blue-100 dark:bg-blue-900/60 text-blue-600 dark:text-blue-300': todo.type === 'info'
+                     }">
+                  <i class="fa-solid" :class="todo.icon"></i>
                 </div>
-              </td>
-              <td class="p-3">
-                <span v-if="order.parsedCustomer.tables" class="px-2 py-0.5 bg-blue-50 text-blue-700 border border-blue-100 rounded text-[10px] font-black uppercase">
-                  Bàn {{ order.parsedCustomer.tables }}
-                </span>
-                <span v-else class="text-slate-400 italic text-[10px]">Chưa xếp</span>
-              </td>
-              <td class="p-3">
-                <span class="px-2.5 py-0.5 rounded-full font-black text-[9px] uppercase tracking-wider"
-                      :class="order.isDeposited ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-rose-50 text-rose-700 border border-rose-200'">
-                  {{ order.isDeposited ? 'Đã cọc' : 'Chưa cọc' }}
-                </span>
-              </td>
-              <td class="p-3 font-black text-slate-800 text-right">
-                {{ formatVND(order.totalAmount) }}
-              </td>
-              <td class="p-3 text-center">
-                <button
-                  @click="handleRecentClick(order)"
-                  class="px-2.5 py-1.5 bg-white border border-slate-200 text-slate-600 rounded-lg hover:border-blue-500 hover:text-blue-600 active:scale-95 transition-all text-[10px] font-bold shadow-sm"
-                >
-                  Sửa
-                </button>
-              </td>
-            </tr>
-          </tbody>
-        </table>
+                <div class="min-w-0">
+                  <div class="font-black text-xs text-slate-800 dark:text-slate-100">{{ todo.title }}</div>
+                  <div class="text-[10px] text-slate-400 dark:text-slate-400 font-bold truncate mt-0.5">{{ todo.desc }}</div>
+                </div>
+              </div>
+              <button
+                @click="handleTodoAction(todo)"
+                class="px-3 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl font-black text-[9px] uppercase tracking-wider text-slate-700 dark:text-slate-200 hover:border-blue-500 hover:text-blue-600 dark:hover:text-blue-400 active:scale-95 transition-all shrink-0 shadow-sm"
+              >
+                {{ todo.actionLabel }}
+              </button>
+            </div>
+
+            <!-- Xem tất cả / Thu gọn toggle button -->
+            <div v-if="todoItems.length > 3" class="pt-2 flex justify-center border-t border-slate-100 dark:border-slate-800 mt-2">
+              <button @click="showAllTodo = !showAllTodo" class="text-[11px] font-black text-blue-600 dark:text-blue-400 hover:text-blue-700 flex items-center gap-1.5 uppercase tracking-wider">
+                <span>{{ showAllTodo ? 'Thu gọn' : `Xem tất cả (${todoItems.length})` }}</span>
+                <i class="fa-solid" :class="showAllTodo ? 'fa-chevron-up' : 'fa-chevron-down'"></i>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Right: Quick Calendar Summary (5 cols) -->
+        <div class="md:col-span-5 bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-3xl p-5 shadow-sm flex flex-col min-h-[300px]">
+          <div class="flex items-center gap-2 mb-4">
+            <div class="w-8 h-8 rounded-lg bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 flex items-center justify-center text-sm shadow-sm"><i class="fa-solid fa-calendar-days"></i></div>
+            <div>
+              <h3 class="font-black text-slate-800 dark:text-slate-100 text-sm uppercase tracking-wide">Lịch Nhanh 7 Ngày</h3>
+              <p class="text-[10px] text-slate-400 dark:text-slate-500 font-medium mt-0.5">Số lượng bàn đặt trước trong 7 ngày tới</p>
+            </div>
+          </div>
+
+          <div class="flex-grow overflow-y-auto space-y-2 max-h-[320px] custom-scrollbar pr-1">
+            <div
+              v-for="day in calendarSummary"
+              :key="day.dateStr"
+              @click="openTimelineDate(day.dateStr)"
+              class="p-3 border border-slate-100 dark:border-slate-800 rounded-2xl flex items-center justify-between hover:bg-slate-50 dark:hover:bg-slate-800/60 transition-all cursor-pointer active:scale-[0.99]"
+              :class="{
+                'ring-2 ring-blue-600 ring-offset-2 dark:ring-offset-slate-900 bg-blue-50/10': day.isToday,
+                'bg-slate-50/20 dark:bg-slate-800/20': day.isTomorrow
+              }"
+            >
+              <div class="flex items-center gap-3">
+                <div class="w-11 h-11 rounded-xl flex flex-col items-center justify-center font-black shrink-0 border border-slate-200/50 dark:border-slate-700"
+                     :class="day.isToday ? 'bg-blue-600 text-white border-blue-600' : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300'">
+                  <span class="text-xs leading-none font-black mt-1">{{ day.dayOfMonth }}</span>
+                  <span class="text-[9px] uppercase font-black tracking-wider leading-none mb-1 mt-0.5" :class="day.isToday ? 'text-blue-100' : 'text-slate-400'">{{ day.shortLabel }}</span>
+                </div>
+                <div>
+                  <div class="font-black text-xs text-slate-800 dark:text-slate-100 flex items-center gap-2">
+                    <span>{{ day.label }}</span>
+                    <span v-if="day.isToday" class="text-[8px] bg-blue-100 dark:bg-blue-900/60 text-blue-700 dark:text-blue-300 px-1.5 py-0.5 rounded font-black uppercase">Hôm nay</span>
+                  </div>
+                  <div class="text-[9px] text-slate-400 font-bold mt-0.5">{{ day.dateStr }}</div>
+                </div>
+              </div>
+              
+              <div class="flex items-center gap-2 shrink-0">
+                <div v-if="day.bookings > 0" class="text-right flex flex-col items-end gap-0.5">
+                  <span class="px-2.5 py-0.5 bg-indigo-50 dark:bg-indigo-950/60 border border-indigo-100 dark:border-indigo-800/60 text-indigo-700 dark:text-indigo-300 rounded-lg font-black text-[10px] uppercase tracking-wide">
+                    {{ day.bookings }} tiệc
+                  </span>
+                  <span class="text-[9px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-wider pr-1">
+                    {{ day.guests }} khách
+                  </span>
+                </div>
+                <div v-else class="text-[10px] text-slate-300 dark:text-slate-600 font-semibold italic pr-1">
+                  Trống
+                </div>
+                <i class="fa-solid fa-chevron-right text-[10px] text-slate-300 dark:text-slate-600"></i>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Recent Operations Section -->
+      <div class="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-3xl p-5 shadow-sm">
+        <div class="flex items-center gap-2 mb-4">
+          <div class="w-8 h-8 rounded-lg bg-teal-50 dark:bg-teal-950/60 text-teal-600 dark:text-teal-400 flex items-center justify-center text-sm shadow-sm"><i class="fa-solid fa-clock-rotate-left"></i></div>
+          <div>
+            <h3 class="font-black text-slate-800 dark:text-slate-100 text-sm uppercase tracking-wide">Thao Tác Gần Đây</h3>
+            <p class="text-[10px] text-slate-400 dark:text-slate-500 font-medium mt-0.5">Các phiếu đặt bàn vừa được tạo hoặc sửa đổi trên hệ thống</p>
+          </div>
+        </div>
+
+        <div class="overflow-x-auto w-full border border-slate-100 dark:border-slate-800 rounded-2xl bg-slate-50/30 dark:bg-slate-900/40">
+          <table class="w-full text-left border-collapse min-w-[600px] text-xs">
+            <thead>
+              <tr class="bg-slate-100 dark:bg-slate-800/80 text-slate-500 dark:text-slate-400 font-black uppercase tracking-wider border-b border-slate-200 dark:border-slate-700">
+                <th class="p-3 w-36">Thời gian sửa</th>
+                <th class="p-3">Khách hàng</th>
+                <th class="p-3 w-28">Số bàn</th>
+                <th class="p-3 w-28">Trạng thái cọc</th>
+                <th class="p-3 w-32 text-right">Tổng tiền</th>
+                <th class="p-3 w-20 text-center">Thao tác</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-100 dark:divide-slate-800">
+              <tr v-if="recentOperations.length === 0">
+                <td colspan="6" class="p-8 text-center text-slate-400 dark:text-slate-500 font-semibold">Chưa có thao tác nào gần đây. Hãy tạo một phiếu mới!</td>
+              </tr>
+              <tr v-for="order in recentOperations" :key="order.id" class="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
+                <td class="p-3 text-[10px] font-mono text-slate-400 dark:text-slate-500 font-semibold">
+                  {{ new Date(order.timestamp || Date.now()).toLocaleString('vi-VN', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit' }) }}
+                </td>
+                <td class="p-3">
+                  <div class="font-black text-slate-800 dark:text-slate-100">{{ order.parsedCustomer.name }}</div>
+                  <div class="text-[10px] text-slate-400 dark:text-slate-400 font-bold mt-0.5 flex items-center gap-2">
+                    <span>{{ order.parsedCustomer.phone }}</span>
+                    <span>•</span>
+                    <span>{{ order.parsedCustomer.date }} ({{ order.parsedCustomer.time || '18:00' }})</span>
+                  </div>
+                </td>
+                <td class="p-3">
+                  <span v-if="order.parsedCustomer.tables" class="px-2 py-0.5 bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-400 border border-blue-100 dark:border-blue-800/50 rounded text-[10px] font-black uppercase">
+                    Bàn {{ order.parsedCustomer.tables }}
+                  </span>
+                  <span v-else class="text-slate-400 italic text-[10px]">Chưa xếp</span>
+                </td>
+                <td class="p-3">
+                  <span class="px-2.5 py-0.5 rounded-full font-black text-[9px] uppercase tracking-wider"
+                        :class="order.isDeposited ? 'bg-green-50 dark:bg-green-950/60 text-green-700 dark:text-green-400 border border-green-200 dark:border-green-800/50' : 'bg-rose-50 dark:bg-rose-950/60 text-rose-700 dark:text-rose-400 border border-rose-200 dark:border-rose-800/50'">
+                    {{ order.isDeposited ? 'Đã cọc' : 'Chưa cọc' }}
+                  </span>
+                </td>
+                <td class="p-3 font-black text-slate-800 dark:text-slate-100 text-right">
+                  {{ formatVND(order.totalAmount) }}
+                </td>
+                <td class="p-3 text-center">
+                  <button
+                    @click="handleRecentClick(order)"
+                    class="px-2.5 py-1.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 rounded-lg hover:border-blue-500 hover:text-blue-600 dark:hover:text-blue-400 active:scale-95 transition-all text-[10px] font-bold shadow-sm"
+                  >
+                    Sửa
+                  </button>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   </div>

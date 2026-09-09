@@ -185,23 +185,33 @@ async function handleSyncCalendar() {
         </div>
       </div>
 
-      <!-- Action Buttons -->
-      <div class="grid grid-cols-2 gap-3 mt-auto relative z-10">
-        <button @click="handleEdit" class="py-3.5 bg-blue-900 text-white rounded-xl font-black text-xs uppercase shadow-lg shadow-blue-900/20 active:scale-95 transition-all flex justify-center items-center gap-2">
-          <i class="fa-solid fa-pen-to-square"></i> Sửa / Đổi lịch
+      <!-- Action Buttons Hierarchy (Spec #23) -->
+      <div class="flex flex-col gap-2.5 mt-auto relative z-10">
+        <!-- Primary Action: Edit / Update (Min 48px height) -->
+        <button @click="handleEdit" class="min-h-[48px] w-full bg-blue-900 hover:bg-blue-800 text-white rounded-2xl font-black text-xs uppercase tracking-wider shadow-lg shadow-blue-900/25 active:scale-95 transition-all flex justify-center items-center gap-2 cursor-pointer">
+          <i class="fa-solid fa-pen-to-square text-sm"></i> Chỉnh sửa đơn / Đổi lịch
         </button>
-        <button @click="handlePending" class="py-3.5 bg-amber-100 text-amber-700 border border-amber-200 rounded-xl font-black text-xs uppercase shadow-sm hover:bg-amber-200 active:scale-95 transition-all flex justify-center items-center gap-2">
-          <i class="fa-solid fa-pause"></i> Tạm hoãn
+
+        <!-- Secondary Actions Row (Min 48px height) -->
+        <div class="grid grid-cols-2 gap-2.5">
+          <button @click="handleViewBill" class="min-h-[48px] bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 rounded-xl font-black text-xs uppercase shadow-xs active:scale-95 transition-all flex justify-center items-center gap-2 cursor-pointer">
+            <i class="fa-solid fa-receipt text-blue-600"></i> Xem Bill
+          </button>
+          <button @click="handlePending" class="min-h-[48px] bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 rounded-xl font-black text-xs uppercase shadow-xs active:scale-95 transition-all flex justify-center items-center gap-2 cursor-pointer">
+            <i class="fa-solid fa-pause text-amber-600"></i> Tạm hoãn
+          </button>
+        </div>
+
+        <button @click="handleSyncCalendar" class="min-h-[44px] w-full bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 rounded-xl font-black text-xs uppercase tracking-wider shadow-xs active:scale-95 transition-all flex justify-center items-center gap-2 cursor-pointer">
+          <i class="fa-solid fa-rotate text-indigo-600"></i> Đồng bộ lịch bàn (Spreadsheet)
         </button>
-        <button @click="handleViewBill" class="py-3.5 bg-slate-100 text-slate-600 border border-slate-200 rounded-xl font-black text-xs uppercase shadow-sm hover:bg-slate-200 active:scale-95 transition-all flex justify-center items-center gap-2">
-          <i class="fa-solid fa-receipt"></i> Xem Bill
-        </button>
-        <button @click="handleDelete" class="py-3.5 bg-red-50 text-red-600 border border-red-100 rounded-xl font-black text-xs uppercase shadow-sm hover:bg-red-100 active:scale-95 transition-all flex justify-center items-center gap-2">
-          <i class="fa-solid fa-trash-can"></i> Xóa phiếu
-        </button>
-        <button @click="handleSyncCalendar" class="col-span-2 py-3.5 bg-indigo-600 text-white hover:bg-indigo-700 rounded-xl font-black text-xs uppercase shadow-lg shadow-indigo-900/20 active:scale-95 transition-all flex justify-center items-center gap-2">
-          <i class="fa-solid fa-rotate"></i> Đồng bộ lịch bàn (Spreadsheet)
-        </button>
+
+        <!-- Destructive Action: Segregated with confirm barrier -->
+        <div class="pt-2 border-t border-slate-100 flex justify-center">
+          <button @click="handleDelete" class="min-h-[44px] px-4 text-rose-500 hover:text-rose-700 hover:bg-rose-50 rounded-xl font-black text-xs uppercase tracking-wider transition-colors active:scale-95 flex items-center gap-1.5 cursor-pointer">
+            <i class="fa-solid fa-trash-can text-xs"></i> Xóa phiếu đặt bàn
+          </button>
+        </div>
       </div>
 
     </div>

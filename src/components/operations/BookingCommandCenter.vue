@@ -37,21 +37,21 @@
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
       <!-- Left 2 Cols: Cards List with Filter Controls -->
       <div class="lg:col-span-2 space-y-3">
-        <div class="flex items-center justify-between gap-2">
-          <div class="flex items-center gap-2">
+        <div class="flex items-center justify-between gap-2 overflow-x-auto pb-1 scrollbar-none">
+          <div class="flex items-center gap-2 shrink-0">
             <button 
               v-for="filter in filterOptions" 
               :key="filter.value"
               @click="activeFilter = filter.value"
-              class="px-3 py-1.5 rounded-xl text-xs font-bold transition border"
-              :class="activeFilter === filter.value ? 'bg-amber-500 text-slate-950 border-amber-400 shadow-md' : 'bg-slate-900/80 text-slate-300 border-slate-800 hover:bg-slate-800'"
+              class="px-3.5 py-2.5 min-h-[44px] rounded-xl text-xs font-bold transition border active:scale-95"
+              :class="activeFilter === filter.value ? 'bg-amber-500 text-slate-950 border-amber-400 shadow-md font-black' : 'bg-slate-900/80 text-slate-300 border-slate-800 hover:bg-slate-800'"
             >
               {{ filter.label }}
             </button>
           </div>
 
-          <span class="text-xs text-slate-400 font-medium">
-            Hiển thị {{ filteredBookings.length }} đơn
+          <span class="text-xs text-slate-400 font-medium shrink-0 tabular-nums">
+            {{ filteredBookings.length }} đơn
           </span>
         </div>
 

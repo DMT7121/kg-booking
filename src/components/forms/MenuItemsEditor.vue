@@ -14,6 +14,11 @@ const { handleInputFocus, handleInputBlur, addNewItem, onSearchInput, selectMenu
 const draggedIndex = ref<number | null>(null)
 const dragOverIndex = ref<number | null>(null)
 const expandedNotes = ref<Record<number, boolean>>({})
+const expandedItems = ref<Record<number, boolean>>({})
+
+function toggleItemExpand(index: number) {
+  expandedItems.value[index] = !expandedItems.value[index]
+}
 
 function triggerCreateMenu() {
   ui.activeSettingModal = 'menu'
@@ -159,31 +164,31 @@ function clearItemName(index: number) {
 </script>
 
 <template>
-  <div class="bg-white rounded-3xl shadow-sm border p-5 md:p-6 transition-all duration-300 relative overflow-hidden"
+  <div class="bg-white rounded-3xl shadow-sm border p-4 sm:p-5 md:p-6 transition-all duration-300 relative overflow-hidden"
        :class="hasSoftWarning ? 'border-amber-300 bg-amber-50/10' : 'border-slate-100'">
     <!-- Top Decorative Line -->
     <div class="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-emerald-500 via-teal-500 to-cyan-500"></div>
 
-    <div class="flex justify-between items-center mb-5 border-b border-slate-100 pb-3">
+    <div class="flex justify-between items-center mb-4 border-b border-slate-100 pb-3">
       <div class="flex items-center gap-2.5">
-        <div class="w-8 h-8 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center text-sm shadow-sm border border-emerald-100">
+        <div class="w-8 h-8 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center text-sm shadow-sm border border-emerald-100 shrink-0">
           <i class="fa-solid fa-bell-concierge"></i>
         </div>
         <div>
           <h3 class="font-black text-slate-800 text-xs uppercase tracking-widest flex items-center gap-1.5">
             Danh Sách Món Ăn & Đồ Uống
-            <span class="bg-red-500 text-white px-2 py-0.5 rounded-full text-[10px] font-black shadow-xs">{{ formStore.items.length }}</span>
+            <span class="bg-red-500 text-white px-2 py-0.5 rounded-full text-[10px] font-black font-tabular shadow-xs">{{ formStore.items.length }}</span>
           </h3>
           <p class="text-[10px] font-bold text-slate-400">Chọn từ thực đơn hoặc nhập tự do</p>
         </div>
       </div>
-      <button @click="ui.showMenuManager = true" class="text-[10px] bg-slate-50 px-3 py-1.5 rounded-xl text-slate-600 font-black border border-slate-200 hover:bg-slate-100 active:scale-95 transition-all uppercase tracking-widest flex items-center gap-2 cursor-pointer shadow-xs">
+      <button @click="ui.showMenuManager = true" class="text-[10px] bg-slate-50 px-3 py-2 rounded-xl text-slate-600 font-black border border-slate-200 hover:bg-slate-100 active:scale-95 transition-all uppercase tracking-widest flex items-center gap-1.5 cursor-pointer shadow-xs min-h-[36px]">
         <i class="fa-solid fa-book-open text-blue-600"></i> {{ appStore.activeSheet }}
       </button>
     </div>
 
     <!-- Alert when no menu is available -->
-    <div v-if="appStore.menuSheets.length === 0 || appStore.menuList.length === 0" class="bg-amber-50 border border-amber-200 rounded-2xl p-5 mb-5 text-center flex flex-col items-center justify-center">
+    <div v-if="appStore.menuSheets.length === 0 || appStore.menuList.length === 0" class="bg-amber-50 border border-amber-200 rounded-2xl p-4 sm:p-5 mb-4 text-center flex flex-col items-center justify-center">
       <div class="w-12 h-12 bg-amber-100 text-amber-600 rounded-full flex items-center justify-center text-xl mb-3 shadow-inner">
         <i class="fa-solid fa-triangle-exclamation"></i>
       </div>
@@ -192,22 +197,23 @@ function clearItemName(index: number) {
         Vui lòng tạo menu trước để hệ thống nhận diện món, tự động dò thực đơn và tính tiền chính xác.
       </p>
       <div class="flex flex-wrap justify-center gap-2">
-        <button @click="triggerCreateMenu" class="px-4 py-2 bg-blue-900 text-white text-[11px] font-black rounded-lg uppercase tracking-wider active:scale-95 transition-all shadow-sm">
+        <button @click="triggerCreateMenu" class="px-4 py-2.5 bg-blue-900 text-white text-[11px] font-black rounded-xl uppercase tracking-wider active:scale-95 transition-all shadow-sm min-h-[44px]">
           <i class="fa-solid fa-plus mr-1"></i> Tạo menu mới
         </button>
-        <button @click="triggerPasteMenu" class="px-4 py-2 bg-white border border-slate-200 text-slate-700 text-[11px] font-black rounded-lg uppercase tracking-wider active:scale-95 transition-all shadow-sm">
-          <i class="fa-solid fa-paste mr-1"></i> Dán menu dạng văn bản
+        <button @click="triggerPasteMenu" class="px-4 py-2.5 bg-white border border-slate-200 text-slate-700 text-[11px] font-black rounded-xl uppercase tracking-wider active:scale-95 transition-all shadow-sm min-h-[44px]">
+          <i class="fa-solid fa-paste mr-1"></i> Dán menu text
         </button>
-        <button @click="triggerUploadMenuImg" class="px-4 py-2 bg-white border border-slate-200 text-slate-700 text-[11px] font-black rounded-lg uppercase tracking-wider active:scale-95 transition-all shadow-sm">
-          <i class="fa-solid fa-image mr-1"></i> Tải ảnh menu (AI đọc)
+        <button @click="triggerUploadMenuImg" class="px-4 py-2.5 bg-white border border-slate-200 text-slate-700 text-[11px] font-black rounded-xl uppercase tracking-wider active:scale-95 transition-all shadow-sm min-h-[44px]">
+          <i class="fa-solid fa-image mr-1"></i> Tải ảnh menu (AI)
         </button>
-        <button @click="useSampleMenu" class="px-4 py-2 bg-emerald-50 border border-emerald-100 text-emerald-700 text-[11px] font-black rounded-lg uppercase tracking-wider active:scale-95 transition-all shadow-sm">
-          <i class="fa-solid fa-circle-play mr-1"></i> Dùng menu mẫu tạm thời
+        <button @click="useSampleMenu" class="px-4 py-2.5 bg-emerald-50 border border-emerald-100 text-emerald-700 text-[11px] font-black rounded-xl uppercase tracking-wider active:scale-95 transition-all shadow-sm min-h-[44px]">
+          <i class="fa-solid fa-circle-play mr-1"></i> Dùng menu mẫu
         </button>
       </div>
     </div>
 
-    <div class="space-y-4">
+    <!-- Items List: Compact 72-88px default height, expandable on-demand -->
+    <div class="space-y-3">
       <div v-for="(item, index) in formStore.items" :key="index" 
            draggable="true"
            @dragstart="onDragStart($event, index)"
@@ -216,18 +222,25 @@ function clearItemName(index: number) {
            @drop="onDrop($event, index)"
            @dragend="draggedIndex = null; dragOverIndex = null"
            :class="[
-             'relative bg-white border border-slate-200 rounded-2xl p-4 shadow-sm hover:shadow-md transition-all cursor-grab active:cursor-grabbing group',
+             'relative bg-white border border-slate-200 rounded-2xl p-3 sm:p-4 shadow-sm hover:shadow-md transition-all group',
              draggedIndex === index ? 'opacity-40 scale-[0.98]' : '',
-             dragOverIndex === index && draggedIndex !== index ? 'border-t-4 border-t-blue-900 pt-6 scale-[1.02] shadow-lg' : ''
+             dragOverIndex === index && draggedIndex !== index ? 'border-t-4 border-t-blue-900 pt-5 scale-[1.02] shadow-lg' : '',
+             item.note ? 'border-rose-200/80 bg-rose-50/10' : ''
            ]">
-        <div class="flex flex-col gap-4">
-          <!-- Name & Suggestions (with Drag/Move helpers) -->
-          <div class="relative w-full flex items-center gap-3">
-            <div class="flex flex-col gap-1 p-2 bg-slate-50 rounded-xl text-slate-400 border border-slate-100 -ml-2 opacity-50 group-hover:opacity-100 transition-opacity">
-              <button @click="swapItem(index, index - 1)" :disabled="index === 0" class="hover:text-blue-900 disabled:opacity-20 active:scale-90 transition-transform"><i class="fa-solid fa-chevron-up text-[10px]"></i></button>
-              <button @click="swapItem(index, index + 1)" :disabled="index === formStore.items.length - 1" class="hover:text-blue-900 disabled:opacity-20 active:scale-90 transition-transform"><i class="fa-solid fa-chevron-down text-[10px]"></i></button>
+        <div class="flex flex-col gap-2.5">
+          <!-- Row 1: Move handlers, Item Name & Dropdown, Price input -->
+          <div class="flex items-center gap-2">
+            <!-- Move buttons with 40px hit area -->
+            <div class="flex flex-col gap-0.5 bg-slate-50 rounded-lg p-0.5 text-slate-400 border border-slate-100 shrink-0">
+              <button @click="swapItem(index, index - 1)" :disabled="index === 0" aria-label="Di chuyển món lên" class="w-7 h-5 flex items-center justify-center hover:text-blue-900 disabled:opacity-20 active:scale-90 transition-transform">
+                <i class="fa-solid fa-chevron-up text-[10px]"></i>
+              </button>
+              <button @click="swapItem(index, index + 1)" :disabled="index === formStore.items.length - 1" aria-label="Di chuyển món xuống" class="w-7 h-5 flex items-center justify-center hover:text-blue-900 disabled:opacity-20 active:scale-90 transition-transform">
+                <i class="fa-solid fa-chevron-down text-[10px]"></i>
+              </button>
             </div>
             
+            <!-- Item Name Input with live search -->
             <div class="relative flex-grow">
               <div class="relative w-full">
                 <input 
@@ -235,18 +248,20 @@ function clearItemName(index: number) {
                   @input="onSearchInput(index)" 
                   @blur="handleItemBlur" 
                   @focus="handleInputFocus" 
-                  class="w-full font-black text-blue-900 text-base md:text-sm border-b-2 border-slate-100 focus:border-blue-900 outline-none pb-2 pr-8 uppercase placeholder-slate-300 transition-colors" 
+                  class="w-full font-black text-blue-900 text-sm md:text-sm border-b-2 border-slate-100 focus:border-blue-900 outline-none pb-1.5 pr-7 uppercase placeholder-slate-300 transition-colors" 
                   placeholder="NHẬP TÊN MÓN..."
                 >
                 <button 
                   v-if="item.name" 
                   @click.prevent="clearItemName(index)" 
-                  class="absolute right-1 top-1 w-6 h-6 rounded-full flex items-center justify-center text-slate-400 hover:text-slate-650 hover:bg-slate-100 transition-all active:scale-90"
+                  aria-label="Xóa tên món"
+                  class="absolute right-0 top-0.5 w-7 h-7 rounded-full flex items-center justify-center text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-all active:scale-90"
                 >
                   <i class="fa-solid fa-circle-xmark text-sm"></i>
                 </button>
               </div>
 
+              <!-- Suggestion Dropdown: min 44px items -->
               <div v-if="ui.focusIdx === index" class="absolute top-full left-0 right-0 bg-white border border-slate-200 rounded-2xl shadow-2xl max-h-[320px] overflow-hidden z-50 mt-2 flex flex-col">
                 <!-- Category Tabs inside Dropdown -->
                 <div class="flex gap-1.5 p-2 bg-slate-50 border-b border-slate-100 overflow-x-auto no-scrollbar shrink-0">
@@ -254,7 +269,7 @@ function clearItemName(index: number) {
                     v-for="cat in CATEGORIES"
                     :key="cat.name"
                     @mousedown.prevent="selectedCategory = cat.name"
-                    class="px-2.5 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider transition-all cursor-pointer"
+                    class="px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-wider transition-all cursor-pointer min-h-[32px]"
                     :class="selectedCategory === cat.name ? 'bg-blue-900 text-white shadow-sm' : 'bg-white text-slate-500 border border-slate-200 hover:bg-slate-100'"
                   >
                     {{ cat.name }}
@@ -271,71 +286,128 @@ function clearItemName(index: number) {
                     v-for="s in filteredSuggestions" 
                     :key="s.name" 
                     @mousedown.prevent="selectMenuItem(s, index)" 
-                    class="p-2.5 hover:bg-blue-50 cursor-pointer flex justify-between items-center rounded-xl transition-colors border-b last:border-0 border-slate-50 min-h-[44px]"
+                    class="p-2.5 hover:bg-blue-50 cursor-pointer flex justify-between items-center rounded-xl transition-colors border-b last:border-0 border-slate-50 min-h-[46px]"
                   >
                     <div class="flex flex-col">
                       <span class="font-black text-slate-700 text-xs uppercase" v-html="highlightMatch(s.name, index)"></span>
                       <span v-if="s.desc" class="text-[9px] font-medium text-slate-400 truncate max-w-[200px] mt-0.5">{{ s.desc }}</span>
                     </div>
-                    <span class="text-[11px] text-blue-600 font-black tracking-tighter bg-blue-50/50 px-2 py-1 rounded-md">{{ formatVND(s.price) }}</span>
+                    <span class="text-[11px] text-blue-600 font-black tracking-tighter bg-blue-50/50 px-2 py-1 rounded-md font-tabular">{{ formatVND(s.price) }}</span>
                   </li>
                 </ul>
               </div>
             </div>
-          </div>
 
-          <!-- Note -->
-          <div class="w-full">
-            <div class="relative">
-              <textarea v-model="item.note" @focus="handleInputFocus" @blur="handleInputBlur"
-                :rows="expandedNotes[index] ? Math.max(item.note ? item.note.split('\n').length + 1 : 1, 6) : Math.min(Math.max(item.note ? item.note.split('\n').length : 3, 3), 6)"
-                class="w-full text-xs text-rose-600 font-bold bg-rose-50/30 rounded-xl p-3 pb-8 border border-rose-100 focus:border-rose-300 focus:bg-rose-50 outline-none resize-none transition-all placeholder-rose-300 custom-scrollbar"
-                placeholder="Ghi chú / Yêu cầu thêm..."></textarea>
-              
-              <div v-if="item.note && item.note.split('\n').length > 3" class="absolute bottom-2 right-2 z-10">
-                <button @click.prevent="expandedNotes[index] = !expandedNotes[index]" class="px-2 py-1 bg-white border border-rose-200 text-rose-600 text-[9px] font-black rounded-lg uppercase tracking-wider active:scale-95 transition-all shadow-sm">
-                  {{ expandedNotes[index] ? 'Thu gọn' : 'Xem thêm' }}
-                </button>
-              </div>
+            <!-- Price Input -->
+            <div class="shrink-0 w-24 sm:w-28 text-right">
+              <input 
+                type="text" 
+                inputmode="numeric"
+                :value="formatPriceWithDots(item.price)" 
+                @input="updateItemPrice(index, ($event.target as HTMLInputElement).value)" 
+                @focus="handleInputFocus" 
+                @blur="handleInputBlur" 
+                class="w-full text-right font-black text-blue-900 bg-transparent text-sm md:text-sm outline-none placeholder-slate-400 font-tabular border-b border-dashed border-slate-200 focus:border-blue-900 pb-1" 
+                placeholder="Giá (đ)"
+              >
             </div>
           </div>
 
-          <!-- Qty, Price, Delete -->
-          <div class="flex gap-3 items-center justify-end">
-            <div class="flex items-center gap-2 bg-slate-50 p-1.5 rounded-xl border border-slate-200 flex-grow md:flex-grow-0 justify-center shadow-inner">
+          <!-- Row 2: Stepper (44-48px touch targets), Note Preview / Expand Toggle, Delete Button -->
+          <div class="flex items-center justify-between gap-2 pt-1 border-t border-slate-50">
+            <!-- Stepper with 44px min hit targets -->
+            <div class="flex items-center bg-slate-50 rounded-xl border border-slate-200 p-0.5 shadow-inner">
               <button 
                 @click.prevent="if (item.qty > 1) item.qty--; else formStore.items.splice(index, 1)" 
-                class="w-7 h-7 rounded-lg bg-white hover:bg-slate-100 flex items-center justify-center border border-slate-200 text-slate-500 font-bold active:scale-90 transition-transform cursor-pointer select-none"
+                class="w-10 h-10 rounded-lg bg-white hover:bg-slate-100 flex items-center justify-center border border-slate-200 text-slate-600 font-bold active:scale-90 transition-transform cursor-pointer select-none shrink-0"
                 title="Giảm số lượng"
+                aria-label="Giảm số lượng"
               >
-                <i class="fa-solid fa-minus text-[10px]"></i>
+                <i class="fa-solid fa-minus text-xs"></i>
               </button>
               
-              <input type="number" v-model="item.qty" @focus="handleInputFocus" @blur="handleInputBlur" class="w-8 text-center font-black border-none bg-transparent text-base md:text-sm outline-none text-slate-700 placeholder-slate-400" placeholder="SL">
+              <input 
+                type="number" 
+                inputmode="numeric"
+                v-model="item.qty" 
+                @focus="handleInputFocus" 
+                @blur="handleInputBlur" 
+                class="w-10 text-center font-black border-none bg-transparent text-sm outline-none text-slate-800 placeholder-slate-400 font-tabular" 
+                placeholder="SL"
+              >
               
               <button 
                 @click.prevent="item.qty++" 
-                class="w-7 h-7 rounded-lg bg-white hover:bg-slate-100 flex items-center justify-center border border-slate-200 text-slate-500 font-bold active:scale-90 transition-transform cursor-pointer select-none"
+                class="w-10 h-10 rounded-lg bg-white hover:bg-slate-100 flex items-center justify-center border border-slate-200 text-slate-600 font-bold active:scale-90 transition-transform cursor-pointer select-none shrink-0"
                 title="Tăng số lượng"
+                aria-label="Tăng số lượng"
               >
-                <i class="fa-solid fa-plus text-[10px]"></i>
+                <i class="fa-solid fa-plus text-xs"></i>
               </button>
-
-              <div class="h-6 w-[1px] bg-slate-200 animate-pulse"></div>
-              <input type="text" :value="formatPriceWithDots(item.price)" @input="updateItemPrice(index, ($event.target as HTMLInputElement).value)" @focus="handleInputFocus" @blur="handleInputBlur" class="w-28 text-right font-black text-blue-900 bg-transparent text-base md:text-sm outline-none placeholder-slate-400" placeholder="Giá">
             </div>
-            <button @click="formStore.items.splice(index, 1)" class="w-12 h-12 bg-white border border-rose-200 text-rose-400 hover:bg-rose-50 hover:text-rose-600 hover:border-rose-300 transition-colors rounded-xl flex items-center justify-center active:scale-95 shadow-sm"><i class="fa-solid fa-trash-can"></i></button>
+
+            <!-- Note preview pill / toggle button -->
+            <button 
+              type="button" 
+              @click="toggleItemExpand(index)" 
+              class="flex items-center gap-1.5 px-3 py-2 rounded-xl text-[11px] font-bold transition-colors min-h-[40px] flex-grow max-w-[200px] truncate"
+              :class="item.note ? 'bg-rose-50 text-rose-600 border border-rose-200 hover:bg-rose-100' : 'bg-slate-50 text-slate-400 hover:text-slate-600 border border-slate-100'"
+              aria-label="Ghi chú món ăn"
+            >
+              <i class="fa-solid fa-pen-to-square text-[10px] shrink-0"></i>
+              <span class="truncate">{{ item.note || '+ Ghi chú' }}</span>
+            </button>
+
+            <!-- Delete Button with 48px hit area -->
+            <button 
+              @click="formStore.items.splice(index, 1)" 
+              aria-label="Xóa món"
+              class="w-11 h-11 bg-white border border-rose-200 text-rose-400 hover:bg-rose-50 hover:text-rose-600 hover:border-rose-300 transition-colors rounded-xl flex items-center justify-center active:scale-95 shadow-sm shrink-0"
+            >
+              <i class="fa-solid fa-trash-can text-sm"></i>
+            </button>
+          </div>
+
+          <!-- Expanded Note Editor (on demand or when active) -->
+          <div v-if="expandedItems[index] || (item.note && expandedItems[index] !== false)" class="w-full pt-1">
+            <div class="relative">
+              <textarea 
+                v-model="item.note" 
+                @focus="handleInputFocus" 
+                @blur="handleInputBlur"
+                :rows="expandedNotes[index] ? Math.max(item.note ? item.note.split('\n').length + 1 : 1, 4) : 2"
+                class="w-full text-xs text-rose-600 font-bold bg-rose-50/40 rounded-xl p-2.5 pb-6 border border-rose-200 focus:border-rose-400 focus:bg-rose-50 outline-none resize-none transition-all placeholder-rose-300 custom-scrollbar"
+                placeholder="Ghi chú món: cay, không hành, làm chín kĩ..."
+              ></textarea>
+              
+              <div class="absolute bottom-2 right-2 z-10 flex gap-1">
+                <button 
+                  v-if="item.note && item.note.split('\n').length > 2" 
+                  @click.prevent="expandedNotes[index] = !expandedNotes[index]" 
+                  class="px-2 py-1 bg-white border border-rose-200 text-rose-600 text-[9px] font-black rounded-lg uppercase tracking-wider active:scale-95 transition-all shadow-sm"
+                >
+                  {{ expandedNotes[index] ? 'Thu gọn' : 'Xem thêm' }}
+                </button>
+                <button 
+                  @click.prevent="expandedItems[index] = false" 
+                  class="px-2 py-1 bg-white border border-slate-200 text-slate-500 text-[9px] font-black rounded-lg uppercase tracking-wider active:scale-95 transition-all shadow-sm"
+                >
+                  Đóng
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       </div>
     </div>
     
-    <button @click="addNewItem" class="mt-5 w-full bg-blue-50/50 border-2 border-dashed border-blue-200 text-blue-600 py-4 rounded-2xl font-black hover:bg-blue-50 hover:border-blue-400 transition-all active:scale-95 uppercase tracking-widest min-h-[50px] flex items-center justify-center gap-2">
-      <i class="fa-solid fa-plus text-lg"></i> THÊM MÓN
+    <!-- Add Item Button: 50px height -->
+    <button @click="addNewItem" class="mt-4 w-full bg-blue-50/60 border-2 border-dashed border-blue-200 text-blue-700 py-3.5 rounded-2xl font-black hover:bg-blue-50 hover:border-blue-400 transition-all active:scale-95 uppercase tracking-widest min-h-[50px] flex items-center justify-center gap-2 cursor-pointer shadow-xs">
+      <i class="fa-solid fa-plus text-base"></i> THÊM MÓN
     </button>
 
     <!-- TAX CONFIG -->
-    <div class="mt-6 border-t border-slate-100 pt-5 flex justify-between items-center px-2">
+    <div class="mt-5 border-t border-slate-100 pt-4 flex justify-between items-center px-1">
       <label class="flex items-center cursor-pointer select-none min-h-[44px] group">
         <div class="relative">
           <input type="checkbox" v-model="formStore.taxEnabled" class="sr-only toggle-checkbox">
@@ -344,7 +416,7 @@ function clearItemName(index: number) {
         </div>
         <span class="ml-3 text-[10px] font-black text-slate-500 uppercase tracking-widest group-hover:text-slate-700 transition-colors">Bao gồm VAT (8% - 10%)</span>
       </label>
-      <div class="text-sm font-black text-blue-900 bg-blue-50 px-3 py-1 rounded-lg" v-if="formStore.taxEnabled">{{ formatVND(formStore.calculatedTotals.tax) }}</div>
+      <div class="text-sm font-black text-blue-900 bg-blue-50 px-3 py-1.5 rounded-lg font-tabular" v-if="formStore.taxEnabled">{{ formatVND(formStore.calculatedTotals.tax) }}</div>
     </div>
   </div>
 </template>

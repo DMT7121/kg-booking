@@ -120,6 +120,14 @@ function getTableZone(table: string): string {
   return m ? m[1].toUpperCase() : ''
 }
 
+function formatTableLabel(t: string): string {
+  const m = t.match(/^([A-Z]+)(\d+)$/i)
+  if (m) {
+    return `${m[1].toUpperCase()}${m[2].padStart(2, '0')}`
+  }
+  return t
+}
+
 // Find first empty table in the same zone
 function findFirstEmptyTableInZone(zoneCode: string, currentSelections: string[]): string | null {
   const zone = floorPlan.find(z => z.zone === zoneCode)
@@ -371,7 +379,7 @@ async function handleTableDrop(e: DragEvent, tableName: string) {
                     Cũ
                   </div>
                   
-                  <span class="text-base tracking-tight" :class="isSelected(table) ? 'text-white' : 'text-slate-800'">{{ table }}</span>
+                  <span class="text-base tracking-tight font-tabular" :class="isSelected(table) ? 'text-white' : 'text-slate-800'">{{ formatTableLabel(table) }}</span>
                   <span class="text-[9px] uppercase tracking-widest leading-none" :class="{
                     'text-blue-100': isSelected(table),
                     'text-emerald-500': !isSelected(table) && getTableStatus(table) === 'available',

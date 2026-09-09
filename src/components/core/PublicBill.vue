@@ -360,26 +360,47 @@ onUnmounted(() => { if (timer) clearInterval(timer) })
       </div>
       
       <!-- Download Button -->
-      <div class="mb-5">
-        <button @click="downloadBillImage" :disabled="downloading" class="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white rounded-3xl py-4 px-6 flex items-center justify-center gap-3 transition-all active:scale-[0.98] shadow-[0_8px_25px_rgba(37,99,235,0.2)] disabled:opacity-50 disabled:pointer-events-none">
+      <div class="mb-4">
+        <button @click="downloadBillImage" :disabled="downloading" class="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white rounded-3xl py-3.5 px-6 flex items-center justify-center gap-2.5 transition-all active:scale-[0.98] shadow-[0_8px_25px_rgba(37,99,235,0.2)] disabled:opacity-50 disabled:pointer-events-none min-h-[50px] cursor-pointer">
           <template v-if="downloading">
             <div class="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
             <span class="text-xs font-black uppercase tracking-widest">Đang tải phiếu đặt...</span>
           </template>
           <template v-else>
-            <i class="fa-solid fa-cloud-arrow-down text-lg"></i>
+            <i class="fa-solid fa-cloud-arrow-down text-base"></i>
             <span class="text-xs font-black uppercase tracking-widest">Tải phiếu đặt (Ảnh)</span>
           </template>
         </button>
       </div>
 
+      <!-- COMPACT CUSTOMER SUMMARY CARD -->
+      <div class="mb-4 bg-white border border-slate-200/80 rounded-2xl p-3.5 shadow-sm flex flex-col gap-1.5">
+        <div class="flex items-center justify-between">
+          <span class="text-[10px] font-black uppercase tracking-wider text-slate-400">Tóm tắt đặt bàn</span>
+          <span :class="[
+            'px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider font-tabular',
+            order.isDeposited ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-amber-50 text-amber-700 border border-amber-200'
+          ]">
+            {{ order.isDeposited ? '✓ Đã đặt cọc' : 'Chưa đặt cọc' }}
+          </span>
+        </div>
+        <div class="flex flex-wrap items-center gap-1.5 text-xs font-bold text-slate-700">
+          <span class="font-black text-slate-900 uppercase">{{ order.customer?.name }}</span>
+          <span class="text-slate-300">•</span>
+          <span class="text-blue-700 font-tabular font-black">{{ order.customer?.time }} {{ order.customer?.date }}</span>
+          <span class="text-slate-300">•</span>
+          <span class="font-tabular">{{ order.customer?.pax || 0 }} khách</span>
+          <span v-if="order.customer?.tables" class="text-amber-700 font-black">• Bàn {{ order.customer.tables }}</span>
+        </div>
+      </div>
+
       <!-- TICKET / RECEIPT UI -->
-      <div id="bill-render" class="relative bg-white shadow-sm border border-slate-200 mt-2 mb-6" style="border-radius: 16px; filter: drop-shadow(0 4px 6px rgba(0,0,0,0.02));">
+      <div id="bill-render" class="relative bg-white shadow-sm border border-slate-200 mt-1 mb-6" style="border-radius: 16px; filter: drop-shadow(0 4px 6px rgba(0,0,0,0.02));">
         
         <!-- Serrated top/bottom (Optional subtle CSS pattern) -->
         <div class="absolute -top-1.5 left-2 right-2 h-3 bg-slate-50" style="mask-image: radial-gradient(circle at 6px 0px, transparent 6px, black 6.5px); mask-size: 12px 12px; mask-repeat: repeat-x;"></div>
         
-        <div class="p-6 md:p-7 relative overflow-hidden">
+        <div class="p-5 sm:p-6 md:p-7 relative overflow-hidden">
           <!-- HEADER -->
           <div class="text-center mb-6 mt-0">
             <img src="/favicon.svg" class="h-16 w-auto mx-auto mb-2 opacity-90 object-contain" alt="Logo">
@@ -394,23 +415,23 @@ onUnmounted(() => { if (timer) clearInterval(timer) })
             <div class="space-y-2 relative z-10">
               <div class="flex justify-between items-baseline border-b border-dashed border-slate-200 pb-2">
                 <span class="text-xs font-bold text-slate-500">Khách hàng</span>
-                <span class="font-black text-slate-800 text-sm">{{ order.customer?.name || '---' }}</span>
+                <span class="font-black text-slate-800 text-sm uppercase">{{ order.customer?.name || '---' }}</span>
               </div>
               <div class="flex justify-between items-baseline border-b border-dashed border-slate-200 pb-2">
                 <span class="text-xs font-bold text-slate-500">SĐT/Zalo</span>
-                <span class="font-black text-blue-600 text-sm tracking-wider">{{ order.customer?.phone || '---' }}</span>
+                <span class="font-black text-blue-600 text-sm tracking-wider font-tabular">{{ order.customer?.phone || '---' }}</span>
               </div>
               <div class="flex justify-between items-baseline border-b border-dashed border-slate-200 pb-2">
                 <span class="text-xs font-bold text-slate-500">Thời gian</span>
-                <span class="font-black text-slate-800 text-sm">{{ order.customer?.time || '--:--' }} &bull; {{ order.customer?.date || '' }}</span>
+                <span class="font-black text-slate-800 text-sm font-tabular">{{ order.customer?.time || '--:--' }} &bull; {{ order.customer?.date || '' }}</span>
               </div>
               <div class="flex justify-between items-baseline border-b border-dashed border-slate-200 pb-2">
                 <span class="text-xs font-bold text-slate-500">Số khách</span>
-                <span class="font-black text-slate-800 text-sm">{{ order.customer?.pax || '0' }} người</span>
+                <span class="font-black text-slate-800 text-sm font-tabular">{{ order.customer?.pax || '0' }} người</span>
               </div>
               <div class="flex justify-between items-baseline border-b border-dashed border-slate-200 pb-2">
                 <span class="text-xs font-bold text-slate-500">Khu vực/Bàn</span>
-                <span class="font-black text-amber-600 text-sm">{{ order.customer?.tables || 'Chưa xếp' }}</span>
+                <span class="font-black text-amber-600 text-sm font-tabular">{{ order.customer?.tables || 'Chưa xếp' }}</span>
               </div>
               <div v-if="order.customer?.type" class="flex justify-between items-baseline border-b border-dashed border-slate-200 pb-2">
                 <span class="text-xs font-bold text-slate-500">Loại tiệc</span>
@@ -422,11 +443,11 @@ onUnmounted(() => { if (timer) clearInterval(timer) })
               </div>
             </div>
 
-            <!-- STAMP -->
-            <div class="absolute bottom-1 left-[46%] -translate-x-[50%] pointer-events-none origin-center z-0" style="transform: scale(0.48) rotate(-5deg); opacity: 0.95;">
-              <div class="relative w-[220px] flex flex-col items-center justify-center">
+            <!-- STAMP (Responsive scaling) -->
+            <div class="absolute bottom-1 right-2 sm:left-[46%] sm:-translate-x-[50%] pointer-events-none origin-center z-0 scale-75 sm:scale-95" style="transform: rotate(-5deg); opacity: 0.95;">
+              <div class="relative w-[180px] sm:w-[220px] flex flex-col items-center justify-center">
                 <img :src="order.isDeposited ? '/images/stamps/paid.png' : '/images/stamps/pending.png'" class="w-full object-contain filter drop-shadow-md" alt="Stamp" />
-                <div v-if="order.isDeposited" class="mt-2 w-full text-center text-[#d11124] font-black tracking-widest whitespace-nowrap" style="font-family: 'Cal Sans', sans-serif; font-size: 16px;">
+                <div v-if="order.isDeposited" class="mt-1.5 w-full text-center text-[#d11124] font-black tracking-widest whitespace-nowrap font-tabular" style="font-family: 'Cal Sans', sans-serif; font-size: 14px;">
                   {{ formatDepositTime(order.deposit?.time) }}
                 </div>
               </div>
