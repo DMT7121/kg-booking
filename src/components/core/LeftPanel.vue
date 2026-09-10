@@ -443,12 +443,12 @@ function goToTomorrowTimeline() {
                     </div>
 
                     <!-- Smart Warning Widget -->
-                    <div v-if="hasSoftWarning" class="bg-amber-50/90 border border-amber-300 rounded-2xl p-4 shadow-sm space-y-2">
-                      <div class="flex items-center gap-2 text-amber-800 font-black uppercase text-xs">
+                    <div v-if="hasSoftWarning" class="bg-amber-50/90 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-800/60 rounded-2xl p-4 shadow-sm space-y-2">
+                      <div class="flex items-center gap-2 text-amber-800 dark:text-amber-200 font-black uppercase text-xs">
                         <i class="fa-solid fa-triangle-exclamation text-amber-500 text-sm"></i>
                         Cảnh báo phân tích AI
                       </div>
-                      <ul class="list-disc pl-4 text-xs text-amber-700 space-y-1">
+                      <ul class="list-disc pl-4 text-xs text-amber-700 dark:text-amber-300 space-y-1 font-medium">
                         <li v-if="formStore.aiMetadata && typeof formStore.aiMetadata.confidence_score === 'number' && formStore.aiMetadata.confidence_score < 0.8">
                           Đo độ tin cậy AI thấp ({{ Math.round(formStore.aiMetadata.confidence_score * 100) }}%). Vui lòng kiểm tra lại.
                         </li>
@@ -496,7 +496,7 @@ function goToTomorrowTimeline() {
       <!-- Bill Preview (Overlay độc lập cho cả desktop và mobile) -->
       <div 
         v-show="ui.tab === 'preview'" 
-        class="absolute inset-0 z-[110] bg-slate-100 flex flex-col w-full h-full overflow-hidden animate-fade-in"
+        class="absolute inset-0 z-[110] bg-slate-100 dark:bg-slate-950 flex flex-col w-full h-full overflow-hidden animate-fade-in"
       >
         <BillPreview />
       </div>

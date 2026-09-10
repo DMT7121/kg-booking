@@ -98,17 +98,17 @@ function ignoreResult() {
 }
 
 function getConfidenceColorClass(val: number) {
-  if (val >= 0.8) return 'text-emerald-600 bg-emerald-50 border-emerald-200'
-  if (val >= 0.5) return 'text-amber-605 bg-amber-50 border-amber-250 ring-2 ring-amber-300/40'
-  return 'text-rose-600 bg-rose-50 border-rose-200 ring-2 ring-rose-300/40'
+  if (val >= 0.8) return 'text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/50 border-emerald-200 dark:border-emerald-800/60'
+  if (val >= 0.5) return 'text-amber-605 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/50 border-amber-250 dark:border-amber-800/60 ring-2 ring-amber-300/40'
+  return 'text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-950/50 border-rose-200 dark:border-rose-800/60 ring-2 ring-rose-300/40'
 }
 
 function getFieldClass(fieldKey: string, confVal: number) {
   const isDirty = formStore.parsedAiResult?.needs_review_fields?.includes(fieldKey) || confVal < 0.75
   if (isDirty) {
-    return 'border-amber-400 bg-amber-50/50 ring-4 ring-amber-500/10 animate-pulse-subtle'
+    return 'border-amber-400 dark:border-amber-600 bg-amber-50/50 dark:bg-amber-950/30 ring-4 ring-amber-500/10 animate-pulse-subtle'
   }
-  return 'border-slate-100 bg-slate-50/50'
+  return 'border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-850'
 }
 
 function clearText() {
@@ -442,19 +442,19 @@ onUnmounted(() => {
 
   <!-- Parsed Fields Review Card -->
   <transition name="fade">
-    <div v-if="showAiReview && formStore.parsedAiResult" class="mt-4 bg-white border border-slate-200 rounded-3xl p-5 shadow-xl text-slate-800 space-y-4 relative z-10 box-border w-full">
+    <div v-if="showAiReview && formStore.parsedAiResult" class="mt-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-5 shadow-xl text-slate-800 dark:text-slate-100 space-y-4 relative z-10 box-border w-full">
       <div class="flex items-center justify-between flex-wrap gap-2">
         <div class="flex items-center gap-2">
-          <i class="fa-solid fa-wand-sparkles text-blue-600 text-sm animate-pulse"></i>
-          <span class="font-black text-slate-800 text-[11px] uppercase tracking-widest">Xác nhận kết quả AI (v7.0)</span>
+          <i class="fa-solid fa-wand-sparkles text-blue-600 dark:text-blue-400 text-sm animate-pulse"></i>
+          <span class="font-black text-slate-800 dark:text-slate-100 text-[11px] uppercase tracking-widest">Xác nhận kết quả AI (v7.0)</span>
         </div>
-        <span class="px-2.5 py-1 bg-blue-50 text-blue-700 rounded-full text-[9px] font-black uppercase tracking-wider border border-blue-100">
+        <span class="px-2.5 py-1 bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 rounded-full text-[9px] font-black uppercase tracking-wider border border-blue-100 dark:border-blue-800/60">
           Độ tin cậy: {{ Math.round((formStore.parsedAiResult.confidence?.overall || 0) * 100) }}%
         </span>
       </div>
 
       <!-- Cache Hit Alert & Re-analyze Button -->
-      <div v-if="formStore.aiMetadata && formStore.aiMetadata.mode === 'cache-hit'" class="p-3 bg-blue-50 border border-blue-200 rounded-2xl flex items-center justify-between gap-3 text-blue-800 text-[11.5px] font-bold">
+      <div v-if="formStore.aiMetadata && formStore.aiMetadata.mode === 'cache-hit'" class="p-3 bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-800/60 rounded-2xl flex items-center justify-between gap-3 text-blue-800 dark:text-blue-200 text-[11.5px] font-bold">
         <div class="flex items-center gap-2">
           <i class="fa-solid fa-clock-rotate-left text-blue-500 text-sm"></i>
           <span>Kết quả được tải từ Cache.</span>
@@ -482,17 +482,17 @@ onUnmounted(() => {
       </div>
 
       <!-- Warning Alert Box -->
-      <div v-if="hasWarnings || formStore.unresolvedItems?.length" class="p-3 bg-amber-50/80 border border-amber-300 rounded-2xl flex items-start gap-2.5 text-amber-800 text-[11px] font-bold">
+      <div v-if="hasWarnings || formStore.unresolvedItems?.length" class="p-3 bg-amber-50/80 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-800/60 rounded-2xl flex items-start gap-2.5 text-amber-800 dark:text-amber-300 text-[11px] font-bold">
         <i class="fa-solid fa-triangle-exclamation text-base text-amber-500 shrink-0 mt-0.5 animate-bounce"></i>
         <div>
-          <div class="font-black text-slate-900 uppercase">Cần Kiểm Tra Lại</div>
-          <div class="text-slate-655 mt-0.5 leading-relaxed font-semibold">Một số thông tin trích xuất có độ tin cậy thấp hoặc nghi ngờ sai lệch. Vui lòng kiểm tra các ô viền vàng và cập nhật lại!</div>
+          <div class="font-black text-slate-900 dark:text-amber-200 uppercase">Cần Kiểm Tra Lại</div>
+          <div class="text-slate-655 dark:text-amber-300/80 mt-0.5 leading-relaxed font-semibold">Một số thông tin trích xuất có độ tin cậy thấp hoặc nghi ngờ sai lệch. Vui lòng kiểm tra các ô viền vàng và cập nhật lại!</div>
         </div>
       </div>
 
       <!-- Unresolved Menu Warnings -->
-      <div v-if="formStore.unresolvedItems?.length" class="p-3 bg-rose-50 border border-rose-250 rounded-2xl text-rose-800 text-[11px] font-bold">
-        <div class="font-black text-rose-950 uppercase mb-1 flex items-center gap-1.5">
+      <div v-if="formStore.unresolvedItems?.length" class="p-3 bg-rose-50 dark:bg-rose-950/40 border border-rose-250 dark:border-rose-800/60 rounded-2xl text-rose-800 dark:text-rose-300 text-[11px] font-bold">
+        <div class="font-black text-rose-950 dark:text-rose-200 uppercase mb-1 flex items-center gap-1.5">
           <i class="fa-solid fa-circle-exclamation text-rose-500 shrink-0"></i> Món chưa khớp thực đơn (Đề xuất 0đ):
         </div>
         <ul class="list-disc pl-4 space-y-0.5 leading-relaxed">
@@ -503,44 +503,44 @@ onUnmounted(() => {
       <!-- Section: Customer & Booking Grid (Blocks 1, 2, 3) -->
       <div class="space-y-3.5 w-full box-border">
         <!-- Khối 1: Người đặt bàn / Liên hệ -->
-        <div class="bg-slate-50/50 border border-slate-150 rounded-2xl p-4 space-y-3 w-full box-border">
-          <div class="text-[10px] font-black text-slate-500 uppercase tracking-widest flex items-center gap-1.5 border-b border-slate-200 pb-1.5">
+        <div class="bg-slate-50/50 dark:bg-slate-950/40 border border-slate-150 dark:border-slate-800 rounded-2xl p-4 space-y-3 w-full box-border">
+          <div class="text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest flex items-center gap-1.5 border-b border-slate-200 dark:border-slate-800 pb-1.5">
             <i class="fa-solid fa-address-book text-slate-400"></i> 1. NGƯỜI ĐẶT BÀN / LIÊN HỆ
           </div>
           <div class="grid grid-cols-1 md:grid-cols-2 gap-3 w-full">
             <!-- Name -->
-            <div class="p-3 rounded-xl border bg-white transition-all w-full box-border" :class="getFieldClass('customer_name', formStore.parsedAiResult.confidence?.customer_name)">
+            <div class="p-3 rounded-xl border bg-white dark:bg-slate-850 transition-all w-full box-border" :class="getFieldClass('customer_name', formStore.parsedAiResult.confidence?.customer_name)">
               <div class="text-[9px] font-black text-slate-400 uppercase tracking-widest">Tên khách</div>
               <div class="mt-1 flex items-center justify-between gap-2 min-w-0">
                 <template v-if="isEditing">
-                  <input type="text" v-model="formStore.parsedAiResult.customer.name" class="w-full px-2.5 py-1.5 text-xs border border-slate-250 rounded-xl focus:ring-2 focus:ring-blue-400 outline-none bg-white font-bold text-slate-800">
+                  <input type="text" v-model="formStore.parsedAiResult.customer.name" class="w-full px-2.5 py-1.5 text-xs border border-slate-250 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-blue-400 outline-none bg-white dark:bg-slate-800 font-bold text-slate-800 dark:text-slate-100">
                 </template>
                 <template v-else>
-                  <span class="text-xs font-black text-slate-800 truncate min-w-0 flex-1">{{ formStore.parsedAiResult.customer.name || '---' }}</span>
+                  <span class="text-xs font-black text-slate-800 dark:text-slate-100 truncate min-w-0 flex-1">{{ formStore.parsedAiResult.customer.name || '---' }}</span>
                   <span class="text-[8px] px-1.5 py-0.5 rounded font-black border shrink-0" :class="getConfidenceColorClass(formStore.parsedAiResult.confidence?.customer_name)">
                     {{ Math.round((formStore.parsedAiResult.confidence?.customer_name || 0) * 100) }}%
                   </span>
                 </template>
               </div>
-              <div v-if="!isEditing && (formStore.parsedAiResult.confidence?.customer_name < 0.75)" class="text-[8px] text-amber-600 font-extrabold mt-1 leading-normal">
+              <div v-if="!isEditing && (formStore.parsedAiResult.confidence?.customer_name < 0.75)" class="text-[8px] text-amber-600 dark:text-amber-400 font-extrabold mt-1 leading-normal">
                 <i class="fa-solid fa-circle-info shrink-0"></i> Tên chứa từ khóa nghi vấn (ngày/giờ/món...)
               </div>
             </div>
             <!-- Phone -->
-            <div class="p-3 rounded-xl border bg-white transition-all w-full box-border" :class="getFieldClass('phone', formStore.parsedAiResult.confidence?.phone)">
+            <div class="p-3 rounded-xl border bg-white dark:bg-slate-850 transition-all w-full box-border" :class="getFieldClass('phone', formStore.parsedAiResult.confidence?.phone)">
               <div class="text-[9px] font-black text-slate-400 uppercase tracking-widest">Số điện thoại</div>
               <div class="mt-1 flex items-center justify-between gap-2 min-w-0">
                 <template v-if="isEditing">
-                  <input type="text" v-model="formStore.parsedAiResult.customer.phone" class="w-full px-2.5 py-1.5 text-xs border border-slate-250 rounded-xl focus:ring-2 focus:ring-blue-400 outline-none bg-white font-bold text-slate-800">
+                  <input type="text" v-model="formStore.parsedAiResult.customer.phone" class="w-full px-2.5 py-1.5 text-xs border border-slate-250 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-blue-400 outline-none bg-white dark:bg-slate-800 font-bold text-slate-800 dark:text-slate-100">
                 </template>
                 <template v-else>
-                  <span class="text-xs font-black text-slate-800 truncate min-w-0 flex-1">{{ formStore.parsedAiResult.customer.phone || '---' }}</span>
+                  <span class="text-xs font-black text-slate-800 dark:text-slate-100 truncate min-w-0 flex-1">{{ formStore.parsedAiResult.customer.phone || '---' }}</span>
                   <span class="text-[8px] px-1.5 py-0.5 rounded font-black border shrink-0" :class="getConfidenceColorClass(formStore.parsedAiResult.confidence?.phone)">
                     {{ Math.round((formStore.parsedAiResult.confidence?.phone || 0) * 100) }}%
                   </span>
                 </template>
               </div>
-              <div v-if="!isEditing && (formStore.parsedAiResult.confidence?.phone < 0.75)" class="text-[8px] text-amber-600 font-extrabold mt-1 leading-normal">
+              <div v-if="!isEditing && (formStore.parsedAiResult.confidence?.phone < 0.75)" class="text-[8px] text-amber-600 dark:text-amber-400 font-extrabold mt-1 leading-normal">
                 <i class="fa-solid fa-circle-info shrink-0"></i> SĐT không đúng định dạng VN hoặc thiếu số
               </div>
             </div>
@@ -548,56 +548,56 @@ onUnmounted(() => {
         </div>
 
         <!-- Khối 2: Thông tin tiệc -->
-        <div class="bg-slate-50/50 border border-slate-150 rounded-2xl p-4 space-y-3 w-full box-border">
-          <div class="text-[10px] font-black text-slate-500 uppercase tracking-widest flex items-center gap-1.5 border-b border-slate-200 pb-1.5">
+        <div class="bg-slate-50/50 dark:bg-slate-950/40 border border-slate-150 dark:border-slate-800 rounded-2xl p-4 space-y-3 w-full box-border">
+          <div class="text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest flex items-center gap-1.5 border-b border-slate-200 dark:border-slate-800 pb-1.5">
             <i class="fa-solid fa-cake-candles text-slate-400"></i> 2. THÔNG TIN TIỆC
           </div>
           <div class="grid grid-cols-1 md:grid-cols-2 gap-3 w-full">
             <!-- Event Type -->
-            <div class="p-3 rounded-xl border border-slate-100 bg-white w-full box-border">
+            <div class="p-3 rounded-xl border border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-850 w-full box-border">
               <div class="text-[9px] font-black text-slate-400 uppercase tracking-widest">Loại tiệc / Nhu cầu</div>
               <div class="mt-1">
                 <template v-if="isEditing">
-                  <input type="text" v-model="formStore.parsedAiResult.booking.need" class="w-full px-2.5 py-1.5 text-xs border border-slate-250 rounded-xl focus:ring-2 focus:ring-blue-400 outline-none bg-white font-bold text-slate-800">
+                  <input type="text" v-model="formStore.parsedAiResult.booking.need" class="w-full px-2.5 py-1.5 text-xs border border-slate-250 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-blue-400 outline-none bg-white dark:bg-slate-800 font-bold text-slate-800 dark:text-slate-100">
                 </template>
                 <template v-else>
-                  <span class="text-xs font-black text-slate-800 truncate block">{{ formStore.parsedAiResult.booking.need || 'Ăn thường' }}</span>
+                  <span class="text-xs font-black text-slate-800 dark:text-slate-100 truncate block">{{ formStore.parsedAiResult.booking.need || 'Ăn thường' }}</span>
                 </template>
               </div>
             </div>
             <!-- Party Owner Name -->
-            <div class="p-3 rounded-xl border border-slate-100 bg-white w-full box-border">
+            <div class="p-3 rounded-xl border border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-850 w-full box-border">
               <div class="text-[9px] font-black text-slate-400 uppercase tracking-widest">Chủ tiệc / Người được tổ chức</div>
               <div class="mt-1">
                 <template v-if="isEditing">
-                  <input type="text" v-model="formStore.parsedAiResult.party.owner_name" class="w-full px-2.5 py-1.5 text-xs border border-slate-250 rounded-xl focus:ring-2 focus:ring-blue-400 outline-none bg-white font-bold text-slate-800">
+                  <input type="text" v-model="formStore.parsedAiResult.party.owner_name" class="w-full px-2.5 py-1.5 text-xs border border-slate-250 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-blue-400 outline-none bg-white dark:bg-slate-800 font-bold text-slate-800 dark:text-slate-100">
                 </template>
                 <template v-else>
-                  <span class="text-xs font-black text-slate-800 truncate block">{{ formStore.parsedAiResult.party?.owner_name || 'Không có' }}</span>
+                  <span class="text-xs font-black text-slate-800 dark:text-slate-100 truncate block">{{ formStore.parsedAiResult.party?.owner_name || 'Không có' }}</span>
                 </template>
               </div>
             </div>
             <!-- Decoration Text -->
-            <div class="p-3 rounded-xl border border-slate-100 bg-white col-span-1 md:col-span-2 w-full box-border">
+            <div class="p-3 rounded-xl border border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-850 col-span-1 md:col-span-2 w-full box-border">
               <div class="text-[9px] font-black text-slate-400 uppercase tracking-widest">Nội dung bảng chữ / Trang trí</div>
               <div class="mt-1">
                 <template v-if="isEditing">
-                  <input type="text" v-model="formStore.parsedAiResult.decoration.text_on_board" class="w-full px-2.5 py-1.5 text-xs border border-slate-250 rounded-xl focus:ring-2 focus:ring-blue-400 outline-none bg-white font-semibold text-slate-800">
+                  <input type="text" v-model="formStore.parsedAiResult.decoration.text_on_board" class="w-full px-2.5 py-1.5 text-xs border border-slate-250 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-blue-400 outline-none bg-white dark:bg-slate-800 font-semibold text-slate-800 dark:text-slate-100">
                 </template>
                 <template v-else>
-                  <span class="text-xs font-bold text-slate-850 italic block">{{ formStore.parsedAiResult.decoration.text_on_board || 'Không có' }}</span>
+                  <span class="text-xs font-bold text-slate-850 dark:text-slate-200 italic block">{{ formStore.parsedAiResult.decoration.text_on_board || 'Không có' }}</span>
                 </template>
               </div>
             </div>
             <!-- Note to be added to voucher -->
-            <div class="p-3 rounded-xl border border-slate-100 bg-white col-span-1 md:col-span-2 w-full box-border">
+            <div class="p-3 rounded-xl border border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-850 col-span-1 md:col-span-2 w-full box-border">
               <div class="text-[9px] font-black text-slate-400 uppercase tracking-widest">Ghi chú từ khách hàng (Thêm vào phiếu)</div>
               <div class="mt-1">
                 <template v-if="isEditing">
-                  <textarea v-model="formStore.parsedAiResult.notes.customer_note" rows="2" class="w-full px-2.5 py-2 text-xs border border-slate-250 rounded-xl focus:ring-2 focus:ring-blue-400 outline-none bg-white font-medium text-slate-800 custom-scrollbar"></textarea>
+                  <textarea v-model="formStore.parsedAiResult.notes.customer_note" rows="2" class="w-full px-2.5 py-2 text-xs border border-slate-250 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-blue-400 outline-none bg-white dark:bg-slate-800 font-medium text-slate-800 dark:text-slate-100 custom-scrollbar"></textarea>
                 </template>
                 <template v-else>
-                  <span class="text-xs font-semibold text-slate-700 block whitespace-pre-line leading-relaxed">{{ formStore.parsedAiResult.notes.customer_note || 'Không có' }}</span>
+                  <span class="text-xs font-semibold text-slate-700 dark:text-slate-200 block whitespace-pre-line leading-relaxed">{{ formStore.parsedAiResult.notes.customer_note || 'Không có' }}</span>
                 </template>
               </div>
             </div>
@@ -605,91 +605,91 @@ onUnmounted(() => {
         </div>
 
         <!-- Khối 3: Thông tin lịch & đặt cọc -->
-        <div class="bg-slate-50/50 border border-slate-150 rounded-2xl p-4 space-y-3 w-full box-border">
-          <div class="text-[10px] font-black text-slate-500 uppercase tracking-widest flex items-center gap-1.5 border-b border-slate-200 pb-1.5">
+        <div class="bg-slate-50/50 dark:bg-slate-950/40 border border-slate-150 dark:border-slate-800 rounded-2xl p-4 space-y-3 w-full box-border">
+          <div class="text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest flex items-center gap-1.5 border-b border-slate-200 dark:border-slate-800 pb-1.5">
             <i class="fa-solid fa-calendar-days text-slate-400"></i> 3. THÔNG TIN LỊCH & ĐẶT CỌC
           </div>
           <div class="grid grid-cols-1 md:grid-cols-2 gap-3 w-full">
             <!-- Date -->
-            <div class="p-3 rounded-xl border bg-white transition-all w-full box-border" :class="getFieldClass('event_date', formStore.parsedAiResult.confidence?.event_date)">
+            <div class="p-3 rounded-xl border bg-white dark:bg-slate-850 transition-all w-full box-border" :class="getFieldClass('event_date', formStore.parsedAiResult.confidence?.event_date)">
               <div class="text-[9px] font-black text-slate-400 uppercase tracking-widest">Ngày tổ chức</div>
               <div class="mt-1 flex items-center justify-between gap-2 min-w-0">
                 <template v-if="isEditing">
-                  <input type="text" v-model="formStore.parsedAiResult.booking.event_date" class="w-full px-2.5 py-1.5 text-xs border border-slate-250 rounded-xl focus:ring-2 focus:ring-blue-400 outline-none bg-white font-bold text-slate-800" placeholder="DD/MM/YYYY">
+                  <input type="text" v-model="formStore.parsedAiResult.booking.event_date" class="w-full px-2.5 py-1.5 text-xs border border-slate-250 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-blue-400 outline-none bg-white dark:bg-slate-800 font-bold text-slate-800 dark:text-slate-100" placeholder="DD/MM/YYYY">
                 </template>
                 <template v-else>
-                  <span class="text-xs font-black text-slate-800 truncate min-w-0 flex-1">{{ formStore.parsedAiResult.booking.event_date || '---' }}</span>
+                  <span class="text-xs font-black text-slate-800 dark:text-slate-100 truncate min-w-0 flex-1">{{ formStore.parsedAiResult.booking.event_date || '---' }}</span>
                   <span class="text-[8px] px-1.5 py-0.5 rounded font-black border shrink-0" :class="getConfidenceColorClass(formStore.parsedAiResult.confidence?.event_date)">
                     {{ Math.round((formStore.parsedAiResult.confidence?.event_date || 0) * 100) }}%
                   </span>
                 </template>
               </div>
-              <div v-if="!isEditing && (formStore.parsedAiResult.confidence?.event_date < 0.75)" class="text-[8px] text-amber-600 font-extrabold mt-1 leading-normal">
+              <div v-if="!isEditing && (formStore.parsedAiResult.confidence?.event_date < 0.75)" class="text-[8px] text-amber-600 dark:text-amber-400 font-extrabold mt-1 leading-normal">
                 <i class="fa-solid fa-circle-info shrink-0"></i> Ngày đã qua hoặc sai định dạng DD/MM/YYYY
               </div>
             </div>
             <!-- Time -->
-            <div class="p-3 rounded-xl border bg-white transition-all w-full box-border" :class="getFieldClass('event_time', formStore.parsedAiResult.confidence?.event_time)">
+            <div class="p-3 rounded-xl border bg-white dark:bg-slate-850 transition-all w-full box-border" :class="getFieldClass('event_time', formStore.parsedAiResult.confidence?.event_time)">
               <div class="text-[9px] font-black text-slate-400 uppercase tracking-widest">Giờ tiệc</div>
               <div class="mt-1 flex items-center justify-between gap-2 min-w-0">
                 <template v-if="isEditing">
-                  <input type="text" v-model="formStore.parsedAiResult.booking.event_time" class="w-full px-2.5 py-1.5 text-xs border border-slate-250 rounded-xl focus:ring-2 focus:ring-blue-400 outline-none bg-white font-bold text-slate-800" placeholder="HH:MM">
+                  <input type="text" v-model="formStore.parsedAiResult.booking.event_time" class="w-full px-2.5 py-1.5 text-xs border border-slate-250 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-blue-400 outline-none bg-white dark:bg-slate-800 font-bold text-slate-800 dark:text-slate-100" placeholder="HH:MM">
                 </template>
                 <template v-else>
-                  <span class="text-xs font-black text-slate-800 truncate min-w-0 flex-1">{{ formStore.parsedAiResult.booking.event_time || '---' }}</span>
+                  <span class="text-xs font-black text-slate-800 dark:text-slate-100 truncate min-w-0 flex-1">{{ formStore.parsedAiResult.booking.event_time || '---' }}</span>
                   <span class="text-[8px] px-1.5 py-0.5 rounded font-black border shrink-0" :class="getConfidenceColorClass(formStore.parsedAiResult.confidence?.event_time)">
                     {{ Math.round((formStore.parsedAiResult.confidence?.event_time || 0) * 100) }}%
                   </span>
                 </template>
               </div>
-              <div v-if="!isEditing && (formStore.parsedAiResult.confidence?.event_time < 0.75)" class="text-[8px] text-amber-600 font-extrabold mt-1 leading-normal">
+              <div v-if="!isEditing && (formStore.parsedAiResult.confidence?.event_time < 0.75)" class="text-[8px] text-amber-600 dark:text-amber-400 font-extrabold mt-1 leading-normal">
                 <i class="fa-solid fa-circle-info shrink-0"></i> Giờ nằm ngoài khung hoạt động (15:00 - 23:30)
               </div>
             </div>
             <!-- Guest Count -->
-            <div class="p-3 rounded-xl border bg-white transition-all w-full box-border" :class="getFieldClass('guest_count', formStore.parsedAiResult.confidence?.guest_count)">
+            <div class="p-3 rounded-xl border bg-white dark:bg-slate-850 transition-all w-full box-border" :class="getFieldClass('guest_count', formStore.parsedAiResult.confidence?.guest_count)">
               <div class="text-[9px] font-black text-slate-400 uppercase tracking-widest">Số khách</div>
               <div class="mt-1 flex items-center justify-between gap-2 min-w-0">
                 <template v-if="isEditing">
-                  <input type="number" v-model.number="formStore.parsedAiResult.booking.guest_count" class="w-full px-2.5 py-1.5 text-xs border border-slate-250 rounded-xl focus:ring-2 focus:ring-blue-400 outline-none bg-white font-bold text-slate-800">
+                  <input type="number" v-model.number="formStore.parsedAiResult.booking.guest_count" class="w-full px-2.5 py-1.5 text-xs border border-slate-250 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-blue-400 outline-none bg-white dark:bg-slate-800 font-bold text-slate-800 dark:text-slate-100">
                 </template>
                 <template v-else>
-                  <span class="text-xs font-black text-slate-800 truncate min-w-0 flex-1">{{ formStore.parsedAiResult.booking.guest_count || '---' }} pax</span>
+                  <span class="text-xs font-black text-slate-800 dark:text-slate-100 truncate min-w-0 flex-1">{{ formStore.parsedAiResult.booking.guest_count || '---' }} pax</span>
                   <span class="text-[8px] px-1.5 py-0.5 rounded font-black border shrink-0" :class="getConfidenceColorClass(formStore.parsedAiResult.confidence?.guest_count)">
                     {{ Math.round((formStore.parsedAiResult.confidence?.guest_count || 0) * 100) }}%
                   </span>
                 </template>
               </div>
-              <div v-if="!isEditing && (formStore.parsedAiResult.confidence?.guest_count < 0.75)" class="text-[8px] text-amber-600 font-extrabold mt-1 leading-normal">
+              <div v-if="!isEditing && (formStore.parsedAiResult.confidence?.guest_count < 0.75)" class="text-[8px] text-amber-600 dark:text-amber-400 font-extrabold mt-1 leading-normal">
                 <i class="fa-solid fa-circle-info shrink-0"></i> Số lượng khách ngoài khoảng thông thường (1 - 200)
               </div>
             </div>
             <!-- Table -->
-            <div class="p-3 rounded-xl border border-slate-100 bg-white w-full box-border">
-              <div class="text-[9px] font-black text-slate-450 uppercase tracking-widest">Số bàn</div>
+            <div class="p-3 rounded-xl border border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-850 w-full box-border">
+              <div class="text-[9px] font-black text-slate-450 dark:text-slate-400 uppercase tracking-widest">Số bàn</div>
               <div class="mt-1 flex items-center justify-between gap-2">
                 <template v-if="isEditing">
-                  <input type="text" v-model="formStore.parsedAiResult.booking.table_number" class="w-full px-2.5 py-1.5 text-xs border border-slate-250 rounded-xl focus:ring-2 focus:ring-blue-400 outline-none bg-white font-bold text-slate-800">
+                  <input type="text" v-model="formStore.parsedAiResult.booking.table_number" class="w-full px-2.5 py-1.5 text-xs border border-slate-250 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-blue-400 outline-none bg-white dark:bg-slate-800 font-bold text-slate-800 dark:text-slate-100">
                 </template>
                 <template v-else>
-                  <span class="text-xs font-black text-slate-800 truncate block">{{ formStore.parsedAiResult.booking.table_number || '---' }}</span>
+                  <span class="text-xs font-black text-slate-800 dark:text-slate-100 truncate block">{{ formStore.parsedAiResult.booking.table_number || '---' }}</span>
                 </template>
               </div>
             </div>
             <!-- Deposit -->
-            <div class="p-3 rounded-xl border bg-white transition-all col-span-1 md:col-span-2 w-full box-border" :class="getFieldClass('deposit', formStore.parsedAiResult.confidence?.deposit)">
-              <div class="text-[9px] font-black text-slate-450 uppercase tracking-widest">Tiền đặt cọc</div>
+            <div class="p-3 rounded-xl border bg-white dark:bg-slate-850 transition-all col-span-1 md:col-span-2 w-full box-border" :class="getFieldClass('deposit', formStore.parsedAiResult.confidence?.deposit)">
+              <div class="text-[9px] font-black text-slate-450 dark:text-slate-400 uppercase tracking-widest">Tiền đặt cọc</div>
               <div class="mt-1 flex items-center justify-between gap-2 min-w-0">
                 <template v-if="isEditing">
                   <div class="flex gap-1.5 w-full">
-                    <input type="number" v-model.number="formStore.parsedAiResult.deposit.amount" class="w-2/3 px-2 py-1 text-xs border border-slate-250 rounded-lg focus:ring-2 focus:ring-blue-400 outline-none bg-white font-bold text-slate-800">
-                    <input type="text" v-model="formStore.parsedAiResult.deposit.status" class="w-1/3 px-2 py-1 text-xs border border-slate-250 rounded-lg focus:ring-2 focus:ring-blue-400 outline-none bg-white font-bold text-slate-800 text-center" placeholder="Đã cọc">
+                    <input type="number" v-model.number="formStore.parsedAiResult.deposit.amount" class="w-2/3 px-2 py-1 text-xs border border-slate-250 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-blue-400 outline-none bg-white dark:bg-slate-800 font-bold text-slate-800 dark:text-slate-100">
+                    <input type="text" v-model="formStore.parsedAiResult.deposit.status" class="w-1/3 px-2 py-1 text-xs border border-slate-250 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-blue-400 outline-none bg-white dark:bg-slate-800 font-bold text-slate-800 dark:text-slate-100 text-center" placeholder="Đã cọc">
                   </div>
                 </template>
                 <template v-else>
-                  <span class="text-xs font-black text-slate-800 truncate min-w-0 flex-1">
+                  <span class="text-xs font-black text-slate-800 dark:text-slate-100 truncate min-w-0 flex-1">
                     {{ formStore.parsedAiResult.deposit.amount ? formatVND(formStore.parsedAiResult.deposit.amount) : '---' }}
-                    <span v-if="formStore.parsedAiResult.deposit.status" class="text-[8px] px-1 py-0.5 bg-blue-100 text-blue-700 rounded font-black uppercase shrink-0 inline-block">{{ formStore.parsedAiResult.deposit.status }}</span>
+                    <span v-if="formStore.parsedAiResult.deposit.status" class="text-[8px] px-1 py-0.5 bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300 rounded font-black uppercase shrink-0 inline-block">{{ formStore.parsedAiResult.deposit.status }}</span>
                   </span>
                   <span class="text-[8px] px-1.5 py-0.5 rounded font-black border shrink-0" :class="getConfidenceColorClass(formStore.parsedAiResult.confidence?.deposit)">
                     {{ Math.round((formStore.parsedAiResult.confidence?.deposit || 0) * 100) }}%
@@ -704,60 +704,60 @@ onUnmounted(() => {
       <!-- Menu Items Section -->
       <div class="space-y-2">
         <div class="flex justify-between items-center">
-          <span class="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1"><i class="fa-solid fa-utensils text-slate-400"></i> Thực đơn đặt món ({{ formStore.parsedAiResult.menu_items?.length || 0 }} món)</span>
+          <span class="text-[10px] font-black text-slate-400 dark:text-slate-400 uppercase tracking-widest flex items-center gap-1"><i class="fa-solid fa-utensils text-slate-400"></i> Thực đơn đặt món ({{ formStore.parsedAiResult.menu_items?.length || 0 }} món)</span>
           <span class="text-[8px] px-1.5 py-0.5 rounded font-black border" :class="getConfidenceColorClass(formStore.parsedAiResult.confidence?.menu_items || 0.8)">
             Match: {{ Math.round((formStore.parsedAiResult.confidence?.menu_items || 0.8) * 100) }}%
           </span>
         </div>
 
         <div v-if="isEditing" class="space-y-2 max-h-[300px] overflow-y-auto pr-1 custom-scrollbar">
-          <div v-for="(item, idx) in formStore.parsedAiResult.menu_items" :key="idx" class="flex flex-wrap items-center gap-2 p-3 bg-slate-50 border border-slate-200 rounded-2xl relative">
+          <div v-for="(item, idx) in formStore.parsedAiResult.menu_items" :key="idx" class="flex flex-wrap items-center gap-2 p-3 bg-slate-50 dark:bg-slate-850 border border-slate-200 dark:border-slate-700 rounded-2xl relative">
             <div class="flex-grow min-w-0 grid grid-cols-12 gap-2 w-full">
               <div class="col-span-12 md:col-span-6">
                 <label class="text-[8px] font-black text-slate-400 uppercase tracking-widest block mb-0.5">Tên món</label>
-                <input type="text" v-model="item.matched_name" class="w-full px-2 py-1 text-xs border border-slate-250 rounded-lg focus:ring-2 focus:ring-blue-400 outline-none bg-white font-bold text-slate-800">
+                <input type="text" v-model="item.matched_name" class="w-full px-2 py-1 text-xs border border-slate-250 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-blue-400 outline-none bg-white dark:bg-slate-800 font-bold text-slate-800 dark:text-slate-100">
               </div>
               <div class="col-span-4 md:col-span-2">
                 <label class="text-[8px] font-black text-slate-400 uppercase tracking-widest block mb-0.5">SL</label>
-                <input type="number" v-model.number="item.quantity" class="w-full px-2 py-1 text-xs border border-slate-250 rounded-lg focus:ring-2 focus:ring-blue-400 outline-none bg-white font-bold text-center text-slate-800">
+                <input type="number" v-model.number="item.quantity" class="w-full px-2 py-1 text-xs border border-slate-250 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-blue-400 outline-none bg-white dark:bg-slate-800 font-bold text-center text-slate-800 dark:text-slate-100">
               </div>
               <div class="col-span-8 md:col-span-4">
                 <label class="text-[8px] font-black text-slate-400 uppercase tracking-widest block mb-0.5">Đơn giá</label>
-                <input type="text" :value="formatPriceWithDots(item.unit_price)" @input="updateItemUnitPrice(idx, ($event.target as HTMLInputElement).value)" class="w-full px-2 py-1 text-xs border border-slate-250 rounded-lg focus:ring-2 focus:ring-blue-400 outline-none bg-white font-bold text-right text-blue-650">
+                <input type="text" :value="formatPriceWithDots(item.unit_price)" @input="updateItemUnitPrice(idx, ($event.target as HTMLInputElement).value)" class="w-full px-2 py-1 text-xs border border-slate-250 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-blue-400 outline-none bg-white dark:bg-slate-800 font-bold text-right text-blue-600 dark:text-blue-400">
               </div>
               <div class="col-span-12">
                 <label class="text-[8px] font-black text-slate-400 uppercase tracking-widest block mb-0.5">Ghi chú món (Set details, note...)</label>
-                <input type="text" v-model="item.note" class="w-full px-2 py-1 text-xs border border-slate-250 rounded-lg focus:ring-2 focus:ring-blue-400 outline-none bg-white font-medium text-slate-600">
+                <input type="text" v-model="item.note" class="w-full px-2 py-1 text-xs border border-slate-250 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-blue-400 outline-none bg-white dark:bg-slate-800 font-medium text-slate-600 dark:text-slate-300">
               </div>
             </div>
-            <button @click.prevent="formStore.parsedAiResult.menu_items.splice(idx, 1)" class="w-8 h-8 rounded-full bg-rose-50 text-rose-600 border border-rose-100 hover:bg-rose-100 hover:text-rose-700 flex items-center justify-center shrink-0 active:scale-90 transition-transform cursor-pointer" title="Xóa món"><i class="fa-solid fa-trash-can text-xs"></i></button>
+            <button @click.prevent="formStore.parsedAiResult.menu_items.splice(idx, 1)" class="w-8 h-8 rounded-full bg-rose-50 dark:bg-rose-950/40 text-rose-600 dark:text-rose-400 border border-rose-100 dark:border-rose-800/50 hover:bg-rose-100 hover:text-rose-700 flex items-center justify-center shrink-0 active:scale-90 transition-transform cursor-pointer" title="Xóa món"><i class="fa-solid fa-trash-can text-xs"></i></button>
           </div>
           
-          <button @click.prevent="formStore.parsedAiResult.menu_items.push({ raw_name: '', matched_name: '', quantity: 1, unit_price: 0, note: '', needs_review: false, match_confidence: 1.0 })" class="w-full border border-dashed border-slate-300 hover:border-blue-500 hover:bg-blue-50/20 text-slate-650 hover:text-blue-700 rounded-xl py-2 font-bold text-xs uppercase transition-all flex items-center justify-center gap-1.5 cursor-pointer">
+          <button @click.prevent="formStore.parsedAiResult.menu_items.push({ raw_name: '', matched_name: '', quantity: 1, unit_price: 0, note: '', needs_review: false, match_confidence: 1.0 })" class="w-full border border-dashed border-slate-300 dark:border-slate-700 hover:border-blue-500 hover:bg-blue-50/20 text-slate-650 dark:text-slate-300 hover:text-blue-700 dark:hover:text-blue-400 rounded-xl py-2 font-bold text-xs uppercase transition-all flex items-center justify-center gap-1.5 cursor-pointer">
             <i class="fa-solid fa-plus text-[10px]"></i> Thêm món mới
           </button>
         </div>
 
         <div v-else class="space-y-1.5 max-h-[300px] overflow-y-auto pr-1 custom-scrollbar">
-          <div v-if="!formStore.parsedAiResult.menu_items?.length" class="text-xs text-slate-400 italic text-center py-2 bg-slate-50 rounded-2xl border border-slate-100">Không nhận diện được món ăn nào</div>
-          <div v-for="(item, idx) in formStore.parsedAiResult.menu_items" :key="idx" class="flex flex-wrap items-center justify-between gap-2 p-3 bg-slate-50 border rounded-2xl" :class="item.needs_review ? 'border-amber-300 bg-amber-50/20' : 'border-slate-100'">
+          <div v-if="!formStore.parsedAiResult.menu_items?.length" class="text-xs text-slate-400 italic text-center py-2 bg-slate-50 dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700">Không nhận diện được món ăn nào</div>
+          <div v-for="(item, idx) in formStore.parsedAiResult.menu_items" :key="idx" class="flex flex-wrap items-center justify-between gap-2 p-3 bg-slate-50 dark:bg-slate-850 border rounded-2xl" :class="item.needs_review ? 'border-amber-300 dark:border-amber-700 bg-amber-50/20 dark:bg-amber-950/30' : 'border-slate-100 dark:border-slate-800'">
             <div class="flex-grow min-w-0 flex-1">
-              <div class="font-bold text-xs text-slate-800 flex flex-wrap items-center gap-1.5">
+              <div class="font-bold text-xs text-slate-800 dark:text-slate-100 flex flex-wrap items-center gap-1.5">
                 <span class="whitespace-normal break-words leading-snug">{{ item.matched_name || item.raw_name }}</span>
                 <span class="text-slate-400 font-extrabold text-[10px] shrink-0">x{{ item.quantity }}</span>
-                <span v-if="item.needs_review" class="px-1.5 py-0.5 bg-amber-100 text-amber-800 rounded text-[7px] font-black uppercase tracking-wider shrink-0">Check</span>
+                <span v-if="item.needs_review" class="px-1.5 py-0.5 bg-amber-100 dark:bg-amber-900/50 text-amber-800 dark:text-amber-200 rounded text-[7px] font-black uppercase tracking-wider shrink-0">Check</span>
               </div>
-              <div v-if="item.note" class="text-[9px] text-slate-500 italic mt-0.5 block whitespace-pre-line leading-relaxed">{{ item.note }}</div>
+              <div v-if="item.note" class="text-[9px] text-slate-500 dark:text-slate-400 italic mt-0.5 block whitespace-pre-line leading-relaxed">{{ item.note }}</div>
             </div>
             <div class="flex items-center gap-1.5 shrink-0">
-              <span class="text-xs font-black text-blue-700">{{ formatVND(item.unit_price) }}</span>
+              <span class="text-xs font-black text-blue-700 dark:text-blue-300">{{ formatVND(item.unit_price) }}</span>
             </div>
           </div>
         </div>
       </div>
 
       <!-- Action Buttons -->
-      <div class="pt-4 border-t border-slate-100 space-y-2">
+      <div class="pt-4 border-t border-slate-100 dark:border-slate-800 space-y-2">
         <div class="flex gap-2">
           <button @click.prevent="applyAll" class="flex-1 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white rounded-2xl py-3.5 font-black text-xs uppercase tracking-widest transition-all active:scale-95 flex items-center justify-center gap-2 shadow-lg shadow-emerald-650/20 border border-emerald-500 cursor-pointer min-h-[44px]">
             <i class="fa-solid fa-check-double text-sm text-emerald-100"></i> ÁP DỤNG TOÀN BỘ
@@ -769,23 +769,23 @@ onUnmounted(() => {
         </div>
 
         <div class="grid grid-cols-3 gap-2">
-          <button @click.prevent="applyCustomerOnly" class="bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-2xl py-3 font-bold text-[10px] uppercase tracking-wider transition-all active:scale-95 flex flex-col items-center justify-center gap-1 border border-indigo-200 cursor-pointer min-h-[48px]">
+          <button @click.prevent="applyCustomerOnly" class="bg-indigo-50 dark:bg-indigo-950/50 hover:bg-indigo-100 dark:hover:bg-indigo-900/50 text-indigo-700 dark:text-indigo-300 rounded-2xl py-3 font-bold text-[10px] uppercase tracking-wider transition-all active:scale-95 flex flex-col items-center justify-center gap-1 border border-indigo-200 dark:border-indigo-800/60 cursor-pointer min-h-[48px]">
             <i class="fa-solid fa-user text-sm"></i>
             <span>Chỉ khách & bàn</span>
           </button>
-          <button @click.prevent="applyMenuOnly" class="bg-cyan-50 hover:bg-cyan-100 text-cyan-700 rounded-2xl py-3 font-bold text-[10px] uppercase tracking-wider transition-all active:scale-95 flex flex-col items-center justify-center gap-1 border border-cyan-200 cursor-pointer min-h-[48px]">
+          <button @click.prevent="applyMenuOnly" class="bg-cyan-50 dark:bg-cyan-950/50 hover:bg-cyan-100 dark:hover:bg-cyan-900/50 text-cyan-700 dark:text-cyan-300 rounded-2xl py-3 font-bold text-[10px] uppercase tracking-wider transition-all active:scale-95 flex flex-col items-center justify-center gap-1 border border-cyan-200 dark:border-cyan-800/60 cursor-pointer min-h-[48px]">
             <i class="fa-solid fa-utensils text-sm"></i>
             <span>Chỉ danh sách món</span>
           </button>
-          <button @click.prevent="ignoreResult" class="bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-2xl py-3 font-bold text-[10px] uppercase tracking-wider transition-all active:scale-95 flex flex-col items-center justify-center gap-1 border border-slate-200 cursor-pointer min-h-[48px]">
+          <button @click.prevent="ignoreResult" class="bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-2xl py-3 font-bold text-[10px] uppercase tracking-wider transition-all active:scale-95 flex flex-col items-center justify-center gap-1 border border-slate-200 dark:border-slate-700 cursor-pointer min-h-[48px]">
             <i class="fa-solid fa-xmark text-sm"></i>
             <span>Bỏ qua kết quả</span>
           </button>
         </div>
       </div>
     </div>
-    </transition>
-  </div>
+  </transition>
+</div>
 </template>
 
 <style scoped>

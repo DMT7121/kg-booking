@@ -159,34 +159,34 @@ body.customer-booking-mode #app {
 
 /* --- TRUE DARK MODE TOKENS --- */
 .dark, .dark-theme {
-    --bg-app: #090d16;
+    --bg-app: #080c14;
     --bg-surface: #0f172a;
     --bg-surface-elevated: #1e293b;
-    --bg-muted: #1a2234;
-    --bg-input: #090d16;
+    --bg-muted: #151d2f;
+    --bg-input: #0b1120;
 
     --text-primary: #f8fafc;
-    --text-secondary: #94a3b8;
-    --text-muted: #64748b;
+    --text-secondary: #cbd5e1;
+    --text-muted: #94a3b8;
 
     --border-subtle: rgba(255, 255, 255, 0.08);
     --border-strong: rgba(255, 255, 255, 0.16);
 
     --primary: #3b82f6;
     --primary-hover: #60a5fa;
-    --primary-subtle: rgba(59, 130, 246, 0.15);
+    --primary-subtle: rgba(59, 130, 246, 0.18);
 
     --success: #10b981;
     --success-hover: #34d399;
-    --success-subtle: rgba(16, 185, 129, 0.15);
+    --success-subtle: rgba(16, 185, 129, 0.18);
 
     --warning: #f59e0b;
     --warning-hover: #fbbf24;
-    --warning-subtle: rgba(245, 158, 11, 0.15);
+    --warning-subtle: rgba(245, 158, 11, 0.18);
 
     --danger: #ef4444;
     --danger-hover: #f87171;
-    --danger-subtle: rgba(239, 68, 68, 0.15);
+    --danger-subtle: rgba(239, 68, 68, 0.18);
 
     --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.4);
     --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.5), 0 2px 4px -2px rgba(0, 0, 0, 0.4);

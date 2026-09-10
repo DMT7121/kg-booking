@@ -314,42 +314,42 @@ async function handleTableDrop(e: DragEvent, tableName: string) {
 <template>
   <transition name="modal">
     <div v-if="ui.showFloorPlan" class="fixed inset-0 z-[10005] flex justify-center items-end sm:items-center bg-blue-950/80 backdrop-blur-md" @click.self="closeFloorPlan">
-      <div class="bg-slate-50 rounded-t-3xl sm:rounded-3xl shadow-2xl w-full max-w-lg lg:max-w-4xl h-[85vh] sm:h-[80vh] flex flex-col relative overflow-hidden border border-white/20 pb-safe">
+      <div class="bg-slate-50 dark:bg-slate-950 rounded-t-3xl sm:rounded-3xl shadow-2xl w-full max-w-lg lg:max-w-4xl h-[85vh] sm:h-[80vh] flex flex-col relative overflow-hidden border border-white/20 dark:border-slate-800 pb-safe">
         
         <!-- Header -->
-        <div class="flex items-center justify-between px-5 py-4 border-b border-slate-200 bg-white shrink-0 relative z-20 shadow-sm">
+        <div class="flex items-center justify-between px-5 py-4 border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shrink-0 relative z-20 shadow-sm">
           <div class="flex items-center gap-3">
-            <div class="w-10 h-10 bg-blue-50 rounded-xl flex items-center justify-center text-blue-600 shadow-inner">
+            <div class="w-10 h-10 bg-blue-50 dark:bg-blue-950/50 rounded-xl flex items-center justify-center text-blue-600 dark:text-blue-400 shadow-inner">
               <i class="fa-solid fa-map"></i>
             </div>
             <div>
-              <h2 class="text-lg font-black text-blue-900 uppercase tracking-tighter">Sơ đồ bàn</h2>
-              <p class="text-[10px] font-bold text-slate-400 mt-0.5 uppercase tracking-wider">Thời gian thực - Ngày {{ bookingDate }}</p>
+              <h2 class="text-lg font-black text-blue-900 dark:text-slate-100 uppercase tracking-tighter">Sơ đồ bàn</h2>
+              <p class="text-[10px] font-bold text-slate-400 dark:text-slate-400 mt-0.5 uppercase tracking-wider">Thời gian thực - Ngày {{ bookingDate }}</p>
             </div>
           </div>
-          <button @click="closeFloorPlan" class="w-10 h-10 flex items-center justify-center text-slate-400 hover:bg-rose-50 hover:text-rose-500 rounded-full transition-colors active:scale-95 shadow-sm border border-slate-100 bg-white">
+          <button @click="closeFloorPlan" class="w-10 h-10 flex items-center justify-center text-slate-400 hover:bg-rose-50 hover:text-rose-500 dark:hover:bg-rose-950/40 dark:hover:text-rose-400 rounded-full transition-colors active:scale-95 shadow-sm border border-slate-100 dark:border-slate-700 bg-white dark:bg-slate-800">
             <i class="fa-solid fa-xmark text-xl"></i>
           </button>
         </div>
 
         <!-- Legend -->
-        <div class="flex justify-center gap-4 py-3 bg-white border-b border-slate-200 shrink-0 text-[10px] font-black uppercase tracking-widest shadow-sm relative z-10">
-          <div class="flex items-center gap-1.5"><div class="w-3 h-3 rounded bg-emerald-50 border border-emerald-200"></div> <span class="text-emerald-600">Trống</span></div>
-          <div class="flex items-center gap-1.5"><div class="w-3 h-3 rounded bg-amber-100 border border-amber-300"></div> <span class="text-amber-600">Sắp đến</span></div>
-          <div class="flex items-center gap-1.5"><div class="w-3 h-3 rounded bg-rose-100 border border-rose-300"></div> <span class="text-rose-600">Đang dùng</span></div>
-          <div class="flex items-center gap-1.5"><div class="w-3 h-3 rounded bg-blue-500 border border-blue-600 shadow-inner"></div> <span class="text-blue-700">Đang chọn</span></div>
+        <div class="flex justify-center gap-4 py-3 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 shrink-0 text-[10px] font-black uppercase tracking-widest shadow-sm relative z-10">
+          <div class="flex items-center gap-1.5"><div class="w-3 h-3 rounded bg-emerald-50 dark:bg-emerald-950/50 border border-emerald-200 dark:border-emerald-800"></div> <span class="text-emerald-600 dark:text-emerald-400">Trống</span></div>
+          <div class="flex items-center gap-1.5"><div class="w-3 h-3 rounded bg-amber-100 dark:bg-amber-950/50 border border-amber-300 dark:border-amber-800"></div> <span class="text-amber-600 dark:text-amber-400">Sắp đến</span></div>
+          <div class="flex items-center gap-1.5"><div class="w-3 h-3 rounded bg-rose-100 dark:bg-rose-950/50 border border-rose-300 dark:border-rose-800"></div> <span class="text-rose-600 dark:text-rose-400">Đang dùng</span></div>
+          <div class="flex items-center gap-1.5"><div class="w-3 h-3 rounded bg-blue-500 border border-blue-600 shadow-inner"></div> <span class="text-blue-700 dark:text-blue-400">Đang chọn</span></div>
         </div>
 
         <!-- Content (Split Layout for desktop) -->
         <div class="flex-1 flex flex-col lg:flex-row min-h-0 overflow-hidden">
           
           <!-- Left side: Interactive Floor Plan -->
-          <div class="flex-1 overflow-y-auto custom-scrollbar p-4 md:p-6 space-y-6">
-            <div v-for="zone in floorPlan" :key="zone.zone" class="bg-white p-4 md:p-5 rounded-3xl shadow-sm border border-slate-200 relative overflow-hidden">
-              <div class="absolute top-0 left-0 w-1.5 h-full bg-slate-200 rounded-l-3xl"></div>
+          <div class="flex-1 overflow-y-auto custom-scrollbar p-4 md:p-6 space-y-6 bg-slate-100/50 dark:bg-slate-950">
+            <div v-for="zone in floorPlan" :key="zone.zone" class="bg-white dark:bg-slate-900 p-4 md:p-5 rounded-3xl shadow-sm border border-slate-200 dark:border-slate-800 relative overflow-hidden">
+              <div class="absolute top-0 left-0 w-1.5 h-full bg-slate-200 dark:bg-slate-700 rounded-l-3xl"></div>
               
-              <h3 class="text-xs font-black text-slate-500 uppercase tracking-widest mb-4 ml-2 flex items-center gap-2">
-                <i class="fa-solid fa-layer-group text-slate-300"></i> {{ zone.name }}
+              <h3 class="text-xs font-black text-slate-500 dark:text-slate-300 uppercase tracking-widest mb-4 ml-2 flex items-center gap-2">
+                <i class="fa-solid fa-layer-group text-slate-400 dark:text-slate-500"></i> {{ zone.name }}
               </h3>
               
               <div class="grid grid-cols-4 gap-3 md:gap-4 ml-2">
@@ -360,14 +360,14 @@ async function handleTableDrop(e: DragEvent, tableName: string) {
                   @dragover.prevent="handleTableDragOver($event, table)"
                   @dragleave="handleTableDragLeave(table)"
                   @drop="handleTableDrop($event, table)"
-                  class="table-3d-btn relative h-16 rounded-2xl flex flex-col items-center justify-center gap-0.5 font-black overflow-hidden"
+                  class="table-3d-btn relative h-16 rounded-2xl flex flex-col items-center justify-center gap-0.5 font-black overflow-hidden transition-transform"
                   :class="{
-                    'bg-blue-500 text-white border-b-[6px] border-blue-700 shadow-lg shadow-blue-500/35 scale-105': isSelected(table),
-                    'bg-emerald-50 text-emerald-700 border-b-[6px] border-emerald-250 hover:bg-emerald-100 shadow-sm shadow-emerald-500/5': !isSelected(table) && getTableStatus(table) === 'available',
-                    'bg-amber-100 text-amber-700 border-b-[6px] border-amber-350 shadow-sm shadow-amber-500/5': !isSelected(table) && getTableStatus(table) === 'reserved',
-                    'bg-rose-100 text-rose-700 border-b-[6px] border-rose-350 shadow-sm shadow-rose-500/5': !isSelected(table) && getTableStatus(table) === 'occupied',
-                    'border-2 border-dashed border-blue-600 ring-2 ring-blue-100': isOriginalTable(table) && !isSelected(table),
-                    'scale-110 ring-4 ring-yellow-400 bg-yellow-100 border-yellow-500 text-yellow-800': activeTableDragTarget === table
+                    'bg-blue-600 text-white border-b-[6px] border-blue-800 shadow-lg shadow-blue-500/35 scale-105': isSelected(table),
+                    'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-800 dark:text-emerald-300 border-b-[6px] border-emerald-300 dark:border-emerald-800 hover:bg-emerald-100 dark:hover:bg-emerald-900/50 shadow-sm shadow-emerald-500/5': !isSelected(table) && getTableStatus(table) === 'available',
+                    'bg-amber-100 dark:bg-amber-950/40 text-amber-800 dark:text-amber-300 border-b-[6px] border-amber-350 dark:border-amber-800 shadow-sm shadow-amber-500/5': !isSelected(table) && getTableStatus(table) === 'reserved',
+                    'bg-rose-100 dark:bg-rose-950/40 text-rose-800 dark:text-rose-300 border-b-[6px] border-rose-350 dark:border-rose-800 shadow-sm shadow-rose-500/5': !isSelected(table) && getTableStatus(table) === 'occupied',
+                    'border-2 border-dashed border-blue-600 ring-2 ring-blue-100 dark:ring-blue-900/50': isOriginalTable(table) && !isSelected(table),
+                    'scale-110 ring-4 ring-yellow-400 bg-yellow-100 dark:bg-yellow-950/50 border-yellow-500 text-yellow-800 dark:text-yellow-300': activeTableDragTarget === table
                   }"
                 >
                   <!-- Selection indicator -->
@@ -379,18 +379,18 @@ async function handleTableDrop(e: DragEvent, tableName: string) {
                     Cũ
                   </div>
                   
-                  <span class="text-base tracking-tight font-tabular" :class="isSelected(table) ? 'text-white' : 'text-slate-800'">{{ formatTableLabel(table) }}</span>
+                  <span class="text-base tracking-tight font-tabular" :class="isSelected(table) ? 'text-white' : 'text-slate-800 dark:text-slate-100'">{{ formatTableLabel(table) }}</span>
                   <span class="text-[9px] uppercase tracking-widest leading-none" :class="{
                     'text-blue-100': isSelected(table),
-                    'text-emerald-500': !isSelected(table) && getTableStatus(table) === 'available',
-                    'text-amber-500': !isSelected(table) && getTableStatus(table) === 'reserved',
-                    'text-rose-500': !isSelected(table) && getTableStatus(table) === 'occupied',
+                    'text-emerald-600 dark:text-emerald-400': !isSelected(table) && getTableStatus(table) === 'available',
+                    'text-amber-600 dark:text-amber-400': !isSelected(table) && getTableStatus(table) === 'reserved',
+                    'text-rose-600 dark:text-rose-400': !isSelected(table) && getTableStatus(table) === 'occupied',
                   }">
                     {{ isSelected(table) ? 'ĐÃ CHỌN' : (getTableStatus(table) === 'available' ? 'TRỐNG' : (getTableStatus(table) === 'reserved' ? 'SẮP ĐẾN' : 'ĐANG DÙNG')) }}
                   </span>
 
                   <!-- Occupying details -->
-                  <span v-if="!isSelected(table) && getTableStatus(table) !== 'available' && getOccupyingDetails(table)" class="text-[7px] text-slate-500 truncate max-w-full px-1 font-semibold leading-none mt-0.5">
+                  <span v-if="!isSelected(table) && getTableStatus(table) !== 'available' && getOccupyingDetails(table)" class="text-[7px] text-slate-500 dark:text-slate-400 truncate max-w-full px-1 font-semibold leading-none mt-0.5">
                     {{ getOccupyingDetails(table) }}
                   </span>
                 </button>
@@ -399,14 +399,14 @@ async function handleTableDrop(e: DragEvent, tableName: string) {
           </div>
 
           <!-- Right side: Draggable Bookings Queue -->
-          <div class="w-full lg:w-80 border-t lg:border-t-0 lg:border-l border-slate-200 bg-white flex flex-col shrink-0">
-            <div class="p-3 border-b border-slate-100 bg-slate-50/50 flex justify-between items-center shrink-0">
-              <span class="font-black text-slate-800 text-[10px] uppercase tracking-widest flex items-center gap-1"><i class="fa-solid fa-list-check text-blue-500"></i> Hàng đợi xếp bàn (Ngày {{ bookingDate }})</span>
-              <span class="px-2 py-0.5 bg-blue-50 text-blue-700 rounded-full text-[9px] font-black">{{ targetDateBookings.length }} đơn</span>
+          <div class="w-full lg:w-80 border-t lg:border-t-0 lg:border-l border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 flex flex-col shrink-0">
+            <div class="p-3 border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-850 flex justify-between items-center shrink-0">
+              <span class="font-black text-slate-800 dark:text-slate-200 text-[10px] uppercase tracking-widest flex items-center gap-1"><i class="fa-solid fa-list-check text-blue-500"></i> Hàng đợi xếp bàn (Ngày {{ bookingDate }})</span>
+              <span class="px-2 py-0.5 bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 rounded-full text-[9px] font-black">{{ targetDateBookings.length }} đơn</span>
             </div>
             
-            <div class="flex-1 overflow-y-auto custom-scrollbar p-3 space-y-2 max-h-[25vh] lg:max-h-none bg-slate-50/30">
-              <div v-if="targetDateBookings.length === 0" class="text-center py-8 text-slate-400 text-xs italic font-semibold">
+            <div class="flex-1 overflow-y-auto custom-scrollbar p-3 space-y-2 max-h-[25vh] lg:max-h-none bg-slate-50/30 dark:bg-slate-950/40">
+              <div v-if="targetDateBookings.length === 0" class="text-center py-8 text-slate-400 dark:text-slate-500 text-xs italic font-semibold">
                 Không có đơn đặt bàn ngày {{ bookingDate }}
               </div>
               <div 
@@ -414,16 +414,16 @@ async function handleTableDrop(e: DragEvent, tableName: string) {
                 :key="bk.id"
                 draggable="true"
                 @dragstart="handleBookingDragStart($event, bk)"
-                class="bg-white hover:bg-slate-50 p-2.5 rounded-xl border cursor-grab active:cursor-grabbing flex flex-col gap-1 transition-all select-none hover:shadow-sm"
-                :class="[!bk.parsedCustomer.tables || bk.parsedCustomer.tables === 'Chưa xếp' ? 'border-amber-300 bg-amber-50/30 ring-2 ring-amber-300/10' : 'border-slate-200']"
+                class="bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-750 p-2.5 rounded-xl border cursor-grab active:cursor-grabbing flex flex-col gap-1 transition-all select-none hover:shadow-sm"
+                :class="[!bk.parsedCustomer.tables || bk.parsedCustomer.tables === 'Chưa xếp' ? 'border-amber-300 dark:border-amber-800/80 bg-amber-50/30 dark:bg-amber-950/30 ring-2 ring-amber-300/10' : 'border-slate-200 dark:border-slate-700']"
               >
                 <div class="flex justify-between items-center gap-2">
-                  <span class="font-black text-slate-800 text-xs truncate flex-1 min-w-0">{{ bk.parsedCustomer.name }}</span>
-                  <span class="px-1.5 py-0.5 rounded text-[8px] font-black uppercase shrink-0" :class="bk.parsedCustomer.tables && bk.parsedCustomer.tables !== 'Chưa xếp' ? 'bg-emerald-150 text-emerald-700 border border-emerald-200' : 'bg-amber-100 text-amber-700 border border-amber-200'">
+                  <span class="font-black text-slate-800 dark:text-slate-100 text-xs truncate flex-1 min-w-0">{{ bk.parsedCustomer.name }}</span>
+                  <span class="px-1.5 py-0.5 rounded text-[8px] font-black uppercase shrink-0" :class="bk.parsedCustomer.tables && bk.parsedCustomer.tables !== 'Chưa xếp' ? 'bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800' : 'bg-amber-100 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800'">
                     {{ bk.parsedCustomer.tables && bk.parsedCustomer.tables !== 'Chưa xếp' ? bk.parsedCustomer.tables : 'Chưa xếp' }}
                   </span>
                 </div>
-                <div class="flex items-center justify-between text-[9px] text-slate-500 font-bold mt-1">
+                <div class="flex items-center justify-between text-[9px] text-slate-500 dark:text-slate-400 font-bold mt-1">
                   <span><i class="fa-solid fa-clock mr-1 text-blue-500/80"></i>{{ bk.parsedCustomer.time || '--:--' }}</span>
                   <span><i class="fa-solid fa-users mr-1 text-indigo-500/80"></i>{{ bk.parsedCustomer.pax || '0' }} khách</span>
                 </div>
@@ -433,8 +433,8 @@ async function handleTableDrop(e: DragEvent, tableName: string) {
         </div>
 
         <!-- Footer -->
-        <div class="px-5 py-4 border-t border-slate-200 bg-white shrink-0 shadow-[0_-4px_20px_rgba(0,0,0,0.02)]">
-          <button @click="closeFloorPlan" class="w-full py-4 bg-blue-900 text-white rounded-2xl font-black uppercase tracking-widest text-xs shadow-lg shadow-blue-900/20 active:scale-95 transition-all flex items-center justify-center gap-2">
+        <div class="px-5 py-4 border-t border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shrink-0 shadow-[0_-4px_20px_rgba(0,0,0,0.02)]">
+          <button @click="closeFloorPlan" class="w-full py-4 bg-blue-900 hover:bg-blue-800 dark:bg-blue-600 dark:hover:bg-blue-500 text-white rounded-2xl font-black uppercase tracking-widest text-xs shadow-lg shadow-blue-900/20 active:scale-95 transition-all flex items-center justify-center gap-2">
             <i class="fa-solid fa-check"></i> XÁC NHẬN BÀN: {{ formStore.customer.tables || 'CHƯA CHỌN' }}
           </button>
         </div>

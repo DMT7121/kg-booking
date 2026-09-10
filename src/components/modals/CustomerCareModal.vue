@@ -179,37 +179,37 @@ function openChannel(channel: 'zalo' | 'sms' | 'email' | 'messenger') {
 <template>
   <transition name="modal">
     <div v-if="ui.showCustomerCareModal" class="fixed inset-0 z-[10005] flex justify-center items-end sm:items-center bg-blue-950/80 backdrop-blur-md" @click.self="close">
-      <div class="bg-slate-50 rounded-t-3xl sm:rounded-3xl shadow-2xl w-full max-w-md flex flex-col relative overflow-hidden border border-white/20 pb-safe">
+      <div class="bg-slate-50 dark:bg-slate-950 rounded-t-3xl sm:rounded-3xl shadow-2xl w-full max-w-md flex flex-col relative overflow-hidden border border-white/20 dark:border-slate-800 pb-safe">
         
         <!-- Header -->
-        <div class="flex items-center justify-between px-5 py-4 border-b border-slate-200 bg-white shrink-0 relative z-20 shadow-sm">
+        <div class="flex items-center justify-between px-5 py-4 border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shrink-0 relative z-20 shadow-sm">
           <div class="flex items-center gap-3">
-            <div class="w-10 h-10 bg-gradient-to-br from-pink-50 to-rose-100 rounded-xl flex items-center justify-center text-rose-500 shadow-inner">
+            <div class="w-10 h-10 bg-gradient-to-br from-pink-50 to-rose-100 dark:from-rose-950/50 dark:to-pink-900/40 rounded-xl flex items-center justify-center text-rose-500 dark:text-rose-400 shadow-inner">
               <i class="fa-solid fa-heart"></i>
             </div>
             <div>
-              <h2 class="text-lg font-black text-blue-900 uppercase tracking-tighter">CSKH</h2>
-              <p class="text-[10px] font-bold text-slate-400 mt-0.5 uppercase tracking-wider">{{ customerInfo.name || 'Khách Hàng' }}</p>
+              <h2 class="text-lg font-black text-blue-900 dark:text-slate-100 uppercase tracking-tighter">CSKH</h2>
+              <p class="text-[10px] font-bold text-slate-400 dark:text-slate-400 mt-0.5 uppercase tracking-wider">{{ customerInfo.name || 'Khách Hàng' }}</p>
             </div>
           </div>
-          <button @click="close" class="w-10 h-10 flex items-center justify-center text-slate-400 hover:bg-rose-50 hover:text-rose-500 rounded-full transition-colors active:scale-95 shadow-sm border border-slate-100 bg-white">
+          <button @click="close" class="w-10 h-10 flex items-center justify-center text-slate-400 dark:text-slate-300 hover:bg-rose-50 dark:hover:bg-rose-950/50 hover:text-rose-500 dark:hover:text-rose-400 rounded-full transition-colors active:scale-95 shadow-sm border border-slate-100 dark:border-slate-700 bg-white dark:bg-slate-800">
             <i class="fa-solid fa-xmark text-xl"></i>
           </button>
         </div>
 
         <!-- Content -->
-        <div class="p-5 space-y-5 bg-slate-50 flex-1 overflow-y-auto custom-scrollbar">
+        <div class="p-5 space-y-5 bg-slate-50 dark:bg-slate-950 flex-1 overflow-y-auto custom-scrollbar">
           
           <!-- Template Selection Pills -->
           <div class="space-y-2">
-            <label class="text-[10px] font-black uppercase tracking-widest text-slate-500">Chọn mẫu tin nhắn</label>
+            <label class="text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400">Chọn mẫu tin nhắn</label>
             <div class="flex gap-2 overflow-x-auto pb-1.5 scrollbar-none -mx-1 px-1">
               <button 
                 v-for="t in templates" 
                 :key="t.id" 
                 @click="activeTemplateId = t.id"
                 :class="['px-3 py-2 rounded-xl border text-[11px] font-bold whitespace-nowrap transition-all flex items-center gap-1.5 active:scale-95 shrink-0', 
-                  activeTemplateId === t.id ? 'bg-blue-900 border-blue-900 text-white shadow-sm' : 'bg-white border-slate-200 text-slate-600 hover:border-slate-300']"
+                  activeTemplateId === t.id ? 'bg-blue-900 dark:bg-blue-600 border-blue-900 dark:border-blue-600 text-white shadow-sm' : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-300 hover:border-slate-300 dark:hover:border-slate-700']"
               >
                 <i class="fa-solid" :class="t.icon"></i>
                 {{ t.name }}
@@ -220,59 +220,59 @@ function openChannel(channel: 'zalo' | 'sms' | 'email' | 'messenger') {
           <!-- Message Preview -->
           <div class="space-y-2">
             <div class="flex items-center justify-between">
-              <label class="text-[10px] font-black uppercase tracking-widest text-slate-500">Nội dung gửi</label>
-              <button @click="copyMessage" class="text-[10px] font-bold text-blue-600 bg-blue-50 px-2 py-1 rounded hover:bg-blue-100 transition-colors">
+              <label class="text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400">Nội dung gửi</label>
+              <button @click="copyMessage" class="text-[10px] font-bold text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/60 px-2 py-1 rounded hover:bg-blue-100 dark:hover:bg-blue-900/50 transition-colors">
                 <i class="fa-regular fa-copy"></i> Copy
               </button>
             </div>
-            <div class="bg-white p-3 rounded-2xl border border-slate-200 shadow-sm text-xs text-slate-700 leading-relaxed whitespace-pre-wrap">
+            <div class="bg-white dark:bg-slate-900 p-3 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm text-xs text-slate-700 dark:text-slate-200 leading-relaxed whitespace-pre-wrap">
               {{ templateMessage }}
             </div>
           </div>
 
           <!-- Channel Selection (Thumb-friendly, min 48px hit targets) -->
           <div class="space-y-2">
-            <label class="text-[10px] font-black uppercase tracking-widest text-slate-500">Kênh Liên Hệ (Tự động copy nội dung)</label>
+            <label class="text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400">Kênh Liên Hệ (Tự động copy nội dung)</label>
             <div class="grid grid-cols-4 gap-2">
-              <button @click="openChannel('zalo')" class="min-h-[68px] flex flex-col items-center justify-center gap-1.5 p-2.5 bg-white rounded-2xl border border-slate-200 shadow-xs hover:border-blue-400 active:scale-95 transition-all group cursor-pointer">
-                <div class="w-10 h-10 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center text-lg group-hover:bg-blue-600 group-hover:text-white transition-colors">
+              <button @click="openChannel('zalo')" class="min-h-[68px] flex flex-col items-center justify-center gap-1.5 p-2.5 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs hover:border-blue-400 active:scale-95 transition-all group cursor-pointer">
+                <div class="w-10 h-10 rounded-full bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 flex items-center justify-center text-lg group-hover:bg-blue-600 group-hover:text-white transition-colors">
                   <i class="fa-solid fa-comment-dots"></i>
                 </div>
-                <span class="text-[10px] font-black uppercase">Zalo</span>
+                <span class="text-[10px] font-black uppercase text-slate-700 dark:text-slate-200">Zalo</span>
               </button>
               
-              <button @click="openChannel('sms')" class="min-h-[68px] flex flex-col items-center justify-center gap-1.5 p-2.5 bg-white rounded-2xl border border-slate-200 shadow-xs hover:border-emerald-400 active:scale-95 transition-all group cursor-pointer">
-                <div class="w-10 h-10 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center text-lg group-hover:bg-emerald-600 group-hover:text-white transition-colors">
+              <button @click="openChannel('sms')" class="min-h-[68px] flex flex-col items-center justify-center gap-1.5 p-2.5 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs hover:border-emerald-400 active:scale-95 transition-all group cursor-pointer">
+                <div class="w-10 h-10 rounded-full bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 flex items-center justify-center text-lg group-hover:bg-emerald-600 group-hover:text-white transition-colors">
                   <i class="fa-solid fa-message"></i>
                 </div>
-                <span class="text-[10px] font-black uppercase">SMS</span>
+                <span class="text-[10px] font-black uppercase text-slate-700 dark:text-slate-200">SMS</span>
               </button>
 
-              <button @click="openChannel('email')" class="min-h-[68px] flex flex-col items-center justify-center gap-1.5 p-2.5 bg-white rounded-2xl border border-slate-200 shadow-xs hover:border-amber-400 active:scale-95 transition-all group cursor-pointer">
-                <div class="w-10 h-10 rounded-full bg-amber-50 text-amber-600 flex items-center justify-center text-lg group-hover:bg-amber-600 group-hover:text-white transition-colors">
+              <button @click="openChannel('email')" class="min-h-[68px] flex flex-col items-center justify-center gap-1.5 p-2.5 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs hover:border-amber-400 active:scale-95 transition-all group cursor-pointer">
+                <div class="w-10 h-10 rounded-full bg-amber-50 dark:bg-amber-950/60 text-amber-600 dark:text-amber-400 flex items-center justify-center text-lg group-hover:bg-amber-600 group-hover:text-white transition-colors">
                   <i class="fa-solid fa-envelope"></i>
                 </div>
-                <span class="text-[10px] font-black uppercase">Email</span>
+                <span class="text-[10px] font-black uppercase text-slate-700 dark:text-slate-200">Email</span>
               </button>
 
-              <button @click="openChannel('messenger')" class="min-h-[68px] flex flex-col items-center justify-center gap-1.5 p-2.5 bg-white rounded-2xl border border-slate-200 shadow-xs hover:border-purple-400 active:scale-95 transition-all group cursor-pointer">
-                <div class="w-10 h-10 rounded-full bg-purple-50 text-purple-600 flex items-center justify-center text-lg group-hover:bg-purple-600 group-hover:text-white transition-colors">
+              <button @click="openChannel('messenger')" class="min-h-[68px] flex flex-col items-center justify-center gap-1.5 p-2.5 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs hover:border-purple-400 active:scale-95 transition-all group cursor-pointer">
+                <div class="w-10 h-10 rounded-full bg-purple-50 dark:bg-purple-950/60 text-purple-600 dark:text-purple-400 flex items-center justify-center text-lg group-hover:bg-purple-600 group-hover:text-white transition-colors">
                   <i class="fa-brands fa-facebook-messenger"></i>
                 </div>
-                <span class="text-[10px] font-black uppercase">Mess</span>
+                <span class="text-[10px] font-black uppercase text-slate-700 dark:text-slate-200">Mess</span>
               </button>
             </div>
           </div>
 
           <!-- Status Tagging (Spec #24: CSKH thành công, Hẹn gọi lại, Không nghe máy) -->
-          <div class="pt-3 border-t border-slate-200 space-y-2">
-            <label class="text-[10px] font-black uppercase tracking-widest text-slate-500">Cập nhật kết quả chăm sóc</label>
+          <div class="pt-3 border-t border-slate-200 dark:border-slate-800 space-y-2">
+            <label class="text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400">Cập nhật kết quả chăm sóc</label>
             <div class="grid grid-cols-3 gap-2">
               <button 
                 type="button"
                 @click="isCared = !isCared"
                 class="min-h-[44px] px-2 py-2 rounded-xl text-[11px] font-black uppercase tracking-wider flex items-center justify-center gap-1 border active:scale-95 transition-all cursor-pointer text-center"
-                :class="isCared ? 'bg-emerald-500 text-white border-emerald-600 shadow-sm' : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'"
+                :class="isCared ? 'bg-emerald-500 dark:bg-emerald-600 text-white border-emerald-600 dark:border-emerald-500 shadow-sm' : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800'"
               >
                 <i class="fa-solid fa-circle-check text-xs"></i> Thành công
               </button>
@@ -280,7 +280,7 @@ function openChannel(channel: 'zalo' | 'sms' | 'email' | 'messenger') {
               <button 
                 type="button"
                 @click="ui.showToast('Đã ghi nhận: Hẹn gọi lại sau', 'info'); haptic('light')"
-                class="min-h-[44px] px-2 py-2 rounded-xl text-[11px] font-black uppercase tracking-wider flex items-center justify-center gap-1 border bg-white border-slate-200 text-amber-700 hover:bg-amber-50 active:scale-95 transition-all cursor-pointer text-center"
+                class="min-h-[44px] px-2 py-2 rounded-xl text-[11px] font-black uppercase tracking-wider flex items-center justify-center gap-1 border bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-amber-700 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950/30 active:scale-95 transition-all cursor-pointer text-center"
               >
                 <i class="fa-solid fa-clock-rotate-left text-xs"></i> Gọi lại sau
               </button>
@@ -288,7 +288,7 @@ function openChannel(channel: 'zalo' | 'sms' | 'email' | 'messenger') {
               <button 
                 type="button"
                 @click="ui.showToast('Đã ghi nhận: Khách không nghe máy', 'warning'); haptic('light')"
-                class="min-h-[44px] px-2 py-2 rounded-xl text-[11px] font-black uppercase tracking-wider flex items-center justify-center gap-1 border bg-white border-slate-200 text-rose-600 hover:bg-rose-50 active:scale-95 transition-all cursor-pointer text-center"
+                class="min-h-[44px] px-2 py-2 rounded-xl text-[11px] font-black uppercase tracking-wider flex items-center justify-center gap-1 border bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/30 active:scale-95 transition-all cursor-pointer text-center"
               >
                 <i class="fa-solid fa-phone-slash text-xs"></i> Không nghe
               </button>

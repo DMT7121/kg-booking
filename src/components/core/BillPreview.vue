@@ -192,50 +192,50 @@ function openZaloChat() {
 <template>
   <div ref="previewContainerRef" :class="[
     'flex flex-col relative w-full h-full select-none transition-all duration-300',
-    isFullscreen ? 'fixed inset-0 z-[200] bg-slate-900/95 backdrop-blur-md h-[100dvh] overflow-hidden' : 'bg-slate-50'
+    isFullscreen ? 'fixed inset-0 z-[200] bg-slate-900/95 backdrop-blur-md h-[100dvh] overflow-hidden' : 'bg-slate-50 dark:bg-slate-950'
   ]">
     
     <!-- ZOOM / ACTION TOOLBAR -->
     <!-- DESKTOP TOOLBAR (md:flex, hidden on mobile) -->
     <div :class="[
       'hidden md:flex px-4 py-2.5 border-b items-center justify-between gap-3 shrink-0 z-20 shadow-sm transition-colors duration-250 w-full',
-      isFullscreen ? 'bg-slate-900 border-slate-800 text-white' : 'bg-white border-slate-200 text-slate-700'
+      isFullscreen ? 'bg-slate-900 border-slate-800 text-white' : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-200'
     ]">
       <!-- Left: Navigation / Page Info -->
       <div class="flex items-center gap-2">
-        <button @click="ui.tab = 'create'" class="w-8 h-8 rounded-xl bg-slate-100 flex items-center justify-center hover:bg-slate-200 transition-colors text-slate-700" title="Quay lại">
+        <button @click="ui.tab = 'create'" class="w-8 h-8 rounded-xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors text-slate-700 dark:text-slate-200" title="Quay lại">
           <i class="fa-solid fa-arrow-left"></i>
         </button>
-        <h3 class="font-black text-slate-800 text-xs">Xem trước phiếu đặt bàn</h3>
+        <h3 class="font-black text-slate-800 dark:text-slate-100 text-xs">Xem trước phiếu đặt bàn</h3>
         <span :class="[
           'px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider shadow-sm',
           formStore.deposit.isPaid 
-            ? 'bg-emerald-500/10 text-emerald-550 border border-emerald-500/20' 
-            : 'bg-amber-500/10 text-amber-550 border border-amber-500/20'
+            ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20' 
+            : 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20'
         ]">
           {{ formStore.deposit.isPaid ? 'Đã đặt cọc' : 'Yêu cầu cọc' }}
         </span>
       </div>
 
       <!-- Center: Zoom Controls -->
-      <div class="flex items-center bg-slate-100 dark:bg-slate-800 p-0.5 rounded-full border border-slate-200/50">
+      <div class="flex items-center bg-slate-100 dark:bg-slate-800 p-0.5 rounded-full border border-slate-200/50 dark:border-slate-700/50">
         <!-- Zoom Out -->
-        <button @click="adjustZoom(-0.1)" class="w-7 h-7 rounded-full flex items-center justify-center hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors text-slate-600" title="Thu nhỏ">
+        <button @click="adjustZoom(-0.1)" class="w-7 h-7 rounded-full flex items-center justify-center hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors text-slate-600 dark:text-slate-300" title="Thu nhỏ">
           <i class="fa-solid fa-minus text-xs"></i>
         </button>
 
         <!-- 100% -->
-        <button @click="setZoomMode('manual', 1.0)" class="px-2 py-0.5 rounded text-[10px] font-black hover:bg-slate-200 text-slate-700">
+        <button @click="setZoomMode('manual', 1.0)" class="px-2 py-0.5 rounded text-[10px] font-black hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200">
           100%
         </button>
 
         <!-- Current Percentage -->
-        <span class="text-[10px] font-black w-10 text-center select-none text-slate-500">
+        <span class="text-[10px] font-black w-10 text-center select-none text-slate-500 dark:text-slate-400">
           {{ Math.round(zoomScale * 100) }}%
         </span>
 
         <!-- Zoom In -->
-        <button @click="adjustZoom(0.1)" class="w-7 h-7 rounded-full flex items-center justify-center hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors text-slate-600" title="Phóng to">
+        <button @click="adjustZoom(0.1)" class="w-7 h-7 rounded-full flex items-center justify-center hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors text-slate-600 dark:text-slate-300" title="Phóng to">
           <i class="fa-solid fa-plus text-xs"></i>
         </button>
 
@@ -244,7 +244,7 @@ function openZaloChat() {
         <!-- Fit Width -->
         <button @click="setZoomMode('fit-width')" :class="[
           'px-2.5 py-1 rounded-full text-[10px] font-black transition-all',
-          zoomMode === 'fit-width' ? 'bg-blue-600 text-white shadow-sm' : 'hover:bg-slate-200 text-slate-500'
+          zoomMode === 'fit-width' ? 'bg-blue-600 text-white shadow-sm' : 'hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-500 dark:text-slate-400'
         ]" title="Vừa chiều ngang">
           Vừa màn hình
         </button>
@@ -256,25 +256,25 @@ function openZaloChat() {
         <button @click="toggleDepositState" :class="[
           'px-3 py-1.5 rounded-xl font-black text-[10px] uppercase flex items-center gap-1 shadow-sm transition-all active:scale-95 border',
           formStore.deposit.isPaid 
-            ? 'bg-red-50 hover:bg-red-100 text-red-700 border-red-200' 
-            : 'bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border-emerald-200'
+            ? 'bg-red-50 dark:bg-red-950/40 hover:bg-red-100 dark:hover:bg-red-900/50 text-red-700 dark:text-red-300 border-red-200 dark:border-red-800/60' 
+            : 'bg-emerald-50 dark:bg-emerald-950/40 hover:bg-emerald-100 dark:hover:bg-emerald-900/50 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800/60'
         ]">
           <i class="fa-solid" :class="formStore.deposit.isPaid ? 'fa-xmark' : 'fa-check'"></i>
           <span>{{ formStore.deposit.isPaid ? 'Hủy cọc' : 'Xác nhận cọc' }}</span>
         </button>
 
         <!-- Copy Message -->
-        <button @click="copyBookingConfirmation" class="bg-slate-50 hover:bg-slate-100 text-slate-700 px-3 py-1.5 rounded-xl font-black text-[10px] uppercase flex items-center gap-1 border border-slate-200 transition-all active:scale-95 shadow-sm">
+        <button @click="copyBookingConfirmation" class="bg-slate-50 dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 px-3 py-1.5 rounded-xl font-black text-[10px] uppercase flex items-center gap-1 border border-slate-200 dark:border-slate-700 transition-all active:scale-95 shadow-sm">
           <i class="fa-solid fa-copy"></i> <span>Tin nhắn</span>
         </button>
 
         <!-- Copy Link -->
-        <button @click="shareCurrentBill" class="bg-slate-50 hover:bg-slate-100 text-slate-700 px-3 py-1.5 rounded-xl font-black text-[10px] uppercase flex items-center gap-1 border border-slate-200 transition-all active:scale-95 shadow-sm">
+        <button @click="shareCurrentBill" class="bg-slate-50 dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 px-3 py-1.5 rounded-xl font-black text-[10px] uppercase flex items-center gap-1 border border-slate-200 dark:border-slate-700 transition-all active:scale-95 shadow-sm">
           <i class="fa-solid fa-link"></i> <span>Copy link</span>
         </button>
 
         <!-- Copy Image Link -->
-        <button v-if="formStore.billUrl" @click="copyBillImageUrl" class="bg-indigo-50 hover:bg-indigo-100 text-indigo-700 px-3 py-1.5 rounded-xl font-black text-[10px] uppercase flex items-center gap-1 border border-indigo-200 transition-all active:scale-95 shadow-sm">
+        <button v-if="formStore.billUrl" @click="copyBillImageUrl" class="bg-indigo-50 dark:bg-indigo-950/40 hover:bg-indigo-100 dark:hover:bg-indigo-900/50 text-indigo-700 dark:text-indigo-300 px-3 py-1.5 rounded-xl font-black text-[10px] uppercase flex items-center gap-1 border border-indigo-200 dark:border-indigo-800/60 transition-all active:scale-95 shadow-sm">
           <i class="fa-solid fa-image"></i> <span>Copy Link Ảnh</span>
         </button>
 
@@ -289,7 +289,7 @@ function openZaloChat() {
         </button>
 
         <!-- Fullscreen Button -->
-        <button @click="isFullscreen = !isFullscreen; updatePreviewScale()" class="w-8 h-8 rounded-xl flex items-center justify-center bg-slate-100 hover:bg-slate-200 transition-all text-slate-600" :title="isFullscreen ? 'Thoát toàn màn hình' : 'Xem toàn màn hình'">
+        <button @click="isFullscreen = !isFullscreen; updatePreviewScale()" class="w-8 h-8 rounded-xl flex items-center justify-center bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 transition-all text-slate-600 dark:text-slate-300" :title="isFullscreen ? 'Thoát toàn màn hình' : 'Xem toàn màn hình'">
           <i class="fa-solid" :class="isFullscreen ? 'fa-compress text-blue-600' : 'fa-expand'"></i>
         </button>
       </div>
@@ -298,20 +298,20 @@ function openZaloChat() {
     <!-- MOBILE TOOLBAR (block md:hidden) -->
     <div :class="[
       'flex md:hidden flex-col border-b shrink-0 z-[120] shadow-sm transition-colors duration-250 w-full relative',
-      isFullscreen ? 'bg-slate-900 border-slate-800 text-white' : 'bg-white border-slate-200 text-slate-700'
+      isFullscreen ? 'bg-slate-900 border-slate-800 text-white' : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-200'
     ]">
       <!-- Row 1: Back, Title, Status, More button (All min 44-48px hit areas) -->
-      <div class="px-3 py-2 flex items-center justify-between gap-2 border-b border-slate-100/60">
+      <div class="px-3 py-2 flex items-center justify-between gap-2 border-b border-slate-100/60 dark:border-slate-800/60">
         <div class="flex items-center gap-2">
-          <button @click="ui.tab = 'create'" class="w-10 h-10 rounded-xl bg-slate-100 flex items-center justify-center hover:bg-slate-200 transition-colors text-slate-700 active:scale-95" aria-label="Quay lại tạo đơn">
+          <button @click="ui.tab = 'create'" class="w-10 h-10 rounded-xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors text-slate-700 dark:text-slate-200 active:scale-95" aria-label="Quay lại tạo đơn">
             <i class="fa-solid fa-arrow-left text-sm"></i>
           </button>
-          <span class="font-black text-slate-800 text-xs uppercase tracking-wider">Phiếu đặt</span>
+          <span class="font-black text-slate-800 dark:text-slate-100 text-xs uppercase tracking-wider">Phiếu đặt</span>
           <span :class="[
             'px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider shadow-xs',
             formStore.deposit.isPaid 
-              ? 'bg-emerald-500/15 text-emerald-700 border border-emerald-500/25' 
-              : 'bg-amber-500/15 text-amber-700 border border-amber-500/25'
+              ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border border-emerald-500/25' 
+              : 'bg-amber-500/15 text-amber-700 dark:text-amber-300 border border-amber-500/25'
           ]">
             {{ formStore.deposit.isPaid ? '✓ Đã cọc' : 'Chưa cọc' }}
           </span>
@@ -319,35 +319,35 @@ function openZaloChat() {
         
         <!-- More Actions Dropdown Toggle (min 44px) -->
         <div class="relative flex items-center gap-1.5">
-          <button @click="setZoomMode('fit-width')" class="px-2.5 py-2 rounded-xl text-[10px] font-black text-slate-600 bg-slate-100 hover:bg-slate-200 transition-all active:scale-95 min-h-[40px] flex items-center gap-1" title="Vừa chiều ngang">
+          <button @click="setZoomMode('fit-width')" class="px-2.5 py-2 rounded-xl text-[10px] font-black text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 transition-all active:scale-95 min-h-[40px] flex items-center gap-1" title="Vừa chiều ngang">
             <i class="fa-solid fa-arrows-left-right text-xs"></i> Vừa ngang
           </button>
-          <button @click="showMoreMenu = !showMoreMenu" class="w-10 h-10 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 flex items-center justify-center transition-all active:scale-95" aria-label="Menu thêm">
+          <button @click="showMoreMenu = !showMoreMenu" class="w-10 h-10 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 flex items-center justify-center transition-all active:scale-95" aria-label="Menu thêm">
             <i class="fa-solid fa-ellipsis-vertical text-sm"></i>
           </button>
           
           <!-- Dropdown Menu -->
-          <div v-show="showMoreMenu" class="absolute right-0 top-full mt-2 w-52 bg-white border border-slate-200 rounded-2xl shadow-2xl z-50 py-2 animate-in fade-in slide-in-from-top-2 duration-150 text-slate-700">
-            <button @click="copyBookingConfirmation(); showMoreMenu = false" class="w-full px-4 py-3 text-left text-xs font-black uppercase tracking-wider hover:bg-slate-50 active:bg-slate-100 flex items-center gap-2.5 min-h-[44px]">
+          <div v-show="showMoreMenu" class="absolute right-0 top-full mt-2 w-52 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl z-50 py-2 animate-in fade-in slide-in-from-top-2 duration-150 text-slate-700 dark:text-slate-200">
+            <button @click="copyBookingConfirmation(); showMoreMenu = false" class="w-full px-4 py-3 text-left text-xs font-black uppercase tracking-wider hover:bg-slate-50 dark:hover:bg-slate-800 active:bg-slate-100 flex items-center gap-2.5 min-h-[44px]">
               <i class="fa-solid fa-copy text-slate-400 w-4 text-center text-sm"></i> Copy tin nhắn
             </button>
-            <button @click="shareCurrentBill(); showMoreMenu = false" class="w-full px-4 py-3 text-left text-xs font-black uppercase tracking-wider hover:bg-slate-50 active:bg-slate-100 flex items-center gap-2.5 min-h-[44px]">
+            <button @click="shareCurrentBill(); showMoreMenu = false" class="w-full px-4 py-3 text-left text-xs font-black uppercase tracking-wider hover:bg-slate-50 dark:hover:bg-slate-800 active:bg-slate-100 flex items-center gap-2.5 min-h-[44px]">
               <i class="fa-solid fa-link text-slate-400 w-4 text-center text-sm"></i> Chia sẻ link
             </button>
-            <button v-if="formStore.billUrl" @click="copyBillImageUrl(); showMoreMenu = false" class="w-full px-4 py-3 text-left text-xs font-black uppercase tracking-wider hover:bg-slate-50 active:bg-slate-100 flex items-center gap-2.5 text-indigo-700 min-h-[44px]">
+            <button v-if="formStore.billUrl" @click="copyBillImageUrl(); showMoreMenu = false" class="w-full px-4 py-3 text-left text-xs font-black uppercase tracking-wider hover:bg-slate-50 dark:hover:bg-slate-800 active:bg-slate-100 flex items-center gap-2.5 text-indigo-700 dark:text-indigo-300 min-h-[44px]">
               <i class="fa-solid fa-image text-indigo-500 w-4 text-center text-sm"></i> Copy Link Ảnh
             </button>
-            <button @click="openZaloChat(); showMoreMenu = false" class="w-full px-4 py-3 text-left text-xs font-black uppercase tracking-wider hover:bg-slate-50 active:bg-slate-100 flex items-center gap-2.5 min-h-[44px]">
+            <button @click="openZaloChat(); showMoreMenu = false" class="w-full px-4 py-3 text-left text-xs font-black uppercase tracking-wider hover:bg-slate-50 dark:hover:bg-slate-800 active:bg-slate-100 flex items-center gap-2.5 min-h-[44px]">
               <i class="fa-solid fa-comment-dots text-slate-400 w-4 text-center text-sm"></i> Nhắn Zalo
             </button>
-            <div class="h-[1px] bg-slate-100 my-1"></div>
+            <div class="h-[1px] bg-slate-100 dark:bg-slate-800 my-1"></div>
             <!-- Segregated Destructive Deposit Action in More Menu -->
-            <button @click="toggleDepositState(); showMoreMenu = false" class="w-full px-4 py-3 text-left text-xs font-black uppercase tracking-wider flex items-center gap-2.5 min-h-[44px]" :class="formStore.deposit.isPaid ? 'text-rose-600 hover:bg-rose-50' : 'text-emerald-600 hover:bg-emerald-50'">
+            <button @click="toggleDepositState(); showMoreMenu = false" class="w-full px-4 py-3 text-left text-xs font-black uppercase tracking-wider flex items-center gap-2.5 min-h-[44px]" :class="formStore.deposit.isPaid ? 'text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/30' : 'text-emerald-600 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/30'">
               <i class="fa-solid w-4 text-center text-sm" :class="formStore.deposit.isPaid ? 'fa-arrow-rotate-left' : 'fa-circle-check'"></i>
               {{ formStore.deposit.isPaid ? 'Hủy trạng thái cọc' : 'Xác nhận cọc' }}
             </button>
-            <div class="h-[1px] bg-slate-100 my-1"></div>
-            <button @click="isFullscreen = !isFullscreen; updatePreviewScale(); showMoreMenu = false" class="w-full px-4 py-3 text-left text-xs font-black uppercase tracking-wider hover:bg-slate-50 active:bg-slate-100 flex items-center gap-2.5 min-h-[44px]">
+            <div class="h-[1px] bg-slate-100 dark:bg-slate-800 my-1"></div>
+            <button @click="isFullscreen = !isFullscreen; updatePreviewScale(); showMoreMenu = false" class="w-full px-4 py-3 text-left text-xs font-black uppercase tracking-wider hover:bg-slate-50 dark:hover:bg-slate-800 active:bg-slate-100 flex items-center gap-2.5 min-h-[44px]">
               <i class="fa-solid text-slate-400 w-4 text-center text-sm" :class="isFullscreen ? 'fa-compress text-blue-600' : 'fa-expand'"></i> 
               {{ isFullscreen ? 'Thoát Tràn Viền' : 'Xem Tràn Viền' }}
             </button>
@@ -356,7 +356,7 @@ function openZaloChat() {
       </div>
 
       <!-- Row 2: Clean Export Actions (PNG, PDF, Share) — min 44-48px height, destructive action segregated! -->
-      <div class="px-3 py-2 flex items-center justify-between gap-2 border-b border-slate-100/50 bg-slate-50/50">
+      <div class="px-3 py-2 flex items-center justify-between gap-2 border-b border-slate-100/50 dark:border-slate-800/50 bg-slate-50/50 dark:bg-slate-900/60">
         <!-- PNG -->
         <button @click="triggerSave('image')" class="flex-1 min-h-[44px] bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-black text-xs uppercase tracking-wider flex items-center justify-center gap-1.5 shadow-sm active:scale-95 transition-all">
           <i class="fa-solid fa-image text-xs"></i> <span>Tải PNG</span>
@@ -368,20 +368,20 @@ function openZaloChat() {
         </button>
 
         <!-- Share Link -->
-        <button @click="shareCurrentBill" class="min-h-[44px] px-3.5 bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 rounded-xl font-black text-xs uppercase tracking-wider flex items-center justify-center gap-1.5 shadow-xs active:scale-95 transition-all">
-          <i class="fa-solid fa-share-nodes text-xs text-blue-600"></i> <span>Gửi link</span>
+        <button @click="shareCurrentBill" class="min-h-[44px] px-3.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 rounded-xl font-black text-xs uppercase tracking-wider flex items-center justify-center gap-1.5 shadow-xs active:scale-95 transition-all">
+          <i class="fa-solid fa-share-nodes text-xs text-blue-600 dark:text-blue-400"></i> <span>Gửi link</span>
         </button>
       </div>
 
       <!-- Row 3: Compact Zoom Controls -->
-      <div class="px-3 py-1.5 flex items-center justify-center gap-4 bg-slate-50/70 border-t border-slate-100/40">
-        <button @click="adjustZoom(-0.1)" class="w-8 h-8 rounded-full flex items-center justify-center hover:bg-slate-200 text-slate-650 transition-colors active:scale-90" aria-label="Thu nhỏ">
+      <div class="px-3 py-1.5 flex items-center justify-center gap-4 bg-slate-50/70 dark:bg-slate-900/80 border-t border-slate-100/40 dark:border-slate-800/40">
+        <button @click="adjustZoom(-0.1)" class="w-8 h-8 rounded-full flex items-center justify-center hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-650 dark:text-slate-300 transition-colors active:scale-90" aria-label="Thu nhỏ">
           <i class="fa-solid fa-minus text-xs"></i>
         </button>
-        <span class="text-[10px] font-black text-slate-600 uppercase tracking-widest font-tabular">
+        <span class="text-[10px] font-black text-slate-600 dark:text-slate-300 uppercase tracking-widest font-tabular">
           {{ Math.round(zoomScale * 100) }}%
         </span>
-        <button @click="adjustZoom(0.1)" class="w-8 h-8 rounded-full flex items-center justify-center hover:bg-slate-200 text-slate-650 transition-colors active:scale-90" aria-label="Phóng to">
+        <button @click="adjustZoom(0.1)" class="w-8 h-8 rounded-full flex items-center justify-center hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-650 dark:text-slate-300 transition-colors active:scale-90" aria-label="Phóng to">
           <i class="fa-solid fa-plus text-xs"></i>
         </button>
       </div>
@@ -391,7 +391,7 @@ function openZaloChat() {
     <!-- Scrollable container for Bill -->
     <div :class="[
       'flex-1 overflow-y-auto overflow-x-hidden custom-scrollbar relative',
-      isFullscreen ? 'bg-slate-950/20' : 'bg-slate-50'
+      isFullscreen ? 'bg-slate-950/20' : 'bg-slate-50 dark:bg-slate-950'
     ]">
       <div :class="[
         'flex gap-0 md:gap-4 justify-center min-h-full',
