@@ -22,9 +22,26 @@ export interface ModalState {
 export const useUIStore = defineStore('ui', () => {
   // --- Tab & Panel ---
   const tab = ref<'dashboard' | 'create' | 'timeline' | 'history' | 'preview' | 'analytics' | 'test' | 'logs'>('dashboard')
-  const connectionStatus = ref<'online' | 'syncing' | 'error'>('online')
+  const connectionStatus = ref<'online' | 'degraded' | 'offline' | 'reconnecting' | 'syncing' | 'error'>('online')
   const isKeyboardOpen = ref(false)
   const isVoiceSupported = ref(false)
+
+  if (typeof window !== 'undefined') {
+    window.addEventListener('online', () => {
+      connectionStatus.value = 'reconnecting'
+      setTimeout(() => {
+        if (connectionStatus.value === 'reconnecting') {
+          connectionStatus.value = 'online'
+        }
+      }, 1200)
+    })
+    window.addEventListener('offline', () => {
+      connectionStatus.value = 'offline'
+    })
+    if (!navigator.onLine) {
+      connectionStatus.value = 'offline'
+    }
+  }
 
   const todayStr = () => {
     const d = new Date()

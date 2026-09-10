@@ -813,7 +813,9 @@ const ambientTheme = computed(() => {
             <input
               id="palette-search"
               v-model="searchQuery"
-              class="flex-1 bg-transparent border-none outline-none font-bold text-slate-800 dark:text-slate-100 text-sm placeholder-slate-400"
+              type="search"
+              enterkeyhint="search"
+              class="flex-1 bg-transparent border-none outline-none font-bold text-slate-800 dark:text-slate-100 text-[16px] md:text-sm placeholder-slate-400 min-h-[44px]"
               placeholder="Tìm tên khách, SĐT, số bàn hoặc nói 'Xếp bàn A1 lúc 19:00'..."
               autocomplete="off"
             >

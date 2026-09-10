@@ -211,13 +211,20 @@ onMounted(async () => {
     }
   }
 
-  // 1. Try to load data from query parameter (for fast screenshot / no deadlock)
   const hash = window.location.hash;
   const dataMatch = hash.match(/[?&]data=([^&]+)/);
   if (dataMatch) {
     try {
-      const base64 = dataMatch[1].replace(/-/g, '+').replace(/_/g, '/');
-      const decoded = decodeURIComponent(escape(window.atob(base64)));
+      const raw = decodeURIComponent(dataMatch[1]);
+      const base64 = raw.replace(/-/g, '+').replace(/_/g, '/');
+      let decoded = '';
+      try {
+        const binary = window.atob(base64);
+        const bytes = Uint8Array.from(binary, c => c.charCodeAt(0));
+        decoded = new TextDecoder().decode(bytes);
+      } catch (e) {
+        decoded = decodeURIComponent(escape(window.atob(base64)));
+      }
       const parsed = JSON.parse(decoded);
       
       order.value = {
@@ -411,45 +418,45 @@ onUnmounted(() => { if (timer) clearInterval(timer) })
           </div>
 
           <!-- INFO CARD -->
-          <div class="relative mb-6">
+          <div id="bill-info-card" class="relative mb-6">
             <div class="space-y-2 relative z-10">
-              <div class="flex justify-between items-baseline border-b border-dashed border-slate-200 pb-2">
+              <div id="bill-customer-name" class="flex justify-between items-baseline border-b border-dashed border-slate-200 pb-2">
                 <span class="text-xs font-bold text-slate-500">Khách hàng</span>
                 <span class="font-black text-slate-800 text-sm uppercase">{{ order.customer?.name || '---' }}</span>
               </div>
-              <div class="flex justify-between items-baseline border-b border-dashed border-slate-200 pb-2">
+              <div id="bill-customer-phone" class="flex justify-between items-baseline border-b border-dashed border-slate-200 pb-2">
                 <span class="text-xs font-bold text-slate-500">SĐT/Zalo</span>
                 <span class="font-black text-blue-600 text-sm tracking-wider font-tabular">{{ order.customer?.phone || '---' }}</span>
               </div>
-              <div class="flex justify-between items-baseline border-b border-dashed border-slate-200 pb-2">
+              <div id="bill-customer-time" class="flex justify-between items-baseline border-b border-dashed border-slate-200 pb-2">
                 <span class="text-xs font-bold text-slate-500">Thời gian</span>
                 <span class="font-black text-slate-800 text-sm font-tabular">{{ order.customer?.time || '--:--' }} &bull; {{ order.customer?.date || '' }}</span>
               </div>
-              <div class="flex justify-between items-baseline border-b border-dashed border-slate-200 pb-2">
+              <div id="bill-customer-guest" class="flex justify-between items-baseline border-b border-dashed border-slate-200 pb-2">
                 <span class="text-xs font-bold text-slate-500">Số khách</span>
                 <span class="font-black text-slate-800 text-sm font-tabular">{{ order.customer?.pax || '0' }} người</span>
               </div>
-              <div class="flex justify-between items-baseline border-b border-dashed border-slate-200 pb-2">
+              <div id="bill-customer-table" class="flex justify-between items-baseline border-b border-dashed border-slate-200 pb-2">
                 <span class="text-xs font-bold text-slate-500">Khu vực/Bàn</span>
                 <span class="font-black text-amber-600 text-sm font-tabular">{{ order.customer?.tables || 'Chưa xếp' }}</span>
               </div>
-              <div v-if="order.customer?.type" class="flex justify-between items-baseline border-b border-dashed border-slate-200 pb-2">
+              <div v-if="order.customer?.type" id="bill-customer-party" class="flex justify-between items-baseline border-b border-dashed border-slate-200 pb-2">
                 <span class="text-xs font-bold text-slate-500">Loại tiệc</span>
                 <span class="font-bold text-slate-800 text-sm">{{ order.customer?.type }}</span>
               </div>
-              <div v-if="order.customer?.note" class="pt-2">
+              <div v-if="order.customer?.note" id="bill-customer-note" class="pt-2">
                 <span class="text-xs font-bold text-slate-500 block mb-1">Ghi chú:</span>
                 <span class="font-bold text-rose-600 text-xs italic">{{ order.customer?.note }}</span>
               </div>
             </div>
+          </div>
 
-            <!-- STAMP (Responsive scaling) -->
-            <div class="absolute bottom-1 right-2 sm:left-[46%] sm:-translate-x-[50%] pointer-events-none origin-center z-0 scale-75 sm:scale-95" style="transform: rotate(-5deg); opacity: 0.95;">
-              <div class="relative w-[180px] sm:w-[220px] flex flex-col items-center justify-center">
-                <img :src="order.isDeposited ? '/images/stamps/paid.png' : '/images/stamps/pending.png'" class="w-full object-contain filter drop-shadow-md" alt="Stamp" />
-                <div v-if="order.isDeposited" class="mt-1.5 w-full text-center text-[#d11124] font-black tracking-widest whitespace-nowrap font-tabular" style="font-family: 'Cal Sans', sans-serif; font-size: 14px;">
-                  {{ formatDepositTime(order.deposit?.time) }}
-                </div>
+          <!-- RESERVED STAMP ZONE (P1-04: Never overlaps business data) -->
+          <div id="bill-stamp-zone" class="my-4 py-3 border-y border-dashed border-slate-200/80 flex flex-col items-center justify-center pointer-events-none bg-slate-50/40 rounded-2xl">
+            <div class="relative w-[170px] sm:w-[200px] flex flex-col items-center justify-center" style="transform: rotate(-3deg); opacity: 0.95;">
+              <img id="bill-stamp-img" :src="order.isDeposited ? '/images/stamps/paid.png' : '/images/stamps/pending.png'" class="w-full object-contain filter drop-shadow-sm" alt="Stamp" />
+              <div v-if="order.isDeposited" class="mt-1 w-full text-center text-[#d11124] font-black tracking-widest whitespace-nowrap font-tabular" style="font-family: 'Cal Sans', sans-serif; font-size: 13px;">
+                {{ formatDepositTime(order.deposit?.time) }}
               </div>
             </div>
           </div>

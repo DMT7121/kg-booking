@@ -673,8 +673,9 @@ function saveBotConfig() {
                     v-model="staffReplyText" 
                     @keyup.enter="sendStaffReply"
                     type="text" 
+                    enterkeyhint="send"
                     placeholder="Nhập tin nhắn để gửi trực tiếp sang Messenger..."
-                    class="flex-1 px-3.5 py-2 bg-slate-100 rounded-xl text-xs font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500 border border-slate-200"
+                    class="flex-1 px-3.5 py-2 bg-slate-100 rounded-xl text-[16px] md:text-xs font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500 border border-slate-200 min-h-[44px]"
                   />
                   <button 
                     @click="sendStaffReply"

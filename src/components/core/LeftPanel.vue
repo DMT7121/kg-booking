@@ -16,8 +16,8 @@ import QuickDashboard from '@/components/history/QuickDashboard.vue'
 import BillPreview from './BillPreview.vue'
 import { formatVND } from '@/utils'
 
-// Lazy-loaded tab components (only fetched when user navigates to them)
-const HistoryTimeline = defineAsyncComponent(() => import('@/components/history/HistoryTimeline.vue'))
+// Tab components
+import HistoryTimeline from '@/components/history/HistoryTimeline.vue'
 const AnalyticsDashboard = defineAsyncComponent(() => import('@/components/history/AnalyticsDashboard.vue'))
 const TestDashboard = defineAsyncComponent(() => import('@/components/history/TestDashboard.vue'))
 const LogViewer = defineAsyncComponent(() => import('@/components/history/LogViewer.vue'))
@@ -185,10 +185,11 @@ function goToTomorrowTimeline() {
       <!-- LEFT: LOGO / APP NAME -->
       <div class="flex items-center gap-2.5 relative z-10 min-w-0">
         <div 
-          class="bg-white rounded-xl shadow-md flex items-center justify-center overflow-hidden border border-white/15 shrink-0 transition-all duration-200"
+          class="bg-white rounded-xl shadow-md flex items-center justify-center overflow-hidden border border-slate-200/80 shrink-0 transition-all duration-200"
           :class="isHeaderCompact ? 'w-8 h-8 p-0.5' : 'w-9 h-9 p-1'"
+          style="background-color: #ffffff !important;"
         >
-          <img :src="configStore.branding.logo || '/favicon.svg'" class="w-full h-full object-contain" alt="KG Logo" loading="lazy" />
+          <img :src="configStore.branding.logo || '/images/brand-logo.svg'" class="w-full h-full object-contain" alt="KG Logo" loading="lazy" />
         </div>
         <div class="min-w-0">
           <h1 
@@ -197,7 +198,12 @@ function goToTomorrowTimeline() {
             style="font-family: 'Be Vietnam Pro', sans-serif;"
           >
             KING'S GRILL
-            <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse shadow-[0_0_6px_rgba(52,211,153,0.8)] shrink-0"></span>
+            <span class="w-2 h-2 rounded-full shrink-0 transition-all"
+                  :class="{
+                    'bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.8)] animate-pulse': ui.connectionStatus === 'online' && appStore.offlineQueueCount === 0,
+                    'bg-amber-400 animate-pulse': ui.connectionStatus === 'reconnecting' || ui.connectionStatus === 'syncing' || (ui.connectionStatus === 'online' && appStore.offlineQueueCount > 0),
+                    'bg-rose-400': ui.connectionStatus === 'offline' || ui.connectionStatus === 'error'
+                  }"></span>
           </h1>
           <div class="flex items-center gap-1.5 mt-1" :class="{'hidden sm:flex': isHeaderCompact}">
             <button 
@@ -208,11 +214,12 @@ function goToTomorrowTimeline() {
               <i class="fa-solid fa-sparkles text-[8px] text-amber-300"></i>
               <span>v2.5.0-APEX</span>
             </button>
-            <span class="text-[9px] font-bold uppercase tracking-wider tabular-nums"
-                  :class="ui.connectionStatus === 'error' ? 'text-rose-400' : 'text-slate-400'">
+            <span class="text-[9px] font-bold uppercase tracking-wider tabular-nums transition-colors"
+                  :class="(ui.connectionStatus === 'offline' || ui.connectionStatus === 'error') ? 'text-rose-400' : (ui.connectionStatus === 'reconnecting' || ui.connectionStatus === 'syncing') ? 'text-amber-400' : 'text-slate-400'">
               {{ 
-                ui.connectionStatus === 'syncing' ? 'Đang đồng bộ' : 
-                ui.connectionStatus === 'error' ? 'Ngoại tuyến' : 
+                ui.connectionStatus === 'syncing' ? 'Đang đồng bộ...' : 
+                ui.connectionStatus === 'reconnecting' ? 'Đang kết nối lại...' :
+                (ui.connectionStatus === 'offline' || ui.connectionStatus === 'error') ? 'Ngoại tuyến' : 
                 appStore.offlineQueueCount > 0 ? `${appStore.offlineQueueCount} đơn chờ` : 'Trực tuyến'
               }}
             </span>
@@ -279,13 +286,13 @@ function goToTomorrowTimeline() {
       <div class="flex items-center gap-1 relative z-10 shrink-0">
         <!-- Online/Offline Status Indicator (Mobile Only) -->
         <div class="md:hidden w-7 h-7 rounded-xl bg-slate-800/60 flex items-center justify-center border border-slate-700/40"
-             :title="ui.connectionStatus === 'online' ? 'Trực tuyến' : 'Ngoại tuyến'">
-          <span class="w-2.5 h-2.5 rounded-full" 
+             :title="ui.connectionStatus === 'online' ? 'Trực tuyến' : ui.connectionStatus === 'reconnecting' ? 'Đang kết nối lại' : ui.connectionStatus === 'syncing' ? 'Đang đồng bộ' : 'Ngoại tuyến'">
+          <span class="w-2.5 h-2.5 rounded-full transition-all" 
                 :class="{
                   'bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.8)]': ui.connectionStatus === 'online' && appStore.offlineQueueCount === 0, 
-                  'bg-yellow-400 animate-pulse': ui.connectionStatus === 'syncing', 
+                  'bg-yellow-400 animate-pulse': ui.connectionStatus === 'syncing' || ui.connectionStatus === 'reconnecting', 
                   'bg-amber-400 animate-pulse': ui.connectionStatus === 'online' && appStore.offlineQueueCount > 0,
-                  'bg-rose-400': ui.connectionStatus === 'error'
+                  'bg-rose-400': ui.connectionStatus === 'offline' || ui.connectionStatus === 'error'
                 }"></span>
         </div>
 

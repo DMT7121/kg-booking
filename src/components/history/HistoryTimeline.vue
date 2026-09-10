@@ -16,6 +16,11 @@ const dateInputRef = ref<HTMLInputElement | null>(null)
 const ZONES = ['Khu A', 'Khu B', 'Khu C', 'Khu D', 'Khu E']
 
 const showQuickView = ref(false)
+const densityMode = ref<'standard' | 'compact'>('standard')
+
+function toggleDensity() {
+  densityMode.value = densityMode.value === 'standard' ? 'compact' : 'standard'
+}
 
 import { formatDateStr } from '@/utils'
 
@@ -363,65 +368,78 @@ async function handleDrop(e: DragEvent, hour: string, table: string) {
 </script>
 
 <template>
-  <div class="flex-grow flex flex-col bg-slate-50 text-[13px] overflow-hidden">
+  <div class="flex-grow flex flex-col bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-100 text-[13px] overflow-hidden">
     
     <!-- Header Title -->
-    <div class="bg-slate-50 px-4 py-4 flex items-center justify-between sticky top-0 z-20 shadow-sm border-b border-slate-100 shrink-0">
-      <button @click="ui.tab = 'create'" class="w-10 h-10 flex items-center justify-center text-blue-900 text-xl active:scale-95 transition-transform">
+    <div class="bg-slate-50 dark:bg-slate-900 px-4 py-4 flex items-center justify-between sticky top-0 z-20 shadow-sm border-b border-slate-100 dark:border-slate-800 shrink-0">
+      <button @click="ui.tab = 'create'" class="w-10 h-10 flex items-center justify-center text-blue-900 dark:text-blue-300 text-xl active:scale-95 transition-transform" aria-label="Quay lại">
         <i class="fa-solid fa-arrow-left"></i>
       </button>
       <div class="text-center flex-1">
-        <h2 class="text-xl font-black text-blue-900">Lịch Đặt Bàn</h2>
-        <p class="text-[10px] font-bold text-slate-400 mt-0.5">Sơ đồ tình trạng bàn theo thời gian</p>
+        <h2 class="text-xl font-black text-blue-900 dark:text-blue-400">Lịch Đặt Bàn</h2>
+        <p class="text-[10px] font-bold text-slate-400 dark:text-slate-500 mt-0.5">Sơ đồ tình trạng bàn theo thời gian</p>
       </div>
       <div class="w-10"></div> <!-- Placeholder to balance header -->
     </div>
 
     <!-- Top Controls -->
-    <div class="p-4 bg-white border-b border-slate-100 flex gap-3 items-center z-10 shadow-sm">
-      <div class="relative flex-grow border border-slate-200 rounded-xl px-3 py-2 flex flex-col hover:border-blue-400 transition-colors group">
+    <div class="p-3 md:p-4 bg-white dark:bg-slate-900 border-b border-slate-100 dark:border-slate-800 flex gap-2 sm:gap-3 items-center z-10 shadow-sm overflow-x-auto no-scrollbar">
+      <div class="relative flex-grow min-w-[140px] border border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800/60 rounded-xl px-3 py-2 flex flex-col hover:border-blue-400 dark:hover:border-blue-500 transition-colors group">
         <input 
           ref="dateInputRef" 
           type="date" 
           v-model="selectedDateInput" 
           class="absolute -z-10 opacity-0 w-0 h-0 pointer-events-none"
         >
-        <label class="text-[10px] font-bold text-slate-500 uppercase pointer-events-none group-hover:text-blue-500 transition-colors">Chọn ngày</label>
-        <div class="font-black text-slate-800 text-sm flex justify-between items-center">
+        <label class="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase pointer-events-none group-hover:text-blue-500 transition-colors">Chọn ngày</label>
+        <div class="font-black text-slate-800 dark:text-slate-100 text-sm flex justify-between items-center">
           <input 
             type="text" 
             v-model="dateTextVal" 
             @input="onDateTextInput" 
             @blur="onDateTextBlur"
-            class="bg-transparent border-none font-black text-slate-800 text-sm outline-none w-full p-0"
+            class="bg-transparent border-none font-black text-slate-800 dark:text-slate-100 text-sm outline-none w-full p-0"
             placeholder="DD/MM/YYYY"
           >
           <button 
             type="button"
             @click.stop="triggerDatePicker" 
-            class="text-blue-600/70 hover:text-blue-800 transition-colors cursor-pointer shrink-0 ml-2"
+            class="text-blue-600/70 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 transition-colors cursor-pointer shrink-0 ml-2"
+            aria-label="Mở lịch chọn ngày"
           >
             <i class="fa-solid fa-calendar-days text-sm"></i>
           </button>
         </div>
       </div>
+
+      <!-- Density Toggle (P2-01: Standard vs Compact) -->
+      <button 
+        @click="toggleDensity" 
+        class="h-12 px-3 rounded-xl font-black text-xs uppercase tracking-wider shadow-sm active:scale-95 transition-all flex justify-center items-center gap-1.5 shrink-0 border cursor-pointer select-none"
+        :class="densityMode === 'compact' ? 'bg-blue-600 text-white border-blue-500 shadow-blue-500/20' : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 border-slate-200 dark:border-slate-700 hover:bg-slate-200'"
+        :title="densityMode === 'compact' ? 'Đang ở chế độ Gọn (Bấm để về Tiêu chuẩn)' : 'Đang ở chế độ Tiêu chuẩn (Bấm để chuyển Gọn)'"
+        aria-label="Chuyển mật độ hiển thị"
+      >
+        <i class="fa-solid" :class="densityMode === 'compact' ? 'fa-compress' : 'fa-expand'"></i>
+        <span class="text-[10px] font-black">{{ densityMode === 'compact' ? 'GỌN' : 'CHUẨN' }}</span>
+      </button>
       
       <!-- Quick View Floor Plan -->
       <button 
         @click="ui.showFloorPlan = true" 
-        class="h-12 px-3.5 bg-amber-50 text-amber-700 hover:bg-amber-100 rounded-xl font-black text-xs uppercase tracking-wider shadow-sm active:scale-95 transition-all flex justify-center items-center gap-1.5 shrink-0 border border-amber-200 cursor-pointer"
+        class="h-12 px-3 bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-400 hover:bg-amber-100 dark:hover:bg-amber-900/50 rounded-xl font-black text-xs uppercase tracking-wider shadow-sm active:scale-95 transition-all flex justify-center items-center gap-1.5 shrink-0 border border-amber-200 dark:border-amber-800/40 cursor-pointer"
         title="Xem sơ đồ mặt bằng bàn khu A, C, VIP"
       >
-        <i class="fa-solid fa-map text-amber-600 text-sm"></i>
+        <i class="fa-solid fa-map text-amber-600 dark:text-amber-400 text-sm"></i>
         <span class="hidden sm:inline">Sơ Đồ Bàn</span>
       </button>
 
-      <button @click="showQuickView = true" class="h-12 w-12 bg-indigo-50 text-indigo-600 rounded-xl font-black text-xl shadow-sm hover:bg-indigo-100 active:scale-95 transition-all flex justify-center items-center shrink-0 border border-indigo-100" title="Danh sách đơn đặt ngày này">
+      <button @click="showQuickView = true" class="h-12 w-12 bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400 rounded-xl font-black text-xl shadow-sm hover:bg-indigo-100 dark:hover:bg-indigo-900/50 active:scale-95 transition-all flex justify-center items-center shrink-0 border border-indigo-100 dark:border-indigo-800/40" title="Danh sách đơn đặt ngày này">
         <i class="fa-solid fa-list-ul"></i>
       </button>
       
-      <button @click="resetForm(); ui.tab = 'create'" class="h-12 px-5 bg-blue-900 text-white rounded-xl font-black text-xs uppercase tracking-wider shadow-lg shadow-blue-900/20 active:scale-95 transition-all flex justify-center items-center gap-2 whitespace-nowrap">
-        <i class="fa-solid fa-plus text-white/70"></i> <span class="hidden sm:inline">Tạo lịch đặt mới</span><span class="sm:hidden">Tạo mới</span>
+      <button @click="resetForm(); ui.tab = 'create'" class="h-12 px-4 sm:px-5 bg-blue-900 dark:bg-blue-700 text-white rounded-xl font-black text-xs uppercase tracking-wider shadow-lg shadow-blue-900/20 active:scale-95 transition-all flex justify-center items-center gap-2 whitespace-nowrap shrink-0">
+        <i class="fa-solid fa-plus text-white/70"></i> <span class="hidden sm:inline">Tạo lịch đặt mới</span><span class="sm:hidden">Tạo</span>
       </button>
     </div>
 
@@ -438,7 +456,7 @@ async function handleDrop(e: DragEvent, hour: string, table: string) {
     </div>
 
     <!-- Zone Selector Tabs & Quick Summary (Horizontal scrollable, min 44-48px touch targets) -->
-    <div class="bg-white border-b border-slate-200 shrink-0 z-10 shadow-xs">
+    <div class="bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 shrink-0 z-10 shadow-xs">
       <!-- Zone Tabs -->
       <div class="px-3 py-2 flex items-center gap-2 overflow-x-auto no-scrollbar">
         <button 
@@ -446,50 +464,64 @@ async function handleDrop(e: DragEvent, hour: string, table: string) {
           :key="z"
           @click="activeZone = z"
           class="min-h-[44px] min-w-[72px] px-3.5 py-2 rounded-xl font-black text-xs uppercase tracking-wider transition-all cursor-pointer flex items-center justify-center shrink-0 active:scale-95"
-          :class="activeZone === z ? 'bg-blue-900 text-white shadow-md shadow-blue-900/15' : 'bg-slate-50 text-slate-600 border border-slate-200 hover:bg-slate-100'"
+          :class="activeZone === z ? 'bg-blue-900 dark:bg-blue-600 text-white shadow-md shadow-blue-900/15' : 'bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700'"
         >
           Khu {{ z }}
         </button>
       </div>
 
       <!-- Quick Summary for Current Day -->
-      <div class="px-3.5 py-1.5 bg-slate-50/80 border-t border-slate-100 flex items-center justify-between text-xs font-bold text-slate-500">
+      <div class="px-3.5 py-1.5 bg-slate-50/80 dark:bg-slate-800/70 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between text-xs font-bold text-slate-500 dark:text-slate-400">
         <div class="flex items-center gap-1.5">
-          <i class="fa-regular fa-calendar-check text-blue-600"></i>
+          <i class="fa-regular fa-calendar-check text-blue-600 dark:text-blue-400"></i>
           <span>Ngày {{ selectedDateStr }} (Khu {{ activeZone }}):</span>
         </div>
         <div class="flex items-center gap-2 font-tabular">
-          <span class="text-blue-700 font-black">{{ bookingsForSelectedDate.filter(b => (b.parsedCustomer?.tables || '').includes(activeZone)).length }} đã đặt</span>
-          <span class="text-slate-300">•</span>
-          <span class="text-emerald-600 font-black">{{ activeZoneTables.length - bookingsForSelectedDate.filter(b => (b.parsedCustomer?.tables || '').includes(activeZone)).length }} bàn trống</span>
+          <span class="text-blue-700 dark:text-blue-400 font-black">{{ bookingsForSelectedDate.filter(b => (b.parsedCustomer?.tables || '').includes(activeZone)).length }} đã đặt</span>
+          <span class="text-slate-300 dark:text-slate-600">•</span>
+          <span class="text-emerald-600 dark:text-emerald-400 font-black">{{ activeZoneTables.length - bookingsForSelectedDate.filter(b => (b.parsedCustomer?.tables || '').includes(activeZone)).length }} bàn trống</span>
         </div>
       </div>
     </div>
 
     <!-- Timeline Grid Container -->
-    <div class="flex-grow w-full overflow-auto bg-slate-50 relative custom-scrollbar p-0 md:p-2 box-border">
-      <div class="min-w-[1200px] bg-white shadow-sm border border-slate-100 flex flex-col rounded-xl">
+    <div id="timeline-grid-container" class="flex-grow w-full overflow-auto bg-slate-50 dark:bg-slate-950 relative custom-scrollbar p-0 md:p-2 box-border">
+      <div class="min-w-[1000px] bg-white dark:bg-slate-900 shadow-sm border border-slate-100 dark:border-slate-800 flex flex-col rounded-xl">
         
         <!-- Header Row: Sticky top -->
-        <div class="flex bg-blue-950 text-white sticky top-0 z-30 shadow-md">
-          <div class="w-20 flex-shrink-0 py-3 text-center font-bold text-xs uppercase tracking-widest border-r border-white/10 sticky left-0 bg-blue-950 z-40">Bàn</div>
-          <div v-for="h in HOURS" :key="h" class="flex-1 py-3 text-center font-bold text-xs border-r border-white/10 last:border-0 min-w-[100px] font-tabular">{{ h }}</div>
+        <div class="flex bg-blue-950 dark:bg-slate-950 text-white sticky top-0 z-30 shadow-md">
+          <div class="flex-shrink-0 text-center font-bold uppercase tracking-widest border-r border-white/10 sticky left-0 bg-blue-950 dark:bg-slate-950 z-40"
+               :class="densityMode === 'compact' ? 'w-16 py-2 text-[10.5px]' : 'w-20 py-3 text-xs'">
+            Bàn
+          </div>
+          <div v-for="h in HOURS" :key="h" 
+               class="flex-1 text-center font-bold border-r border-white/10 last:border-0 font-tabular"
+               :class="densityMode === 'compact' ? 'min-w-[76px] py-2 text-[10.5px]' : 'min-w-[100px] py-3 text-xs'">
+            {{ h }}
+          </div>
         </div>
 
         <!-- Table Rows -->
         <div class="flex flex-col relative z-10">
-          <div v-for="t in activeZoneTables" :key="t" class="flex border-b border-slate-100 last:border-0">
+          <div v-for="t in activeZoneTables" :key="t" class="flex border-b border-slate-100 dark:border-slate-800 last:border-0">
             <!-- Table Name Column: Sticky left -->
-            <div class="w-20 flex-shrink-0 flex flex-col items-center justify-center py-4 border-r border-slate-100 bg-slate-50/95 backdrop-blur-md sticky left-0 z-20 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">
-              <span class="font-black text-slate-800 text-sm font-tabular">{{ t }}</span>
+            <div class="flex-shrink-0 flex flex-col items-center justify-center border-r border-slate-100 dark:border-slate-800 bg-slate-50/95 dark:bg-slate-900/95 backdrop-blur-md sticky left-0 z-20 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]"
+                 :class="densityMode === 'compact' ? 'w-16 py-2' : 'w-20 py-4'">
+              <span class="font-black text-slate-800 dark:text-slate-100 font-tabular"
+                    :class="densityMode === 'compact' ? 'text-xs' : 'text-sm'">
+                {{ t }}
+              </span>
             </div>
             
             <!-- Hour Columns: Full cell tappable -->
             <div 
               v-for="h in HOURS" 
               :key="h" 
-              class="flex-1 p-1 border-r border-slate-100 last:border-0 flex items-center justify-center min-w-[100px] min-h-[90px] transition-all duration-200"
-              :class="{'border-2 border-dashed border-blue-500 bg-blue-50/40 scale-95 shadow-inner rounded-xl': isDropTarget(h, t)}"
+              class="flex-1 border-r border-slate-100 dark:border-slate-800 last:border-0 flex items-center justify-center transition-all duration-200 timeline-cell"
+              :class="[
+                densityMode === 'compact' ? 'min-w-[76px] min-h-[58px] p-0.5' : 'min-w-[100px] min-h-[90px] p-1',
+                {'border-2 border-dashed border-blue-500 bg-blue-50/40 dark:bg-blue-950/40 scale-95 shadow-inner rounded-xl': isDropTarget(h, t)}
+              ]"
               @dragover.prevent="handleDragOver($event, h, t)"
               @dragleave="handleDragLeave($event, h, t)"
               @drop="handleDrop($event, h, t)"
@@ -501,10 +533,12 @@ async function handleDrop(e: DragEvent, hour: string, table: string) {
                   draggable="true"
                   @dragstart="handleDragStart($event, timelineData[h][t])"
                   class="w-full h-full rounded-xl flex flex-col items-center justify-start p-1.5 text-center shadow-xs border cursor-pointer active:scale-95 transition-transform relative overflow-hidden select-none hover:shadow-md cursor-grab active:cursor-grabbing"
-                  :class="timelineData[h][t].isDeposited ? 'bg-blue-50/90 border-blue-200 text-blue-900 hover:bg-blue-100' : 'bg-rose-50/90 border-rose-200 text-rose-700 hover:bg-rose-100'"
+                  :class="timelineData[h][t].isDeposited 
+                    ? 'bg-blue-50/90 dark:bg-blue-950/60 border-blue-200 dark:border-blue-800 text-blue-900 dark:text-blue-200 hover:bg-blue-100 dark:hover:bg-blue-900/60' 
+                    : 'bg-rose-50/90 dark:bg-rose-950/60 border-rose-200 dark:border-rose-800 text-rose-700 dark:text-rose-300 hover:bg-rose-100 dark:hover:bg-rose-900/60'"
                 >
                   <!-- Table Badge -->
-                  <div v-if="timelineData[h][t].parsedCustomer?.tables" class="absolute top-1 right-1 px-1.5 py-0.5 rounded-full text-[8.5px] font-black shadow-xs border bg-white text-slate-700 border-slate-200 font-tabular">
+                  <div v-if="timelineData[h][t].parsedCustomer?.tables" class="absolute top-1 right-1 px-1.5 py-0.5 rounded-full text-[8.5px] font-black shadow-xs border bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 border-slate-200 dark:border-slate-700 font-tabular">
                     {{ t }}
                   </div>
 
@@ -519,13 +553,13 @@ async function handleDrop(e: DragEvent, hour: string, table: string) {
                   <!-- Pax & Party Type -->
                   <div class="text-[10px] font-bold opacity-80 mt-1 flex flex-col items-center">
                     <span class="font-tabular">{{ timelineData[h][t].parsedCustomer?.pax }} người</span>
-                    <span v-if="timelineData[h][t].parsedCustomer?.type" class="text-[8.5px] font-semibold opacity-70 mt-0.5 px-1.5 py-[1px] bg-black/5 rounded text-inherit">
+                    <span v-if="timelineData[h][t].parsedCustomer?.type" class="text-[8.5px] font-semibold opacity-70 mt-0.5 px-1.5 py-[1px] bg-black/5 dark:bg-white/10 rounded text-inherit">
                       {{ timelineData[h][t].parsedCustomer?.type }}
                     </span>
                   </div>
                   
                   <!-- Staff Received -->
-                  <div v-if="getStaff(timelineData[h][t])" class="mt-auto pt-1 border-t w-full text-center" :class="timelineData[h][t].isDeposited ? 'border-blue-200/50' : 'border-rose-200/50'">
+                  <div v-if="getStaff(timelineData[h][t])" class="mt-auto pt-1 border-t w-full text-center" :class="timelineData[h][t].isDeposited ? 'border-blue-200/50 dark:border-blue-700/50' : 'border-rose-200/50 dark:border-rose-700/50'">
                     <div class="text-[8.5px] font-bold opacity-75 truncate w-full flex items-center justify-center gap-1">
                       <i class="fa-solid fa-user-tag opacity-70"></i> {{ getStaff(timelineData[h][t]) }}
                     </div>
@@ -536,7 +570,8 @@ async function handleDrop(e: DragEvent, hour: string, table: string) {
                 <!-- Empty Slot (Entire Cell Tappable!) -->
                 <div 
                   @click="prefillBooking(t, h)" 
-                  class="w-full h-full min-h-[82px] rounded-xl bg-emerald-50/30 hover:bg-emerald-50/70 border border-dashed border-emerald-100 hover:border-emerald-300 flex flex-col items-center justify-center gap-1 text-emerald-500 cursor-pointer active:scale-95 transition-all group p-2"
+                  class="w-full h-full rounded-xl bg-emerald-50/30 dark:bg-emerald-950/20 hover:bg-emerald-50/70 dark:hover:bg-emerald-950/40 border border-dashed border-emerald-100 dark:border-emerald-800/40 hover:border-emerald-300 dark:hover:border-emerald-600 flex flex-col items-center justify-center gap-1 text-emerald-500 dark:text-emerald-400 cursor-pointer active:scale-95 transition-all group"
+                  :class="densityMode === 'compact' ? 'min-h-[50px] p-1' : 'min-h-[82px] p-2'"
                   title="Bấm để xếp bàn vào giờ này"
                 >
                   <i class="fa-solid fa-chair text-sm opacity-60 group-hover:opacity-100 group-hover:scale-110 transition-transform"></i>
@@ -550,7 +585,7 @@ async function handleDrop(e: DragEvent, hour: string, table: string) {
     </div>
 
     <!-- Legend Footer -->
-    <div class="p-4 bg-white border-t border-slate-100 flex justify-center gap-8 shadow-[0_-4px_10px_rgba(0,0,0,0.02)] z-10">
+    <div class="p-3 sm:p-4 bg-white dark:bg-slate-900 border-t border-slate-100 dark:border-slate-800 flex justify-center gap-6 sm:gap-8 shadow-[0_-4px_10px_rgba(0,0,0,0.02)] z-10 text-slate-600 dark:text-slate-300">
       <div class="flex items-center gap-2">
         <i class="fa-solid fa-chair text-emerald-400 text-lg"></i>
         <span class="font-bold text-xs text-slate-600">Còn trống</span>

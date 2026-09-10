@@ -1,20 +1,10 @@
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted } from 'vue'
+import { ref } from 'vue'
 import { useUIStore } from '@/stores/useUIStore'
+import { useAppStore } from '@/stores/useAppStore'
 
 const ui = useUIStore()
-
-// Offline Status Monitor
-const isOnline = ref(typeof navigator !== 'undefined' ? navigator.onLine : true)
-
-function handleOnline() {
-  isOnline.value = true
-  ui.showToast('🟢 Đã khôi phục kết nối mạng!', 'success')
-}
-
-function handleOffline() {
-  isOnline.value = false
-}
+const appStore = useAppStore()
 
 // Touch swipe to dismiss
 const touchStartX = ref(0)
@@ -44,28 +34,29 @@ function onTouchEnd(id: number) {
   touchStartX.value = 0
   touchCurrentX.value = 0
 }
-
-onMounted(() => {
-  window.addEventListener('online', handleOnline)
-  window.addEventListener('offline', handleOffline)
-})
-
-onUnmounted(() => {
-  window.removeEventListener('online', handleOnline)
-  window.removeEventListener('offline', handleOffline)
-})
 </script>
 
 <template>
   <div class="fixed bottom-20 sm:bottom-auto sm:top-4 left-4 right-4 sm:left-auto sm:right-4 z-[11000] space-y-2.5 max-w-sm ml-auto pointer-events-none pb-safe">
     
-    <!-- Persistent Offline Banner (Spec #25) -->
+    <!-- Persistent Connectivity Banner (P1-01 / P0-03) - Sleek 44-48px non-obstructive indicator -->
     <transition name="fade">
-      <div v-if="!isOnline" class="pointer-events-auto bg-amber-500 text-slate-950 font-black text-xs px-4 py-2.5 rounded-2xl shadow-xl border border-amber-400 flex items-center gap-2.5">
-        <i class="fa-solid fa-wifi-slash text-sm animate-pulse"></i>
-        <div class="flex-1 text-[11px] leading-tight">
-          <span class="font-black uppercase tracking-wider block">MẤT KẾT NỐI INTERNET</span>
-          <span class="font-bold opacity-90">Hệ thống chuyển sang chế độ lưu tạm offline.</span>
+      <div v-if="ui.connectionStatus === 'offline' || ui.connectionStatus === 'error'" 
+           id="persistent-offline-banner"
+           class="pointer-events-auto bg-rose-600/95 text-white font-bold text-xs px-3.5 py-2 min-h-[44px] max-h-[48px] rounded-xl shadow-lg border border-rose-500/80 flex items-center gap-2.5 backdrop-blur-md">
+        <i class="fa-solid fa-wifi-slash text-xs animate-pulse text-rose-200 shrink-0"></i>
+        <div class="flex-1 text-[11px] leading-tight min-w-0 truncate">
+          <span class="font-black uppercase tracking-wider mr-1.5">Ngoại tuyến:</span>
+          <span class="opacity-90 font-normal">{{ appStore.offlineQueueCount > 0 ? `${appStore.offlineQueueCount} thay đổi chờ đồng bộ` : 'Dữ liệu lưu an toàn trên máy' }}</span>
+        </div>
+      </div>
+      <div v-else-if="ui.connectionStatus === 'reconnecting' || ui.connectionStatus === 'syncing'" 
+           id="persistent-reconnecting-banner"
+           class="pointer-events-auto bg-amber-500 text-slate-950 font-bold text-xs px-3.5 py-2 min-h-[44px] max-h-[48px] rounded-xl shadow-lg border border-amber-400/80 flex items-center gap-2.5 backdrop-blur-md">
+        <i class="fa-solid fa-rotate text-xs animate-spin text-slate-900 shrink-0"></i>
+        <div class="flex-1 text-[11px] leading-tight min-w-0 truncate">
+          <span class="font-black uppercase tracking-wider mr-1.5">{{ ui.connectionStatus === 'reconnecting' ? 'Đang kết nối lại' : 'Đang đồng bộ' }}</span>
+          <span class="opacity-90 font-normal">Kiểm tra dữ liệu máy chủ...</span>
         </div>
       </div>
     </transition>

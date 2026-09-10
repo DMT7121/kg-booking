@@ -146,6 +146,15 @@ function selectPartyType(type: string) {
 function selectColorTone(name: string) {
   form.colorTone = form.colorTone === name ? '' : name
 }
+
+function onFieldFocus(e: FocusEvent) {
+  const target = e.target as HTMLElement
+  if (target) {
+    setTimeout(() => {
+      target.scrollIntoView({ block: 'center', behavior: 'smooth' })
+    }, 120)
+  }
+}
 </script>
 
 <template>
@@ -304,6 +313,8 @@ function selectColorTone(name: string) {
                     placeholder="Ví dụ: Anh Nam, Chị Linh..."
                     maxlength="80"
                     autocomplete="name"
+                    :aria-invalid="!!errors.bookerName"
+                    @focus="onFieldFocus"
                     class="w-full px-4 py-3 rounded-2xl bg-slate-50 border text-slate-800 placeholder-slate-400 text-[16px] sm:text-sm focus:bg-white focus:outline-none focus:ring-4 focus:ring-blue-100 focus:border-blue-600 transition min-h-[50px]"
                     :class="errors.bookerName ? 'border-rose-400 focus:border-rose-500 focus:ring-rose-100' : 'border-slate-200'"
                   />
@@ -341,9 +352,13 @@ function selectColorTone(name: string) {
                     id="field-phone"
                     v-model="form.phone"
                     type="tel"
+                    inputmode="tel"
+                    enterkeyhint="next"
                     placeholder="0901 234 567"
                     maxlength="15"
                     autocomplete="tel"
+                    :aria-invalid="!!errors.phone"
+                    @focus="onFieldFocus"
                     class="w-full pl-11 pr-4 py-3 rounded-2xl bg-slate-50 border text-slate-800 placeholder-slate-400 text-[16px] sm:text-sm focus:bg-white focus:outline-none focus:ring-4 focus:ring-blue-100 focus:border-blue-600 transition font-mono min-h-[50px]"
                     :class="errors.phone ? 'border-rose-400 focus:border-rose-500 focus:ring-rose-100' : 'border-slate-200'"
                   />
@@ -385,6 +400,7 @@ function selectColorTone(name: string) {
                     v-model="form.date"
                     type="date"
                     :min="minDate"
+                    :aria-invalid="!!errors.date"
                     class="w-full px-4 py-3 rounded-2xl bg-slate-50 border text-slate-800 text-[16px] sm:text-sm focus:bg-white focus:outline-none focus:ring-4 focus:ring-blue-100 focus:border-blue-600 transition cursor-pointer min-h-[50px]"
                     :class="errors.date ? 'border-rose-400 focus:border-rose-500' : 'border-slate-200'"
                   />
@@ -441,6 +457,7 @@ function selectColorTone(name: string) {
                     v-model="form.time"
                     type="time"
                     step="900"
+                    :aria-invalid="!!errors.time"
                     class="w-full px-4 py-3 rounded-2xl bg-slate-50 border text-slate-800 text-[16px] sm:text-sm focus:bg-white focus:outline-none focus:ring-4 focus:ring-blue-100 focus:border-blue-600 transition cursor-pointer min-h-[50px]"
                     :class="errors.time ? 'border-rose-400 focus:border-rose-500' : 'border-slate-200'"
                   />
@@ -485,9 +502,13 @@ function selectColorTone(name: string) {
                         id="field-guestCount"
                         v-model.number="form.guestCount"
                         type="number"
+                        inputmode="numeric"
+                        enterkeyhint="next"
                         min="1"
                         max="200"
                         placeholder="Số khách"
+                        :aria-invalid="!!errors.guestCount"
+                        @focus="onFieldFocus"
                         class="w-full text-center px-2 py-3 rounded-2xl bg-slate-50 border text-slate-900 placeholder-slate-400 text-[18px] sm:text-base focus:bg-white focus:outline-none focus:ring-4 focus:ring-blue-100 focus:border-blue-600 transition font-mono font-bold min-h-[50px]"
                         :class="errors.guestCount ? 'border-rose-400' : 'border-slate-200'"
                       />
@@ -575,9 +596,13 @@ function selectColorTone(name: string) {
                       id="field-childrenCount"
                       v-model.number="form.childrenCount"
                       type="number"
+                      inputmode="numeric"
+                      enterkeyhint="done"
                       min="0"
                       max="100"
                       placeholder="Số lượng bé"
+                      :aria-invalid="!!errors.childrenCount"
+                      @focus="onFieldFocus"
                       class="w-full text-center px-2 py-2.5 rounded-xl bg-white border border-amber-300 text-amber-950 text-[18px] sm:text-base focus:outline-none focus:ring-4 focus:ring-amber-100 focus:border-amber-500 transition font-mono font-bold min-h-[46px]"
                       :class="errors.childrenCount ? 'border-rose-500' : ''"
                     />

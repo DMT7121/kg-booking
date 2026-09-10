@@ -146,6 +146,78 @@ export function useCustomerBooking() {
     { flush: 'sync' }
   )
 
+  // Real-time error clearing when user inputs valid data (P0-02)
+  watch(() => form.bookerName, (val) => {
+    if (errors.bookerName) {
+      const trimmed = (val || '').trim()
+      if (trimmed.length >= 2 && trimmed.length <= 80) {
+        delete errors.bookerName
+      }
+    }
+  }, { flush: 'sync' })
+
+  watch(() => form.phone, (val) => {
+    if (errors.phone) {
+      const trimmed = (val || '').trim()
+      const cleaned = cleanPhoneNumber(trimmed)
+      const vnPhoneRegex = /^(0|\+84)(3|5|7|8|9)[0-9]{8}$/
+      if (vnPhoneRegex.test(cleaned)) {
+        delete errors.phone
+      }
+    }
+  }, { flush: 'sync' })
+
+  watch(() => form.guestCount, (val) => {
+    if (errors.guestCount) {
+      const paxNum = Number(val)
+      if (val && !isNaN(paxNum) && paxNum > 0 && Number.isInteger(paxNum) && paxNum <= 200) {
+        delete errors.guestCount
+      }
+    }
+  }, { flush: 'sync' })
+
+  watch(() => form.childrenCount, (val) => {
+    if (errors.childrenCount) {
+      const childNum = Number(val)
+      if (val !== '' && !isNaN(childNum) && childNum >= 0 && Number.isInteger(childNum)) {
+        delete errors.childrenCount
+      }
+    }
+  }, { flush: 'sync' })
+
+  watch(() => form.date, (val) => {
+    if (errors.date) {
+      const today = getTodayIsoDate()
+      if (val && val >= today) {
+        delete errors.date
+      }
+    }
+  }, { flush: 'sync' })
+
+  watch(() => form.time, (val) => {
+    if (errors.time) {
+      const timeRegex = /^([01]?[0-9]|2[0-3]):[0-5][0-9]$/
+      if (val && timeRegex.test(val)) {
+        delete errors.time
+      }
+    }
+  }, { flush: 'sync' })
+
+  watch(() => form.partyType, (val) => {
+    if (errors.partyType && val) {
+      delete errors.partyType
+    }
+  }, { flush: 'sync' })
+
+  watch(() => form.customPartyType, (val) => {
+    if (errors.customPartyType) {
+      const trimmed = (val || '').trim()
+      if (trimmed.length >= 2 && trimmed.length <= 50) {
+        delete errors.customPartyType
+      }
+    }
+  }, { flush: 'sync' })
+
 
   // --- Validation ---
   function validateForm(): boolean {

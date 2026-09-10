@@ -358,11 +358,12 @@ function clearItemName(index: number) {
               <span class="truncate">{{ item.note || '+ Ghi chú' }}</span>
             </button>
 
-            <!-- Delete Button with 48px hit area -->
+            <!-- Delete Button with guaranteed >=48x48px hit area (P1-05) -->
             <button 
               @click="formStore.items.splice(index, 1)" 
               aria-label="Xóa món"
-              class="w-11 h-11 bg-white border border-rose-200 text-rose-400 hover:bg-rose-50 hover:text-rose-600 hover:border-rose-300 transition-colors rounded-xl flex items-center justify-center active:scale-95 shadow-sm shrink-0"
+              title="Xóa món này khỏi thực đơn"
+              class="w-12 h-12 min-w-[48px] min-h-[48px] touch-target-48 bg-white border border-rose-200 text-rose-400 hover:bg-rose-50 hover:text-rose-600 hover:border-rose-300 transition-colors rounded-xl flex items-center justify-center active:scale-95 shadow-sm shrink-0 cursor-pointer"
             >
               <i class="fa-solid fa-trash-can text-sm"></i>
             </button>
