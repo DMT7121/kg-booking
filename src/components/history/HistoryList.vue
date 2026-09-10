@@ -338,10 +338,38 @@ function isOrderCared(id: string) {
             </button>
           </div>
           
-          <!-- Dropdown/expand area if needed -->
-          <div v-if="expandedKey === String(key)" class="mt-4 p-3 bg-slate-50 dark:bg-slate-800/60 rounded-xl text-[10px] text-slate-600 dark:text-slate-300 border border-slate-100 dark:border-slate-700 shadow-inner">
-            <div class="font-bold mb-1">Ghi chú:</div>
-            <p>{{ group.latest.parsedCustomer?.note || 'Không có ghi chú' }}</p>
+          <!-- Dropdown/expand area: Notes & Full Menu Items -->
+          <div v-if="expandedKey === String(key)" class="mt-4 p-3.5 bg-slate-50 dark:bg-slate-800/60 rounded-2xl text-xs text-slate-600 dark:text-slate-300 border border-slate-100 dark:border-slate-700 shadow-inner space-y-3">
+            <div v-if="group.latest.parsedCustomer?.note">
+              <div class="font-black text-[10px] uppercase text-slate-500 dark:text-slate-400 tracking-wider mb-1 flex items-center gap-1.5">
+                <i class="fa-solid fa-comment-dots text-blue-500"></i> Ghi chú tiệc:
+              </div>
+              <p class="font-semibold text-slate-800 dark:text-slate-200 bg-white dark:bg-slate-900/60 p-2.5 rounded-xl border border-slate-200/60 dark:border-slate-700/60 leading-relaxed whitespace-pre-line">{{ group.latest.parsedCustomer?.note }}</p>
+            </div>
+
+            <div>
+              <div class="font-black text-[10px] uppercase text-slate-500 dark:text-slate-400 tracking-wider mb-1.5 flex items-center justify-between">
+                <span class="flex items-center gap-1.5">
+                  <i class="fa-solid fa-utensils text-emerald-500"></i> Thực đơn đã đặt ({{ (group.latest.menuItems || []).length }} món):
+                </span>
+                <span v-if="group.latest.totalAmount" class="font-black text-blue-600 dark:text-blue-400 font-tabular text-[11px]">
+                  Tổng: {{ formatVND(group.latest.totalAmount) }}
+                </span>
+              </div>
+              <div v-if="!group.latest.menuItems || group.latest.menuItems.length === 0" class="text-[11px] text-slate-400 italic py-1 text-center bg-white dark:bg-slate-900/40 rounded-xl p-2 border border-slate-150 dark:border-slate-800">
+                Chưa đặt món trước (Khách gọi trực tiếp tại nhà hàng)
+              </div>
+              <div v-else class="space-y-1.5 max-h-[180px] overflow-y-auto pr-1 custom-scrollbar">
+                <div v-for="(item, i) in group.latest.menuItems" :key="i" class="p-2 bg-white dark:bg-slate-900/80 rounded-xl border border-slate-200/50 dark:border-slate-700/50 flex items-start justify-between gap-2 shadow-2xs">
+                  <div class="min-w-0 flex-1">
+                    <span class="font-bold text-xs text-slate-800 dark:text-slate-100 uppercase leading-snug whitespace-normal break-words">{{ item.name }}</span>
+                    <span class="text-blue-600 dark:text-blue-400 font-black text-[10px] ml-1 font-tabular">x{{ item.qty || item.quantity || 1 }}</span>
+                    <div v-if="item.note" class="text-[10px] text-rose-500 font-semibold italic mt-0.5 leading-tight whitespace-pre-line">{{ item.note }}</div>
+                  </div>
+                  <span class="text-xs font-black text-slate-700 dark:text-slate-200 shrink-0 font-tabular">{{ formatVND((item.price || 0) * (item.qty || item.quantity || 1)) }}</span>
+                </div>
+              </div>
+            </div>
           </div>
 
         </div>

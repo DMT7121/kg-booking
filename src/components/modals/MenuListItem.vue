@@ -21,7 +21,7 @@ const emit = defineEmits(['select'])
       </div>
     </div>
     <div class="flex-1 min-w-0">
-      <h4 class="font-bold text-slate-800 text-sm mb-1 truncate group-hover:text-blue-900 transition-colors">{{ dish.name }}</h4>
+      <h4 class="font-bold text-slate-800 text-sm mb-1 line-clamp-2 leading-snug break-words group-hover:text-blue-900 transition-colors">{{ dish.name }}</h4>
       <span :class="['px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-wider border', getCategoryColor(dish.category)]">{{ dish.category }}</span>
     </div>
     <div class="font-black text-blue-900 text-sm shrink-0">{{ formatVND(dish.price) }}</div>

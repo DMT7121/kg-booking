@@ -20,43 +20,76 @@ const activeView = ref<'summary' | 'operations'>('summary')
 // Adapt appStore history to Domain Booking format for Command Center
 const domainBookings = computed(() => {
   if (!appStore.historyList) return []
-  return appStore.historyList.map((order: any) => ({
-    id: order.id,
-    order_id: order.id,
-    customer_name: order.parsedCustomer?.name || 'Khách vãng lai',
-    phone: order.parsedCustomer?.phone || '',
-    customer: {
-      name: order.parsedCustomer?.name || 'Khách vãng lai',
-      phone: order.parsedCustomer?.phone || ''
-    },
-    guest_count: parseInt(order.parsedCustomer?.pax || '0') || 0,
-    booking: {
-      guest_count: parseInt(order.parsedCustomer?.pax || '0') || 0,
-      booking_date: order.parsedCustomer?.date,
-      booking_time: order.parsedCustomer?.time || '18:00',
-      table_number: order.parsedCustomer?.tables || '',
-      note: order.parsedCustomer?.note || ''
-    },
-    table_assigned: order.parsedCustomer?.tables || '',
-    assigned_tables: order.parsedCustomer?.tables ? order.parsedCustomer.tables.split(/[,+]/).map((s: string) => s.trim()) : [],
-    deposit_amount: order.depositAmount || 0,
-    deposit_status: order.isDeposited ? 'PAID' : (order.depositAmount > 0 ? 'PARTIAL' : 'UNPAID'),
-    deposit: {
-      amount: order.depositAmount || 0,
-      status: order.isDeposited ? 'PAID' : 'UNPAID'
-    },
-    total_amount: order.totalAmount || 0,
-    menu_items: order.menuItems || [],
-    status: 'CONFIRMED',
-    rawOrder: order
-  }))
+  return appStore.historyList.map((order: any) => {
+    const cust = order.parsedCustomer || {}
+    return {
+      id: order.id,
+      order_id: order.id,
+      date: (cust.date || '').trim(),
+      time: (cust.time || '18:00').trim(),
+      customer_name: cust.name || 'Khách vãng lai',
+      phone: cust.phone || '',
+      customer: {
+        name: cust.name || 'Khách vãng lai',
+        phone: cust.phone || ''
+      },
+      guest_count: parseInt(cust.pax || '0') || 0,
+      booking: {
+        guest_count: parseInt(cust.pax || '0') || 0,
+        booking_date: (cust.date || '').trim(),
+        booking_time: (cust.time || '18:00').trim(),
+        event_date: (cust.date || '').trim(),
+        event_time: (cust.time || '18:00').trim(),
+        table_number: cust.tables || '',
+        need: cust.type || '',
+        note: cust.note || ''
+      },
+      table_number: cust.tables || '',
+      table_assigned: cust.tables || '',
+      assigned_tables: cust.tables ? cust.tables.split(/[,+]/).map((s: string) => s.trim()) : [],
+      deposit_amount: order.depositAmount || 0,
+      deposit_status: order.isDeposited ? 'PAID' : (order.depositAmount > 0 ? 'PARTIAL' : 'UNPAID'),
+      deposit: {
+        amount: order.depositAmount || 0,
+        status: order.isDeposited ? 'PAID' : 'UNPAID',
+        time: order.deposit?.time || ''
+      },
+      total_amount: order.totalAmount || 0,
+      menu_items: order.menuItems || [],
+      status: order.operationalStatus || 'CONFIRMED',
+      rawOrder: order
+    }
+  })
 })
 
 function handleCommandCenterDetail(booking: any) {
   if (booking?.rawOrder) {
+    ui.selectedBooking = booking.rawOrder
+    ui.showBookingDetailModal = true
+  }
+}
+
+function handleCommandCenterEdit(booking: any) {
+  if (booking?.rawOrder) {
     editHistoricOrder(booking.rawOrder)
     ui.tab = 'create'
     ui.showToast(`Đã mở đơn của ${booking.customer_name}`, 'info')
+  }
+}
+
+function handleCommandCenterSeat(booking: any) {
+  if (booking?.rawOrder) {
+    booking.rawOrder.operationalStatus = 'SEATED'
+    booking.status = 'SEATED'
+    ui.showToast(`🍽️ Đã đón khách ${booking.customer_name} vào bàn!`, 'success')
+  }
+}
+
+function handleCommandCenterComplete(booking: any) {
+  if (booking?.rawOrder) {
+    booking.rawOrder.operationalStatus = 'COMPLETED'
+    booking.status = 'COMPLETED'
+    ui.showToast(`✓ Đã hoàn tất phục vụ bàn của ${booking.customer_name}!`, 'success')
   }
 }
 
@@ -362,8 +395,9 @@ function handleRecentClick(order: any) {
       <BookingCommandCenter 
         :all-bookings="domainBookings"
         @view-detail="handleCommandCenterDetail"
-        @quick-seat="handleCommandCenterDetail"
-        @quick-complete="handleCommandCenterDetail"
+        @edit-booking="handleCommandCenterEdit"
+        @quick-seat="handleCommandCenterSeat"
+        @quick-complete="handleCommandCenterComplete"
       />
     </div>
 

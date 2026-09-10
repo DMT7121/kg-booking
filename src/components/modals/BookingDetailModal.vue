@@ -4,7 +4,7 @@ import { useForm } from '@/composables/useForm'
 import { useAppStore } from '@/stores/useAppStore'
 import * as api from '@/services/api'
 import { haptic } from '@/composables/useGestures'
-import { isIOS, isAndroid, isDesktop } from '@/utils'
+import { isIOS, isAndroid, isDesktop, formatVND } from '@/utils'
 
 const ui = useUIStore()
 const appStore = useAppStore()
@@ -115,7 +115,7 @@ async function handleSyncCalendar() {
 
 <template>
   <div v-if="ui.showBookingDetailModal && ui.selectedBooking" class="fixed inset-0 bg-blue-950/80 z-[1000] flex justify-center items-center p-4 backdrop-blur-md" @click.self="close">
-    <div class="bg-white rounded-3xl shadow-2xl p-6 md:p-8 max-w-md w-[95%] md:w-full flex flex-col relative overflow-hidden border border-white/20">
+    <div class="bg-white rounded-3xl shadow-2xl p-6 md:p-8 max-w-md w-[95%] md:w-full flex flex-col relative overflow-hidden max-h-[90vh] overflow-y-auto custom-scrollbar border border-white/20">
       
       <!-- Header BG Decoration -->
       <div class="absolute top-0 left-0 right-0 h-24 bg-gradient-to-r from-blue-600 to-blue-900 rounded-t-3xl opacity-10"></div>
@@ -181,6 +181,43 @@ async function handleSyncCalendar() {
             <span class="font-black text-sm" :class="ui.selectedBooking.isDeposited ? 'text-emerald-700' : 'text-rose-700'">
               {{ ui.selectedBooking.isDeposited ? 'Đã thanh toán cọc' : 'Chưa đặt cọc (Đang giữ)' }}
             </span>
+          </div>
+          <span v-if="ui.selectedBooking.depositAmount" class="font-black text-xs text-slate-700 font-tabular">
+            {{ formatVND(ui.selectedBooking.depositAmount) }}
+          </span>
+        </div>
+
+        <!-- Menu Items Section -->
+        <div class="bg-slate-50 p-3.5 rounded-2xl border border-slate-100 space-y-2.5">
+          <div class="flex items-center justify-between text-[11px] font-black uppercase tracking-wider text-slate-500 border-b border-slate-200/70 pb-1.5">
+            <span class="flex items-center gap-1.5">
+              <i class="fa-solid fa-utensils text-blue-600"></i>
+              Thực đơn đã chọn ({{ (ui.selectedBooking.menuItems || []).length }} món)
+            </span>
+            <span v-if="ui.selectedBooking.totalAmount" class="text-blue-900 font-tabular font-black">
+              Tổng: {{ formatVND(ui.selectedBooking.totalAmount) }}
+            </span>
+          </div>
+
+          <div v-if="!ui.selectedBooking.menuItems || ui.selectedBooking.menuItems.length === 0" class="text-xs text-slate-400 italic py-2 text-center">
+            Chưa đặt trước món (Khách gọi món trực tiếp tại nhà hàng)
+          </div>
+
+          <div v-else class="space-y-1.5 max-h-[180px] overflow-y-auto pr-1 custom-scrollbar">
+            <div v-for="(item, idx) in ui.selectedBooking.menuItems" :key="idx" class="p-2 bg-white rounded-xl border border-slate-100 flex items-start justify-between gap-2 shadow-2xs">
+              <div class="min-w-0 flex-1">
+                <div class="font-black text-xs text-slate-800 uppercase leading-snug whitespace-normal break-words">
+                  {{ item.name }}
+                  <span class="text-blue-600 font-black text-[10px] ml-1 shrink-0 font-tabular">x{{ item.qty || item.quantity || 1 }}</span>
+                </div>
+                <div v-if="item.note" class="text-[10px] text-rose-600 font-semibold italic mt-0.5 leading-tight whitespace-pre-line">
+                  {{ item.note }}
+                </div>
+              </div>
+              <div class="text-xs font-black text-blue-900 shrink-0 font-tabular text-right">
+                {{ formatVND((item.price || 0) * (item.qty || item.quantity || 1)) }}
+              </div>
+            </div>
           </div>
         </div>
       </div>

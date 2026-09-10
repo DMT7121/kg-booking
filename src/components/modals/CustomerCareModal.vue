@@ -70,7 +70,7 @@ const templates = ref<MessageTemplate[]>([
     color: 'text-purple-600 bg-purple-50',
     getMessage: (info) => {
       const name = info.name || 'anh/chị'
-      const itemsList = info.menuItems ? info.menuItems.map((item: any) => `- ${item.name} x ${item.quantity}`).join('\n') : ''
+      const itemsList = info.menuItems ? info.menuItems.map((item: any) => `- ${item.name} x${item.qty || item.quantity || 1}`).join('\n') : ''
       return `Dạ chào ${name}, King's Grill gửi anh/chị danh sách các món ăn đã được chọn đặt trước:\n${itemsList || '- Thực đơn đặt theo set/yêu cầu'}\n\nNhà hàng sẽ chuẩn bị nguyên liệu phục vụ tươi ngon nhất cho tiệc của mình. Cảm ơn anh/chị!\n- King's Grill -`
     }
   },

@@ -741,9 +741,9 @@ onUnmounted(() => {
         <div v-else class="space-y-1.5 max-h-[300px] overflow-y-auto pr-1 custom-scrollbar">
           <div v-if="!formStore.parsedAiResult.menu_items?.length" class="text-xs text-slate-400 italic text-center py-2 bg-slate-50 rounded-2xl border border-slate-100">Không nhận diện được món ăn nào</div>
           <div v-for="(item, idx) in formStore.parsedAiResult.menu_items" :key="idx" class="flex flex-wrap items-center justify-between gap-2 p-3 bg-slate-50 border rounded-2xl" :class="item.needs_review ? 'border-amber-300 bg-amber-50/20' : 'border-slate-100'">
-            <div class="flex-grow min-w-0">
-              <div class="font-bold text-xs text-slate-800 flex items-center gap-1.5">
-                <span class="truncate max-w-[200px]">{{ item.matched_name || item.raw_name }}</span>
+            <div class="flex-grow min-w-0 flex-1">
+              <div class="font-bold text-xs text-slate-800 flex flex-wrap items-center gap-1.5">
+                <span class="whitespace-normal break-words leading-snug">{{ item.matched_name || item.raw_name }}</span>
                 <span class="text-slate-400 font-extrabold text-[10px] shrink-0">x{{ item.quantity }}</span>
                 <span v-if="item.needs_review" class="px-1.5 py-0.5 bg-amber-100 text-amber-800 rounded text-[7px] font-black uppercase tracking-wider shrink-0">Check</span>
               </div>
