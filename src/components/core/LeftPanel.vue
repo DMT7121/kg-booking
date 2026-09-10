@@ -503,8 +503,8 @@ function goToTomorrowTimeline() {
     </div>
 
     <!-- FLOATING ACTION BUTTON -->
-    <div v-show="!ui.isKeyboardOpen && ui.tab === 'create'" class="absolute bottom-[84px] md:bottom-6 right-6 z-[100] safe-area-pb">
-      <button @click="showActionSheet = true" class="w-14 h-14 bg-amber-500 hover:bg-amber-600 rounded-full shadow-xl shadow-amber-500/30 flex items-center justify-center text-white text-xl active:scale-90 transition-transform quick-action-fab">
+    <div v-show="ui.tab === 'create'" class="absolute bottom-[128px] md:bottom-6 right-4 md:right-6 z-[100] safe-area-pb">
+      <button @click="showActionSheet = true" class="w-13 h-13 sm:w-14 sm:h-14 bg-amber-500 hover:bg-amber-600 rounded-full shadow-xl shadow-amber-500/30 flex items-center justify-center text-white text-xl active:scale-90 transition-transform quick-action-fab">
         <i class="fa-solid fa-layer-group"></i>
       </button>
     </div>
@@ -697,8 +697,8 @@ function goToTomorrowTimeline() {
       </div>
     </transition>
 
-    <!-- MOBILE BOTTOM NAV -->
-    <nav v-show="ui.tab !== 'preview' && !ui.isKeyboardOpen" class="flex md:hidden w-full bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 text-[10px] font-bold uppercase tracking-wider relative z-20 items-stretch shrink-0 pb-safe-bottom shadow-[0_-8px_30px_rgba(0,0,0,0.1)] dark:shadow-[0_-8px_30px_rgba(0,0,0,0.3)] select-none transition-transform duration-200" aria-label="Điều hướng chính">
+    <!-- MOBILE BOTTOM NAV (Luôn hiển thị cố định trên mọi thiết bị di động) -->
+    <nav class="flex md:hidden w-full bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-t border-slate-200/80 dark:border-slate-800/80 text-[10px] font-bold uppercase tracking-wider relative z-30 items-stretch shrink-0 pb-safe-bottom shadow-[0_-8px_30px_rgba(0,0,0,0.06)] dark:shadow-[0_-8px_30px_rgba(0,0,0,0.3)] select-none" aria-label="Điều hướng chính">
       <button 
         @click="ui.tab = 'dashboard'" 
         :class="['flex-grow flex-1 py-1.5 flex flex-col justify-center items-center gap-0.5 transition-all duration-200 select-none min-h-[52px] touch-target-48 active:scale-95', ui.tab === 'dashboard' ? 'text-blue-600 dark:text-blue-400 font-black' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300']"

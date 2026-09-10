@@ -69,9 +69,7 @@ function _createForm() {
   }
 
   function handleInputBlur() {
-    if (!isIOS) {
-      setTimeout(() => { uiStore.isKeyboardOpen = false }, 200)
-    }
+    setTimeout(() => { uiStore.isKeyboardOpen = false }, 200)
   }
 
   // --- Form Actions ---
