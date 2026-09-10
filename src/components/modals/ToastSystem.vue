@@ -1,10 +1,22 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 import { useUIStore } from '@/stores/useUIStore'
 import { useAppStore } from '@/stores/useAppStore'
 
 const ui = useUIStore()
 const appStore = useAppStore()
+
+// De-duplicate & limit transient toasts when persistent offline/reconnecting banner is active to prevent stacking
+const activeToasts = computed(() => {
+  const isPersistentBannerActive = ui.connectionStatus === 'offline' || 
+                                   ui.connectionStatus === 'error' || 
+                                   ui.connectionStatus === 'reconnecting' || 
+                                   ui.connectionStatus === 'syncing'
+  if (isPersistentBannerActive) {
+    return ui.toasts.slice(-1)
+  }
+  return ui.toasts
+})
 
 // Touch swipe to dismiss
 const touchStartX = ref(0)
@@ -64,7 +76,7 @@ function onTouchEnd(id: number) {
     <!-- Transient Toasts -->
     <transition-group name="toast">
       <div 
-        v-for="t in ui.toasts" 
+        v-for="t in activeToasts" 
         :key="t.id" 
         @touchstart="onTouchStart($event, t.id)"
         @touchmove="onTouchMove"

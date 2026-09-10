@@ -80,7 +80,8 @@ In strict compliance with the **ABSOLUTE BUSINESS FREEZE** and **DO NOT REDESIGN
   1. Preserved `ui.connectionStatus` single-source-of-truth architecture.
   2. Standardized persistent banner height to **44–48px** (`min-h-[44px] max-h-[48px] rounded-xl px-3.5 py-2`).
   3. Formatted status text compactly (`"Ngoại tuyến: Dữ liệu lưu an toàn trên máy"` / `"Đang kết nối lại: Kiểm tra dữ liệu máy chủ..."`).
-  4. Header indicator:
+  4. De-stacked toasts: When the persistent banner is visible, `ToastSystem.vue` automatically restricts transient toasts to at most the latest one (`activeToasts = ui.toasts.slice(-1)`), preventing multi-card stacking over operational content.
+  5. Header indicator:
      - `offline`: Rose dot + "Ngoại tuyến" (never shows "TRỰC TUYẾN").
      - `reconnecting` / `syncing`: Amber dot + "Đang kết nối lại..." / "Đang đồng bộ...".
      - `online`: Emerald pulse + "Trực tuyến".
