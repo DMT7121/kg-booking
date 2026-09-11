@@ -481,9 +481,9 @@ function goToTomorrowTimeline() {
                   <button 
                     @click="showActionSheet = !showActionSheet" 
                     title="Mở menu thao tác nhanh"
-                    class="hidden md:inline-flex items-center gap-1.5 bg-slate-900 hover:bg-slate-800 dark:bg-indigo-600 dark:hover:bg-indigo-500 text-white rounded-xl py-2.5 px-3.5 font-bold text-xs uppercase shadow-sm transition-all active:scale-95 border border-slate-700/80 dark:border-indigo-400/30"
+                    class="hidden md:inline-flex items-center gap-1.5 bg-slate-900 hover:bg-slate-800 dark:bg-indigo-600 dark:hover:bg-indigo-500 text-white rounded-xl py-2.5 px-3.5 font-bold text-xs uppercase shadow-sm transition-all active:scale-95 border border-amber-400/60 dark:border-amber-400/60 quick-action-pulse"
                   >
-                    <i class="fa-solid fa-bolt-lightning text-amber-400 text-xs"></i>
+                    <i class="fa-solid fa-bolt-lightning text-amber-400 text-xs bolt-pulse"></i>
                     <span>Thao tác nhanh</span>
                   </button>
 
@@ -517,9 +517,9 @@ function goToTomorrowTimeline() {
       <button 
         @click="showActionSheet = true" 
         aria-label="Thao tác nhanh"
-        class="h-10 px-3.5 bg-slate-900/95 dark:bg-indigo-600/95 hover:bg-slate-800 dark:hover:bg-indigo-500 rounded-full shadow-lg shadow-slate-950/30 dark:shadow-indigo-950/40 flex items-center justify-center gap-1.5 text-white font-bold text-xs active:scale-90 transition-all border border-white/20 dark:border-indigo-400/40 backdrop-blur-md"
+        class="h-10 px-3.5 bg-slate-900/95 dark:bg-indigo-600/95 hover:bg-slate-800 dark:hover:bg-indigo-500 rounded-full shadow-lg shadow-slate-950/30 dark:shadow-indigo-950/40 flex items-center justify-center gap-1.5 text-white font-bold text-xs active:scale-90 transition-all border border-amber-400/60 dark:border-amber-400/60 backdrop-blur-md quick-action-pulse"
       >
-        <i class="fa-solid fa-bolt-lightning text-amber-400 text-xs"></i>
+        <i class="fa-solid fa-bolt-lightning text-amber-400 text-xs bolt-pulse"></i>
         <span>Thao tác</span>
       </button>
     </div>
@@ -814,4 +814,41 @@ function goToTomorrowTimeline() {
   opacity: 0;
 }
 
+/* Hiệu ứng nhấp nháy / thở viền cao cấp cho Nút Thao tác nhanh */
+.quick-action-pulse {
+  animation: qa-glow-pulse 2.4s infinite ease-in-out;
+}
+@keyframes qa-glow-pulse {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.45), 0 2px 8px rgba(0, 0, 0, 0.2);
+    border-color: rgba(245, 158, 11, 0.5);
+  }
+  50% {
+    box-shadow: 0 0 0 4px rgba(245, 158, 11, 0.2), 0 0 14px rgba(245, 158, 11, 0.4);
+    border-color: rgba(245, 158, 11, 0.95);
+  }
+}
+
+.bolt-pulse {
+  display: inline-block;
+  animation: bolt-flicker 1.8s infinite ease-in-out;
+}
+@keyframes bolt-flicker {
+  0%, 100% {
+    transform: scale(1);
+    filter: drop-shadow(0 0 2px rgba(251, 191, 36, 0.5));
+    opacity: 0.9;
+  }
+  50% {
+    transform: scale(1.25);
+    filter: drop-shadow(0 0 6px rgba(251, 191, 36, 1));
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .quick-action-pulse, .bolt-pulse {
+    animation: none !important;
+  }
+}
 </style>
