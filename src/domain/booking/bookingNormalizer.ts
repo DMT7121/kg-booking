@@ -413,15 +413,28 @@ export function buildPartyNote(party: any, existingNote: string): string {
   const blockText = lines.join('\n')
   let cleanExisting = existingNote || ''
   
-  if (cleanExisting.includes('Chủ tiệc / người được tổ chức:')) {
-    const parts = cleanExisting.split(/Chủ tiệc \/ người được tổ chức:.+?(?=\n\n|\n[A-Z]|$)/s)
-    cleanExisting = parts.join('').trim()
+  if (blockText) {
+    const blockPrefixes = [
+      'chủ tiệc / người được tổ chức:',
+      'tông màu trang trí:',
+      'nội dung bảng/trang trí:',
+      'gương viết tên:',
+      'ghi chú / dặn dò trang trí:',
+      '[không gian & chỗ ngồi]:',
+      '[khẩu vị & dị ứng]:'
+    ]
+
+    const remainingLines = cleanExisting.split('\n').filter(line => {
+      const cleanL = stripAccents(line).toLowerCase().trim()
+      if (!cleanL) return false
+      return !blockPrefixes.some(prefix => cleanL.startsWith(stripAccents(prefix).toLowerCase()))
+    })
+    cleanExisting = remainingLines.join('\n').trim()
   }
   
   if (!blockText) return cleanExisting
   
   if (cleanExisting) {
-    if (cleanExisting.includes(blockText)) return cleanExisting
     return `${blockText}\n\n${cleanExisting}`
   }
   return blockText
@@ -435,6 +448,11 @@ export function cleanBookingNotes(noteText: string, customer: any, booking: any,
     const cleanLine = stripAccents(line).toLowerCase().trim()
     if (!cleanLine) return false
     
+    // 0. Protect explicit decor, seating, dietary & party note lines from any stripping
+    if (/^(?:tong mau trang tri|ghi chu \/ dan do trang tri|noi dung bang|guong viet ten|chu tiec \/ nguoi duoc to chuc|\[khong gian & cho ngoi\]|\[khau vi & di ung\]|\[loai tiec & phong cach\]):/i.test(cleanLine)) {
+      return true
+    }
+
     // 1. Remove redundancy if the line looks like a label / metadata
     if (/^(nguoi dat|ten khach|khach hang|sdt|dien thoai|phone|lien he|so dt|ngay dat|ngay tiec|gio tiec|so luong khach|so khach|so pax|so nguoi|pax|nguoi|ban|so ban):/i.test(cleanLine)) {
       return false
@@ -559,6 +577,49 @@ export function applyDeterministicRuleLock(aiResult: any, hardEntities: any, rul
     const confCounts = hardEntities.guestCounts.filter((g: any) => g.confidence >= 0.9)
     if (confCounts.length > 0) {
       result.booking.guest_count = confCounts[0].value
+    }
+  }
+
+  // --- Lock & Synchronize Party, Decor & Special Requests ---
+  const ruleParty = ruleBasedResult?.party
+  const ruleDeco = ruleBasedResult?.decoration_details
+  if (ruleParty || ruleDeco) {
+    if (!result.party) result.party = {}
+    if (!result.party.owner_name && ruleParty?.owner_name) {
+      result.party.owner_name = ruleParty.owner_name
+    }
+    if (!result.party.decor_color && (ruleParty?.decor_color || ruleDeco?.decor_color)) {
+      result.party.decor_color = ruleParty?.decor_color || ruleDeco?.decor_color
+    }
+    if (!result.party.display_board_text && (ruleParty?.display_board_text || ruleDeco?.board_text)) {
+      result.party.display_board_text = ruleParty?.display_board_text || ruleDeco?.board_text
+    }
+    if (!result.party.mirror_board_text && (ruleParty?.mirror_board_text || ruleDeco?.mirror_text)) {
+      result.party.mirror_board_text = ruleParty?.mirror_board_text || ruleDeco?.mirror_text
+    }
+    if (!result.party.special_request && (ruleParty?.special_request || (ruleDeco?.special_requests && ruleDeco.special_requests.length > 0))) {
+      result.party.special_request = ruleParty?.special_request || ruleDeco?.special_requests?.join('; ')
+    }
+    if (!result.party.seating_preference && ruleParty?.seating_preference) {
+      result.party.seating_preference = ruleParty.seating_preference
+    }
+    if (!result.party.dietary_notes && ruleParty?.dietary_notes) {
+      result.party.dietary_notes = ruleParty.dietary_notes
+    }
+  }
+
+  // --- Rebuild Note to always reflect party & decor info ---
+  if (result.party) {
+    const rawNote = result.notes?.customer_note || result.note || ''
+    const enrichedNote = buildPartyNote(result.party, rawNote)
+    result.note = cleanBookingNotes(
+      enrichedNote,
+      result.customer,
+      result.booking,
+      result.menu_items || []
+    )
+    if (result.notes) {
+      result.notes.customer_note = result.note
     }
   }
 
@@ -727,19 +788,26 @@ export function repairAndNormalizeJSON(raw: any, inputType = 'unknown'): any {
   }
 
   const decorColor = safeGet(parsed, 'party.decor_color', safeGet(parsed, 'decoration.color', parsed.decor_color || parsed.tong_mau || ""))
+  const seatingPref = safeGet(parsed, 'party.seating_preference', safeGet(parsed, 'booking.seating_preference', parsed.seating_preference || parsed.seating || ""))
+  const dietaryNotes = safeGet(parsed, 'party.dietary_notes', safeGet(parsed, 'booking.dietary_notes', parsed.dietary_notes || parsed.dietary || parsed.allergy_notes || ""))
+
   const partyObj = parsed.party ? {
     ...parsed.party,
     decor_color: parsed.party.decor_color || decorColor,
     display_board_text: parsed.party.display_board_text || textOnBoard,
     mirror_board_text: parsed.party.mirror_board_text || mirrorBoardText,
-    special_request: parsed.party.special_request || decorationNote
+    special_request: parsed.party.special_request || decorationNote,
+    seating_preference: parsed.party.seating_preference || seatingPref,
+    dietary_notes: parsed.party.dietary_notes || dietaryNotes
   } : {
     type: need,
     owner_name: partyOwner,
     display_board_text: textOnBoard,
     mirror_board_text: mirrorBoardText,
     decor_color: decorColor,
-    special_request: decorationNote
+    special_request: decorationNote,
+    seating_preference: seatingPref,
+    dietary_notes: dietaryNotes
   }
   const receiver = safeGet(parsed, 'booking.receiver', parsed.receiver || parsed.booking_receiver || "")
   const rawNote = safeGet(parsed, 'notes.customer_note', safeGet(parsed, 'notes.note', parsed.note || ""))

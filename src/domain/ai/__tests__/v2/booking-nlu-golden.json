@@ -1,0 +1,124 @@
+{
+  "version": "V2.0",
+  "name": "King's Grill Booking Intelligence Golden Dataset",
+  "cases": [
+    {
+      "id": "case_1_amendment_loop",
+      "description": "CASE 1 - Amendment loop for guest count and time with staff confirmation turn",
+      "input": "Khách: Em đặt giúp chị Lan sinh nhật bé Bảo thứ 7 này nha, tầm 12-15 người, khoảng 7h.\nNV: Dạ chị chốt 15 khách lúc 19h đúng không chị?\nKhách: Đúng em. À khoan khách còn 13 thôi. Giờ giữ nguyên nha. Mà nếu được thì 7 rưỡi cũng được, thôi cứ 7h đi em.",
+      "expectedFinalState": {
+        "customer": {
+          "name": "Lan"
+        },
+        "party": {
+          "owner_name": "Bảo",
+          "type": "Sinh nhật"
+        },
+        "booking": {
+          "guest_count": 13,
+          "event_time": "19:00",
+          "need": "Sinh nhật"
+        }
+      },
+      "mustNotProduce": [
+        { "guest_count": 15 },
+        { "guest_count": 12 },
+        { "event_time": "19:30" }
+      ]
+    },
+    {
+      "id": "case_2_role_distinction",
+      "description": "CASE 2 - Clear separation of Booker, Party Owner, Contact Person, Deposit Sender",
+      "input": "Chị Thu đặt bàn giùm sinh nhật bé Minh, 10 người lớn với 3 bé.\nSĐT liên hệ anh Hùng 0901234567 nha.\nTiền cọc lát nữa Trần Quốc Nam chuyển, nội dung CK chắc ghi NAM SN MINH.",
+      "expectedFinalState": {
+        "customer": {
+          "name": "Thu",
+          "phone": "0901234567"
+        },
+        "party": {
+          "owner_name": "Minh",
+          "type": "Sinh nhật"
+        },
+        "contact_person": "Hùng",
+        "deposit": {
+          "sender_name": "Trần Quốc Nam",
+          "transfer_note": "NAM SN MINH"
+        },
+        "booking": {
+          "guest_count": 13,
+          "adults": 10,
+          "children": 3
+        }
+      },
+      "mustNotProduce": [
+        { "customer_name": "Minh" },
+        { "customer_name": "Trần Quốc Nam" }
+      ]
+    },
+    {
+      "id": "case_3_menu_resolution_conditional",
+      "description": "CASE 3 - Menu typos, recommendation intent, and conditional request",
+      "input": "Cho chị 2 lẫu thái, 1 bò lúc lac, cái món gà nướng gì bên em bán chạy ấy lấy 2.\nNếu có set 4 người ăn bò ngon thì đổi bò lúc lắc sang set đó giúp chị, không có thì giữ món cũ.",
+      "expectedItems": [
+        { "resolvedName": "Lẩu Thái", "quantity": 2 },
+        { "resolvedName": "Bò lúc lắc", "quantity": 1 }
+      ],
+      "expectedRecommendationIntents": [
+        { "query": "gà nướng", "criteria": "bán chạy", "quantity": 2 }
+      ],
+      "expectedConditionalRequests": [
+        {
+          "condition": "có set 4 người ăn bò ngon",
+          "ifTrueAction": "đổi bò lúc lắc sang set đó",
+          "ifFalseAction": "giữ món cũ"
+        }
+      ]
+    },
+    {
+      "id": "case_4_operational_conflicts",
+      "description": "CASE 4 - Multiple operational constraints: Capacity exceeded, Children in smoking area, Allergy conflict",
+      "input": "Cho anh VIP1 20 người, có 4 bé nhỏ cần 3 ghế em bé.\nAnh muốn khu hút thuốc cho mấy anh trong công ty.\nCó 1 bé dị ứng hải sản nhưng cho anh 2 lẩu hải sản, bé đó ăn món khác được.",
+      "expectedConflicts": [
+        {
+          "code": "CAPACITY_EXCEEDED",
+          "severity": "CRITICAL"
+        },
+        {
+          "code": "CHILDREN_IN_SMOKING_AREA",
+          "severity": "HIGH"
+        },
+        {
+          "code": "ALLERGY_CONFLICT",
+          "severity": "CRITICAL"
+        }
+      ],
+      "expectedAmenities": {
+        "baby_chairs": 3,
+        "smoking_area": true,
+        "allergens": ["hải sản"]
+      }
+    },
+    {
+      "id": "case_5_negation_and_approximation",
+      "description": "CASE 5 - Table negation (reject VIP2), fallback preference (VIP3 -> ngoài), and guest count approximation",
+      "input": "Không phải mai đâu em, thứ 7 tuần sau nha.\nLúc đầu chị tính đặt VIP2 nhưng thôi, nếu VIP3 còn thì VIP3, không thì để khu ngoài cũng được, đừng lấy VIP2 nữa.\nKhoảng 18 người, có thể thêm 2, chị chốt chính xác sau.",
+      "expectedFinalState": {
+        "table": {
+          "rejected": ["VIP2"],
+          "preferences": ["VIP3", "NGOÀI TRỜI"]
+        },
+        "booking": {
+          "guest_range": {
+            "min": 18,
+            "max": 20,
+            "precision": "range"
+          }
+        }
+      },
+      "mustNotProduce": [
+        { "table_code": "VIP2" },
+        { "exact_guest_count": 20 }
+      ]
+    }
+  ]
+}

@@ -1,4 +1,5 @@
 import { stripAccents, cleanPhoneNumber, formatVND } from '@/utils'
+import { isStructuredFormText, parseStructuredForm } from './structuredFormParser'
 
 // Top 200 Vietnamese first names (no diacritics, lowercase) for NER boosting
 export const COMMON_VN_FIRST_NAMES = new Set([
@@ -280,10 +281,11 @@ export function segmentInputBlocksCompat(text: string) {
 
 // Pre-compiled honorific regexes (used in cleanHonorificPrefix — called 100s of times per parse)
 const HONORIFIC_REGEXES = [
-  'anh', 'chi', 'chị', 'em', 'chu', 'chú', 'co', 'cô', 'ong', 'ông', 'ba', 'bà', 'be', 'bé', 'bac', 'bác', 'khach', 'khách',
+  '(?:dạ\\s+|da\\s+|alo\\s+)?(?:em|anh|chi|chị|bạn|ban|shop|quán|quan|ad)\\s+ơi',
+  'anh', 'chi', 'chị', 'em', 'chu', 'chú', 'co', 'cô', 'ong', 'ông', 'ba', 'bà', 'be', 'bé', 'bac', 'bác', 'khach', 'khách', 'tên', 'ten',
   'mr', 'ms', 'mrs', 'c\\.', 'c\\/', 'c', 'a\\.', 'a\\/', 'a', 'la', 'là',
   '(?:[A-G]|VIP)\\d+'
-].map(h => new RegExp(`^(?:${h})\\s+`, 'i'))
+].map(h => new RegExp(`^(?:${h})(?:\\s+|$)`, 'i'))
 
 export function escapeRegExp(str: string): string {
   return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
@@ -304,6 +306,9 @@ export function cleanHonorificPrefix(name: string): string {
       cleaned = cleaned.replace(regex, '').trim()
     }
   }
+  // Strip conversational particles like "ơi", "oi", "dạ", "da"
+  cleaned = cleaned.replace(/^(?:dạ|da|alo|em ơi|anh ơi|chị ơi|ơi|oi)\b\s*/i, '').trim()
+  cleaned = cleaned.replace(/\b(?:ơi|oi)\s*$/i, '').trim()
   return cleaned.replace(/^[–—•●▶▪▫◆✦★✓_.\\/\s:-]+|[–—•●▶▪▫◆✦★✓_.\\/\s:-]+$/g, '').trim()
 }
 
@@ -322,7 +327,8 @@ const INVALID_NAME_SET = new Set([
   'con', 'còn', 'la', 'là', 'luc', 'lúc', 'trua', 'trưa', 'sang', 'sáng', 'chieu', 'chiều', 'tai', 'tại',
   'lon', 'lớn', 'nho', 'nhỏ', 'tre', 'trẻ', 'em', 'vip', 'khu', 'phong', 'phòng', 'guong', 'gương', 'bang', 'bảng', 'hang', 'hàng',
   'vui', 'long', 'lòng', 'nhu', 'cầu', 'cau', 'yeu', 'yêu',
-  'tông', 'tong', 'tone', 'tuoi', 'tươi', 'lua', 'lụa', 'sap', 'sáp', 'bong', 'bóng', 'bay', 'background', 'backdrop', 'khung', 'checkin', 'setup', 'decor', 'phong', 'nen', 'dmt', 'nv'
+  'tông', 'tong', 'tone', 'tuoi', 'tươi', 'lua', 'lụa', 'sap', 'sáp', 'bong', 'bóng', 'bay', 'background', 'backdrop', 'khung', 'checkin', 'setup', 'decor', 'phong', 'nen', 'dmt', 'nv',
+  'ơi', 'oi', 'alo', 'dạ', 'da'
 ])
 
 const STOP_WORDS = new Set([
@@ -332,7 +338,7 @@ const STOP_WORDS = new Set([
   'sinh', 'nhat', 'thoi', 'noi', 'hop', 'lop', 'lien', 'hoan', 'tiec', 'cuoi', 'hpbd', 'hbd', 'sn', 'mung', 'tho', 'tieu', 'ca', 'nhac',
   'coc', 'ck', 'chuyen', 'khoan', 'bill', 'bank', 'banking', 'momo',
   'mon', 'an', 'menu', 'combo', 'set', 'lau', 'nuong', 'xao', 'hap', 'bo', 'ga', 'heo', 'suon', 'de', 'tom', 'cua', 'muc',
-  'nv', 'dmt', 'nhan', 'gui', 'nha', 'giup', 'giom', 'sdt', 'he',
+  'nv', 'dmt', 'nhan', 'gui', 'nha', 'giup', 'giom', 'sdt', 'he', 'ten', 'tên',
   'thuong', 'lon', 'nho', 'be', 'tre', 'em',
   'yeu', 'cau', 'trang', 'tri', 'phong', 'lanh', 'sanh', 'may', 'ngoai', 'troi', 'san', 'khau', 'gan', 'bong', 'bay', 'board', 'chu',
   'thiet', 'ke', 'bao', 'gia', 'thuc', 'don', 'uong', 'giam', 'khuyen', 'tang', 'banh', 'kem', 'hoa', 'nen',
@@ -345,11 +351,12 @@ const STOP_WORDS = new Set([
   'xuc', 'xich', 'lap', 'xuong', 'roi', 'chi', 'linh', 'long', 'doi', 'tai', 'mui', 'luoi', 'chan', 'dui',
   'uc', 'tim', 'cat', 'pheo', 'day', 'tu', 'sun', 'duoi', 'co', 'mo', 'nac',
   'than', 'vai', 'nong', 'ma', 'nhu',
-  'tong', 'tone', 'background', 'backdrop', 'setup', 'decor', 'checkin', 'tuoi', 'lua', 'sap'
+  'tong', 'tone', 'background', 'backdrop', 'setup', 'decor', 'checkin', 'tuoi', 'lua', 'sap',
+  'oi', 'ơi', 'alo', 'da', 'dạ'
 ])
 
 // Pre-compiled regex for rejecting common non-name tokens (used 5x in classifyPeopleNames)
-const REJECT_NAME_REGEX = /^(nay|kia|truoc|sau|sang|chieu|toi|ngay|gio|pax|khach|nguoi|ban|mon|set|combo|happy|birthday|hbd|hpbd|sinh|nhat|thoi|noi|giup|giom|cho|sdt|lien|he|table|pax|duoc|khong|hang|hàng|nhu|cầu|cau|yeu|yêu|tông|tong|tone|background|backdrop|trắng|decor|setup|dmt|nv)$/i
+const REJECT_NAME_REGEX = /^(nay|kia|truoc|sau|sang|chieu|toi|ngay|gio|pax|khach|nguoi|ban|mon|set|combo|happy|birthday|hbd|hpbd|sinh|nhat|thoi|noi|giup|giom|cho|sdt|lien|he|table|pax|duoc|khong|hang|hàng|nhu|cầu|cau|yeu|yêu|tông|tong|tone|background|backdrop|trắng|decor|setup|dmt|nv|ơi|oi|alo|da|dạ)$/i
 
 export function evaluateNameConfidence(name: string, normalizedText: string): {
   confidence: number
@@ -664,10 +671,13 @@ export function classifyPeopleNames(text: string) {
     // Conversational pattern: "Serena đặt bàn...", "Ánh Tiên book tiệc..."
     const bookPrefixMatch = lineClean.match(/^(?:[-▶•●*\s]+)?([A-Za-z\p{L}][A-Za-z\p{L}\s.-]*?)\s+(?:đặt\s*bàn|đặt\s*tiệc|book\s*bàn|book\s*tiệc)\b/iu)
     if (bookPrefixMatch) {
-      const explicitName = cleanHonorificPrefix(bookPrefixMatch[1].trim())
-      if (explicitName && explicitName.length >= 2 && !isInvalidName(explicitName) && !REJECT_NAME_REGEX.test(stripAccents(explicitName))) {
-        if (!peopleNames.includes(explicitName)) peopleNames.push(explicitName)
-        if (!bookerCandidates.includes(explicitName)) bookerCandidates.unshift(explicitName)
+      const rawPrefix = bookPrefixMatch[1].trim()
+      if (!/\b(?:oi|ơi|alo|da|dạ|shop|quán|quan|ad|khách|khach)\b/i.test(rawPrefix)) {
+        const explicitName = cleanHonorificPrefix(rawPrefix)
+        if (explicitName && explicitName.length >= 2 && !isInvalidName(explicitName) && !REJECT_NAME_REGEX.test(stripAccents(explicitName))) {
+          if (!peopleNames.includes(explicitName)) peopleNames.push(explicitName)
+          if (!bookerCandidates.includes(explicitName)) bookerCandidates.unshift(explicitName)
+        }
       }
     }
 
@@ -927,6 +937,12 @@ export function preNormalizeInput(rawText: string): string {
 
   // Standardize multiplication signs (×, ✕, ✖) to standard 'x'
   clean = clean.replace(/[×✕✖]/g, 'x')
+
+  // Standardize speaker prefix labels in chat dialogues
+  clean = clean.replace(/^[ ]*(?:nh[aâ]n\s*vi[eê]n|nv|page|bot|ad|admin|qu[aá]n|king'?s\s*grill)\s*[:\-–—].*$/gmi, '')
+  clean = clean.replace(/^[ ]*(?:kh[aá]ch(?:\s*h[aà]ng)?|kh|b[aạ]n)\s*[:\-–—]\s*/gmi, '')
+  // Strip conversational greeting openers (e.g. "Em ơi", "Alo quán ơi", "Dạ em ơi")
+  clean = clean.replace(/^[ ]*(?:dạ\s+|da\s+|alo\s+)?(?:em|anh|chi|chị|bạn|ban|shop|quán|quan|ad)\s+ơi\s*[,.]?\s*/gmi, '')
   
   clean = clean
     .split('\n')
@@ -1690,7 +1706,7 @@ export interface DecorationDetails {
   raw_decoration_lines: string[]
 }
 
-export function extractDecorationDetails(decorationBlock: string): DecorationDetails {
+export function extractDecorationDetails(decorationBlock: string | string[]): DecorationDetails {
   const result: DecorationDetails = {
     decor_color: null,
     board_text: null,
@@ -1700,7 +1716,8 @@ export function extractDecorationDetails(decorationBlock: string): DecorationDet
   }
   if (!decorationBlock) return result
 
-  const lines = decorationBlock.split('\n').map(l => l.trim()).filter(Boolean)
+  const rawStr = Array.isArray(decorationBlock) ? decorationBlock.join('\n') : String(decorationBlock)
+  const lines = rawStr.split('\n').map(l => l.trim()).filter(Boolean)
   result.raw_decoration_lines = [...lines]
 
   // Helper to split line by comma or semicolon when not inside quotes or parentheses
@@ -1768,7 +1785,7 @@ export function extractDecorationDetails(decorationBlock: string): DecorationDet
         continue
       }
 
-      // 3. Special requests with labels: "Dặn dò: ...", "lưu ý: ...", "nhắc: ...", "yêu cầu: ...", "note: ..."
+      // 3. Explicit labeled requests: "Dặn dò: ...", "lưu ý: ...", "nhắc: ...", "yêu cầu: ...", "note: ..."
       const reqMatch = phrase.match(/^(?:d[aặ]n\s*d[oò]|l[uư]u\s*[yý]|nh[aắ]c|y[eê]u\s*c[aầ]u|note)\s*[:\-–—]?\s*(.+)/i)
       if (reqMatch) {
         const reqContent = reqMatch[1].trim()
@@ -1778,31 +1795,62 @@ export function extractDecorationDetails(decorationBlock: string): DecorationDet
         continue
       }
 
-      // 4. Decor color: "tông hồng pastel", "tông màu: xanh dương", "tone: blue", "màu hồng", "tone hồng pastel", "TONE TRẮNG", "tone trắng", "Tông trắng"
+      // 4. Decor color: "Tông: hồng pastel", "TONE HỒNG", "tone xanh pastel", "tone đỏ đô", "màu hồng"
       const colorMatch = phrase.match(/^(?:t[oô]ng\s*(?:m[aà]u)?|m[aà]u|tone|color)\s*[:\-–—]?\s*([^,\n;]+)/i)
+        || phrase.match(/\b(?:t[oô]ng\s*(?:m[aà]u)?|tone|m[aà]u)\s+([a-zA-ZÀ-ỹ\s\-]+)/i)
       if (colorMatch) {
-        const colorVal = colorMatch[1].trim()
-        if (!result.decor_color) {
-          result.decor_color = colorVal
+        let colorVal = colorMatch[1].trim()
+        colorVal = colorVal.replace(/\b(?:nhe|nha|giup|em|chi|a|nhá|nhé|nha|nhé em|nha em)\b.*$/i, '').trim()
+        const colLower = stripAccents(colorVal).toLowerCase()
+        if (/(?:do|trang|hong|xanh|vang|tim|cam|den|nau|bac|gold|silver|pastel|mint|navy|kem|xam|be)/i.test(colLower)) {
+          if (!result.decor_color) {
+            result.decor_color = colorVal
+          }
+          continue // Prevent leaking decor color into special_requests
         }
-        continue
       }
 
       const genericParenColor = phrase.match(/\(([^)]*(?:tr[aắ]ng|h[oồ]ng|xanh|v[aà]ng|[đd][oỏ]|t[ií]m|cam|[đd]en|n[aâ]u|b[aạ]c|gold|silver|pastel)[^)]*)\)/i)
       if (genericParenColor && !result.decor_color) {
         result.decor_color = genericParenColor[1].trim()
+        continue
       }
 
-      // 5. Flower & Balloon Decoration: "Trang trí hoa tươi", "Hoa tươi trên bàn", "Bong bóng tone hồng", "Bóng bay pastel"
-      if (/hoa\s+tuoi|hoa\s+lua|hoa\s+sap|cam\s+hoa|bong\s+bong|bong\s+bay|backdrop|banh\s+kem|phao|nen/i.test(pLower)) {
+      // Ignore if phrase is clearly date/time/guest count/phone/booker/party announcement (unless it mentions cake/decor)
+      const hasCakeOrDecorKeyword = /(?:banh\s*kem|b[aá]nh\s*kem|hoa\s*tuoi|bong\s*bay|background|backdrop)/i.test(pLower)
+      if (!hasCakeOrDecorKeyword) {
+        if (
+          /\b(?:0[35789]\d{7,9})\b/.test(phrase) ||
+          /\b\d{1,2}(?::\d{2}|h\d{2}|h)\b/.test(pLower) ||
+          /\b\d{1,2}\/\d{1,2}(?:\/\d{2,4})?\b/.test(pLower) ||
+          /\b\d+\s*(?:khach|nguoi|pax|cho|lon|tre\s*em|be)\b/.test(pLower) ||
+          /^(?:anh|chi|em|khach)\s+[A-Za-z\p{L}]+$/u.test(phrase) ||
+          /^(?:dat\s*tiec(?:\s*sinh\s*nhat)?|tiec(?:\s*sinh\s*nhat)?|sinh\s*nhat|thoi\s*noi|ki\s*niem)\s*(?:cho\s+)?(?:be\s+)?(?:[A-Za-z\p{L}]+)?$/iu.test(pLower)
+        ) {
+          continue
+        }
+      }
+
+      // Ignore if phrase is clearly dietary / taste / allergy (handled by extractDietaryNotes)
+      if (/^(?:khong\s*cay|it\s*cay|cay\s*vua|khong\s*an\s*cay|it\s*ngot|it\s*duong|di\s*ung|an\s*chay|khong\s*hanh|ot\s*de\s*rieng|do\s*an\s*khong\s*cay)/i.test(pLower)) {
+        continue
+      }
+
+      // Ignore if phrase is seating / baby chair (handled by extractSeatingPreferences)
+      if (/^(?:\d+\s*)?(?:ghe\s*em\s*be|ghe\s*tre\s*em|ghe\s*be|baby\s*chair|gan\s*cua\s*so|view\s*dep|view\s*cua\s*so|phong\s*vip|phong\s*rieng|khu\s*hut\s*thuoc)/i.test(pLower)) {
+        continue
+      }
+
+      // 5. Flower & Balloon Decoration: "Trang trí hoa tươi", "Hoa tươi trên bàn", "Bong bóng tone hồng", "Bóng bay pastel", "thêm bóng bay", "bóng bay"
+      if (/(?:hoa\s*tuoi|hoa\s*lua|hoa\s*sap|cam\s*hoa|bong\s*bong|bong\s*bay|b[oó]ng\s*bay|b[oó]ng\s*b[oó]ng|th[eê]m\s*b[oó]ng|backdrop|banh\s*kem|phao|nen|ph[aá]o\s*s[aá]ng|n[eế]n)/i.test(pLower)) {
         if (!result.special_requests.includes(phrase)) {
           result.special_requests.push(phrase)
         }
         continue
       }
 
-      // 6. Background / Space setup: "ƯU TIÊN BACKGROUND", "CHỪA KHÔNG GIAN ĐỂ KHÁCH SETUP BACKGROUND", "background check-in"
-      if (/background|check\-?in|khong\s+gian|khung\s+checkin|san\s+khau|phong\s+nen/i.test(pLower)) {
+      // 6. Background / Space setup: "ƯU TIÊN BACKGROUND", "CHỪA KHÔNG GIAN ĐỂ KHÁCH SETUP BACKGROUND", "background check-in", "dựng background", "khung checkin"
+      if (/(?:background|backdrop|check\-?in|khung\s*checkin|d[uự]ng\s*background|khong\s*gian|san\s*khau|phong\s*nen)/i.test(pLower)) {
         if (!result.special_requests.includes(phrase)) {
           result.special_requests.push(phrase)
         }
@@ -1828,6 +1876,40 @@ export function extractDecorationDetails(decorationBlock: string): DecorationDet
   }
 
   return result
+}
+
+export function scanFullTextForDecor(text: string, result: DecorationDetails) {
+  if (!text) return
+  const clean = stripAccents(text).toLowerCase()
+
+  // 1. Color check if still null
+  if (!result.decor_color) {
+    const fullTone = text.match(/\b((?:tone|t[oô]ng(?:\s*m[aà]u)?)\s+[a-zA-ZÀ-ỹ\s\-]+?)(?=[,.;\n]|\s*(?:nh[eé]|nha|gi[uú]p|ạ|\.|$))/i)
+    const toneMatch = fullTone || text.match(/\b(?:t[oô]ng\s*(?:m[aà]u)?|tone|m[aà]u)\s+([a-zA-ZÀ-ỹ\s\-]+?)(?=[,.;\n]|\s*(?:nh[eé]|nha|gi[uú]p|ạ|\.|$))/i)
+    if (toneMatch) {
+      const c = toneMatch[1].trim()
+      const cLower = stripAccents(c).toLowerCase()
+      if (/(?:do|trang|hong|xanh|vang|tim|cam|den|nau|bac|gold|silver|pastel|mint|navy|kem|xam|be)/i.test(cLower)) {
+        result.decor_color = c
+      }
+    }
+  }
+
+  // 2. Balloons check
+  if (/(?:bong\s*bay|b[oó]ng\s*bay|bong\s*b[oó]ng|th[eê]m\s*b[oó]ng)/i.test(clean)) {
+    const hasBalloon = result.special_requests.some(r => /b[oó]ng\s*(?:bay|b[oó]ng)/i.test(r))
+    if (!hasBalloon) {
+      result.special_requests.push('Thêm bóng bay trang trí')
+    }
+  }
+
+  // 3. Background check
+  if (/(?:d[uự]ng\s*background|background|backdrop|khung\s*checkin)/i.test(clean)) {
+    const hasBg = result.special_requests.some(r => /background|backdrop|checkin/i.test(r))
+    if (!hasBg) {
+      result.special_requests.push('Dựng background check-in')
+    }
+  }
 }
 
 export function extractSeatingPreferences(text: string): string[] {
@@ -1869,8 +1951,9 @@ export function extractSeatingPreferences(text: string): string[] {
   }
 
   // 5. Baby chair / Kid amenities
-  const babyChairMatch = clean.match(/(\d+)\s*(?:ghe\s*em\s*be|ghe\s*tre\s*em|ghe\s*be|baby\s*chair|ghe\s*an\s*dam)/i)
-    || clean.match(/(?:ghe\s*em\s*be|ghe\s*tre\s*em|ghe\s*be|baby\s*chair|ghe\s*an\s*dam)\s*(\d+)?/i)
+  const babyChairMatch = clean.match(/(\d+)\s*(?:ghe\s*em\s*be|ghe\s*tre\s*em|ghe\s*be|baby\s*chair|ghe\s*an\s*dam|ghe\s*cho\s*be)/i)
+    || clean.match(/(?:ghe\s*em\s*be|ghe\s*tre\s*em|ghe\s*be|baby\s*chair|ghe\s*an\s*dam|ghe\s*cho\s*be)\s*(\d+)?/i)
+    || clean.match(/(?:them|lay|cho\s*xin)\s*(\d+)?\s*(?:ghe\s*em\s*be|ghe\s*tre\s*em|ghe\s*be|baby\s*chair|ghe\s*an\s*dam|ghe\s*cho\s*be)/i)
   if (babyChairMatch) {
     const qty = babyChairMatch[1] ? `${babyChairMatch[1]} ` : ''
     results.push(`Cần ${qty}ghế trẻ em (baby chair)`.trim())
@@ -1923,7 +2006,7 @@ export function extractDietaryNotes(text: string): string[] {
   }
 
   // 4. Taste & Seasoning Customizations
-  if (/khong\s*cay|khong\s*an\s*cay|dung\s*cay|ko\s*cay/i.test(clean)) {
+  if (/khong\s*cay|khong\s*an\s*cay|dung\s*cay|ko\s*cay|dung\s*lam\s*cay|mon\s*khong\s*cay|cho\s*be\s*an\s*khong\s*cay|khong\s*an\s*duoc\s*cay/i.test(clean)) {
     results.push('Làm không cay')
   } else if (/it\s*cay|cay\s*nhe|cay\s*vua/i.test(clean)) {
     results.push('Làm ít cay')
@@ -1934,17 +2017,17 @@ export function extractDietaryNotes(text: string): string[] {
   if (/ot\s*de\s*rieng|sot\s*de\s*rieng|nuoc\s*sot\s*de\s*rieng|nuoc\s*cham\s*de\s*rieng/i.test(clean)) {
     results.push('Nước sốt / ớt để riêng')
   }
-  if (/bo\s*hanh|khong\s*hanh|khong\s*an\s*hanh|dung\s*bo\s*hanh/i.test(clean)) {
+  if (/bo\s*hanh|khong\s*hanh|khong\s*an\s*hanh|dung\s*bo\s*hanh|khong\s*hanh\s*ngo|khong\s*bo\s*hanh/i.test(clean)) {
     results.push('Không ăn hành')
   }
-  if (/khong\s*ngo|khong\s*rau\s*mui|khong\s*tieu/i.test(clean)) {
+  if (/khong\s*ngo|khong\s*rau\s*mui|khong\s*tieu|dung\s*bo\s*tieu|khong\s*cho\s*tieu/i.test(clean)) {
     results.push('Không ngò / tiêu')
   }
-  if (/cho\s*tre\s*em\s*an|be\s*an\s*duoc|nau\s*mem/i.test(clean)) {
+  if (/cho\s*tre\s*em\s*an|be\s*an\s*duoc|nau\s*mem|mon\s*cho\s*be/i.test(clean)) {
     results.push('Nấu mềm, phù hợp cho trẻ em / người lớn tuổi')
   }
 
-  return results
+  return Array.from(new Set(results))
 }
 
 export function resolveDistributiveQuantifiers(menuItems: any[], text: string): any[] {
@@ -2330,12 +2413,13 @@ export function extractByRules(rawOrNormalizedText: string) {
 
   let decoration_text = ''
   const decoration_details = extractDecorationDetails(blocks.decoration_block)
-  if (blocks.decoration_block) {
+  scanFullTextForDecor(normalizedText, decoration_details)
+  if (blocks.decoration_block && blocks.decoration_block.length > 0) {
     const decoMatch = normalizedText.match(/(?:happy birthday|hbd|bang chu|chu)\s+([^:\n]+)/i)
     if (decoMatch) {
       decoration_text = decoMatch[1].trim()
     } else {
-      decoration_text = blocks.decoration_block
+      decoration_text = Array.isArray(blocks.decoration_block) ? blocks.decoration_block.join('\n') : String(blocks.decoration_block)
     }
   }
 
@@ -2360,7 +2444,7 @@ export function extractByRules(rawOrNormalizedText: string) {
     deposit_status = 'chờ cọc'
   }
 
-  const note = blocks.note_block || ''
+  let note = blocks.note_block || ''
 
   let receiver: string | null = null
   const receiverMatch = clean.match(/(?:nhan:|nhan\s+nv|nhan\s+dmt|nv\b)\s*([a-z0-9]+)/i)
@@ -2521,6 +2605,89 @@ export function extractByRules(rawOrNormalizedText: string) {
     mirror_board_text: decoration_details.mirror_text,
     seating_preference: seatingPreferences.length > 0 ? seatingPreferences.join('; ') : null,
     dietary_notes: dietaryNotes.length > 0 ? dietaryNotes.join('; ') : null
+  }
+
+  // Synchronize Structured Form / Key-Value extractions if present
+  if (isStructuredFormText(normalizedText)) {
+    const structRes = parseStructuredForm(normalizedText)
+    if (structRes.isStructured) {
+      if (structRes.data.customer.name && (!customer_name || customer_name_confidence < 0.85)) {
+        customer_name = structRes.data.customer.name
+        customer_name_confidence = 0.98
+      }
+      if (structRes.data.customer.phone && !phone) {
+        phone = structRes.data.customer.phone
+      }
+      if (structRes.data.booking.date && !event_date) {
+        event_date = structRes.data.booking.date
+      }
+      if (structRes.data.booking.time && !event_time) {
+        event_time = structRes.data.booking.time
+      }
+      if (structRes.data.booking.guest_count && (!guest_count || guest_count <= 0)) {
+        guest_count = structRes.data.booking.guest_count
+      }
+      if (structRes.data.booking.tables) {
+        table_code = structRes.data.booking.tables
+      }
+      if (structRes.data.booking.need && booking_need === 'Ăn thường') {
+        booking_need = structRes.data.booking.need
+      }
+      if (structRes.data.deposit.amount && (!deposit_amount || deposit_amount <= 0)) {
+        deposit_amount = structRes.data.deposit.amount
+        deposit_status = structRes.data.deposit.status
+      }
+      if (structRes.data.party.decor_color && !party.decor_color) {
+        party.decor_color = structRes.data.party.decor_color
+        decoration_details.decor_color = structRes.data.party.decor_color
+      }
+      if (structRes.data.party.display_board_text && !party.display_board_text) {
+        party.display_board_text = structRes.data.party.display_board_text
+        decoration_details.board_text = structRes.data.party.display_board_text
+      }
+      if (structRes.data.party.mirror_board_text && !party.mirror_board_text) {
+        party.mirror_board_text = structRes.data.party.mirror_board_text
+        decoration_details.mirror_text = structRes.data.party.mirror_board_text
+      }
+      if (structRes.data.party.special_request) {
+        if (!party.special_request) {
+          party.special_request = structRes.data.party.special_request
+        } else if (!party.special_request.includes(structRes.data.party.special_request)) {
+          party.special_request += `; ${structRes.data.party.special_request}`
+        }
+        if (!decoration_details.special_requests.includes(structRes.data.party.special_request)) {
+          decoration_details.special_requests.push(structRes.data.party.special_request)
+        }
+      }
+      if (structRes.data.party.seating_preference) {
+        if (!party.seating_preference) {
+          party.seating_preference = structRes.data.party.seating_preference
+        } else if (!party.seating_preference.includes(structRes.data.party.seating_preference)) {
+          party.seating_preference += `; ${structRes.data.party.seating_preference}`
+        }
+      }
+      if (structRes.data.party.dietary_notes) {
+        if (!party.dietary_notes) {
+          party.dietary_notes = structRes.data.party.dietary_notes
+        } else if (!party.dietary_notes.includes(structRes.data.party.dietary_notes)) {
+          party.dietary_notes += `; ${structRes.data.party.dietary_notes}`
+        }
+      }
+      if (structRes.data.party.owner_name && !party.owner_name) {
+        party.owner_name = structRes.data.party.owner_name
+      }
+      if (structRes.data.menu_items && structRes.data.menu_items.length > 0 && menu_items.length === 0) {
+        menu_items = structRes.data.menu_items.map(m => ({
+          raw_name: m.raw_name,
+          quantity: m.quantity,
+          unit_price: m.unit_price,
+          note: m.note
+        }))
+      }
+      if (structRes.data.note && (!note || note.length < structRes.data.note.length)) {
+        note = structRes.data.note
+      }
+    }
   }
 
   return {

@@ -430,7 +430,58 @@ function handleResultClick(order: any) {
   ui.showToast(`Đang chỉnh sửa đơn của ${order.parsedCustomer.name}`, 'info')
 }
 
+const promptInputRef = ref<HTMLInputElement | null>(null)
+
+const alertSeverity = computed<'danger' | 'warning' | 'success' | 'info'>(() => {
+  const t = (ui.modal.alert.title || '').toLowerCase()
+  const m = (ui.modal.alert.msg || '').toLowerCase()
+  if (t.includes('lỗi') || t.includes('thất bại') || t.includes('error') || t.includes('xóa')) {
+    return 'danger'
+  }
+  if (t.includes('thiếu') || t.includes('cảnh báo') || t.includes('chú ý') || t.includes('warning') || t.includes('chưa') || t.includes('hủy')) {
+    return 'warning'
+  }
+  if (t.includes('thành công') || t.includes('đã') || t.includes('hoàn tất') || t.includes('success')) {
+    return 'success'
+  }
+  return 'info'
+})
+
+watch(() => ui.modal.prompt.show, (show) => {
+  if (show) {
+    nextTick(() => {
+      promptInputRef.value?.focus()
+      promptInputRef.value?.select()
+    })
+  }
+})
+
 function handleGlobalKeydown(e: KeyboardEvent) {
+  // Modal keyboard shortcuts (Escape to dismiss/cancel, Enter to confirm/acknowledge)
+  if (ui.modal.alert.show) {
+    if (e.key === 'Escape' || e.key === 'Enter') {
+      e.preventDefault()
+      ui.resolveModal('alert')
+      return
+    }
+  } else if (ui.modal.confirm.show) {
+    if (e.key === 'Escape') {
+      e.preventDefault()
+      ui.resolveModal('confirm', false)
+      return
+    } else if (e.key === 'Enter') {
+      e.preventDefault()
+      ui.resolveModal('confirm', true)
+      return
+    }
+  } else if (ui.modal.prompt.show) {
+    if (e.key === 'Escape') {
+      e.preventDefault()
+      ui.resolveModal('prompt', null)
+      return
+    }
+  }
+
   if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
     e.preventDefault()
     ui.showCommandPalette = !ui.showCommandPalette
@@ -479,18 +530,31 @@ const ambientTheme = computed(() => {
     <!-- Alert -->
     <transition name="modal">
     <div v-if="ui.modal.alert.show" class="fixed inset-0 bg-slate-950/60 z-[99999] flex justify-center items-center p-4 backdrop-blur-sm" @click.self="ui.resolveModal('alert')">
-      <div class="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl p-6 md:p-7 max-w-sm w-[95%] md:w-full flex flex-col relative overflow-hidden border border-slate-200 dark:border-slate-800">
-        <div class="flex justify-center items-center mb-5 flex-col gap-2.5">
-          <div class="w-12 h-12 bg-blue-50 dark:bg-blue-950/50 rounded-2xl flex items-center justify-center text-blue-600 dark:text-blue-400 text-xl shadow-sm border border-blue-100 dark:border-blue-900/50">
-            <i class="fa-solid fa-circle-info"></i>
+      <div class="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl p-5 md:p-6 max-w-[420px] w-[95%] md:w-full flex flex-col relative overflow-hidden border border-slate-200/90 dark:border-slate-800/90 animate-scale-up">
+        <div class="flex items-start gap-3.5 mb-3">
+          <div class="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 text-lg shadow-sm"
+               :class="alertSeverity === 'danger' ? 'bg-rose-50 text-rose-600 border border-rose-100 dark:bg-rose-950/50 dark:text-rose-400 dark:border-rose-900/40' :
+                       alertSeverity === 'warning' ? 'bg-amber-50 text-amber-600 border border-amber-100 dark:bg-amber-950/50 dark:text-amber-400 dark:border-amber-900/40' :
+                       alertSeverity === 'success' ? 'bg-emerald-50 text-emerald-600 border border-emerald-100 dark:bg-emerald-950/50 dark:text-emerald-400 dark:border-emerald-900/40' :
+                       'bg-blue-50 text-blue-600 border border-blue-100 dark:bg-blue-950/50 dark:text-blue-400 dark:border-blue-900/40'">
+            <i :class="alertSeverity === 'danger' ? 'fa-solid fa-circle-exclamation' :
+                       alertSeverity === 'warning' ? 'fa-solid fa-triangle-exclamation' :
+                       alertSeverity === 'success' ? 'fa-solid fa-circle-check' :
+                       'fa-solid fa-circle-info'"></i>
           </div>
-          <h3 class="text-lg font-black text-slate-900 dark:text-slate-100 uppercase tracking-tight text-center">{{ ui.modal.alert.title }}</h3>
+          <div class="flex-1 min-w-0 pt-0.5">
+            <h3 class="text-sm font-black text-slate-900 dark:text-slate-100 uppercase tracking-tight">{{ ui.modal.alert.title }}</h3>
+            <p class="mt-1.5 text-xs text-slate-600 dark:text-slate-300 font-medium leading-relaxed whitespace-pre-line text-left">{{ ui.modal.alert.msg }}</p>
+          </div>
+          <button @click="ui.resolveModal('alert')" aria-label="Đóng" class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors shrink-0">
+            <i class="fa-solid fa-xmark text-sm"></i>
+          </button>
         </div>
-        <div class="mb-6">
-          <p class="text-sm text-slate-600 dark:text-slate-300 font-medium text-center whitespace-pre-line">{{ ui.modal.alert.msg }}</p>
-        </div>
-        <div>
-          <button @click="ui.resolveModal('alert')" class="w-full py-3 bg-blue-600 hover:bg-blue-700 active:scale-98 text-white rounded-xl font-bold uppercase tracking-wider text-xs shadow-md transition-all">ĐÃ HIỂU</button>
+        <div class="flex justify-end pt-3 border-t border-slate-100 dark:border-slate-800/80">
+          <button @click="ui.resolveModal('alert')" class="py-2.5 px-5 bg-slate-900 hover:bg-slate-800 dark:bg-indigo-600 dark:hover:bg-indigo-500 active:scale-95 text-white rounded-xl font-bold uppercase tracking-wider text-xs shadow-sm transition-all flex items-center gap-1.5">
+            <span>Đã hiểu</span>
+            <span class="text-[10px] opacity-60 font-mono hidden sm:inline">↵</span>
+          </button>
         </div>
       </div>
     </div>
@@ -504,19 +568,28 @@ const ambientTheme = computed(() => {
          aria-modal="true"
          aria-labelledby="confirm-dialog-title"
          @click.self="ui.resolveModal('confirm', false)">
-      <div class="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl p-6 md:p-7 max-w-sm w-[95%] md:w-full flex flex-col relative overflow-hidden border border-slate-200 dark:border-slate-800">
-        <div class="flex justify-center items-center mb-5 flex-col gap-2.5">
-          <div class="w-12 h-12 bg-rose-50 dark:bg-rose-950/50 rounded-2xl flex items-center justify-center text-rose-600 dark:text-rose-400 text-xl shadow-sm border border-rose-100 dark:border-rose-900/50">
+      <div class="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl p-5 md:p-6 max-w-[420px] w-[95%] md:w-full flex flex-col relative overflow-hidden border border-slate-200/90 dark:border-slate-800/90 animate-scale-up">
+        <div class="flex items-start gap-3.5 mb-3">
+          <div class="w-10 h-10 bg-rose-50 dark:bg-rose-950/50 rounded-xl flex items-center justify-center text-rose-600 dark:text-rose-400 text-lg shadow-sm border border-rose-100 dark:border-rose-900/50 shrink-0">
             <i class="fa-solid fa-triangle-exclamation"></i>
           </div>
-          <h3 id="confirm-dialog-title" class="text-lg font-black text-slate-900 dark:text-slate-100 uppercase tracking-tight text-center">{{ ui.modal.confirm.title }}</h3>
+          <div class="flex-1 min-w-0 pt-0.5">
+            <h3 id="confirm-dialog-title" class="text-sm font-black text-slate-900 dark:text-slate-100 uppercase tracking-tight">{{ ui.modal.confirm.title }}</h3>
+            <p class="mt-1.5 text-xs text-slate-600 dark:text-slate-300 font-medium leading-relaxed whitespace-pre-line text-left">{{ ui.modal.confirm.msg }}</p>
+          </div>
+          <button @click="ui.resolveModal('confirm', false)" aria-label="Đóng" class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors shrink-0">
+            <i class="fa-solid fa-xmark text-sm"></i>
+          </button>
         </div>
-        <div class="mb-6">
-          <p class="text-sm text-slate-600 dark:text-slate-300 font-medium text-center whitespace-pre-line leading-relaxed">{{ ui.modal.confirm.msg }}</p>
-        </div>
-        <div class="grid grid-cols-2 gap-3">
-          <button @click="ui.resolveModal('confirm', false)" class="touch-target-48 py-3 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-xl font-bold uppercase tracking-wider text-xs active:scale-98 transition-all border border-slate-200 dark:border-slate-700">QUAY LẠI</button>
-          <button @click="ui.resolveModal('confirm', true)" class="touch-target-48 py-3 bg-rose-600 hover:bg-rose-700 active:scale-98 text-white rounded-xl font-bold uppercase tracking-wider text-xs shadow-md transition-all flex items-center justify-center gap-1.5">{{ confirmActionVerb }}</button>
+        <div class="flex items-center justify-end gap-2.5 pt-3 border-t border-slate-100 dark:border-slate-800/80">
+          <button @click="ui.resolveModal('confirm', false)" class="py-2.5 px-4 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-xl font-bold uppercase tracking-wider text-xs active:scale-95 transition-all border border-slate-200 dark:border-slate-700 flex items-center gap-1.5">
+            <span>Quay lại</span>
+            <span class="text-[10px] opacity-60 font-mono hidden sm:inline">Esc</span>
+          </button>
+          <button @click="ui.resolveModal('confirm', true)" class="py-2.5 px-4 bg-rose-600 hover:bg-rose-700 active:scale-95 text-white rounded-xl font-bold uppercase tracking-wider text-xs shadow-md transition-all flex items-center justify-center gap-1.5">
+            <span>{{ confirmActionVerb }}</span>
+            <span class="text-[10px] opacity-60 font-mono hidden sm:inline">↵</span>
+          </button>
         </div>
       </div>
     </div>
@@ -525,20 +598,37 @@ const ambientTheme = computed(() => {
     <!-- Prompt -->
     <transition name="modal">
     <div v-if="ui.modal.prompt.show" class="fixed inset-0 bg-slate-950/60 z-[99999] flex justify-center items-center p-4 backdrop-blur-sm" @click.self="ui.resolveModal('prompt', null)">
-      <div class="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl p-6 md:p-7 max-w-sm w-[95%] md:w-full flex flex-col relative overflow-hidden border border-slate-200 dark:border-slate-800">
-        <div class="flex justify-center items-center mb-5 flex-col gap-2.5">
-          <div class="w-12 h-12 bg-purple-50 dark:bg-purple-950/50 rounded-2xl flex items-center justify-center text-purple-600 dark:text-purple-400 text-xl shadow-sm border border-purple-100 dark:border-purple-900/50">
+      <div class="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl p-5 md:p-6 max-w-[420px] w-[95%] md:w-full flex flex-col relative overflow-hidden border border-slate-200/90 dark:border-slate-800/90 animate-scale-up">
+        <div class="flex items-start gap-3.5 mb-3">
+          <div class="w-10 h-10 bg-purple-50 dark:bg-purple-950/50 rounded-xl flex items-center justify-center text-purple-600 dark:text-purple-400 text-lg shadow-sm border border-purple-100 dark:border-purple-900/50 shrink-0">
             <i class="fa-solid fa-keyboard"></i>
           </div>
-          <h3 class="text-lg font-black text-slate-900 dark:text-slate-100 uppercase tracking-tight text-center">{{ ui.modal.prompt.title }}</h3>
+          <div class="flex-1 min-w-0 pt-0.5">
+            <h3 class="text-sm font-black text-slate-900 dark:text-slate-100 uppercase tracking-tight">{{ ui.modal.prompt.title }}</h3>
+            <p class="mt-1 text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">{{ ui.modal.prompt.msg }}</p>
+          </div>
+          <button @click="ui.resolveModal('prompt', null)" aria-label="Đóng" class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors shrink-0">
+            <i class="fa-solid fa-xmark text-sm"></i>
+          </button>
         </div>
-        <div class="mb-5">
-          <p class="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider text-center mb-3">{{ ui.modal.prompt.msg }}</p>
-          <input v-model="ui.modal.prompt.value" class="w-full px-4 py-3 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-xl text-sm font-bold text-slate-800 dark:text-slate-100 focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20 shadow-sm transition-all text-center" placeholder="Nhập nội dung...">
+        <div class="mb-4">
+          <input 
+            v-model="ui.modal.prompt.value" 
+            ref="promptInputRef"
+            @keydown.enter="ui.resolveModal('prompt', ui.modal.prompt.value)"
+            class="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-xl text-sm font-bold text-slate-800 dark:text-slate-100 focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20 shadow-sm transition-all" 
+            placeholder="Nhập nội dung..."
+          >
         </div>
-        <div class="grid grid-cols-2 gap-3">
-          <button @click="ui.resolveModal('prompt', null)" class="py-3 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-xl font-bold uppercase tracking-wider text-xs active:scale-98 transition-all border border-slate-200 dark:border-slate-700">HỦY BỎ</button>
-          <button @click="ui.resolveModal('prompt', ui.modal.prompt.value)" class="py-3 bg-purple-600 hover:bg-purple-700 active:scale-98 text-white rounded-xl font-bold uppercase tracking-wider text-xs shadow-md transition-all">XÁC NHẬN</button>
+        <div class="flex items-center justify-end gap-2.5 pt-3 border-t border-slate-100 dark:border-slate-800/80">
+          <button @click="ui.resolveModal('prompt', null)" class="py-2.5 px-4 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-xl font-bold uppercase tracking-wider text-xs active:scale-95 transition-all border border-slate-200 dark:border-slate-700 flex items-center gap-1.5">
+            <span>Hủy bỏ</span>
+            <span class="text-[10px] opacity-60 font-mono hidden sm:inline">Esc</span>
+          </button>
+          <button @click="ui.resolveModal('prompt', ui.modal.prompt.value)" class="py-2.5 px-4 bg-purple-600 hover:bg-purple-700 active:scale-95 text-white rounded-xl font-bold uppercase tracking-wider text-xs shadow-md transition-all flex items-center gap-1.5">
+            <span>Xác nhận</span>
+            <span class="text-[10px] opacity-60 font-mono hidden sm:inline">↵</span>
+          </button>
         </div>
       </div>
     </div>

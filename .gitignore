@@ -40,3 +40,12 @@ kg-booking old/
 # Local databases & dynamic data files
 src/infrastructure/local/data/
 
+# Scratch & temporary artifacts
+scratch/
+*.zip
+screenshots_export/
+screenshots_export_mobile/
+kings-grill-mobile-*/
+POST_UPGRADE_REGRESSION_REPORT.md
+RECAPTURE_REPORT.md
+SCREENSHOT_MANIFEST.md

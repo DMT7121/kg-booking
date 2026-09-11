@@ -477,6 +477,16 @@ function goToTomorrowTimeline() {
                   </div>
                 </div>
                 <div class="flex items-center gap-2">
+                  <!-- Nút Thao tác nhanh (Desktop) -->
+                  <button 
+                    @click="showActionSheet = !showActionSheet" 
+                    title="Mở menu thao tác nhanh"
+                    class="hidden md:inline-flex items-center gap-1.5 bg-slate-900 hover:bg-slate-800 dark:bg-indigo-600 dark:hover:bg-indigo-500 text-white rounded-xl py-2.5 px-3.5 font-bold text-xs uppercase shadow-sm transition-all active:scale-95 border border-slate-700/80 dark:border-indigo-400/30"
+                  >
+                    <i class="fa-solid fa-bolt-lightning text-amber-400 text-xs"></i>
+                    <span>Thao tác nhanh</span>
+                  </button>
+
                   <button v-if="formStore.id" @click="handleCreateNewForm" class="bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-xl py-2.5 px-3.5 font-bold text-xs uppercase flex items-center justify-center gap-1.5 transition-all active:scale-95 border border-slate-200 dark:border-slate-700">
                     <i class="fa-solid fa-file-circle-plus text-slate-400"></i> Tạo lịch mới
                   </button>
@@ -502,43 +512,65 @@ function goToTomorrowTimeline() {
       </div>
     </div>
 
-    <!-- FLOATING ACTION BUTTON -->
-    <div v-show="ui.tab === 'create'" class="absolute bottom-[128px] md:bottom-6 right-4 md:right-6 z-[100] safe-area-pb">
-      <button @click="showActionSheet = true" class="w-13 h-13 sm:w-14 sm:h-14 bg-amber-500 hover:bg-amber-600 rounded-full shadow-xl shadow-amber-500/30 flex items-center justify-center text-white text-xl active:scale-90 transition-transform quick-action-fab">
-        <i class="fa-solid fa-layer-group"></i>
+    <!-- FLOATING ACTION BUTTON (MOBILE) -->
+    <div v-show="ui.tab === 'create'" class="md:hidden fixed bottom-[142px] right-3.5 z-[100] safe-area-pb">
+      <button 
+        @click="showActionSheet = true" 
+        aria-label="Thao tác nhanh"
+        class="h-10 px-3.5 bg-slate-900/95 dark:bg-indigo-600/95 hover:bg-slate-800 dark:hover:bg-indigo-500 rounded-full shadow-lg shadow-slate-950/30 dark:shadow-indigo-950/40 flex items-center justify-center gap-1.5 text-white font-bold text-xs active:scale-90 transition-all border border-white/20 dark:border-indigo-400/40 backdrop-blur-md"
+      >
+        <i class="fa-solid fa-bolt-lightning text-amber-400 text-xs"></i>
+        <span>Thao tác</span>
       </button>
     </div>
 
-    <!-- ACTION MENU BOTTOM SHEET -->
+    <!-- ACTION MENU BOTTOM SHEET & DIALOG -->
     <transition name="fade">
-      <div v-if="showActionSheet" class="absolute inset-0 z-[110] flex flex-col justify-end">
-        <div class="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" @click="showActionSheet = false"></div>
+      <div v-if="showActionSheet" class="fixed inset-0 z-[110] flex flex-col justify-end md:justify-center md:items-center p-0 md:p-4">
+        <div class="fixed inset-0 bg-slate-950/60 backdrop-blur-sm" @click="showActionSheet = false"></div>
         <transition name="slide-up" appear>
-          <div v-if="showActionSheet" class="bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 rounded-t-3xl p-5 md:p-6 relative z-10 shadow-2xl pb-safe max-h-[85vh] overflow-y-auto">
-            <div class="w-12 h-1.5 bg-slate-200 dark:bg-slate-700 rounded-full mx-auto mb-4"></div>
+          <div v-if="showActionSheet" class="bg-white dark:bg-slate-900 border-t md:border border-slate-200/90 dark:border-slate-800 rounded-t-3xl md:rounded-2xl p-5 md:p-6 relative z-10 shadow-2xl pb-safe max-h-[85vh] md:max-w-xl w-full overflow-y-auto">
+            <!-- Mobile drag indicator -->
+            <div class="md:hidden w-12 h-1.5 bg-slate-200 dark:bg-slate-700 rounded-full mx-auto mb-4"></div>
             
-            <h3 class="text-center font-black text-slate-800 dark:text-slate-100 text-base mb-5 uppercase tracking-widest">Thao tác nhanh</h3>
+            <div class="flex items-center justify-between mb-5 pb-3 border-b border-slate-100 dark:border-slate-800">
+              <div class="flex items-center gap-2.5">
+                <div class="w-8 h-8 rounded-lg bg-amber-50 dark:bg-amber-950/50 flex items-center justify-center text-amber-500 dark:text-amber-400 border border-amber-200/60 dark:border-amber-800/40 text-sm">
+                  <i class="fa-solid fa-bolt-lightning"></i>
+                </div>
+                <div>
+                  <h3 class="font-black text-slate-900 dark:text-slate-100 text-sm uppercase tracking-wider">Thao tác nhanh</h3>
+                  <p class="text-[10px] text-slate-500 dark:text-slate-400 font-medium">Lối tắt xử lý phiếu đặt & xuất dữ liệu</p>
+                </div>
+              </div>
+              <button @click="showActionSheet = false" aria-label="Đóng" class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
+                <i class="fa-solid fa-xmark text-sm"></i>
+              </button>
+            </div>
             
             <div class="space-y-4">
               <!-- Nhóm 1: Quản lý Phiếu -->
               <div class="space-y-2">
-                <div class="text-[10px] font-black uppercase text-slate-400 dark:text-slate-400 tracking-wider">Quản lý phiếu đặt</div>
-                <div class="grid grid-cols-4 gap-2">
-                  <button @click="handleCreateNewForm" class="bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-200 p-2.5 rounded-xl font-bold text-[10px] hover:bg-slate-100 dark:hover:bg-slate-700 transition-all active:scale-95 flex flex-col items-center justify-center gap-1.5 border border-slate-200/60 dark:border-slate-700">
-                    <i class="fa-solid fa-file-circle-plus text-lg text-slate-500 dark:text-slate-400"></i>
+                <div class="text-[10px] font-black uppercase text-slate-400 dark:text-slate-400 tracking-wider flex items-center gap-1.5">
+                  <i class="fa-solid fa-receipt text-[9px] text-indigo-500"></i>
+                  <span>Quản lý phiếu đặt</span>
+                </div>
+                <div class="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                  <button @click="handleCreateNewForm(); showActionSheet = false" class="bg-slate-50 dark:bg-slate-800/80 text-slate-700 dark:text-slate-200 p-3 rounded-xl font-bold text-xs hover:bg-slate-100 dark:hover:bg-slate-700/80 transition-all active:scale-95 flex flex-col items-center justify-center gap-1.5 border border-slate-200/80 dark:border-slate-700 shadow-sm min-h-[58px]">
+                    <i class="fa-solid fa-file-circle-plus text-lg text-slate-500 dark:text-slate-300"></i>
                     <span>Tạo mới</span>
                   </button>
-                  <button @click="toggleDepositPaid" class="p-2.5 rounded-xl font-bold text-[10px] transition-all active:scale-95 flex flex-col items-center justify-center gap-1.5 border"
-                    :class="formStore.deposit.isPaid ? 'bg-amber-50 dark:bg-amber-950/40 border-amber-200 dark:border-amber-800/60 text-amber-700 dark:text-amber-400' : 'bg-slate-50 dark:bg-slate-800 border-slate-200/60 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700'">
-                    <i class="fa-solid text-lg" :class="formStore.deposit.isPaid ? 'fa-circle-check text-amber-500 dark:text-amber-400' : 'fa-circle text-slate-400'"></i>
-                    <span>Đã cọc</span>
+                  <button @click="toggleDepositPaid" class="p-3 rounded-xl font-bold text-xs transition-all active:scale-95 flex flex-col items-center justify-center gap-1.5 border shadow-sm min-h-[58px]"
+                    :class="formStore.deposit.isPaid ? 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-300 dark:border-emerald-800/60 text-emerald-700 dark:text-emerald-400' : 'bg-slate-50 dark:bg-slate-800/80 border-slate-200/80 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700/80'">
+                    <i class="fa-solid text-lg" :class="formStore.deposit.isPaid ? 'fa-circle-check text-emerald-500 dark:text-emerald-400' : 'fa-circle text-slate-400'"></i>
+                    <span>{{ formStore.deposit.isPaid ? 'Đã cọc' : 'Chưa cọc' }}</span>
                   </button>
-                  <button @click="copyBookingConfirmation(); showActionSheet = false" class="bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-200 p-2.5 rounded-xl font-bold text-[10px] hover:bg-slate-100 dark:hover:bg-slate-700 transition-all active:scale-95 flex flex-col items-center justify-center gap-1.5 border border-slate-200/60 dark:border-slate-700">
-                    <i class="fa-solid fa-copy text-lg text-slate-500 dark:text-slate-400"></i>
+                  <button @click="copyBookingConfirmation(); showActionSheet = false" class="bg-indigo-50/70 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 p-3 rounded-xl font-bold text-xs hover:bg-indigo-100 dark:hover:bg-indigo-900/50 transition-all active:scale-95 flex flex-col items-center justify-center gap-1.5 border border-indigo-200/70 dark:border-indigo-800/50 shadow-sm min-h-[58px]">
+                    <i class="fa-solid fa-copy text-lg text-indigo-600 dark:text-indigo-400"></i>
                     <span>Copy xác nhận</span>
                   </button>
-                  <button @click="openCareForCurrentForm" class="bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-200 p-2.5 rounded-xl font-bold text-[10px] hover:bg-slate-100 dark:hover:bg-slate-700 transition-all active:scale-95 flex flex-col items-center justify-center gap-1.5 border border-slate-200/60 dark:border-slate-700">
-                    <i class="fa-solid fa-paper-plane text-lg text-slate-500 dark:text-slate-400"></i>
+                  <button @click="openCareForCurrentForm(); showActionSheet = false" class="bg-sky-50/70 dark:bg-sky-950/40 text-sky-700 dark:text-sky-300 p-3 rounded-xl font-bold text-xs hover:bg-sky-100 dark:hover:bg-sky-900/50 transition-all active:scale-95 flex flex-col items-center justify-center gap-1.5 border border-sky-200/70 dark:border-sky-800/50 shadow-sm min-h-[58px]">
+                    <i class="fa-solid fa-paper-plane text-lg text-sky-600 dark:text-sky-400"></i>
                     <span>Gửi phiếu</span>
                   </button>
                 </div>
@@ -546,41 +578,47 @@ function goToTomorrowTimeline() {
 
               <!-- Nhóm 2: Xuất bản & Tải về -->
               <div class="space-y-2">
-                <div class="text-[10px] font-black uppercase text-slate-400 dark:text-slate-400 tracking-wider">Xuất bản & Tải về</div>
-                <div class="grid grid-cols-4 gap-2">
-                  <button @click="doSave('save')" class="bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 p-2.5 rounded-xl font-bold text-[10px] hover:bg-emerald-100 dark:hover:bg-emerald-900/50 transition-all active:scale-95 flex flex-col items-center justify-center gap-1.5 border border-emerald-200/60 dark:border-emerald-800/40">
-                    <i class="fa-solid fa-cloud-arrow-up text-lg"></i>
+                <div class="text-[10px] font-black uppercase text-slate-400 dark:text-slate-400 tracking-wider flex items-center gap-1.5">
+                  <i class="fa-solid fa-cloud-arrow-down text-[9px] text-emerald-500"></i>
+                  <span>Xuất bản & Tải về</span>
+                </div>
+                <div class="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                  <button @click="doSave('save'); showActionSheet = false" class="bg-emerald-50/70 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 p-3 rounded-xl font-bold text-xs hover:bg-emerald-100 dark:hover:bg-emerald-900/50 transition-all active:scale-95 flex flex-col items-center justify-center gap-1.5 border border-emerald-200/70 dark:border-emerald-800/50 shadow-sm min-h-[58px]">
+                    <i class="fa-solid fa-cloud-arrow-up text-lg text-emerald-600 dark:text-emerald-400"></i>
                     <span>Lưu Cloud</span>
                   </button>
-                  <button @click="doSave('print')" class="bg-slate-800 dark:bg-slate-700 text-white p-2.5 rounded-xl font-bold text-[10px] hover:bg-slate-900 dark:hover:bg-slate-600 transition-all active:scale-95 flex flex-col items-center justify-center gap-1.5 shadow-sm border border-slate-700 dark:border-slate-600">
-                    <i class="fa-solid fa-print text-lg"></i>
+                  <button @click="doSave('print'); showActionSheet = false" class="bg-slate-900 dark:bg-slate-800 text-white p-3 rounded-xl font-bold text-xs hover:bg-slate-800 dark:hover:bg-slate-700 transition-all active:scale-95 flex flex-col items-center justify-center gap-1.5 shadow-sm border border-slate-700 dark:border-slate-600 min-h-[58px]">
+                    <i class="fa-solid fa-print text-lg text-slate-200"></i>
                     <span>In Phiếu</span>
                   </button>
-                  <button @click="doSave('image')" class="bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-400 p-2.5 rounded-xl font-bold text-[10px] hover:bg-indigo-100 dark:hover:bg-indigo-900/50 transition-all active:scale-95 flex flex-col items-center justify-center gap-1.5 border border-indigo-200/60 dark:border-indigo-800/40">
-                    <i class="fa-solid fa-file-image text-lg"></i>
+                  <button @click="doSave('image'); showActionSheet = false" class="bg-purple-50/70 dark:bg-purple-950/40 text-purple-700 dark:text-purple-300 p-3 rounded-xl font-bold text-xs hover:bg-purple-100 dark:hover:bg-purple-900/50 transition-all active:scale-95 flex flex-col items-center justify-center gap-1.5 border border-purple-200/70 dark:border-purple-800/50 shadow-sm min-h-[58px]">
+                    <i class="fa-solid fa-file-image text-lg text-purple-600 dark:text-purple-400"></i>
                     <span>Tải ảnh (PNG)</span>
                   </button>
-                  <button @click="doSave('pdf')" class="bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-400 p-2.5 rounded-xl font-bold text-[10px] hover:bg-rose-100 dark:hover:bg-rose-900/50 transition-all active:scale-95 flex flex-col items-center justify-center gap-1.5 border border-rose-200/60 dark:border-rose-800/40">
-                    <i class="fa-solid fa-file-pdf text-lg"></i>
+                  <button @click="doSave('pdf'); showActionSheet = false" class="bg-rose-50/70 dark:bg-rose-950/40 text-rose-700 dark:text-rose-300 p-3 rounded-xl font-bold text-xs hover:bg-rose-100 dark:hover:bg-rose-900/50 transition-all active:scale-95 flex flex-col items-center justify-center gap-1.5 border border-rose-200/70 dark:border-rose-800/50 shadow-sm min-h-[58px]">
+                    <i class="fa-solid fa-file-pdf text-lg text-rose-600 dark:text-rose-400"></i>
                     <span>Tải PDF</span>
                   </button>
                 </div>
               </div>
 
-              <!-- Nhóm 3: Xem & Điều hướng -->
+              <!-- Nhóm 3: Lịch đặt bàn & Điều hướng -->
               <div class="space-y-2">
-                <div class="text-[10px] font-black uppercase text-slate-400 dark:text-slate-400 tracking-wider">Lịch đặt bàn & Điều hướng</div>
+                <div class="text-[10px] font-black uppercase text-slate-400 dark:text-slate-400 tracking-wider flex items-center gap-1.5">
+                  <i class="fa-solid fa-calendar-days text-[9px] text-blue-500"></i>
+                  <span>Lịch đặt bàn & Điều hướng</span>
+                </div>
                 <div class="grid grid-cols-3 gap-2">
-                  <button @click="goToTodayTimeline" class="bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-400 p-2.5 rounded-xl font-bold text-[10px] hover:bg-blue-100 dark:hover:bg-blue-900/50 transition-all active:scale-95 flex flex-col items-center justify-center gap-1.5 border border-blue-200/60 dark:border-blue-800/40">
-                    <i class="fa-solid fa-calendar-day text-lg"></i>
+                  <button @click="goToTodayTimeline(); showActionSheet = false" class="bg-blue-50/70 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 p-3 rounded-xl font-bold text-xs hover:bg-blue-100 dark:hover:bg-blue-900/50 transition-all active:scale-95 flex flex-col items-center justify-center gap-1.5 border border-blue-200/70 dark:border-blue-800/50 shadow-sm min-h-[58px]">
+                    <i class="fa-solid fa-calendar-day text-lg text-blue-600 dark:text-blue-400"></i>
                     <span>Lịch hôm nay</span>
                   </button>
-                  <button @click="goToTomorrowTimeline" class="bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-400 p-2.5 rounded-xl font-bold text-[10px] hover:bg-blue-100 dark:hover:bg-blue-900/50 transition-all active:scale-95 flex flex-col items-center justify-center gap-1.5 border border-blue-200/60 dark:border-blue-800/40">
-                    <i class="fa-solid fa-calendar-plus text-lg"></i>
+                  <button @click="goToTomorrowTimeline(); showActionSheet = false" class="bg-blue-50/70 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 p-3 rounded-xl font-bold text-xs hover:bg-blue-100 dark:hover:bg-blue-900/50 transition-all active:scale-95 flex flex-col items-center justify-center gap-1.5 border border-blue-200/70 dark:border-blue-800/50 shadow-sm min-h-[58px]">
+                    <i class="fa-solid fa-calendar-plus text-lg text-blue-600 dark:text-blue-400"></i>
                     <span>Lịch ngày mai</span>
                   </button>
-                  <button @click="shareCurrentBill(); showActionSheet = false" class="bg-cyan-50 dark:bg-cyan-950/40 text-cyan-700 dark:text-cyan-400 p-2.5 rounded-xl font-bold text-[10px] hover:bg-cyan-100 dark:hover:bg-cyan-900/50 transition-all active:scale-95 flex flex-col items-center justify-center gap-1.5 border border-cyan-200/60 dark:border-cyan-800/40">
-                    <i class="fa-solid fa-share-nodes text-lg"></i>
+                  <button @click="shareCurrentBill(); showActionSheet = false" class="bg-cyan-50/70 dark:bg-cyan-950/40 text-cyan-700 dark:text-cyan-300 p-3 rounded-xl font-bold text-xs hover:bg-cyan-100 dark:hover:bg-cyan-900/50 transition-all active:scale-95 flex flex-col items-center justify-center gap-1.5 border border-cyan-200/70 dark:border-cyan-800/50 shadow-sm min-h-[58px]">
+                    <i class="fa-solid fa-share-nodes text-lg text-cyan-600 dark:text-cyan-400"></i>
                     <span>Chia sẻ link</span>
                   </button>
                 </div>
@@ -776,18 +814,4 @@ function goToTomorrowTimeline() {
   opacity: 0;
 }
 
-.quick-action-fab {
-  animation: fab-pulse 2s infinite;
-}
-@keyframes fab-pulse {
-  0% {
-    box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.6);
-  }
-  70% {
-    box-shadow: 0 0 0 12px rgba(245, 158, 11, 0);
-  }
-  100% {
-    box-shadow: 0 0 0 0 rgba(245, 158, 11, 0);
-  }
-}
 </style>

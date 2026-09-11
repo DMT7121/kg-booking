@@ -16,14 +16,14 @@ Quy tắc làm sạch & Phân định thực thể:
    - Tên riêng thuần túy, TUYỆT ĐỐI KHÔNG bao gồm danh xưng tiền tố như "Chị", "C", "C.", "Anh", "A", "A.", "Cô", "Chú", "Bác", "Em" và TUYỆT ĐỐI KHÔNG nhầm từ khóa "hàng" trong "Khách hàng" làm tên.
    - TUYỆT ĐỐI KHÔNG lấy tên nhân vật chính của buổi tiệc làm customer.name nếu người đặt là người khác.
    - TUYỆT ĐỐI KHÔNG lấy số bàn, mã bàn/khu vực (như "Bàn 5", "Bàn C6", "A.01", "C5,6", "D1,4", "VIP2", "Khu A"), tên nhân viên nhận cọc/đơn, hoặc thông tin yêu cầu/món ăn làm customer.name. Nếu không có tên khách rõ ràng, để customer.name = "".
-3. party: Thông tin tiệc, trang trí, không gian & khẩu vị:
+3. party: Thông tin tiệc, trang trí, không gian & khẩu vị (BẮT BUỘC GHI NHẬN ĐẦY ĐỦ 100%):
     - owner_name: Chủ tiệc / nhân vật chính được tổ chức mừng (vd: "Bé Min", "Thiên Hào", "Chị Thảo").
     - display_board_text: Chữ viết trên bảng trang trí / bảng mừng (vd: "Happy 1st Birthday Bé Min", 'BẢNG "HPBD Lan Thương"').
     - mirror_board_text: Chữ viết trên gương / gương viết tên trang trí (vd: "Welcome to Min's Birthday", 'Gương "HPBD..."').
-    - decor_color: Tông màu trang trí yêu cầu (vd: "TONE TRẮNG", "tông hồng", "Trắng-Hồng-Xanh").
-    - special_request: Chi tiết dặn dò trang trí bổ sung: "TRANG TRÍ HOA TƯƠI", "ƯU TIÊN BACKGROUND", "CHỪA KHÔNG GIAN ĐỂ KHÁCH SETUP BACKGROUND", "hoa tươi trên bàn", v.v.
-    - seating_preference: Yêu cầu về không gian và chỗ ngồi (vd: "Phòng VIP", "View ban công", "Sân thượng/Rooftop", "Khu yên tĩnh", "Khu vực hút thuốc", "Không hút thuốc", "Cần 2 ghế trẻ em / baby chair", "Khách tự mang rượu vào").
-    - dietary_notes: Yêu cầu về khẩu vị, ăn kiêng và cảnh báo dị ứng gửi Bếp (vd: "Ăn chay", "DỊ ỨNG HẢI SẢN", "DỊ ỨNG ĐẬU PHỘNG/LẠC", "Không bột ngọt/mì chính", "Ít dầu mỡ / Eat clean", "Làm không cay", "Nước sốt để riêng").
+    - decor_color: Tông màu trang trí yêu cầu (vd: "tone đỏ", "tone trắng", "tông hồng", "Trắng-Hồng-Xanh", "màu đỏ đô", "pastel"). BẮT BUỘC trích xuất khi khách nhắc đến "tone ...", "tông màu ...", "màu chủ đạo ...".
+    - special_request: Chi tiết dặn dò trang trí bổ sung: "thêm bóng bay", "dựng background", "khung check-in", "TRANG TRÍ HOA TƯƠI", "ƯU TIÊN BACKGROUND", "CHỪA KHÔNG GIAN ĐỂ KHÁCH SETUP BACKGROUND", "hoa tươi trên bàn", v.v.
+    - seating_preference: Yêu cầu về không gian và chỗ ngồi (vd: "Phòng VIP", "View ban công", "Sân thượng/Rooftop", "Khu yên tĩnh", "Khu vực hút thuốc", "Không hút thuốc", "2 ghế em bé", "ghế baby", "ghế ăn dặm", "Khách tự mang rượu vào").
+    - dietary_notes: Yêu cầu về khẩu vị, ăn kiêng và cảnh báo dị ứng gửi Bếp (vd: "Ăn chay", "DỊ ỨNG HẢI SẢN", "DỊ ỨNG ĐẬU PHỘNG/LẠC", "Không bột ngọt/mì chính", "Ít dầu mỡ / Eat clean", "Làm không cay", "món không cay", "cho bé ăn không cay", "Nước sốt để riêng", "Không hành ngò").
  4. booking: 
     - Số khách: guest_count (số nguyên; hỗ trợ tính tổng "12 người lớn 3 trẻ em" -> 15; từ lóng "6 mống", "5 mạng", "8 mem" -> 6, 5, 8; ước lượng "tầm 8-10 người" -> lấy cận trên an toàn 10; nếu khách có câu đính chính như "à đổi sang 8 người" -> ưu tiên lấy 8).
     - Ngày: event_date (DD/MM/YYYY - tính toán ngày hiện tại nếu chưa tới giờ tiệc; nếu giờ tiệc nhỏ hơn giờ hiện tại thì ưu tiên ngày hôm sau; "chiều mai", "ngày mốt", "thứ 7 tuần sau").
@@ -37,7 +37,7 @@ Quy tắc làm sạch & Phân định thực thể:
     - TUYỆT ĐỐI KHÔNG trích xuất thông tin trang trí, không gian, màu sắc, phụ kiện (vd: "Tông trắng", "Tone trắng", "Hoa tươi", "Background trắng", "Bóng bay", "Set up", "Bàn ngoài trời", "Phòng lạnh") vào menu_items! Toàn bộ thông tin này BẮT BUỘC đưa vào party hoặc note!
     - Nhận diện số lượng đứng trước ("10 Coca", "2pepsi", "7 lon sting", "25 chai suối") hoặc đứng sau ("Khoai tây chiên 5", "Cánh gà chiên mắm tỏi -5", "Sụn gà chiên mắm - 10", "Cá diêu hồng (x3)", "Gà x5").
     - Bảo toàn nguyên văn tên món khi có ngoặc đơn thực đơn (như "Cơm chiên cá mặn chà bông ớt hiểm (cay)"), đồng thời tách đúng ghi chú biến tấu (như "(làm không cay)") vào trường note của món.
- 7. note: Tổng hợp ĐẦY ĐỦ VÀ CHÍNH XÁC mọi thông tin ghi chú liên quan đến trang trí (tông màu, hoa tươi, background, bóng bay...), không gian ([Không gian & Chỗ ngồi]: ...), khẩu vị ([Khẩu vị & Dị ứng]: ...), dặn dò phục vụ và bếp.
+ 7. note: Tổng hợp ĐẦY ĐỦ VÀ CHÍNH XÁC mọi thông tin ghi chú liên quan đến trang trí (tông màu, hoa tươi, background, bóng bay...), không gian ([Không gian & Chỗ ngồi]: ...), khẩu vị ([Khẩu vị & Dị ứng]: ...), dặn dò phục vụ và bếp. Tuyệt đối không làm rơi rớt bất kỳ dặn dò nào của khách.
 
  Chỉ trích xuất thông tin có thực trong nội dung. Không tự bịa. Trả về ĐÚNG chuẩn JSON Schema yêu cầu. BẮT BUỘC trả về định dạng JSON hợp lệ, KHÔNG bao gồm markdown \`\`\`json hay bất kỳ văn bản giải thích nào khác.`
 
@@ -74,8 +74,15 @@ Quy tắc:
 
   COMPLEX_CONVERSATION: `${BASE_SYSTEM_INSTRUCTIONS}
 
-Hồ sơ: COMPLEX_CONVERSATION (Hội thoại đa tuyến phức tạp)
-Quy tắc:
-- Phân tích ngữ cảnh lịch sử chat giữa khách và nhà hàng.
-- Xử lý các tham chiếu mơ hồ ("bàn cũ", "suất như hôm trước") để cho ra kết quả đặt bàn thống nhất cuối cùng.`
+Hồ sơ: COMPLEX_CONVERSATION (Hội thoại đối đáp, tin nhắn phản hồi nhiều lượt, hoặc có sửa đổi quyết định)
+Quy tắc đặc biệt cho Hội thoại:
+1. Phân biệt người nói:
+   - "Khách:", "Khách hàng:", "KH:", "Bạn:", người hỏi đặt bàn -> Là nguồn cung cấp quyết định và thông tin cá nhân.
+   - "Nhân viên:", "NV:", "Page:", "Bot:", "Admin:", "Quán:", người tư vấn -> Chỉ tham khảo thông tin xác nhận lại, TUYỆT ĐỐI KHÔNG lấy tên nhân viên làm tên khách đặt bàn.
+2. Giải quyết mâu thuẫn thời gian & đính chính:
+   - Luôn đọc từ trên xuống dưới theo thứ tự thời gian.
+   - Khi có câu đính chính hoặc thay đổi ý định của khách (vd: "chị đi 4 người... à cho đổi sang 7 người nhé", "18h... thôi dời sang 19h nha em", "chuyển sang ngày mốt", "chốt lại 10 người"): BẮT BUỘC LẤY QUYẾT ĐỊNH SAU CÙNG CỦA KHÁCH.
+   - Khách hủy/bớt món nào hoặc đổi món nào, phải cập nhật theo quyết định cuối cùng.
+3. Thu hoạch trọn vẹn yêu cầu dặn dò vào Party & Note:
+   - Gom toàn bộ tông màu ("tone đỏ", "tone trắng"...), trang trí ("thêm bóng bay", "dựng background", "hoa tươi"...), ghế trẻ em ("ghế em bé", "baby chair"...), khẩu vị ("làm không cay", "sốt để riêng", "không hành ngò"...) vào party và note.`
 }

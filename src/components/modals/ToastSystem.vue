@@ -81,33 +81,50 @@ function onTouchEnd(id: number) {
         @touchstart="onTouchStart($event, t.id)"
         @touchmove="onTouchMove"
         @touchend="onTouchEnd(t.id)"
-        :class="[
-          'pointer-events-auto rounded-[20px] shadow-2xl p-4 border-l-[6px] relative overflow-hidden backdrop-blur-2xl transition-all', 
-          { 
-            'border-emerald-500 bg-white/95 text-slate-800': t.type === 'success', 
-            'border-rose-500 bg-white/95 text-slate-800': t.type === 'error', 
-            'border-amber-400 bg-white/95 text-slate-800': t.type === 'warning', 
-            'border-blue-500 bg-white/95 text-slate-800': t.type === 'info' 
-          }
-        ]"
+        class="pointer-events-auto rounded-2xl shadow-xl p-3.5 border border-slate-200/90 dark:border-slate-800/90 bg-white/95 dark:bg-slate-900/95 text-slate-800 dark:text-slate-100 relative overflow-hidden backdrop-blur-2xl transition-all"
+        :class="{
+          'border-l-4 border-l-emerald-500': t.type === 'success',
+          'border-l-4 border-l-rose-500': t.type === 'error',
+          'border-l-4 border-l-amber-500': t.type === 'warning',
+          'border-l-4 border-l-blue-500': t.type === 'info'
+        }"
       >
         <button 
           @click="ui.removeToast(t.id)" 
           aria-label="Đóng thông báo"
-          class="absolute top-2 right-2 text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-all rounded-full text-xs w-9 h-9 min-h-[36px] min-w-[36px] flex items-center justify-center active:scale-90 cursor-pointer"
+          class="absolute top-2 right-2 text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-600 dark:hover:text-slate-200 transition-all rounded-full text-xs w-7 h-7 flex items-center justify-center active:scale-90 cursor-pointer"
         >
-          <i class="fa-solid fa-xmark text-sm"></i>
+          <i class="fa-solid fa-xmark text-xs"></i>
         </button>
         <div class="flex items-start gap-3">
-          <div class="text-xl flex-shrink-0 mt-0.5" :class="{ 'text-emerald-500': t.type === 'success', 'text-rose-500': t.type === 'error', 'text-amber-500': t.type === 'warning', 'text-blue-500': t.type === 'info' }">
-            <i :class="{ 'fa-solid fa-circle-check': t.type === 'success', 'fa-solid fa-circle-exclamation': t.type === 'error', 'fa-solid fa-triangle-exclamation': t.type === 'warning', 'fa-solid fa-circle-info': t.type === 'info' }"></i>
+          <div class="w-8 h-8 rounded-lg flex items-center justify-center text-sm shrink-0 mt-0.5 shadow-xs"
+               :class="{
+                 'bg-emerald-50 text-emerald-600 dark:bg-emerald-950/50 dark:text-emerald-400 border border-emerald-100 dark:border-emerald-900/40': t.type === 'success',
+                 'bg-rose-50 text-rose-600 dark:bg-rose-950/50 dark:text-rose-400 border border-rose-100 dark:border-rose-900/40': t.type === 'error',
+                 'bg-amber-50 text-amber-600 dark:bg-amber-950/50 dark:text-amber-400 border border-amber-100 dark:border-amber-900/40': t.type === 'warning',
+                 'bg-blue-50 text-blue-600 dark:bg-blue-950/50 dark:text-blue-400 border border-blue-100 dark:border-blue-900/40': t.type === 'info'
+               }">
+            <i :class="{
+              'fa-solid fa-circle-check': t.type === 'success',
+              'fa-solid fa-circle-exclamation': t.type === 'error',
+              'fa-solid fa-triangle-exclamation': t.type === 'warning',
+              'fa-solid fa-circle-info': t.type === 'info'
+            }"></i>
           </div>
-          <div class="pr-6">
-            <div class="font-black text-xs uppercase tracking-widest text-blue-900 mb-0.5 leading-none mt-1">{{ t.title }}</div>
-            <div class="text-[11px] text-slate-600 font-bold leading-snug">{{ t.msg }}</div>
+          <div class="pr-5 min-w-0 flex-1">
+            <div class="font-black text-xs uppercase tracking-wider text-slate-900 dark:text-slate-100 leading-tight">{{ t.title }}</div>
+            <div class="text-[11px] text-slate-600 dark:text-slate-300 font-medium leading-snug mt-0.5 break-words">{{ t.msg }}</div>
           </div>
         </div>
-        <div class="absolute bottom-0 left-0 h-1 transition-all" :class="{ 'bg-emerald-400': t.type === 'success', 'bg-rose-400': t.type === 'error', 'bg-amber-400': t.type === 'warning', 'bg-blue-400': t.type === 'info' }" :style="{ width: t.progress + '%' }"></div>
+        <div class="absolute bottom-0 left-0 h-0.5 transition-all rounded-full" 
+             :class="{
+               'bg-emerald-500': t.type === 'success',
+               'bg-rose-500': t.type === 'error',
+               'bg-amber-500': t.type === 'warning',
+               'bg-blue-500': t.type === 'info'
+             }" 
+             :style="{ width: t.progress + '%' }">
+        </div>
       </div>
     </transition-group>
   </div>

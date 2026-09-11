@@ -1,0 +1,16 @@
+# GAP ANALYSIS — KING'S GRILL BOOKING ENGINE V1 vs V2
+
+| Tiêu chí / Khả năng | Hiện trạng V1 | Yêu cầu V2 | Khoảng cách kỹ thuật (Gap) |
+| :--- | :--- | :--- | :--- |
+| **Bảo tồn văn bản gốc (Raw Input)** | Lưu chuỗi thô ở store, nhưng bị overwrite/làm sạch nhiều lần | Bất biến 100% trong `BookingInputEnvelope` | Cần tạo Envelope object bất biến bao bọc `rawText`, `source`, `receivedAt`, `turns`. |
+| **Bảo tồn tính bất định (Uncertainty)** | Ép khoảng ước lượng thành số cụ thể (`8-10` -> `10`, `19h hơn` -> `19:15`) | `NumericRangeValue` & `BookingTimeValue` bảo toàn `exact`, `min`, `max`, `precision` | Cần cấu trúc dữ liệu `NumericRangeValue`, `BookingTimeValue` và parser không phá hủy. |
+| **Phân đoạn lượt thoại (Turns & Speakers)** | Regex xóa sạch dòng thoại của nhân viên (`NV:`, `Page:`) | Phân tách `ConversationTurn` (Customer, Staff, System), giữ 100% lời nhân viên | Cần `TurnSegmenter` phân tích đa lượt, phát hiện vai trò người nói dựa trên nhãn và đại từ xưng hô. |
+| **Mô hình trạng thái hội thoại (Dialogue State)** | One-shot parsing: Cố gắng đoán ngay toàn bộ booking | Event Sourcing: Mỗi turn sinh ra các `BookingFactEvent` (SET, REPLACE, APPEND...) | Cần `Dialogue State Delta Engine` và `BookingStateReducer` biến đổi event stream thành state. |
+| **Xử lý đính chính (Amendment Resolution)** | Regex bắt từ khóa đổi giờ/khách ở cuối câu | Phân tích marker đính chính tiếng Việt, hỗ trợ chuỗi đổi ý lặp lại và negation | Cần từ điển marker đính chính, quy tắc Precedence theo từng slot, và bộ giải quyết phủ định. |
+| **Phân giải đồng tham chiếu (Coreference)** | Chưa hỗ trợ ("2 cái đó bỏ cay", "bàn kia không lấy") | Local Coreference Resolver liên kết đại từ chỉ định với thực thể gần nhất | Cần thuật toán trích xuất slot active và thực thể gần nhất trong conversation turns. |
+| **Nhận diện thực đơn (Menu Matching)** | Jaro-Winkler + danh sách từ đồng nghĩa | Cascade 10 tầng (SKU -> Canonical -> Fuzzy -> Semantic -> Margin Gate) | Cần Knowledge Item Schema, Margin Threshold (`top1 - top2 >= minMargin`), Ambiguity Gate. |
+| **Yêu cầu món có điều kiện & Tư vấn** | Tự đoán 1 món hoặc bỏ qua | Biểu diễn `CONDITIONAL_MENU_SELECTION` và phân biệt `MENU_RECOMMENDATION` intent | Cần phân loại intent gợi ý món và cấu trúc `condition: { ifTrue, ifFalse }`. |
+| **Ràng buộc vận hành (Constraints)** | Kiểm tra rời rạc ở `conflictEngine` sau khi lưu | Module độc lập `bookingConstraintEngine` chạy đồng bộ với NLU, phân cấp 5 mức độ | Cần 14 danh mục constraint, severity `INFO` -> `BLOCK`, đặc biệt là Allergy Safety. |
+| **An toàn Form mẫu (Safety Gate)** | Bypass AI ngay khi có $\ge 3$ key-value | Chặn bypass nếu có amendment marker, duplicate key conflict, hoặc ambiguity | Cần `StructuredFormSafetyGate` kiểm tra tính toàn vẹn ngữ cảnh trước khi cho phép bypass. |
+| **Khả năng giải thích & Truy vết (Provenance)** | Hoàn toàn không có | Mỗi giá trị quan trọng kèm `sourceTurn`, `evidence`, `operation`, `confidence` | Cần `ProvenanceEngine` gắn metadata nguồn cho từng trường trong state booking. |
+| **Định tuyến AI thích ứng (Adaptive AI Router)** | Đua song song Fast Model vs Quality Model ở mọi trường hợp phức tạp | Cascade thích ứng: Local Parser -> Lightweight Resolver -> Fast Model -> Quality Model | Cần refactor router để ưu tiên local solver trước khi kích hoạt API remote. |

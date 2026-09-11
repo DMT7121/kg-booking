@@ -1,5 +1,6 @@
 import { stripAccents } from '@/utils'
 import { classifyPeopleNames } from './ruleEngine'
+import { isStructuredFormText } from './structuredFormParser'
 
 export interface AIInputClassificationInput {
   text: string
@@ -36,6 +37,8 @@ export interface AIInputClassificationResult {
     hasPartyKeyword: boolean
     hasImage: boolean
     hasAmbiguousPhrase: boolean
+    hasChatConversation?: boolean
+    hasStructuredForm?: boolean
   }
 }
 
@@ -92,6 +95,14 @@ export function classifyAIInput(input: AIInputClassificationInput): AIInputClass
   const ambiguousKeywords = /\b(?:nhu hom truoc|ban cu|set do|menu cu|lan truoc|nhu cu|nhu lan truoc|giong hom truoc|nhu cuoi tuan truoc)\b/i
   const hasAmbiguousPhrase = ambiguousKeywords.test(cleanTextLower)
 
+  // 9. Detect Chat Conversation / Dialogue & Correction Signals
+  const chatSpeakerRegex = /(?:^|\n)\s*(?:kh[aá]ch(?:\s*h[aà]ng)?|kh|nh[aâ]n\s*vi[eê]n|nv|page|bot|ad|admin|qu[aá]n|b[aạ]n|t[uư]\s*v[aấ]n|king'?s\s*grill)\s*[:\-–—]/i
+  const chatCorrectionRegex = /\b(?:[đd][oổ]i\s*sang|[đd][oổ]i\s*th[aà]nh|chuy[eể]n\s*sang|chuy[eể]n\s*qua|d[oờ]i\s*sang|d[oờ]i\s*l[aạ]i|ch[oố]t\s*l[aạ]i|thay\s*v[iì]|b[oớ]t\s*[đd]i|t[aă]ng\s*l[eê]n|s[uử]a\s*l[aạ]i|kh[oô]ng\s*ph[aả]i.*m[aà]\s*l[aà]|nh[aầ]m\s*nh[eé]|nh[aầ]m\s*nha)\b/i
+  const hasChatConversation = chatSpeakerRegex.test(cleanText) || (cleanText.includes('\n') && chatCorrectionRegex.test(cleanTextLower))
+
+  // 10. Detect Structured Form (Key-Value)
+  const hasStructuredForm = isStructuredFormText(cleanText)
+
   const detectedSignals = {
     hasPhone,
     hasGuestCount,
@@ -101,7 +112,9 @@ export function classifyAIInput(input: AIInputClassificationInput): AIInputClass
     hasMenuKeyword,
     hasPartyKeyword,
     hasImage,
-    hasAmbiguousPhrase
+    hasAmbiguousPhrase,
+    hasChatConversation,
+    hasStructuredForm
   }
 
   const reasons: string[] = []
@@ -118,12 +131,30 @@ export function classifyAIInput(input: AIInputClassificationInput): AIInputClass
     requiresLLM = true
     shouldTryLocalFirst = false
     reasons.push('Input chứa hình ảnh, yêu cầu chạy OCR bằng Vision Model.')
+  } else if (hasChatConversation) {
+    complexity = 'complex_conversation'
+    requiresConversationContext = true
+    requiresLLM = true
+    shouldTryLocalFirst = true // Rule engine vẫn chạy để trích xuất tín hiệu sơ bộ
+    reasons.push('Input là đoạn hội thoại chat nhiều lượt hoặc có đính chính/thay đổi quyết định của khách.')
   } else if (hasAmbiguousPhrase) {
     complexity = 'complex_conversation'
     requiresConversationContext = true
     requiresLLM = true
     shouldTryLocalFirst = false
     reasons.push('Input chứa các cụm từ tham chiếu mơ hồ ("như lần trước", "bàn cũ"), cần suy luận ngữ cảnh.')
+  } else if (hasStructuredForm) {
+    shouldTryLocalFirst = true
+    if (hasMenuKeyword) {
+      complexity = 'booking_with_menu'
+      requiresMenuContext = true
+      requiresLLM = false // Structured form parser tự bóc tách món ăn trực tiếp
+      reasons.push('Input dạng biểu mẫu có cấu trúc chứa thông tin món ăn, xử lý siêu tốc qua Rule Engine.')
+    } else {
+      complexity = 'simple_booking'
+      requiresLLM = false
+      reasons.push('Input dạng biểu mẫu có cấu trúc chuẩn Key-Value, xử lý siêu tốc qua Rule Engine.')
+    }
   } else if (hasMenuKeyword) {
     complexity = 'booking_with_menu'
     requiresMenuContext = true

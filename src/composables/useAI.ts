@@ -47,6 +47,7 @@ import { buildDynamicPrompt } from '@/domain/ai/promptBuilder'
 import type { PromptProfile } from '@/domain/ai/promptBuilder'
 import { retrieveMenuCandidates } from '@/domain/menu/menuCandidateRetriever'
 import { validateAIResult } from '@/domain/ai/aiResultValidator'
+import { analyzeBookingIntelligenceV2 } from '@/domain/ai/v2/bookingIntelligenceV2'
 
 export function useAI() {
   const uiStore = useUIStore()
@@ -232,8 +233,24 @@ export function useAI() {
       const notesInfo = parsedResult.notes || parsedResult
       const customerNoteVal = notesInfo?.customer_note || parsedResult.booking?.notes || parsedResult.reservation?.notes || parsedResult.note || ''
       
+      const rawText = formStore.rawInput || ''
+      const localRules = rawText ? extractByRules(rawText) : null
+      const mergedParty = {
+        owner_name: partyInfo?.owner_name || localRules?.party?.owner_name || '',
+        decor_color: partyInfo?.decor_color || parsedResult.decoration?.decor_color || localRules?.party?.decor_color || localRules?.decoration_details?.decor_color || '',
+        display_board_text: partyInfo?.display_board_text || parsedResult.decoration?.text_on_board || localRules?.party?.display_board_text || localRules?.decoration_details?.board_text || '',
+        mirror_board_text: partyInfo?.mirror_board_text || parsedResult.decoration?.mirror_board_text || localRules?.party?.mirror_board_text || localRules?.decoration_details?.mirror_text || '',
+        special_request: partyInfo?.special_request || parsedResult.decoration?.note || localRules?.party?.special_request || (localRules?.decoration_details?.special_requests?.join('; ')) || '',
+        seating_preference: partyInfo?.seating_preference || parsedResult.seating_preference || localRules?.party?.seating_preference || '',
+        dietary_notes: partyInfo?.dietary_notes || parsedResult.dietary_notes || localRules?.party?.dietary_notes || ''
+      }
+      
       const currentItems = parsedResult.menu_items || parsedResult.items || []
-      let updatedNote = buildPartyNote(partyInfo, formStore.customer.note || customerNoteVal)
+      let baseNote = customerNoteVal || ''
+      if (formStore.customer.note && formStore.customer.note !== baseNote && !baseNote.includes(formStore.customer.note)) {
+        baseNote = baseNote ? `${baseNote}\n${formStore.customer.note}` : formStore.customer.note
+      }
+      let updatedNote = buildPartyNote(mergedParty, baseNote)
       updatedNote = cleanBookingNotes(
         updatedNote,
         { name: formStore.customer.name, phone: formStore.customer.phone },
@@ -490,6 +507,7 @@ export function useAI() {
           table_number: ruleBasedResult.table_code,
           need: ruleBasedResult.booking_need
         },
+        party: ruleBasedResult.party,
         menu_items: resolveMenuItemsLocally(
           ruleBasedResult.menu_items || [], 
           ruleBasedResult.guest_count,
@@ -913,6 +931,7 @@ export function useAI() {
               table_number: ruleBasedResult.table_code,
               need: ruleBasedResult.booking_need
             },
+            party: ruleBasedResult.party,
             deposit: ruleBasedResult.deposit_amount ? {
               amount: ruleBasedResult.deposit_amount,
               status: ruleBasedResult.deposit_status || 'chờ cọc'
@@ -1241,6 +1260,7 @@ Salad bò - 120000
     preNormalizeInput,
     classifyInputType,
     validateParsedFields,
-    repairAndNormalizeJSON
+    repairAndNormalizeJSON,
+    analyzeBookingIntelligenceV2
   }
 }
