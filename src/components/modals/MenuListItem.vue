@@ -1,14 +1,15 @@
 <script setup lang="ts">
-import { defineProps, defineEmits } from 'vue'
 import { formatVND } from '@/utils'
 
-const props = defineProps<{
+defineProps<{
   dish: any
   getCategoryColor: (cat: string) => string
   isSelected?: boolean
 }>()
 
-const emit = defineEmits(['select'])
+const emit = defineEmits<{
+  (e: 'select', dish: any): void
+}>()
 </script>
 
 <template>
