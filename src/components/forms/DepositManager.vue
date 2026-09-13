@@ -4,7 +4,7 @@ import { useUIStore } from '@/stores/useUIStore'
 import { useFormStore } from '@/stores/useFormStore'
 import { useForm } from '@/composables/useForm'
 import { useAI } from '@/composables/useAI'
-import { formatVND } from '@/utils'
+import { formatVND, formatShortVND, formatCurrentDepositTime } from '@/utils'
 
 const ui = useUIStore()
 const formStore = useFormStore()
@@ -36,10 +36,78 @@ function onFocus() {
 function onBlur() {
   isFocused.value = false
   const cleanNum = parseInt(displayAmount.value.replace(/\D/g, '')) || 0
+  const oldNum = formStore.deposit.amount
   formStore.deposit.amount = cleanNum
   formStore.deposit.isManualAmount = true
   displayAmount.value = formatDeposit(cleanNum)
   handleInputBlur()
+
+  // If already paid and amount changed, record change
+  if (formStore.deposit.isPaid && cleanNum !== oldNum) {
+    const delta = cleanNum - oldNum
+    const nowTime = formatCurrentDepositTime()
+    formStore.deposit.time = nowTime
+    if (!Array.isArray(formStore.deposit.history)) {
+      formStore.deposit.history = []
+    }
+    // If history was empty, ensure first round exists
+    if (formStore.deposit.history.length === 0 && oldNum > 0) {
+      formStore.deposit.history.push({
+        time: formStore.deposit.time || nowTime,
+        amount: oldNum,
+        delta: oldNum,
+        note: 'Cọc ban đầu',
+        type: 'initial'
+      })
+    }
+    formStore.deposit.history.push({
+      time: nowTime,
+      amount: cleanNum,
+      delta: delta,
+      note: delta > 0 ? `Bổ sung cọc (Lần ${formStore.deposit.history.length + 1})` : `Giảm cọc (Lần ${formStore.deposit.history.length + 1})`,
+      type: delta > 0 ? 'increase' : 'decrease'
+    })
+    ui.showToast(`Đã ghi nhận thay đổi cọc: [${formatShortVND(delta)}]`, 'success')
+  }
+}
+
+async function addDepositInstallment(delta?: number) {
+  let addVal = delta
+  if (!addVal) {
+    const input = await ui.showPrompt('Bổ Sung Tiền Cọc', 'Nhập số tiền cọc bổ sung (VD: 500000 hoặc 1000000):', '500000')
+    if (!input) return
+    addVal = parseInt(input.replace(/\D/g, '')) || 0
+  }
+  if (addVal <= 0) return
+
+  const oldAmount = formStore.deposit.amount
+  const newAmount = oldAmount + addVal
+  formStore.deposit.amount = newAmount
+  formStore.deposit.isManualAmount = true
+  formStore.deposit.isPaid = true
+  const nowTime = formatCurrentDepositTime()
+  formStore.deposit.time = nowTime
+
+  if (!Array.isArray(formStore.deposit.history)) {
+    formStore.deposit.history = []
+  }
+  if (formStore.deposit.history.length === 0 && oldAmount > 0) {
+    formStore.deposit.history.push({
+      time: formStore.deposit.time || nowTime,
+      amount: oldAmount,
+      delta: oldAmount,
+      note: 'Cọc ban đầu',
+      type: 'initial'
+    })
+  }
+  formStore.deposit.history.push({
+    time: nowTime,
+    amount: newAmount,
+    delta: addVal,
+    note: `Bổ sung cọc (Lần ${formStore.deposit.history.length + 1})`,
+    type: 'increase'
+  })
+  ui.showToast(`Đã bổ sung cọc [${formatShortVND(addVal)}]! Tổng cọc: ${formatVND(newAmount)}`, 'success')
 }
 
 async function handleTogglePaid(targetPaid: boolean) {
@@ -54,8 +122,25 @@ async function handleTogglePaid(targetPaid: boolean) {
     if (note !== null) {
       formStore.deposit.isPaid = true
       formStore.deposit.note = note || 'Confirmed'
-      // Always update the time to the actual action time
-      formStore.deposit.time = new Date().toLocaleString('vi-VN')
+      const actionTime = formatCurrentDepositTime()
+      formStore.deposit.time = actionTime
+      if (!Array.isArray(formStore.deposit.history) || formStore.deposit.history.length === 0) {
+        formStore.deposit.history = [{
+          time: actionTime,
+          amount: formStore.deposit.amount,
+          delta: formStore.deposit.amount,
+          note: note || 'Xác nhận cọc',
+          type: 'initial'
+        }]
+      } else {
+        formStore.deposit.history.push({
+          time: actionTime,
+          amount: formStore.deposit.amount,
+          delta: formStore.deposit.amount,
+          note: note || `Xác nhận cọc (Lần ${formStore.deposit.history.length + 1})`,
+          type: 'increase'
+        })
+      }
     }
   } else {
     const confirmed = await ui.showConfirm('Hủy trạng thái cọc?', 'Bạn có chắc chắn muốn hủy trạng thái đã cọc?')
@@ -64,6 +149,7 @@ async function handleTogglePaid(targetPaid: boolean) {
       formStore.deposit.image = null
       formStore.deposit.note = ''
       formStore.deposit.time = ''
+      formStore.deposit.history = []
     }
   }
 }
@@ -174,31 +260,82 @@ function onDrop(e: DragEvent) {
       </div>
 
       <!-- Paid Status Card (Clear Emerald State) -->
-      <div v-else class="bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800/60 rounded-2xl p-3 flex flex-col gap-2 transition-all">
-        <div class="flex items-center justify-between">
-          <div class="flex items-center gap-2">
+      <div v-else class="bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800/60 rounded-2xl p-3 sm:p-3.5 flex flex-col gap-2.5 transition-all">
+        <div class="flex items-center justify-between gap-2">
+          <div class="flex items-center gap-2 min-w-0">
             <div class="w-8 h-8 rounded-xl bg-emerald-100 dark:bg-emerald-900/50 text-emerald-700 dark:text-emerald-300 flex items-center justify-center text-sm shrink-0">
               <i class="fa-solid fa-check-double"></i>
             </div>
-            <div>
-              <div class="text-[11px] font-black uppercase text-emerald-800 dark:text-emerald-200 flex items-center gap-1.5">
-                ĐÃ ĐẶT CỌC THÀNH CÔNG
-                <span class="bg-emerald-200/80 dark:bg-emerald-900/60 text-emerald-800 dark:text-emerald-200 text-[9px] font-black px-1.5 py-0.5 rounded font-tabular">{{ formatVND(formStore.deposit.amount) }}</span>
+            <div class="min-w-0">
+              <div class="text-[11px] font-black uppercase text-emerald-800 dark:text-emerald-200 flex flex-wrap items-center gap-1.5">
+                <span>ĐÃ ĐẶT CỌC THÀNH CÔNG</span>
+                <span class="bg-emerald-200/80 dark:bg-emerald-900/60 text-emerald-800 dark:text-emerald-200 text-[10px] font-black px-1.5 py-0.5 rounded font-tabular">{{ formatVND(formStore.deposit.amount) }}</span>
               </div>
-              <div class="text-[10px] text-emerald-700 dark:text-emerald-400 font-medium">{{ formStore.deposit.note || 'Chuyển khoản thành công' }}</div>
+              <div class="text-[10px] text-emerald-700 dark:text-emerald-400 font-medium truncate">{{ formStore.deposit.note || 'Chuyển khoản thành công' }}</div>
             </div>
           </div>
-          <span class="text-[9px] font-mono text-emerald-600 dark:text-emerald-400 font-bold shrink-0 font-tabular">{{ formStore.deposit.time }}</span>
+          <span class="text-[10px] font-mono text-emerald-700 dark:text-emerald-300 font-bold shrink-0 font-tabular bg-emerald-100/70 dark:bg-emerald-900/40 px-2 py-0.5 rounded-md border border-emerald-200/50 dark:border-emerald-800/40">{{ formStore.deposit.time }}</span>
         </div>
 
-        <!-- Segregated Destructive Action (Canceling Deposit) -->
-        <div class="pt-2 border-t border-emerald-100 dark:border-emerald-800/50 flex justify-end">
+        <!-- Installment History Breakdown (Lần 1, Lần 2, ...) -->
+        <div v-if="formStore.deposit.history && formStore.deposit.history.length > 0" class="pt-2 border-t border-emerald-200/60 dark:border-emerald-800/40 space-y-1.5">
+          <div class="text-[9px] font-black uppercase text-emerald-800 dark:text-emerald-300 flex items-center justify-between">
+            <span class="flex items-center gap-1"><i class="fa-solid fa-clock-rotate-left text-[10px]"></i> Lịch sử các đợt cọc:</span>
+            <span class="text-[9px] font-bold text-slate-400">({{ formStore.deposit.history.length }} lần)</span>
+          </div>
+          <div class="space-y-1 max-h-40 overflow-y-auto custom-scrollbar">
+            <div 
+              v-for="(h, idx) in formStore.deposit.history" 
+              :key="idx" 
+              class="flex items-center justify-between text-[10px] font-tabular bg-white/70 dark:bg-emerald-950/60 px-2.5 py-1 rounded-lg border border-emerald-100 dark:border-emerald-800/40"
+            >
+              <div class="flex items-center gap-1.5 min-w-0">
+                <span class="text-[9px] font-black bg-emerald-100 dark:bg-emerald-900/60 text-emerald-800 dark:text-emerald-300 px-1 py-0.2 rounded shrink-0">Lần {{ idx + 1 }}</span>
+                <span class="text-slate-600 dark:text-slate-300 font-medium truncate">{{ h.time }}</span>
+                <span class="font-black" :class="h.delta >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-500 dark:text-rose-400'">
+                  [{{ formatShortVND(h.delta) }}]
+                </span>
+              </div>
+              <span class="font-bold text-slate-700 dark:text-slate-200 shrink-0 ml-2">{{ formatVND(h.amount) }}</span>
+            </div>
+          </div>
+          <div class="pt-1 flex items-center justify-between text-[11px] font-black text-emerald-900 dark:text-emerald-200 px-1">
+            <span>Tổng cọc: [{{ formatShortVND(formStore.deposit.amount) }}]</span>
+            <span class="font-tabular">{{ formatVND(formStore.deposit.amount) }}</span>
+          </div>
+        </div>
+
+        <!-- Action Row: Quick Add Installment & Cancel -->
+        <div class="pt-2 border-t border-emerald-200/60 dark:border-emerald-800/50 flex flex-wrap items-center justify-between gap-2">
+          <div class="flex items-center gap-1.5">
+            <button 
+              @click.prevent="addDepositInstallment()" 
+              class="min-h-[34px] px-2.5 py-1 text-[10px] font-black uppercase tracking-wider bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg transition-all active:scale-95 flex items-center gap-1 shadow-xs cursor-pointer"
+              title="Bổ sung thêm đợt cọc mới"
+            >
+              <i class="fa-solid fa-plus text-[9px]"></i> Bổ sung cọc
+            </button>
+            <button 
+              @click.prevent="addDepositInstallment(500000)" 
+              class="min-h-[34px] px-2 py-1 text-[9px] font-bold text-emerald-800 dark:text-emerald-200 bg-emerald-100/80 dark:bg-emerald-900/40 hover:bg-emerald-200/80 dark:hover:bg-emerald-800/50 rounded-lg transition-colors cursor-pointer"
+              title="Thêm nhanh 500k"
+            >
+              +500K
+            </button>
+            <button 
+              @click.prevent="addDepositInstallment(1000000)" 
+              class="min-h-[34px] px-2 py-1 text-[9px] font-bold text-emerald-800 dark:text-emerald-200 bg-emerald-100/80 dark:bg-emerald-900/40 hover:bg-emerald-200/80 dark:hover:bg-emerald-800/50 rounded-lg transition-colors cursor-pointer"
+              title="Thêm nhanh 1 triệu"
+            >
+              +1TR
+            </button>
+          </div>
           <button 
             @click.prevent="handleTogglePaid(false)" 
-            class="min-h-[38px] px-3 py-1.5 text-[10px] font-black uppercase tracking-wider text-rose-500 dark:text-rose-400 hover:text-rose-700 dark:hover:text-rose-300 hover:bg-rose-50 dark:hover:bg-rose-950/30 rounded-xl transition-colors flex items-center gap-1 cursor-pointer"
+            class="min-h-[34px] px-2.5 py-1 text-[10px] font-black uppercase tracking-wider text-rose-500 dark:text-rose-400 hover:text-rose-700 dark:hover:text-rose-300 hover:bg-rose-50 dark:hover:bg-rose-950/30 rounded-lg transition-colors flex items-center gap-1 cursor-pointer"
             title="Hủy xác nhận đặt cọc"
           >
-            <i class="fa-solid fa-arrow-rotate-left text-[10px]"></i> HỦY TRẠNG THÁI CỌC
+            <i class="fa-solid fa-arrow-rotate-left text-[9px]"></i> Hủy cọc
           </button>
         </div>
       </div>

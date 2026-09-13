@@ -2,7 +2,7 @@
 import { ref, onMounted, computed, onUnmounted, watch } from 'vue'
 import { getOrderById, getConfig } from '@/services/api'
 import LuckyWheel from './LuckyWheel.vue'
-import { stripAccents } from '@/utils'
+import { stripAccents, formatShortVND } from '@/utils'
 import { ALCOHOL_KEYS } from '@/utils/constants'
 import html2canvas from 'html2canvas'
 
@@ -99,7 +99,7 @@ const formatDepositTime = (timeStr?: string): string => {
     let timePart = parts.find(p => p.includes(':'))
     if (datePart && timePart) {
       timePart = timePart.split(':').slice(0, 2).join(':')
-      return `${datePart} ${timePart}`
+      return `${datePart} - ${timePart}`
     }
     return timeStr
   } catch (e) {
@@ -454,9 +454,9 @@ onUnmounted(() => { if (timer) clearInterval(timer) })
           <!-- RESERVED STAMP ZONE (P1-04: Never overlaps business data) -->
           <div id="bill-stamp-zone" class="my-4 py-3 border-y border-dashed border-slate-200/80 flex flex-col items-center justify-center pointer-events-none bg-slate-50/40 rounded-2xl">
             <div class="relative w-[170px] sm:w-[200px] flex flex-col items-center justify-center" style="transform: rotate(-3deg); opacity: 0.95;">
-              <img id="bill-stamp-img" :src="order.isDeposited ? '/images/stamps/paid.png' : '/images/stamps/pending.png'" class="w-full object-contain filter drop-shadow-sm" alt="Stamp" />
-              <div v-if="order.isDeposited" class="mt-1 w-full text-center text-[#d11124] font-black tracking-widest whitespace-nowrap font-tabular" style="font-family: 'Cal Sans', sans-serif; font-size: 13px;">
-                {{ formatDepositTime(order.deposit?.time) }}
+              <img id="bill-stamp-img" :src="order.isDeposited ? '/images/stamps/paid.png' : '/images/stamps/pending.png'" class="w-full object-contain filter drop-shadow-sm" style="image-rendering: -webkit-optimize-contrast; image-rendering: crisp-edges;" alt="Stamp" />
+              <div v-if="order.isDeposited" class="mt-2 px-3 py-1 bg-white/95 border border-red-200/90 rounded-full shadow-xs text-center text-[#961825] font-black tracking-widest whitespace-nowrap font-tabular" style="font-family: 'Cal Sans', sans-serif; font-size: 13px;">
+                {{ formatDepositTime(order.deposit?.time || order.depositTime) }}
               </div>
             </div>
           </div>
@@ -528,7 +528,24 @@ onUnmounted(() => { if (timer) clearInterval(timer) })
                 <i class="fa-solid mr-1" :class="order.isDeposited ? 'fa-circle-check' : 'fa-hourglass-half'"></i> 
                 {{ order.isDeposited ? 'TIỀN CỌC (ĐÃ NHẬN)' : 'YÊU CẦU ĐẶT CỌC' }}
               </span>
-              <span class="text-lg font-black" :class="order.isDeposited ? 'text-emerald-600' : 'text-rose-600'">{{ formatVND(order.depositAmount) }}</span>
+              <span class="text-lg font-black font-tabular" :class="order.isDeposited ? 'text-emerald-600' : 'text-rose-600'">{{ formatVND(order.depositAmount) }}</span>
+            </div>
+
+            <!-- DEPOSIT INSTALLMENT BREAKDOWN -->
+            <div v-if="order.isDeposited && (order.deposit?.history?.length > 1 || order.depositHistory?.length > 1)" class="bg-emerald-50/70 border border-emerald-200/80 rounded-2xl p-3 space-y-1.5 text-xs text-left shadow-xs mt-2">
+              <div class="font-black text-[10px] uppercase tracking-wider text-emerald-800 flex items-center gap-1.5 pb-1 border-b border-emerald-200/60">
+                <i class="fa-solid fa-clock-rotate-left text-[11px] text-emerald-600"></i> Chi tiết các đợt cọc:
+              </div>
+              <div v-for="(h, idx) in (order.deposit?.history || order.depositHistory)" :key="idx" class="flex justify-between items-center font-tabular text-[11px]">
+                <span class="text-slate-600">
+                  {{ h.time }} <span class="font-black text-emerald-700">[{{ formatShortVND(h.delta) }}]</span> <span class="font-bold text-slate-400">(Lần {{ idx + 1 }})</span>
+                </span>
+                <span class="font-bold text-slate-700">{{ formatVND(h.amount) }}</span>
+              </div>
+              <div class="pt-1.5 border-t border-emerald-200/60 flex justify-between items-center font-black text-[12px] text-emerald-800">
+                <span>Tổng cọc: [{{ formatShortVND(order.depositAmount) }}]</span>
+                <span class="font-tabular">{{ formatVND(order.depositAmount) }}</span>
+              </div>
             </div>
             
             <div v-if="calculatedTotals.final - order.depositAmount > 0" class="flex justify-between items-center pt-3 border-t border-slate-100 mt-3">

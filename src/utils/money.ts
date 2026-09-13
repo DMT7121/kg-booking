@@ -69,3 +69,32 @@ export function formatVNDCurrency(amount: number | null | undefined, suffix = '�
   const value = roundVND(amount)
   return `${value.toLocaleString('vi-VN')}${suffix ? ' ' + suffix : ''}`
 }
+
+/**
+ * Formats a VND number into a compact string representation.
+ * Examples:
+ *   1000000, true -> "+1TR"
+ *   500000, true -> "+500K"
+ *   1500000, true -> "+1,5TR"
+ *   -300000, true -> "-300K"
+ *   0, true -> "0đ"
+ */
+export function formatShortVND(val: number | null | undefined, withSign = true): string {
+  if (val === null || val === undefined || isNaN(val)) return '0đ'
+  const num = roundVND(val)
+  if (num === 0) return '0đ'
+  const abs = Math.abs(num)
+  const sign = withSign ? (num > 0 ? '+' : '-') : (num < 0 ? '-' : '')
+
+  if (abs >= 1000000) {
+    const tr = abs / 1000000
+    const str = tr % 1 === 0 ? tr.toString() : tr.toFixed(1).replace('.', ',')
+    return `${sign}${str}TR`
+  }
+  if (abs >= 1000) {
+    const k = abs / 1000
+    const str = k % 1 === 0 ? k.toString() : k.toFixed(1).replace('.', ',')
+    return `${sign}${str}K`
+  }
+  return `${sign}${abs.toLocaleString('vi-VN')}đ`
+}

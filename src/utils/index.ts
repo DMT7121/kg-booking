@@ -218,3 +218,29 @@ export const generateBookingId = (): string => {
   return `KG-${yyyymmdd}-${hhmmss}-${rand}`
 }
 
+export { formatShortVND } from './money'
+
+/** Format current local date time for deposit: DD/MM/YYYY - HH:mm */
+export const formatCurrentDepositTime = (d = new Date()): string => {
+  const day = String(d.getDate()).padStart(2, '0')
+  const month = String(d.getMonth() + 1).padStart(2, '0')
+  const year = d.getFullYear()
+  const hours = String(d.getHours()).padStart(2, '0')
+  const minutes = String(d.getMinutes()).padStart(2, '0')
+  return `${day}/${month}/${year} - ${hours}:${minutes}`
+}
+
+/** Convert any timestamp string to DD/MM/YYYY - HH:mm */
+export const formatTimestampToDepositTime = (ts?: string): string => {
+  if (!ts) return formatCurrentDepositTime()
+  try {
+    const d = new Date(ts)
+    if (!isNaN(d.getTime())) {
+      return formatCurrentDepositTime(d)
+    }
+    return ts
+  } catch {
+    return ts
+  }
+}
+

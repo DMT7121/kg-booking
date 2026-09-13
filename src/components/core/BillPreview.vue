@@ -6,7 +6,7 @@ import { useAppStore } from '@/stores/useAppStore'
 import { useConfigStore } from '@/stores/useConfigStore'
 import { useBillRender } from '@/composables/useBillRender'
 import { useForm } from '@/composables/useForm'
-import { formatVND, isIOS, isAndroid, isDesktop } from '@/utils'
+import { formatVND, formatShortVND, isIOS, isAndroid, isDesktop } from '@/utils'
 
 const ui = useUIStore()
 const formStore = useFormStore()
@@ -33,7 +33,7 @@ const formatDepositTime = (timeStr?: string): string => {
     let timePart = parts.find(p => p.includes(':'))
     if (datePart && timePart) {
       timePart = timePart.split(':').slice(0, 2).join(':')
-      return `${datePart} ${timePart}`
+      return `${datePart} - ${timePart}`
     }
     return timeStr
   } catch (e) {
@@ -449,8 +449,8 @@ function openZaloChat() {
               <!-- Stamp -->
               <div class="absolute -top-12 right-0 z-20 pointer-events-none" :style="{ transform: `rotate(-4deg) translate(${stampParallax.x}px, ${stampParallax.y}px)` }">
                 <div class="relative w-[220px] flex flex-col items-center justify-center">
-                  <img :src="formStore.deposit.isPaid ? '/images/stamps/paid.png' : '/images/stamps/pending.png'" class="w-full object-contain filter drop-shadow-lg" alt="Stamp" />
-                  <div v-if="formStore.deposit.isPaid" class="mt-2 w-full text-center text-[#d11124] font-black tracking-widest whitespace-nowrap" style="font-family: 'Cal Sans', sans-serif; font-size: 16px;">
+                  <img :src="formStore.deposit.isPaid ? '/images/stamps/paid.png' : '/images/stamps/pending.png'" class="w-full object-contain filter drop-shadow-sm" style="image-rendering: -webkit-optimize-contrast; image-rendering: crisp-edges;" alt="Stamp" />
+                  <div v-if="formStore.deposit.isPaid" class="mt-2 px-3 py-1 bg-white/95 border border-red-200/90 rounded-full shadow-xs text-center text-[#961825] font-black tracking-widest whitespace-nowrap font-tabular" style="font-family: 'Cal Sans', sans-serif; font-size: 13px;">
                     {{ formatDepositTime(formStore.deposit.time) }}
                   </div>
                 </div>
@@ -537,9 +537,26 @@ function openZaloChat() {
                   <i class="fa-solid" :class="formStore.deposit.isPaid ? 'fa-check' : 'fa-hourglass-half'"></i> 
                   {{ formStore.deposit.isPaid ? 'ĐÃ ĐẶT CỌC' : 'YÊU CẦU ĐẶT CỌC' }}
                 </span>
-                <span class="text-2xl font-black" :class="formStore.deposit.isPaid ? 'text-green-600' : 'text-red-500'">
+                <span class="text-2xl font-black font-tabular" :class="formStore.deposit.isPaid ? 'text-green-600' : 'text-red-500'">
                   {{ formatVND(formStore.deposit.amount) }}
                 </span>
+              </div>
+
+              <!-- DEPOSIT INSTALLMENT BREAKDOWN (Clean, compact, no clutter) -->
+              <div v-if="formStore.deposit.isPaid && formStore.deposit.history && formStore.deposit.history.length > 1" class="bg-emerald-50/70 border border-emerald-200/80 rounded-2xl p-3 space-y-1.5 text-xs text-left shadow-xs">
+                <div class="font-black text-[10px] uppercase tracking-wider text-emerald-800 flex items-center gap-1.5 pb-1 border-b border-emerald-200/60">
+                  <i class="fa-solid fa-clock-rotate-left text-[11px] text-emerald-600"></i> Chi tiết các đợt cọc:
+                </div>
+                <div v-for="(h, idx) in formStore.deposit.history" :key="idx" class="flex justify-between items-center font-tabular text-[11px]">
+                  <span class="text-slate-600">
+                    {{ h.time }} <span class="font-black text-emerald-700">[{{ formatShortVND(h.delta) }}]</span> <span class="font-bold text-slate-400">(Lần {{ idx + 1 }})</span>
+                  </span>
+                  <span class="font-bold text-slate-700">{{ formatVND(h.amount) }}</span>
+                </div>
+                <div class="pt-1.5 border-t border-emerald-200/60 flex justify-between items-center font-black text-[12px] text-emerald-800">
+                  <span>Tổng cọc: [{{ formatShortVND(formStore.deposit.amount) }}]</span>
+                  <span class="font-tabular">{{ formatVND(formStore.deposit.amount) }}</span>
+                </div>
               </div>
               <div v-if="formStore.calculatedTotals.final - formStore.deposit.amount > 0" class="flex justify-between items-center pt-4 border-t-2 border-slate-200">
                 <span class="text-xl font-black text-slate-800 uppercase">CÒN LẠI</span>

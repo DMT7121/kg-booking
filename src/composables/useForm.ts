@@ -2,7 +2,7 @@ import { ref, computed, watch } from 'vue'
 import { useFormStore } from '@/stores/useFormStore'
 import { useAppStore } from '@/stores/useAppStore'
 import { useUIStore } from '@/stores/useUIStore'
-import { stripAccents, formatVND, cleanPhoneNumber, formatDateStr, isIOS, formatSetNote, escapeHtml, generateBookingId } from '@/utils'
+import { stripAccents, formatVND, cleanPhoneNumber, formatDateStr, isIOS, formatSetNote, escapeHtml, generateBookingId, formatCurrentDepositTime, formatTimestampToDepositTime } from '@/utils'
 import { SETS, SAMPLE_MENU } from '@/utils/constants'
 import { saveFormDraft, getFormDraft, clearFormDraft } from '@/services/cache'
 import { useAI } from '@/composables/useAI'
@@ -128,8 +128,27 @@ function _createForm() {
       if (note !== null) {
         formStore.deposit.isPaid = true
         formStore.deposit.note = note || 'Confirmed'
-        // Always update the time to the actual action time
-        formStore.deposit.time = new Date().toLocaleString('vi-VN')
+        // Always update the time to the actual action time in clean DD/MM/YYYY - HH:mm format
+        const actionTime = formatCurrentDepositTime()
+        formStore.deposit.time = actionTime
+
+        if (!Array.isArray(formStore.deposit.history) || formStore.deposit.history.length === 0) {
+          formStore.deposit.history = [{
+            time: actionTime,
+            amount: formStore.deposit.amount,
+            delta: formStore.deposit.amount,
+            note: note || 'Xác nhận cọc',
+            type: 'initial'
+          }]
+        } else {
+          formStore.deposit.history.push({
+            time: actionTime,
+            amount: formStore.deposit.amount,
+            delta: formStore.deposit.amount,
+            note: note || `Xác nhận cọc (Lần ${formStore.deposit.history.length + 1})`,
+            type: 'increase'
+          })
+        }
       }
     } else {
       const reason = await uiStore.showPrompt('Hủy Trạng Thái Cọc', 'Nhập lý do hủy:', 'Khách hủy/Hoàn tiền')
@@ -138,6 +157,7 @@ function _createForm() {
         formStore.deposit.image = null
         formStore.deposit.note = ''
         formStore.deposit.time = ''
+        formStore.deposit.history = []
       }
     }
   }
@@ -146,6 +166,7 @@ function _createForm() {
     formStore.deposit.image = null
     formStore.deposit.isPaid = false
     formStore.deposit.time = ''
+    formStore.deposit.history = []
   }
 
   // --- CRM ---
@@ -202,11 +223,31 @@ function _createForm() {
   // --- Edit Historic Order ---
   function editHistoricOrder(o: any) {
     Object.assign(formStore.customer, o.parsedCustomer)
-    formStore.items = JSON.parse(JSON.stringify(o.menuItems))
-    formStore.deposit.amount = o.depositAmount
+    formStore.items = JSON.parse(JSON.stringify(o.menuItems || []))
+    formStore.deposit.amount = typeof o.depositAmount === 'number' ? o.depositAmount : (o.deposit && typeof o.deposit.amount === 'number' ? o.deposit.amount : 0)
     formStore.deposit.isManualAmount = true
-    formStore.deposit.isPaid = o.isDeposited
+    formStore.deposit.isPaid = typeof o.isDeposited === 'boolean' ? o.isDeposited : (o.deposit && typeof o.deposit.isPaid === 'boolean' ? o.deposit.isPaid : false)
     formStore.deposit.image = o.transferImage || (o.deposit && o.deposit.image) || null
+    formStore.deposit.note = (o.deposit && o.deposit.note) || ''
+
+    // Always preserve and restore deposit time
+    const depTime = o.depositTime || (o.deposit && o.deposit.time) || (formStore.deposit.isPaid && o.timestamp ? formatTimestampToDepositTime(o.timestamp) : '')
+    formStore.deposit.time = depTime
+
+    // Always preserve and restore deposit history
+    const depHistory = (o.deposit && Array.isArray(o.deposit.history)) ? o.deposit.history : (Array.isArray(o.depositHistory) ? o.depositHistory : [])
+    if (formStore.deposit.isPaid && formStore.deposit.amount > 0 && (!depHistory || depHistory.length === 0)) {
+      formStore.deposit.history = [{
+        time: depTime || formatCurrentDepositTime(),
+        amount: formStore.deposit.amount,
+        delta: formStore.deposit.amount,
+        note: formStore.deposit.note || 'Xác nhận cọc',
+        type: 'initial'
+      }]
+    } else {
+      formStore.deposit.history = JSON.parse(JSON.stringify(depHistory || []))
+    }
+
     formStore.oldBillFileId = o.billFileId || null
     formStore.billUrl = o.billUrl || o.billImage || ''
 

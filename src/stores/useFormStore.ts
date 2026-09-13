@@ -22,6 +22,14 @@ export interface CustomerInfo {
   note: string
 }
 
+export interface DepositHistoryEntry {
+  time: string
+  amount: number
+  delta: number
+  note?: string
+  type?: 'initial' | 'increase' | 'decrease' | 'cancel'
+}
+
 export interface DepositInfo {
   amount: number
   isPaid: boolean
@@ -29,6 +37,7 @@ export interface DepositInfo {
   image: string | null
   time: string
   isManualAmount?: boolean
+  history?: DepositHistoryEntry[]
 }
 
 export interface StaffInfo {
@@ -61,7 +70,7 @@ export const useFormStore = defineStore('form', () => {
   const items = ref<MenuItem[]>([])
 
   const deposit = reactive<DepositInfo>({
-    amount: 0, isPaid: false, note: '', image: null, time: '', isManualAmount: false
+    amount: 0, isPaid: false, note: '', image: null, time: '', isManualAmount: false, history: []
   })
 
   const staff = reactive<StaffInfo>({ name: 'Admin', phone: '0336667301' })
@@ -194,7 +203,7 @@ export const useFormStore = defineStore('form', () => {
     return JSON.stringify({
       customer,
       items: items.value,
-      deposit: { amount: deposit.amount, isPaid: deposit.isPaid, note: deposit.note },
+      deposit: { amount: deposit.amount, isPaid: deposit.isPaid, note: deposit.note, time: deposit.time, history: deposit.history },
       staff
     })
   }
@@ -205,7 +214,7 @@ export const useFormStore = defineStore('form', () => {
     originalState.value = null
     Object.assign(customer, { name: '', phone: '', date: '', time: '', pax: '', tables: '', type: '', note: '' })
     items.value = []
-    Object.assign(deposit, { amount: 0, isPaid: false, note: '', image: null, time: '', isManualAmount: false })
+    Object.assign(deposit, { amount: 0, isPaid: false, note: '', image: null, time: '', isManualAmount: false, history: [] })
     Object.assign(staff, { name: 'Admin', phone: '0336667301' })
     rawInput.value = ''
     aiImage.value = null

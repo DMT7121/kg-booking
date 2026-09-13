@@ -25,6 +25,7 @@ import { sha256 } from '@/utils/security'
 import { broadcastSyncEvent, onSyncEvent } from '@/services/crossTabSync'
 import { useBookingStore } from './useBookingStore'
 import { useMenuStore } from './useMenuStore'
+import type { DepositHistoryEntry } from './useFormStore'
 
 const orderRepo = new GasOrderRepository()
 const menuRepo = new GasMenuRepository()
@@ -50,7 +51,16 @@ export interface HistoryOrder {
   depositAmount: number
   isDeposited: boolean
   transferImage?: string
-  deposit?: { image?: string }
+  deposit?: {
+    image?: string
+    amount?: number
+    isPaid?: boolean
+    note?: string
+    time?: string
+    history?: DepositHistoryEntry[]
+  }
+  depositTime?: string
+  depositHistory?: DepositHistoryEntry[]
   staff?: { name: string; phone: string }
   billUrl?: string
   billFileId?: string
@@ -131,7 +141,17 @@ function rebuildBookingTimeIndex(history: HistoryOrder[]) {
 function normalizePayloadToHistoryOrder(id: string, payload: any): HistoryOrder {
   const customer = payload.customer || payload.parsedCustomer || {}
   const deposit = payload.deposit || {}
-  
+  const depTime = deposit.time || payload.depositTime || payload.deposit?.time || ''
+  const depHistory: DepositHistoryEntry[] = Array.isArray(deposit.history)
+    ? deposit.history
+    : (Array.isArray(payload.depositHistory)
+      ? payload.depositHistory
+      : (Array.isArray(payload.deposit?.history) ? payload.deposit?.history : []))
+  const depNote = deposit.note || payload.deposit?.note || ''
+  const isPaid = typeof deposit.isPaid === 'boolean' ? deposit.isPaid : (typeof payload.isDeposited === 'boolean' ? payload.isDeposited : false)
+  const depAmount = typeof deposit.amount === 'number' ? deposit.amount : (typeof payload.depositAmount === 'number' ? payload.depositAmount : 0)
+  const depImage = deposit.image || payload.transferImage || ''
+
   return {
     id: id,
     timestamp: payload.timestamp || new Date().toISOString(),
@@ -147,9 +167,19 @@ function normalizePayloadToHistoryOrder(id: string, payload: any): HistoryOrder 
     },
     menuItems: payload.menuItems || [],
     totalAmount: typeof payload.totalAmount === 'number' ? payload.totalAmount : 0,
-    depositAmount: typeof deposit.amount === 'number' ? deposit.amount : (typeof payload.depositAmount === 'number' ? payload.depositAmount : 0),
-    isDeposited: typeof deposit.isPaid === 'boolean' ? deposit.isPaid : (typeof payload.isDeposited === 'boolean' ? payload.isDeposited : false),
-    transferImage: deposit.image || payload.transferImage || '',
+    depositAmount: depAmount,
+    isDeposited: isPaid,
+    transferImage: depImage,
+    deposit: {
+      amount: depAmount,
+      isPaid: isPaid,
+      time: depTime,
+      note: depNote,
+      image: depImage,
+      history: depHistory
+    },
+    depositTime: depTime,
+    depositHistory: depHistory,
     staff: payload.staff || null,
     activeMenuSheet: payload.activeMenuSheet || payload.activeSheet || null,
     isSyncing: payload.isSyncing ?? false

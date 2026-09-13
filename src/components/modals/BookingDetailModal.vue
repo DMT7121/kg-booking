@@ -4,7 +4,7 @@ import { useForm } from '@/composables/useForm'
 import { useAppStore } from '@/stores/useAppStore'
 import * as api from '@/services/api'
 import { haptic } from '@/composables/useGestures'
-import { isIOS, isAndroid, isDesktop, formatVND } from '@/utils'
+import { isIOS, isAndroid, isDesktop, formatVND, formatShortVND } from '@/utils'
 
 const ui = useUIStore()
 const appStore = useAppStore()
@@ -175,16 +175,29 @@ async function handleSyncCalendar() {
         </div>
 
         <!-- Deposit Status -->
-        <div class="p-3 rounded-2xl flex items-center justify-between border" :class="ui.selectedBooking.isDeposited ? 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-100 dark:border-emerald-800/60' : 'bg-rose-50 dark:bg-rose-950/40 border-rose-100 dark:border-rose-800/60'">
-          <div class="flex items-center gap-2">
-            <i class="fa-solid" :class="ui.selectedBooking.isDeposited ? 'fa-check-circle text-emerald-500 dark:text-emerald-400' : 'fa-hourglass-half text-rose-500 dark:text-rose-400'"></i>
-            <span class="font-black text-sm" :class="ui.selectedBooking.isDeposited ? 'text-emerald-700 dark:text-emerald-300' : 'text-rose-700 dark:text-rose-300'">
-              {{ ui.selectedBooking.isDeposited ? 'Đã thanh toán cọc' : 'Chưa đặt cọc (Đang giữ)' }}
+        <div class="p-3 rounded-2xl flex flex-col gap-2 border" :class="ui.selectedBooking.isDeposited ? 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-100 dark:border-emerald-800/60' : 'bg-rose-50 dark:bg-rose-950/40 border-rose-100 dark:border-rose-800/60'">
+          <div class="flex items-center justify-between">
+            <div class="flex items-center gap-2">
+              <i class="fa-solid" :class="ui.selectedBooking.isDeposited ? 'fa-check-circle text-emerald-500 dark:text-emerald-400' : 'fa-hourglass-half text-rose-500 dark:text-rose-400'"></i>
+              <span class="font-black text-sm" :class="ui.selectedBooking.isDeposited ? 'text-emerald-700 dark:text-emerald-300' : 'text-rose-700 dark:text-rose-300'">
+                {{ ui.selectedBooking.isDeposited ? 'Đã thanh toán cọc' : 'Chưa đặt cọc (Đang giữ)' }}
+              </span>
+            </div>
+            <span v-if="ui.selectedBooking.depositAmount" class="font-black text-xs text-slate-700 dark:text-slate-200 font-tabular">
+              {{ formatVND(ui.selectedBooking.depositAmount) }}
             </span>
           </div>
-          <span v-if="ui.selectedBooking.depositAmount" class="font-black text-xs text-slate-700 dark:text-slate-200 font-tabular">
-            {{ formatVND(ui.selectedBooking.depositAmount) }}
-          </span>
+          <!-- Deposit timestamp and installments if any -->
+          <div v-if="ui.selectedBooking.isDeposited && (ui.selectedBooking.deposit?.time || ui.selectedBooking.depositTime)" class="text-[10px] text-emerald-700 dark:text-emerald-300 font-bold flex items-center justify-between pt-1 border-t border-emerald-100 dark:border-emerald-800/40">
+            <span class="flex items-center gap-1"><i class="fa-regular fa-clock"></i> Thời gian cọc:</span>
+            <span class="font-mono font-tabular">{{ ui.selectedBooking.deposit?.time || ui.selectedBooking.depositTime }}</span>
+          </div>
+          <div v-if="ui.selectedBooking.isDeposited && ((ui.selectedBooking.deposit?.history && ui.selectedBooking.deposit.history.length > 1) || (ui.selectedBooking.depositHistory && ui.selectedBooking.depositHistory.length > 1))" class="pt-1.5 space-y-1">
+            <div v-for="(h, idx) in (ui.selectedBooking.deposit?.history || ui.selectedBooking.depositHistory)" :key="idx" class="flex justify-between items-center text-[10px] font-tabular bg-white/70 dark:bg-slate-900/60 px-2 py-0.5 rounded border border-emerald-100 dark:border-emerald-800/30">
+              <span class="text-slate-600 dark:text-slate-300">{{ h.time }} <span class="font-bold text-emerald-600">[{{ formatShortVND(h.delta) }}]</span> (Lần {{ idx + 1 }})</span>
+              <span class="font-bold">{{ formatVND(h.amount) }}</span>
+            </div>
+          </div>
         </div>
 
         <!-- Menu Items Section -->

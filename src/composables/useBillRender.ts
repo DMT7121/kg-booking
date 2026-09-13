@@ -302,6 +302,9 @@ function _createBillRender() {
           depositAmount: depositAmount || 0,
           isDeposited: depositIsPaid,
           transferImage: depositImage,
+          deposit: { ...depositInfo },
+          depositTime: depositInfo?.time || '',
+          depositHistory: depositInfo?.history || [],
           staff: staff,
           isSyncing: true
         }
@@ -431,6 +434,8 @@ function _createBillRender() {
               customer: customer,
               items: items,
               deposit: { ...depositInfo, image: depositImage.startsWith('http') ? depositImage : '' },
+              depositTime: depositInfo?.time || '',
+              depositHistory: depositInfo?.history || [],
               staff: staff,
               id: orderId,
               version: orderVersion,
