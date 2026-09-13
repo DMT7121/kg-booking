@@ -80,6 +80,17 @@ const hasSoftWarning = computed(() => {
   return score < 0.80 || (formStore.warnings && formStore.warnings.length > 0)
 })
 
+const partyPortionHint = computed(() => {
+  const pax = parseInt(formStore.customer.pax || '0', 10)
+  if (!pax || pax < 10) return null
+  const totalPortions = formStore.items.reduce((sum, item) => sum + (Number(item.qty) || 1), 0)
+  const dishTypesCount = formStore.items.filter(i => i.name && i.name.trim()).length
+  if (dishTypesCount === 0) return null
+  const avgPortionPerDish = (totalPortions / dishTypesCount).toFixed(1)
+  const guestsPerPortion = (pax / (totalPortions / dishTypesCount)).toFixed(1)
+  return `Tiệc ${pax} khách · ${dishTypesCount} món · TB ${avgPortionPerDish} phần/món (~${guestsPerPortion} khách/phần)`
+})
+
 function formatPriceWithDots(val: any): string {
   if (val === undefined || val === null || val === '') return ''
   const cleanStr = String(val).replace(/\./g, '')
@@ -193,6 +204,12 @@ function onSelectSuggestion(s: any, index: number) {
             <span class="bg-red-500 text-white px-2 py-0.5 rounded-full text-[10px] font-black font-tabular shadow-xs">{{ formStore.items.length }}</span>
           </h3>
           <p class="text-[10px] font-bold text-slate-400 dark:text-slate-500">Chọn từ thực đơn hoặc nhập tự do</p>
+          <div v-if="partyPortionHint" class="flex items-center gap-1 mt-1">
+            <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-amber-500/15 border border-amber-500/30 text-amber-700 dark:text-amber-300 text-[10px] font-bold">
+              <i class="fa-solid fa-calculator text-[9px] text-amber-500"></i>
+              {{ partyPortionHint }}
+            </span>
+          </div>
         </div>
       </div>
       <button @click="ui.showMenuManager = true" class="text-[10px] bg-slate-50 dark:bg-surface-3 px-3 py-2 rounded-xl text-slate-600 dark:text-slate-300 font-black border border-slate-200 dark:border-border-subtle hover:bg-slate-100 dark:hover:bg-surface-4 active:scale-95 transition-all uppercase tracking-widest flex items-center gap-1.5 cursor-pointer shadow-xs min-h-[36px]">
@@ -362,6 +379,28 @@ function onSelectSuggestion(s: any, index: number) {
                 >
                   <i class="fa-solid fa-plus text-xs"></i>
                 </button>
+
+                <!-- Quick Portion Steppers (+1, +2, +5) -->
+                <div class="hidden sm:flex items-center gap-0.5 ml-1 pl-1 border-l border-slate-200 dark:border-slate-700">
+                  <button 
+                    type="button"
+                    @click.prevent="item.qty = (Number(item.qty) || 0) + 1"
+                    class="px-1.5 py-0.5 text-[10px] font-bold text-slate-500 hover:text-blue-600 dark:text-slate-400 dark:hover:text-blue-400 rounded hover:bg-slate-100 dark:hover:bg-slate-700 active:scale-95 transition-all cursor-pointer"
+                    title="Thêm 1 phần"
+                  >+1</button>
+                  <button 
+                    type="button"
+                    @click.prevent="item.qty = (Number(item.qty) || 0) + 2"
+                    class="px-1.5 py-0.5 text-[10px] font-bold text-slate-500 hover:text-blue-600 dark:text-slate-400 dark:hover:text-blue-400 rounded hover:bg-slate-100 dark:hover:bg-slate-700 active:scale-95 transition-all cursor-pointer"
+                    title="Thêm 2 phần"
+                  >+2</button>
+                  <button 
+                    type="button"
+                    @click.prevent="item.qty = (Number(item.qty) || 0) + 5"
+                    class="px-1.5 py-0.5 text-[10px] font-bold text-slate-500 hover:text-blue-600 dark:text-slate-400 dark:hover:text-blue-400 rounded hover:bg-slate-100 dark:hover:bg-slate-700 active:scale-95 transition-all cursor-pointer"
+                    title="Thêm 5 phần"
+                  >+5</button>
+                </div>
               </div>
 
               <!-- Price Input with currency label (16px font on mobile) -->

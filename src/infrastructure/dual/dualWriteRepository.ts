@@ -10,17 +10,20 @@ import * as outbox from '@/infrastructure/outbox/outbox'
 import { triggerSync as triggerOutboxSync } from '@/infrastructure/outbox/outboxSync'
 import { getBackendMode } from '@/utils/backendMode'
 
-async function notifyStoreOutboxUpdate() {
+function notifyStoreOutboxUpdate() {
   try {
-    const { getActivePinia } = await import('pinia')
-    if (getActivePinia()) {
-      const { useAppStore } = await import('@/stores/useAppStore')
-      const store = useAppStore()
-      if (store && typeof store.updateOfflineQueueCount === 'function') {
-        store.updateOfflineQueueCount().catch(() => {})
-      }
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('kg-outbox-updated'))
     }
   } catch {}
+}
+
+function getAdminToken(): string {
+  try {
+    return sessionStorage.getItem('kg_admin_token') || ''
+  } catch {
+    return ''
+  }
 }
 
 export class DualWriteOrderRepository implements OrderRepository {
@@ -82,14 +85,7 @@ export class DualWriteOrderRepository implements OrderRepository {
     }
 
     const mode = getBackendMode()
-    let token = ''
-    try {
-      const { getActivePinia } = await import('pinia')
-      if (getActivePinia()) {
-        const { useAppStore } = await import('@/stores/useAppStore')
-        token = useAppStore().adminToken || ''
-      }
-    } catch {}
+    const token = getAdminToken()
 
     if (mode === 'gas') {
       try {
@@ -181,16 +177,7 @@ export class DualWriteOrderRepository implements OrderRepository {
 
   async deleteOrder(id: string, password?: string, token?: string): Promise<any> {
     const mode = getBackendMode()
-    let resolvedToken = token || ''
-    if (!resolvedToken) {
-      try {
-        const { getActivePinia } = await import('pinia')
-        if (getActivePinia()) {
-          const { useAppStore } = await import('@/stores/useAppStore')
-          resolvedToken = useAppStore().adminToken || ''
-        }
-      } catch {}
-    }
+    const resolvedToken = token || getAdminToken()
 
     if (mode === 'gas') {
       try {

@@ -7,7 +7,8 @@ export interface Toast {
   title: string
   msg: string
   type: 'success' | 'error' | 'warning' | 'info'
-  progress: number
+  progress?: number
+  duration?: number
   timerId?: any
 }
 
@@ -131,24 +132,19 @@ export const useUIStore = defineStore('ui', () => {
 
     const id = Date.now()
     const titleMap: Record<string, string> = { success: 'Thành Công', error: 'Lỗi', warning: 'Cảnh Báo', info: 'Thông Tin' }
-    const toast = reactive<Toast>({ id, title: titleMap[type], msg, type, progress: 100 })
+    const toast = reactive<Toast>({ id, title: titleMap[type], msg, type, progress: 100, duration })
     toasts.value.push(toast)
 
-    const step = 10
-    const interval = setInterval(() => {
-      toast.progress -= (step / duration) * 100
-      if (toast.progress <= 0) {
-        clearInterval(interval)
-        removeToast(id)
-      }
-    }, step)
-    toast.timerId = interval
+    const timer = setTimeout(() => {
+      removeToast(id)
+    }, duration)
+    toast.timerId = timer
   }
 
   function removeToast(id: number) {
     const target = toasts.value.find(t => t.id === id)
     if (target && target.timerId) {
-      clearInterval(target.timerId)
+      clearTimeout(target.timerId)
     }
     toasts.value = toasts.value.filter(t => t.id !== id)
   }

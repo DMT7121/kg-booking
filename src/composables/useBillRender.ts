@@ -7,6 +7,7 @@ import { fetchWithRetry, updateOrderImages } from '@/services/api'
 import { smartUploadImage } from '@/services/r2'
 import { useAI } from '@/composables/useAI'
 import { cacheBillImage, addToOfflineQueue } from '@/services/cache'
+import { addToOutbox } from '@/infrastructure/outbox/outbox'
 import html2canvas from 'html2canvas'
 
 /**
@@ -264,7 +265,6 @@ function _createBillRender() {
         // For "save only", release UI immediately (Optimistic UI - 0ms delay!)
         uiStore.loading.is = false
         uiStore.tab = 'history'
-        uiStore.showToast('💾 Đang lưu ngầm lên Google Sheets...', 'info', 3000)
       }
 
       // Reset form changed state immediately since we are syncing optimistically
@@ -540,7 +540,6 @@ function _createBillRender() {
             
             // Safety net: Enqueue to outbox so order is never lost!
             try {
-              const { addToOutbox } = await import('@/infrastructure/outbox/outbox')
               await addToOutbox(orderId, 'upsert', fastPayload || optimisticOrder)
             } catch (outboxErr) {
               console.error('[BG Sync Safety Net] Failed to queue to outbox:', outboxErr)

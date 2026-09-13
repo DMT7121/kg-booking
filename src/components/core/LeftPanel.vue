@@ -11,7 +11,6 @@ import AIInputPanel from '@/components/forms/AIInputPanel.vue'
 import CustomerForm from '@/components/forms/CustomerForm.vue'
 import DepositManager from '@/components/forms/DepositManager.vue'
 import MenuItemsEditor from '@/components/forms/MenuItemsEditor.vue'
-import BillPreview from './BillPreview.vue'
 import { formatVND } from '@/utils'
 
 // Tab components (Async loaded on demand to minimize initial bundle)
@@ -69,6 +68,7 @@ const hasSoftWarning = computed(() => {
 const doSave = (type: string) => { haptic('light'); triggerSave(type, validateForm); showActionSheet.value = false; }
 
 const showDropdown = ref(false)
+const showNavMore = ref(false)
 const showActionSheet = ref(false)
 const showMoreSheet = ref(false)
 const isHeaderCompact = ref(false)
@@ -262,23 +262,52 @@ function goToTomorrowTimeline() {
         <div class="h-4 w-[1px] bg-slate-700/60 mx-0.5"></div>
 
         <!-- Phân hệ 3: KHÁCH HÀNG & DỮ LIỆU (CRM & Analytics Hub) -->
-        <div class="flex items-center gap-1 bg-slate-900/80 dark:bg-slate-950/70 p-1 rounded-xl border border-purple-500/25 shadow-sm">
+        <div class="flex items-center gap-1 bg-slate-900/80 dark:bg-slate-950/70 p-1 rounded-xl border border-purple-500/25 shadow-sm relative">
           <button @click="ui.tab = 'history'; appStore.loadHistory(false)" :class="['px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 min-h-[32px] whitespace-nowrap cursor-pointer', ui.tab === 'history' ? 'bg-purple-600 text-white shadow-sm' : 'text-slate-300 hover:text-white hover:bg-slate-800/60']" title="Danh sách lịch sử đặt bàn">
             <i class="fa-solid fa-list-ul text-xs text-purple-300"></i>
             <span>Lịch Sử</span>
           </button>
-          <button @click="ui.tab = 'analytics'; appStore.loadHistory(false)" :class="['px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 min-h-[32px] whitespace-nowrap cursor-pointer', ui.tab === 'analytics' ? 'bg-purple-600 text-white shadow-sm' : 'text-slate-300 hover:text-white hover:bg-slate-800/60']" title="Báo cáo doanh số & phân tích">
+          <button @click="ui.tab = 'analytics'; appStore.loadHistory(false)" :class="['hidden lg:flex px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all items-center gap-1.5 min-h-[32px] whitespace-nowrap cursor-pointer', ui.tab === 'analytics' ? 'bg-purple-600 text-white shadow-sm' : 'text-slate-300 hover:text-white hover:bg-slate-800/60']" title="Báo cáo doanh số & phân tích">
             <i class="fa-solid fa-chart-pie text-xs text-indigo-300"></i>
             <span>Báo Cáo</span>
           </button>
-          <button @click="ui.showSocialBotModal = true" class="px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 min-h-[32px] whitespace-nowrap text-amber-300 hover:text-white hover:bg-amber-500/20 cursor-pointer" title="Quản lý Live Chat Fanpage AI">
+          <button @click="ui.showSocialBotModal = true" class="hidden xl:flex px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all items-center gap-1.5 min-h-[32px] whitespace-nowrap text-amber-300 hover:text-white hover:bg-amber-500/20 cursor-pointer" title="Quản lý Live Chat Fanpage AI">
             <i class="fa-solid fa-robot text-amber-400 animate-pulse text-xs"></i>
             <span>Social Bot</span>
           </button>
-          <button @click="copyCustomerBookingLink" class="px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all flex items-center gap-1.5 min-h-[32px] whitespace-nowrap text-emerald-300 hover:text-white hover:bg-emerald-500/20 cursor-pointer" title="Sao chép link Đặt bàn Online gửi cho khách hàng">
+          <button @click="copyCustomerBookingLink" class="hidden xl:flex px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all items-center gap-1.5 min-h-[32px] whitespace-nowrap text-emerald-300 hover:text-white hover:bg-emerald-500/20 cursor-pointer" title="Sao chép link Đặt bàn Online gửi cho khách hàng">
             <i class="fa-solid fa-link text-emerald-400 text-xs"></i>
             <span>Link Khách</span>
           </button>
+
+          <!-- Overflow Popover for Medium / Compact Screens (Tablet & Laptops < 1280px) -->
+          <div class="relative xl:hidden">
+            <button 
+              @click.stop="showNavMore = !showNavMore" 
+              class="px-2 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1 min-h-[32px] text-slate-300 hover:text-white hover:bg-slate-800/60 cursor-pointer"
+              title="Thêm công cụ tiện ích"
+              aria-label="Thêm công cụ tiện ích"
+            >
+              <i class="fa-solid fa-ellipsis text-xs"></i>
+            </button>
+            <div v-if="showNavMore" @click="showNavMore = false" class="fixed inset-0 z-40"></div>
+            <transition enter-active-class="transition ease-out duration-100" enter-from-class="transform opacity-0 scale-95" enter-to-class="transform opacity-100 scale-100" leave-active-class="transition ease-in duration-75" leave-from-class="transform opacity-100 scale-100" leave-to-class="transform opacity-0 scale-95">
+              <div v-if="showNavMore" class="absolute top-full right-0 mt-2 w-48 bg-slate-900 border border-slate-700/80 rounded-xl shadow-2xl p-1.5 z-50 flex flex-col gap-1 backdrop-blur-xl">
+                <button @click="ui.tab = 'analytics'; appStore.loadHistory(false); showNavMore = false" class="lg:hidden w-full text-left px-3 py-2 rounded-lg text-xs font-bold flex items-center gap-2 hover:bg-slate-800 text-slate-200 hover:text-white transition-colors">
+                  <i class="fa-solid fa-chart-pie text-xs text-indigo-400"></i>
+                  <span>Báo Cáo Doanh Số</span>
+                </button>
+                <button @click="ui.showSocialBotModal = true; showNavMore = false" class="w-full text-left px-3 py-2 rounded-lg text-xs font-bold flex items-center gap-2 hover:bg-slate-800 text-amber-300 hover:text-amber-200 transition-colors">
+                  <i class="fa-solid fa-robot text-xs text-amber-400"></i>
+                  <span>Social Bot Fanpage</span>
+                </button>
+                <button @click="copyCustomerBookingLink(); showNavMore = false" class="w-full text-left px-3 py-2 rounded-lg text-xs font-bold flex items-center gap-2 hover:bg-slate-800 text-emerald-300 hover:text-emerald-200 transition-colors">
+                  <i class="fa-solid fa-link text-xs text-emerald-400"></i>
+                  <span>Copy Link Đặt Bàn</span>
+                </button>
+              </div>
+            </transition>
+          </div>
         </div>
       </div>
 

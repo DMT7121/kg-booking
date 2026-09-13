@@ -12,6 +12,14 @@ export function isR2Available(): boolean {
   return !!R2_URL
 }
 
+function getAdminToken(): string {
+  try {
+    return sessionStorage.getItem('kg_admin_token') || ''
+  } catch {
+    return ''
+  }
+}
+
 /** Upload base64 image to R2 using presigned URLs */
 export async function uploadToR2(
   base64Data: string,
@@ -21,9 +29,7 @@ export async function uploadToR2(
   if (!R2_URL) return { ok: false, error: 'R2 not configured' }
 
   try {
-    const { useAppStore } = await import('@/stores/useAppStore')
-    const appStore = useAppStore()
-    const token = appStore.adminToken
+    const token = getAdminToken()
 
     let contentType = 'image/jpeg'
     if (base64Data.startsWith('data:')) {
@@ -69,9 +75,7 @@ export async function deleteFromR2(key: string): Promise<boolean> {
   if (!R2_URL || !key) return false
 
   try {
-    const { useAppStore } = await import('@/stores/useAppStore')
-    const appStore = useAppStore()
-    const token = appStore.adminToken
+    const token = getAdminToken()
 
     const res = await fetch(`${R2_URL}/image/${key}`, {
       method: 'DELETE',
@@ -95,9 +99,7 @@ export function getR2ImageUrl(key: string): string {
 export async function getR2Stats(): Promise<any> {
   if (!R2_URL) return null
   try {
-    const { useAppStore } = await import('@/stores/useAppStore')
-    const appStore = useAppStore()
-    const token = appStore.adminToken
+    const token = getAdminToken()
 
     const res = await fetch(`${R2_URL}/stats`, {
       headers: {
@@ -114,9 +116,7 @@ export async function getR2Stats(): Promise<any> {
 export async function listOrderImages(orderId: string): Promise<any[]> {
   if (!R2_URL) return []
   try {
-    const { useAppStore } = await import('@/stores/useAppStore')
-    const appStore = useAppStore()
-    const token = appStore.adminToken
+    const token = getAdminToken()
 
     const res = await fetch(`${R2_URL}/list?prefix=orders/${orderId}`, {
       headers: {

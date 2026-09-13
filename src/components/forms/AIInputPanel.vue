@@ -418,7 +418,17 @@ onUnmounted(() => {
 
       <div class="space-y-2 relative z-10">
         <div class="relative">
-          <textarea v-model="formStore.rawInput" @focus="handleInputFocus" @blur="handleInputBlur" @paste="onPaste" rows="3" class="w-full pt-9 pb-11 px-3.5 border border-border-default dark:border-border-subtle rounded-xl text-xs sm:text-sm bg-surface-input text-text-primary font-normal focus:border-border-focus focus:ring-2 focus:ring-border-focus/20 outline-none shadow-sm placeholder-text-tertiary transition-all custom-scrollbar resize-none" placeholder="Dán nội dung đặt bàn, đoạn chat hoặc kéo thả ảnh bill vào đây..."></textarea>
+          <textarea 
+            v-model="formStore.rawInput" 
+            @focus="handleInputFocus" 
+            @blur="handleInputBlur" 
+            @paste="onPaste" 
+            @keydown.ctrl.enter.prevent="handleAnalyze(false)"
+            @keydown.meta.enter.prevent="handleAnalyze(false)"
+            rows="3" 
+            class="w-full pt-9 pb-11 px-3.5 border border-border-default dark:border-border-subtle rounded-xl text-xs sm:text-sm bg-surface-input text-text-primary font-normal focus:border-border-focus focus:ring-2 focus:ring-border-focus/20 outline-none shadow-sm placeholder-text-tertiary transition-all custom-scrollbar resize-none" 
+            placeholder="Dán nội dung đặt bàn, đoạn chat hoặc kéo thả ảnh bill vào đây... (Bấm Ctrl+Enter để phân tích)"
+          ></textarea>
           
           <!-- OCR Loading Overlay -->
           <div v-if="isOcrProcessing" class="absolute inset-0 bg-surface-canvas/80 backdrop-blur-sm z-30 flex flex-col items-center justify-center rounded-xl text-text-primary">
@@ -456,6 +466,7 @@ onUnmounted(() => {
         <i v-if="isProcessing" class="fa-solid fa-spinner animate-spin"></i>
         <i v-else class="fa-solid fa-wand-magic-sparkles text-xs"></i>
         <span>{{ isProcessing ? 'HỦY PHÂN TÍCH (CANCEL)' : 'PHÂN TÍCH TIN NHẮN (ANALYZE)' }}</span>
+        <kbd v-if="!isProcessing" class="hidden sm:inline-block px-1.5 py-0.5 text-[9px] font-mono bg-white/20 rounded text-white/90 border border-white/30 ml-1">Ctrl + Enter</kbd>
       </button>
     </div>
 

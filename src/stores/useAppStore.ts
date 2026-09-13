@@ -11,8 +11,8 @@ import {
   cacheIsFresh, getOfflineQueue, removeFromQueue, clearOfflineQueue
 } from '@/services/cache'
 import { fetchWithRetry } from '@/infrastructure/gas/gasClient'
-import { getPendingItems } from '@/infrastructure/outbox/outbox'
-import { triggerSync as triggerOutboxSync } from '@/infrastructure/outbox/outboxSync'
+import { getPendingItems, addToOutbox, markAsSynced } from '@/infrastructure/outbox/outbox'
+import { triggerSync as triggerOutboxSync, setOutboxStoreDelegate } from '@/infrastructure/outbox/outboxSync'
 import { 
   DualWriteOrderRepository as GasOrderRepository, 
   DualWriteMenuRepository as GasMenuRepository, 
@@ -457,13 +457,11 @@ export const useAppStore = defineStore('app', () => {
     cacheHistory(list)
 
     // Sync reactive updates to booking store
-    import('@/stores/useBookingStore').then(({ useBookingStore }) => {
-      try {
-        useBookingStore().addOrUpdateBooking(order)
-      } catch (e) {
-        console.warn('[AppStore] Failed syncing to booking store:', e)
-      }
-    }).catch(() => {})
+    try {
+      useBookingStore().addOrUpdateBooking(order)
+    } catch (e) {
+      console.warn('[AppStore] Failed syncing to booking store:', e)
+    }
   }
 
   function markOrderSynced(orderId: string, serverData?: any) {
@@ -1485,7 +1483,6 @@ export const useAppStore = defineStore('app', () => {
       const legacyQueue = await getOfflineQueue()
       if (legacyQueue && legacyQueue.length > 0) {
         console.info(`[Offline Queue Migration] Migrating ${legacyQueue.length} items to new outbox...`)
-        const { addToOutbox } = await import('@/infrastructure/outbox/outbox')
         for (const item of legacyQueue) {
           const outboxAction = item.action === 'saveOrder' ? 'upsert' : 'delete'
           await addToOutbox(item.payload.id || item.id, outboxAction, item.payload)
@@ -1505,11 +1502,28 @@ export const useAppStore = defineStore('app', () => {
 
   autoSyncIfReady()
 
+  if (typeof window !== 'undefined') {
+    window.addEventListener('kg-outbox-updated', () => {
+      updateOfflineQueueCount().catch(() => {})
+    })
+  }
+
   const activeConflicts = ref<BookingConflict[]>(JSON.parse(localStorage.getItem('kg_sync_conflicts') || '[]'))
 
   function saveConflicts() {
     localStorage.setItem('kg_sync_conflicts', JSON.stringify(activeConflicts.value))
   }
+
+  setOutboxStoreDelegate({
+    getStore: () => ({
+      historyList: historyList.value,
+      activeConflicts: activeConflicts.value,
+      saveConflicts,
+      markOrderSynced,
+      updateOfflineQueueCount
+    }),
+    hasTimeConflictIndexed
+  })
 
   async function resolveConflict(localId: string, resolution: BookingConflict['resolution']) {
     if (resolution === 'keep_local') {
@@ -1536,7 +1550,6 @@ export const useAppStore = defineStore('app', () => {
             
             // Also mark outbox item as synced (overwritten) if in postgres/dual_write mode
             try {
-              const { markAsSynced } = await import('@/infrastructure/outbox/outbox')
               await markAsSynced(localId, 'upsert')
             } catch (err) {
               console.warn('Failed to mark outbox item as synced:', err)
@@ -1563,7 +1576,6 @@ export const useAppStore = defineStore('app', () => {
       
       // Also mark outbox item as synced (dropped) if in postgres/dual_write mode
       try {
-        const { markAsSynced } = await import('@/infrastructure/outbox/outbox')
         await markAsSynced(localId, 'upsert')
       } catch (err) {
         console.warn('Failed to drop outbox item:', err)

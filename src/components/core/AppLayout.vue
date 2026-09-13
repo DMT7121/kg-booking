@@ -565,6 +565,35 @@ function handleGlobalKeydown(e: KeyboardEvent) {
         if (inp) inp.focus()
       })
     }
+    return
+  }
+
+  // POS Standard F-Keys (F1-F4)
+  if (e.key === 'F1') {
+    e.preventDefault()
+    ui.tab = 'create'
+    ui.showToast('📋 Chuyển sang Tạo Phiếu (F1)', 'info', 2000)
+    return
+  }
+
+  if (e.key === 'F2') {
+    e.preventDefault()
+    ui.showCommandPalette = true
+    return
+  }
+
+  if (e.key === 'F3') {
+    e.preventDefault()
+    ui.showFloorPlan = true
+    return
+  }
+
+  if (e.key === 'F4') {
+    e.preventDefault()
+    ui.tab = 'timeline'
+    appStore.loadHistory(false)
+    ui.showToast('📅 Chuyển sang Lịch Bàn (F4)', 'info', 2000)
+    return
   }
 }
 watch(() => ui.tab, () => {

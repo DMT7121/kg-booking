@@ -6,6 +6,17 @@ import { API_GATEWAY_URL, GAS_DIRECT_URL, SHARED_SECRET, buildGatewayHeaders, bu
 const pgRepo = new PostgresOrderRepository()
 let isSyncing = false
 
+export interface OutboxStoreDelegate {
+  getStore?: () => any
+  hasTimeConflictIndexed?: (data: any) => boolean
+}
+
+let _storeDelegate: OutboxStoreDelegate | null = null
+
+export function setOutboxStoreDelegate(delegate: OutboxStoreDelegate) {
+  _storeDelegate = delegate
+}
+
 async function syncToSheets(item: outbox.DecryptedOutboxItem): Promise<boolean> {
   const cleanPayload = JSON.parse(JSON.stringify(item.payload))
   if (cleanPayload && cleanPayload.deposit && cleanPayload.deposit.image === '__OFFLINE_IMAGE_BUFFER_REF__') {
@@ -68,14 +79,10 @@ export async function triggerSync(): Promise<void> {
   try {
     let pendingItems = await outbox.getPendingItems()
     
-    // Import store to get active JWT session token if Pinia is active
+    // Active JWT session token
     let token = ''
     try {
-      const { getActivePinia } = await import('pinia')
-      if (getActivePinia()) {
-        const { useAppStore } = await import('@/stores/useAppStore')
-        token = useAppStore().adminToken || ''
-      }
+      token = sessionStorage.getItem('kg_admin_token') || ''
     } catch {}
 
     const mode = getBackendMode()
@@ -91,10 +98,9 @@ export async function triggerSync(): Promise<void> {
           let existingServerBooking: any = null
           
           try {
-            const { getActivePinia } = await import('pinia')
-            if (getActivePinia()) {
-              const { useAppStore, hasTimeConflictIndexed } = await import('@/stores/useAppStore')
-              const store = useAppStore()
+            const store = _storeDelegate?.getStore ? _storeDelegate.getStore() : null
+            const hasTimeConflictIndexed = _storeDelegate?.hasTimeConflictIndexed
+            if (store) {
               const payload = item.payload
               const localId = item.id
               
@@ -107,7 +113,7 @@ export async function triggerSync(): Promise<void> {
                 }
               }
               
-              if (!conflictType) {
+              if (!conflictType && typeof hasTimeConflictIndexed === 'function') {
                 const customerData = payload.customer || payload.parsedCustomer || payload
                 const date = customerData.date
                 const time = customerData.time
@@ -228,13 +234,9 @@ export async function triggerSync(): Promise<void> {
         
         // Update in-memory store order sync status immediately without network reload
         try {
-          const { getActivePinia } = await import('pinia')
-          if (getActivePinia()) {
-            const { useAppStore } = await import('@/stores/useAppStore')
-            const store = useAppStore()
-            if (store && item.action === 'upsert' && typeof store.markOrderSynced === 'function') {
-              store.markOrderSynced(item.id)
-            }
+          const store = _storeDelegate?.getStore ? _storeDelegate.getStore() : null
+          if (store && item.action === 'upsert' && typeof store.markOrderSynced === 'function') {
+            store.markOrderSynced(item.id)
           }
         } catch (err) {}
 
@@ -251,13 +253,12 @@ export async function triggerSync(): Promise<void> {
   } finally {
     isSyncing = false
     try {
-      const { getActivePinia } = await import('pinia')
-      if (getActivePinia()) {
-        const { useAppStore } = await import('@/stores/useAppStore')
-        const store = useAppStore()
-        if (store && typeof store.updateOfflineQueueCount === 'function') {
-          await store.updateOfflineQueueCount()
-        }
+      const store = _storeDelegate?.getStore ? _storeDelegate.getStore() : null
+      if (store && typeof store.updateOfflineQueueCount === 'function') {
+        await store.updateOfflineQueueCount()
+      }
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('kg-outbox-updated'))
       }
     } catch (err) {
       console.warn('[Outbox Sync] Failed to update offline queue count in store:', err)

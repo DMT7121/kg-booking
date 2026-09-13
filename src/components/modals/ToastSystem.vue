@@ -62,12 +62,12 @@ function onTouchEnd(id: number) {
           <span class="opacity-90 font-normal">{{ appStore.offlineQueueCount > 0 ? `${appStore.offlineQueueCount} thay đổi chờ đồng bộ` : 'Dữ liệu lưu an toàn trên máy' }}</span>
         </div>
       </div>
-      <div v-else-if="ui.connectionStatus === 'reconnecting' || ui.connectionStatus === 'syncing'" 
+      <div v-else-if="ui.connectionStatus === 'reconnecting'" 
            id="persistent-reconnecting-banner"
            class="pointer-events-auto bg-amber-500 text-slate-950 font-bold text-xs px-3.5 py-2 min-h-[44px] max-h-[48px] rounded-xl shadow-lg border border-amber-400/80 flex items-center gap-2.5 backdrop-blur-md">
         <i class="fa-solid fa-rotate text-xs animate-spin text-slate-900 shrink-0"></i>
         <div class="flex-1 text-[11px] leading-tight min-w-0 truncate">
-          <span class="font-black uppercase tracking-wider mr-1.5">{{ ui.connectionStatus === 'reconnecting' ? 'Đang kết nối lại' : 'Đang đồng bộ' }}</span>
+          <span class="font-black uppercase tracking-wider mr-1.5">Đang kết nối lại</span>
           <span class="opacity-90 font-normal">Kiểm tra dữ liệu máy chủ...</span>
         </div>
       </div>
@@ -116,16 +116,27 @@ function onTouchEnd(id: number) {
             <div class="text-[11px] text-slate-600 dark:text-slate-300 font-medium leading-snug mt-0.5 break-words">{{ t.msg }}</div>
           </div>
         </div>
-        <div class="absolute bottom-0 left-0 h-0.5 transition-all rounded-full" 
+        <div class="absolute bottom-0 left-0 h-0.5 rounded-full toast-progress-bar" 
              :class="{
                'bg-emerald-500': t.type === 'success',
                'bg-rose-500': t.type === 'error',
                'bg-amber-500': t.type === 'warning',
                'bg-blue-500': t.type === 'info'
              }" 
-             :style="{ width: t.progress + '%' }">
+             :style="{ animationDuration: (t.duration || 3000) + 'ms' }">
         </div>
       </div>
     </transition-group>
   </div>
 </template>
+
+<style scoped>
+@keyframes toastProgress {
+  from { width: 100%; }
+  to { width: 0%; }
+}
+.toast-progress-bar {
+  animation: toastProgress linear forwards;
+  will-change: width;
+}
+</style>
