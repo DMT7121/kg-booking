@@ -8,6 +8,7 @@ import { handleLocalApi } from './src/infrastructure/local/localApiServer'
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '')
   process.env.VITE_GAS_URL = env.VITE_GAS_URL
+  process.env.FB_PAGE_ACCESS_TOKEN = env.FB_PAGE_ACCESS_TOKEN || env.VITE_FB_PAGE_ACCESS_TOKEN || ''
 
   const buildTime = new Date().toISOString()
   const buildHash = buildTime.replace(/[-T:.Z]/g, '').slice(0, 12) // e.g. "202608132358"
@@ -89,11 +90,22 @@ export default defineConfig(({ mode }) => {
     chunkSizeWarningLimit: 650,
     rollupOptions: {
       output: {
-        manualChunks: {
-          'vendor-vue': ['vue'],
-          'vendor-html2canvas': ['html2canvas'],
-          'vendor-pinia': ['pinia'],
-          'vendor-idb': ['idb-keyval'],
+        manualChunks(id) {
+          const normalizedId = id.replace(/\\/g, '/')
+          if (normalizedId.includes('node_modules')) {
+            if (normalizedId.includes('/vue/') || normalizedId.includes('/@vue/')) return 'vendor-vue'
+            if (normalizedId.includes('/html2canvas/')) return 'vendor-html2canvas'
+            if (normalizedId.includes('/pinia/')) return 'vendor-pinia'
+            if (normalizedId.includes('/idb-keyval/')) return 'vendor-idb'
+            if (normalizedId.includes('/minisearch/')) return 'vendor-minisearch'
+            if (normalizedId.includes('/qrcode/')) return 'vendor-qrcode'
+          }
+          if (
+            normalizedId.includes('/src/domain/ai/ruleEngine.ts') ||
+            normalizedId.includes('/src/domain/ai/expertEntityDisambiguator.ts')
+          ) {
+            return 'domain-ai-parser'
+          }
         }
       }
     }

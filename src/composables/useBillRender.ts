@@ -311,6 +311,7 @@ function _createBillRender() {
 
         // Fire-and-forget background task
         const runBackgroundSync = async () => {
+          let fastPayload: any = null
           try {
             // Task 1: Uploading images (in parallel with saving order)
             const uploadPromise = (async () => {
@@ -426,7 +427,7 @@ function _createBillRender() {
             })()
 
             // Task 2: First-phase Save payload (fast payload without base64 images)
-            const fastPayload: any = {
+            fastPayload = {
               customer: customer,
               items: items,
               deposit: { ...depositInfo, image: depositImage.startsWith('http') ? depositImage : '' },
@@ -460,7 +461,10 @@ function _createBillRender() {
             if (result?.ok) {
               if (result.status === 'pending') {
                 uiStore.connectionStatus = 'error'
-                uiStore.showToast('⚠️ Lưu cục bộ OK — Chờ mạng để đồng bộ', 'warning', 5000)
+                uiStore.showToast('💾 Đã lưu ngoại tuyến an toàn (Chờ mạng để đồng bộ Cloud)', 'warning', 5000)
+              } else if (result.status === 'partially_synced') {
+                uiStore.connectionStatus = 'degraded'
+                uiStore.showToast('⚠️ Đã lưu 1 nguồn — Đang đồng bộ nguồn còn lại qua hàng đợi ngầm', 'info', 5000)
               } else {
                 uiStore.connectionStatus = 'online'
                 // Mark synced in local store
@@ -532,8 +536,16 @@ function _createBillRender() {
           } catch (err: any) {
             console.error('[BG Sync] Failed:', err.message)
             uiStore.connectionStatus = 'error'
-            uiStore.showToast('❌ Không thể lưu đơn: ' + err.message, 'error', 5000)
+            uiStore.showToast('❌ Không thể kết nối server. Đã tự động lưu vào hàng đợi Outbox!', 'warning', 5000)
             
+            // Safety net: Enqueue to outbox so order is never lost!
+            try {
+              const { addToOutbox } = await import('@/infrastructure/outbox/outbox')
+              await addToOutbox(orderId, 'upsert', fastPayload || optimisticOrder)
+            } catch (outboxErr) {
+              console.error('[BG Sync Safety Net] Failed to queue to outbox:', outboxErr)
+            }
+
             // Mark failed/not syncing locally
             appStore.markOrderFailed(orderId)
           }

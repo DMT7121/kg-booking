@@ -25,7 +25,25 @@ const selectedCategory = ref('')
 const searchQuery = ref('')
 const selectedDish = ref<any>(null)
 
-// Mock data for UI presentation
+// Infer semantic category from dish names intelligently
+function inferDishCategory(name: string, explicitCat?: string): string {
+  if (explicitCat && explicitCat.trim()) return explicitCat.trim()
+  const lower = (name || '').toLowerCase()
+  if (lower.includes('salad') || lower.includes('nộm') || lower.includes('gỏi') || lower.includes('khai vị') || lower.includes('khoai tây') || lower.includes('ngô chiên') || lower.includes('bánh mì')) {
+    return 'Khai vị'
+  }
+  if (lower.includes('súp') || lower.includes('cháo') || lower.includes('canh')) {
+    return 'Súp'
+  }
+  if (lower.includes('nước') || lower.includes('bia') || lower.includes('rượu') || lower.includes('trà') || lower.includes('cà phê') || lower.includes('pepsi') || lower.includes('coca') || lower.includes('sinh tố') || lower.includes('chanh')) {
+    return 'Đồ uống'
+  }
+  if (lower.includes('chè') || lower.includes('kem') || lower.includes('hoa quả') || lower.includes('trái cây') || lower.includes('tráng miệng') || lower.includes('panna cotta')) {
+    return 'Tráng miệng'
+  }
+  return 'Món chính'
+}
+
 const mockCategories = ['Khai vị', 'Súp', 'Món chính', 'Tráng miệng', 'Đồ uống']
 
 const mockMenus = [
@@ -34,15 +52,15 @@ const mockMenus = [
   { id: 3, name: 'Thực đơn gọi món', date: '15/04/2025', count: 42, icon: 'fa-bowl-food', color: 'text-orange-500', bg: 'bg-orange-50' }
 ]
 
-// Enhance menuList with mock images and categories
+// Enhance menuList with clean local images and categories
 const enhancedMenuList = computed(() => {
   let list = appStore.menuList.map((item, index) => {
-    const cat = mockCategories[index % mockCategories.length]
+    const cat = inferDishCategory(item.name, (item as any).category)
     return {
       ...item,
       category: cat,
-      // Priority: dishImage from store > fallback placeholder
-      image: (item.cleanName && appStore.dishImages[item.cleanName]) || `https://picsum.photos/seed/${item.cleanName || index}/200/200`,
+      // Priority: dishImage from store > empty (fallback to clean SVG placeholder)
+      image: (item.cleanName && appStore.dishImages[item.cleanName]) || '',
       inUse: index % 3 === 0
     }
   })

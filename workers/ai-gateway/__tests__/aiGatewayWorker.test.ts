@@ -236,4 +236,25 @@ describe('AI Gateway Cloudflare Worker Tests', () => {
       body: JSON.stringify({ action: 'saveOrder', id: 'order-999' })
     }))
   })
+
+  it('should proxy Facebook conversations using env.FB_PAGE_ACCESS_TOKEN without client exposing secret', async () => {
+    const customEnv = {
+      ...mockEnv,
+      FB_PAGE_ACCESS_TOKEN: 'secret-page-token-123'
+    }
+    fetchMock.mockResolvedValueOnce({
+      status: 200,
+      json: () => Promise.resolve({ data: [{ id: 'conv-1', updated_time: '2026-09-13T00:00:00Z' }] })
+    })
+
+    const req = new Request('http://localhost/api/facebook/conversations', {
+      method: 'GET'
+    })
+    const res = await worker.fetch(req, customEnv as any, {} as any)
+    expect(res.status).toBe(200)
+    const json = await res.json() as any
+    expect(json.data[0].id).toBe('conv-1')
+    expect(fetchMock).toHaveBeenCalledWith(expect.stringContaining('access_token=secret-page-token-123'))
+  })
 })
+

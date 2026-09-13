@@ -11,13 +11,13 @@ import AIInputPanel from '@/components/forms/AIInputPanel.vue'
 import CustomerForm from '@/components/forms/CustomerForm.vue'
 import DepositManager from '@/components/forms/DepositManager.vue'
 import MenuItemsEditor from '@/components/forms/MenuItemsEditor.vue'
-import HistoryList from '@/components/history/HistoryList.vue'
-import QuickDashboard from '@/components/history/QuickDashboard.vue'
 import BillPreview from './BillPreview.vue'
 import { formatVND } from '@/utils'
 
-// Tab components
-import HistoryTimeline from '@/components/history/HistoryTimeline.vue'
+// Tab components (Async loaded on demand to minimize initial bundle)
+const HistoryList = defineAsyncComponent(() => import('@/components/history/HistoryList.vue'))
+const QuickDashboard = defineAsyncComponent(() => import('@/components/history/QuickDashboard.vue'))
+const HistoryTimeline = defineAsyncComponent(() => import('@/components/history/HistoryTimeline.vue'))
 const AnalyticsDashboard = defineAsyncComponent(() => import('@/components/history/AnalyticsDashboard.vue'))
 const TestDashboard = defineAsyncComponent(() => import('@/components/history/TestDashboard.vue'))
 const LogViewer = defineAsyncComponent(() => import('@/components/history/LogViewer.vue'))
@@ -306,6 +306,19 @@ function goToTomorrowTimeline() {
           <i class="fa-solid fa-magnifying-glass text-sm"></i>
         </button>
 
+        <!-- Outbox Offline Queue Sync Badge (Desktop & Mobile) -->
+        <button 
+          v-if="appStore.offlineQueueCount > 0"
+          @click="appStore.triggerManualSync()" 
+          class="flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/40 text-amber-300 text-xs font-medium transition-all active:scale-95 animate-pulse cursor-pointer"
+          :title="'Có ' + appStore.offlineQueueCount + ' đơn chờ đồng bộ Cloud. Bấm để gửi ngay!'"
+          aria-label="Đồng bộ đơn ngoại tuyến"
+        >
+          <i class="fa-solid fa-cloud-arrow-up text-xs"></i>
+          <span class="font-bold">{{ appStore.offlineQueueCount }}</span>
+          <span class="hidden sm:inline text-[11px] text-amber-200/90">chờ gửi</span>
+        </button>
+
         <!-- Sync Button (Desktop) -->
         <button @click="appStore.loadHistory(false)" class="hidden md:flex w-9 h-9 rounded-xl bg-slate-800 hover:bg-slate-700 items-center justify-center border border-slate-700/40 transition-all active:scale-95 text-slate-300 hover:text-white" title="Đồng bộ dữ liệu Cloud">
           <i class="fa-solid fa-rotate text-xs" :class="{'animate-spin text-blue-400': ui.isFetchingAPI}"></i>
@@ -415,27 +428,27 @@ function goToTomorrowTimeline() {
                     <AIInputPanel />
 
                     <!-- Smart Checklist Widget -->
-                    <div class="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm space-y-3">
+                    <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 shadow-sm space-y-3">
                       <div class="flex items-center justify-between cursor-pointer" @click="showChecklist = !showChecklist">
                         <div class="flex items-center gap-2">
-                          <i class="fa-solid fa-list-check text-blue-600 text-sm"></i>
-                          <span class="font-black text-slate-800 text-[11px] uppercase tracking-widest">Tiến độ hoàn thiện phiếu</span>
-                          <span class="px-2 py-0.5 rounded-full text-[10px] font-black" :class="checklistPercent === 100 ? 'bg-green-100 text-green-700' : 'bg-blue-50 text-blue-700'">
+                          <i class="fa-solid fa-list-check text-blue-600 dark:text-blue-400 text-sm"></i>
+                          <span class="font-black text-slate-800 dark:text-slate-100 text-[11px] uppercase tracking-widest">Tiến độ hoàn thiện phiếu</span>
+                          <span class="px-2 py-0.5 rounded-full text-[10px] font-black" :class="checklistPercent === 100 ? 'bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/60' : 'bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800/60'">
                             {{ checklistPercent }}%
                           </span>
                         </div>
                         <i class="fa-solid text-slate-400 text-xs transition-transform" :class="showChecklist ? 'fa-chevron-up' : 'fa-chevron-down'"></i>
                       </div>
                       
-                      <div v-show="showChecklist" class="space-y-2 pt-2 border-t border-slate-100 transition-all duration-300">
+                      <div v-show="showChecklist" class="space-y-2 pt-2 border-t border-slate-100 dark:border-slate-800 transition-all duration-300">
                         <!-- Progress Bar -->
-                        <div class="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
-                          <div class="bg-gradient-to-r from-blue-500 to-indigo-600 h-full transition-all duration-500" :style="{ width: `${checklistPercent}%` }"></div>
+                        <div class="w-full bg-slate-100 dark:bg-slate-800 h-2 rounded-full overflow-hidden">
+                          <div class="bg-gradient-to-r from-blue-500 to-indigo-600 dark:from-blue-600 dark:to-indigo-500 h-full transition-all duration-500" :style="{ width: `${checklistPercent}%` }"></div>
                         </div>
                         
                         <div class="grid grid-cols-2 gap-2 text-xs pt-1">
-                          <div v-for="item in checklistItems" :key="item.name" class="flex items-center gap-2 p-2 rounded-xl border transition-all" :class="item.done ? 'bg-green-50/40 border-green-100 text-green-700 font-bold' : 'bg-slate-50/45 border-slate-100 text-slate-400 font-semibold'">
-                            <i class="fa-solid" :class="item.done ? 'fa-circle-check text-green-500' : 'fa-circle text-slate-300'"></i>
+                          <div v-for="item in checklistItems" :key="item.name" class="flex items-center gap-2 p-2 rounded-xl border transition-all" :class="item.done ? 'bg-emerald-50/40 dark:bg-emerald-950/30 border-emerald-200/60 dark:border-emerald-800/40 text-emerald-700 dark:text-emerald-300 font-bold' : 'bg-slate-50/45 dark:bg-slate-850/40 border-slate-150 dark:border-slate-800 text-slate-400 dark:text-slate-500 font-semibold'">
+                            <i class="fa-solid" :class="item.done ? 'fa-circle-check text-emerald-500 dark:text-emerald-400' : 'fa-circle text-slate-300 dark:text-slate-600'"></i>
                             <span>{{ item.name }}</span>
                           </div>
                         </div>
@@ -469,32 +482,53 @@ function goToTomorrowTimeline() {
               </div>
 
               <!-- Sticky bottom bar -->
-              <div class="bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 p-3.5 md:p-4 shrink-0 shadow-[0_-4px_16px_rgba(0,0,0,0.04)] dark:shadow-[0_-4px_16px_rgba(0,0,0,0.3)] flex flex-wrap items-center justify-between gap-3 z-10 safe-area-pb transition-colors duration-200">
+              <div class="bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 p-3 sm:p-3.5 md:p-4 shrink-0 shadow-[0_-4px_16px_rgba(0,0,0,0.04)] dark:shadow-[0_-4px_16px_rgba(0,0,0,0.3)] flex items-center justify-between gap-2 sm:gap-3 z-10 safe-area-pb transition-colors duration-200">
+                <!-- Left: Tổng tạm tính -->
                 <div class="min-w-0">
                   <div class="text-[9px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">Tổng tạm tính</div>
-                  <div class="text-base font-black text-slate-900 dark:text-slate-100 tracking-tight leading-none mt-1">
+                  <div class="text-sm sm:text-base font-black text-slate-900 dark:text-slate-100 tracking-tight leading-none mt-0.5 sm:mt-1 font-tabular">
                     {{ formatVND(formStore.calculatedTotals.final) }}
                   </div>
                 </div>
-                <div class="flex items-center gap-2">
-                  <!-- Nút Thao tác nhanh (Desktop) -->
+
+                <!-- Right: Action Buttons -->
+                <div class="flex items-center gap-1.5 sm:gap-2 shrink-0">
+                  <!-- Nút Thao tác nhanh (Universal for both Mobile and Desktop, no floating overlap!) -->
                   <button 
                     @click="showActionSheet = !showActionSheet" 
                     title="Mở menu thao tác nhanh"
-                    class="hidden md:inline-flex items-center gap-1.5 bg-slate-900 hover:bg-slate-800 dark:bg-indigo-600 dark:hover:bg-indigo-500 text-white rounded-xl py-2.5 px-3.5 font-bold text-xs uppercase shadow-sm transition-all active:scale-95 border border-amber-400/60 dark:border-amber-400/60 quick-action-pulse"
+                    class="h-10 px-2.5 sm:px-3.5 bg-slate-900 hover:bg-slate-800 dark:bg-slate-800 dark:hover:bg-slate-700 text-white rounded-xl font-bold text-xs uppercase shadow-sm transition-all active:scale-95 border border-amber-400/60 dark:border-amber-400/60 flex items-center gap-1.5 shrink-0 quick-action-pulse cursor-pointer"
                   >
                     <i class="fa-solid fa-bolt-lightning text-amber-400 text-xs bolt-pulse"></i>
-                    <span>Thao tác nhanh</span>
+                    <span class="hidden sm:inline">Thao tác</span>
                   </button>
 
-                  <button v-if="formStore.id" @click="handleCreateNewForm" class="bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-xl py-2.5 px-3.5 font-bold text-xs uppercase flex items-center justify-center gap-1.5 transition-all active:scale-95 border border-slate-200 dark:border-slate-700">
-                    <i class="fa-solid fa-file-circle-plus text-slate-400"></i> Tạo lịch mới
+                  <button 
+                    v-if="formStore.id" 
+                    @click="handleCreateNewForm" 
+                    title="Tạo lịch mới (Xóa form hiện tại)"
+                    class="h-10 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-xl px-2.5 sm:px-3.5 font-bold text-xs uppercase flex items-center justify-center gap-1.5 transition-all active:scale-95 border border-slate-200 dark:border-slate-700 shrink-0"
+                  >
+                    <i class="fa-solid fa-file-circle-plus text-slate-400"></i>
+                    <span class="hidden sm:inline">Tạo lịch mới</span>
+                    <span class="sm:hidden text-[11px]">Mới</span>
                   </button>
-                  <button v-if="formStore.id" @click="doSave('save')" class="bg-blue-600 hover:bg-blue-700 text-white rounded-xl py-2.5 px-4 font-bold text-xs uppercase shadow-sm flex items-center justify-center gap-1.5 transition-all active:scale-95">
-                    <i class="fa-solid fa-cloud-arrow-up text-sm text-blue-200"></i> Cập Nhật
+
+                  <button 
+                    v-if="formStore.id" 
+                    @click="doSave('save')" 
+                    class="h-10 bg-blue-600 hover:bg-blue-700 text-white rounded-xl px-3 sm:px-4 font-bold text-xs uppercase shadow-sm flex items-center justify-center gap-1.5 transition-all active:scale-95 shrink-0"
+                  >
+                    <i class="fa-solid fa-cloud-arrow-up text-xs sm:text-sm text-blue-200"></i>
+                    <span>Cập Nhật</span>
                   </button>
-                  <button v-else-if="formStore.customer.name" @click="doSave('save')" class="bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl py-2.5 px-5 font-bold text-xs uppercase shadow-sm flex items-center justify-center gap-1.5 transition-all active:scale-95">
-                    <i class="fa-solid fa-check-double text-sm text-emerald-200"></i> Tạo Đơn
+                  <button 
+                    v-else-if="formStore.customer.name" 
+                    @click="doSave('save')" 
+                    class="h-10 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl px-3.5 sm:px-5 font-bold text-xs uppercase shadow-sm flex items-center justify-center gap-1.5 transition-all active:scale-95 shrink-0"
+                  >
+                    <i class="fa-solid fa-check-double text-xs sm:text-sm text-emerald-200"></i>
+                    <span>Tạo Đơn</span>
                   </button>
                 </div>
               </div>
@@ -512,26 +546,14 @@ function goToTomorrowTimeline() {
       </div>
     </div>
 
-    <!-- FLOATING ACTION BUTTON (MOBILE) -->
-    <div v-show="ui.tab === 'create'" class="md:hidden fixed bottom-[142px] right-3.5 z-[100] safe-area-pb">
-      <button 
-        @click="showActionSheet = true" 
-        aria-label="Thao tác nhanh"
-        class="h-10 px-3.5 bg-slate-900/95 dark:bg-indigo-600/95 hover:bg-slate-800 dark:hover:bg-indigo-500 rounded-full shadow-lg shadow-slate-950/30 dark:shadow-indigo-950/40 flex items-center justify-center gap-1.5 text-white font-bold text-xs active:scale-90 transition-all border border-amber-400/60 dark:border-amber-400/60 backdrop-blur-md quick-action-pulse"
-      >
-        <i class="fa-solid fa-bolt-lightning text-amber-400 text-xs bolt-pulse"></i>
-        <span>Thao tác</span>
-      </button>
-    </div>
-
     <!-- ACTION MENU BOTTOM SHEET & DIALOG -->
     <transition name="fade">
       <div v-if="showActionSheet" class="fixed inset-0 z-[110] flex flex-col justify-end md:justify-center md:items-center p-0 md:p-4">
         <div class="fixed inset-0 bg-slate-950/60 backdrop-blur-sm" @click="showActionSheet = false"></div>
         <transition name="slide-up" appear>
           <div v-if="showActionSheet" class="bg-white dark:bg-slate-900 border-t md:border border-slate-200/90 dark:border-slate-800 rounded-t-3xl md:rounded-2xl p-5 md:p-6 relative z-10 shadow-2xl pb-safe max-h-[85vh] md:max-w-xl w-full overflow-y-auto">
-            <!-- Mobile drag indicator -->
-            <div class="md:hidden w-12 h-1.5 bg-slate-200 dark:bg-slate-700 rounded-full mx-auto mb-4"></div>
+            <!-- Mobile drag indicator: 36x4px sleek pill -->
+            <div class="md:hidden w-9 h-1 bg-slate-300 dark:bg-slate-700 rounded-full mx-auto mb-3.5"></div>
             
             <div class="flex items-center justify-between mb-5 pb-3 border-b border-slate-100 dark:border-slate-800">
               <div class="flex items-center gap-2.5">
@@ -636,7 +658,8 @@ function goToTomorrowTimeline() {
         <div class="absolute inset-0 bg-slate-900/50 backdrop-blur-sm" @click="showMoreSheet = false"></div>
         <transition name="slide-up" appear>
           <div v-if="showMoreSheet" class="bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 rounded-t-3xl p-5 relative z-10 shadow-2xl pb-safe max-h-[85vh] overflow-y-auto">
-            <div class="w-12 h-1.5 bg-slate-200 dark:bg-slate-700 rounded-full mx-auto mb-4"></div>
+            <!-- Mobile drag indicator: 36x4px sleek pill -->
+            <div class="w-9 h-1 bg-slate-300 dark:bg-slate-700 rounded-full mx-auto mb-3.5"></div>
             
             <h3 class="text-center font-black text-slate-800 dark:text-slate-100 text-base mb-4 uppercase tracking-widest">Danh Mục & Tiện Ích</h3>
             
@@ -736,53 +759,53 @@ function goToTomorrowTimeline() {
     </transition>
 
     <!-- MOBILE BOTTOM NAV (Luôn hiển thị cố định trên mọi thiết bị di động) -->
-    <nav class="flex md:hidden w-full bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-t border-slate-200/80 dark:border-slate-800/80 text-[10px] font-bold uppercase tracking-wider relative z-30 items-stretch shrink-0 pb-safe-bottom shadow-[0_-8px_30px_rgba(0,0,0,0.06)] dark:shadow-[0_-8px_30px_rgba(0,0,0,0.3)] select-none" aria-label="Điều hướng chính">
+    <nav class="flex md:hidden w-full bg-white/95 dark:bg-[#0D1422]/95 backdrop-blur-xl border-t border-slate-200/80 dark:border-slate-800/80 text-[10px] font-bold uppercase tracking-wider relative z-30 items-stretch shrink-0 pb-safe-bottom shadow-[0_-8px_30px_rgba(0,0,0,0.06)] dark:shadow-[0_-8px_30px_rgba(0,0,0,0.4)] select-none" aria-label="Điều hướng chính">
       <button 
         @click="ui.tab = 'dashboard'" 
-        :class="['flex-grow flex-1 py-1.5 flex flex-col justify-center items-center gap-0.5 transition-all duration-200 select-none min-h-[52px] touch-target-48 active:scale-95', ui.tab === 'dashboard' ? 'text-blue-600 dark:text-blue-400 font-black' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300']"
+        :class="['flex-grow flex-1 py-1.5 flex flex-col justify-center items-center gap-0.5 transition-all duration-200 select-none min-h-[52px] touch-target-48 active:scale-95', ui.tab === 'dashboard' ? 'text-blue-600 dark:text-[#62A5FF] font-black' : 'text-slate-500 dark:text-[#64748B] hover:text-slate-700 dark:hover:text-[#94A3B8]']"
         aria-label="Tổng quan"
       >
-        <div class="relative flex items-center justify-center w-8 h-8 rounded-full transition-all" :class="ui.tab === 'dashboard' ? 'bg-blue-500/15 text-blue-600 dark:text-blue-400 scale-105' : ''">
+        <div class="relative flex items-center justify-center w-8 h-8 rounded-full transition-all" :class="ui.tab === 'dashboard' ? 'bg-blue-500/15 dark:bg-[#2F67E8]/20 text-blue-600 dark:text-[#62A5FF] scale-105 shadow-xs' : ''">
           <i class="fa-solid fa-gauge-high text-base"></i>
         </div>
         <span class="text-[10px] font-extrabold tracking-tight">Tổng quan</span>
       </button>
       <button 
         @click="ui.tab = 'create'" 
-        :class="['flex-grow flex-1 py-1.5 flex flex-col justify-center items-center gap-0.5 transition-all duration-200 select-none min-h-[52px] touch-target-48 active:scale-95', ui.tab === 'create' ? 'text-blue-600 dark:text-blue-400 font-black' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300']"
+        :class="['flex-grow flex-1 py-1.5 flex flex-col justify-center items-center gap-0.5 transition-all duration-200 select-none min-h-[52px] touch-target-48 active:scale-95', ui.tab === 'create' ? 'text-blue-600 dark:text-[#62A5FF] font-black' : 'text-slate-500 dark:text-[#64748B] hover:text-slate-700 dark:hover:text-[#94A3B8]']"
         aria-label="Tạo phiếu"
       >
-        <div class="relative flex items-center justify-center w-8 h-8 rounded-full transition-all" :class="ui.tab === 'create' ? 'bg-blue-500/15 text-blue-600 dark:text-blue-400 scale-105' : ''">
+        <div class="relative flex items-center justify-center w-8 h-8 rounded-full transition-all" :class="ui.tab === 'create' ? 'bg-blue-500/15 dark:bg-[#2F67E8]/20 text-blue-600 dark:text-[#62A5FF] scale-105 shadow-xs' : ''">
           <i class="fa-solid fa-plus text-base"></i>
         </div>
         <span class="text-[10px] font-extrabold tracking-tight">Tạo</span>
       </button>
       <button 
         @click="ui.tab = 'timeline'; appStore.loadHistory(false)" 
-        :class="['flex-grow flex-1 py-1.5 flex flex-col justify-center items-center gap-0.5 transition-all duration-200 select-none min-h-[52px] touch-target-48 active:scale-95', ui.tab === 'timeline' ? 'text-blue-600 dark:text-blue-400 font-black' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300']"
+        :class="['flex-grow flex-1 py-1.5 flex flex-col justify-center items-center gap-0.5 transition-all duration-200 select-none min-h-[52px] touch-target-48 active:scale-95', ui.tab === 'timeline' ? 'text-blue-600 dark:text-[#62A5FF] font-black' : 'text-slate-500 dark:text-[#64748B] hover:text-slate-700 dark:hover:text-[#94A3B8]']"
         aria-label="Lịch đặt bàn"
       >
-        <div class="relative flex items-center justify-center w-8 h-8 rounded-full transition-all" :class="ui.tab === 'timeline' ? 'bg-blue-500/15 text-blue-600 dark:text-blue-400 scale-105' : ''">
+        <div class="relative flex items-center justify-center w-8 h-8 rounded-full transition-all" :class="ui.tab === 'timeline' ? 'bg-blue-500/15 dark:bg-[#2F67E8]/20 text-blue-600 dark:text-[#62A5FF] scale-105 shadow-xs' : ''">
           <i class="fa-solid fa-calendar-days text-base"></i>
         </div>
         <span class="text-[10px] font-extrabold tracking-tight">Lịch</span>
       </button>
       <button 
         @click="ui.tab = 'preview'" 
-        :class="['flex-grow flex-1 py-1.5 flex flex-col justify-center items-center gap-0.5 transition-all duration-200 select-none min-h-[52px] touch-target-48 active:scale-95', ui.tab === 'preview' ? 'text-blue-600 dark:text-blue-400 font-black' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300']"
+        :class="['flex-grow flex-1 py-1.5 flex flex-col justify-center items-center gap-0.5 transition-all duration-200 select-none min-h-[52px] touch-target-48 active:scale-95', ui.tab === 'preview' ? 'text-blue-600 dark:text-[#62A5FF] font-black' : 'text-slate-500 dark:text-[#64748B] hover:text-slate-700 dark:hover:text-[#94A3B8]']"
         aria-label="Xem phiếu"
       >
-        <div class="relative flex items-center justify-center w-8 h-8 rounded-full transition-all" :class="ui.tab === 'preview' ? 'bg-blue-500/15 text-blue-600 dark:text-blue-400 scale-105' : ''">
+        <div class="relative flex items-center justify-center w-8 h-8 rounded-full transition-all" :class="ui.tab === 'preview' ? 'bg-blue-500/15 dark:bg-[#2F67E8]/20 text-blue-600 dark:text-[#62A5FF] scale-105 shadow-xs' : ''">
           <i class="fa-solid fa-eye text-base"></i>
         </div>
         <span class="text-[10px] font-extrabold tracking-tight">Phiếu</span>
       </button>
       <button 
         @click="showMoreSheet = true" 
-        :class="['flex-grow flex-1 py-1.5 flex flex-col justify-center items-center gap-0.5 transition-all duration-200 select-none min-h-[52px] touch-target-48 active:scale-95', showMoreSheet ? 'text-blue-600 dark:text-blue-400 font-black' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300']"
+        :class="['flex-grow flex-1 py-1.5 flex flex-col justify-center items-center gap-0.5 transition-all duration-200 select-none min-h-[52px] touch-target-48 active:scale-95', showMoreSheet ? 'text-blue-600 dark:text-[#62A5FF] font-black' : 'text-slate-500 dark:text-[#64748B] hover:text-slate-700 dark:hover:text-[#94A3B8]']"
         aria-label="Danh mục thêm"
       >
-        <div class="relative flex items-center justify-center w-8 h-8 rounded-full transition-all" :class="showMoreSheet ? 'bg-blue-500/15 text-blue-600 dark:text-blue-400 scale-105' : ''">
+        <div class="relative flex items-center justify-center w-8 h-8 rounded-full transition-all" :class="showMoreSheet ? 'bg-blue-500/15 dark:bg-[#2F67E8]/20 text-blue-600 dark:text-[#62A5FF] scale-105 shadow-xs' : ''">
           <i class="fa-solid fa-ellipsis text-base"></i>
         </div>
         <span class="text-[10px] font-extrabold tracking-tight">Thêm</span>

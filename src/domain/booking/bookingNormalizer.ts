@@ -1,5 +1,6 @@
 import { stripAccents, cleanPhoneNumber } from '@/utils'
 import { safeParseJSON } from '@/domain/ai/jsonRepair'
+import { classifyNonFoodLeakage } from '@/domain/ai/expertEntityDisambiguator'
 
 export function cleanCustomerName(name: string): string {
   if (!name) return ''
@@ -56,6 +57,18 @@ export function cleanCustomerName(name: string): string {
   // Reject decor / note / request / party keywords
   const requestKeywords = /yeu cau|phong lanh|trang tri|hoa tuoi|hoa lua|bong bong|bong bay|guong|bang chu|bang ten|com chien|thuc don|mon an|coc|chuyen khoan|set menu|combo|bao gia|bia|nuoc ngot|sinh nhat|thoi noi|day thang|happy birthday|hbd/i
   if (requestKeywords.test(cleanLowerNoAccent)) {
+    return ''
+  }
+
+  // Reject food / dish / cooking keywords
+  const foodKeywords = /\b(?:l[aả]u|n[uư][oớ]ng|x[aà]o|h[aấ]p|chi[eê]n|s[oố]t|lu[oộ]c|b[oò]\s*n[uư][oớ]ng|g[aà]\s*n[uư][oớ]ng|l[aả]u\s*th[aá]i|c[aá]\s*di[eê]u|m[uự]c\s*tr[uứ]ng|khoai\s*t[aâ]y|c[oơ]m\s*chi[eê]n|s[uú]p\s*y[eế]n|ch[aá]o|g[oỏ]i|salad|tr[aà]\s*[đd][aà]o|bia|heineken|tiger|saigon)\b/i
+  if (foodKeywords.test(cleanLowerNoAccent)) {
+    return ''
+  }
+
+  // Reject seating amenities & equipment
+  const seatingKeywords = /\b(?:gh[eế]\s*em\s*b[eé]|gh[eế]\s*tr[eẻ]\s*em|baby\s*chair|b[aà]n\s*vip|ph[oò]ng\s*vip|ban\s*c[oô]ng|s[aâ]n\s*th[uư][oợ]ng|ngo[aà]i\s*tr[oờ]i)\b/i
+  if (seatingKeywords.test(cleanLowerNoAccent)) {
     return ''
   }
 
@@ -232,14 +245,14 @@ export function crossValidateResults(
     }
   }
 
-  // --- Cross-validate & Sanitize Menu Items (Prevent customer name & decor as dishes) ---
+  // --- Cross-validate & Sanitize Menu Items (Prevent customer name, party owner & non-food leakage as dishes) ---
   if (Array.isArray(result.menu_items) && result.menu_items.length > 0) {
     const custName = result.customer?.name || ruleResult?.customer_name || ''
     const cleanCustName = stripAccents(custName).toLowerCase().trim()
-    const decorRegex = /(?:t[oô]ng|tone|m[aà]u)\s*(?:tr[aắ]ng|h[oồ]ng|xanh|v[aà]ng|[đd][oỏ]|t[ií]m|cam|[đd]en|n[aâ]u|b[aạ]c|gold|silver|pastel|kem|be)|hoa\s*t[uư][oơ]i|hoa\s*l[uụ]a|hoa\s*s[aá]p|b[oó]ng\s*bay|bong\s*b[oó]ng|background|backdrop|b[aả]ng\s*t[eê]n|g[uư][oơ]ng/i
+    const partyOwner = result.party?.owner_name || ruleParty?.owner_name || ''
+    const cleanPartyOwner = stripAccents(partyOwner).toLowerCase().trim()
 
     const validDishes: any[] = []
-    const divertedDecor: string[] = []
 
     for (const item of result.menu_items) {
       const name = (item.raw_name || item.name || '').trim()
@@ -247,7 +260,7 @@ export function crossValidateResults(
       if (!name || cleanName.length < 2) continue
 
       // 1. Check if it matches customer name
-      if (cleanCustName && (cleanName === cleanCustName || cleanName.includes(cleanCustName))) {
+      if (cleanCustName && (cleanName === cleanCustName || (cleanName.length >= 4 && cleanCustName.length >= 4 && cleanName.includes(cleanCustName)))) {
         validations.push({
           field: 'menu_items',
           aiValue: name,
@@ -261,23 +274,61 @@ export function crossValidateResults(
         continue
       }
 
-      // 2. Check if it's table code or staff
-      if (/^(?:[A-G]|VIP)\d*$/i.test(name) || /^(?:nhan|nv)\s*[:\-]/i.test(cleanName) || cleanName === 'nhan: dmt') {
-        continue
-      }
-
-      // 3. Check if it's a decor request
-      if (decorRegex.test(name)) {
-        divertedDecor.push(name)
+      // 2. Check if it matches party owner / birthday child name
+      if (cleanPartyOwner && (cleanName === cleanPartyOwner || (cleanName.length >= 4 && cleanPartyOwner.length >= 4 && cleanName.includes(cleanPartyOwner)))) {
         validations.push({
           field: 'menu_items',
           aiValue: name,
           ruleValue: null,
-          chosenValue: 'diverted_to_decor',
+          chosenValue: 'removed',
           chosenSource: 'rule',
           aiConfidence: 0,
           ruleConfidence: 0.99,
-          reason: `Diverted decor item "${name}" from menu_items to decoration special_request`
+          reason: `Removed party owner/child name "${name}" from menu_items`
+        })
+        continue
+      }
+
+      // 3. Check if it's table code or staff label
+      if (/^(?:[A-G]|VIP)\d*$/i.test(name) || /^(?:nhan|nv)\s*[:\-]/i.test(cleanName) || cleanName === 'nhan: dmt') {
+        continue
+      }
+
+      // 4. Expert Entity Isolation: Non-food leakage check (Decor, Seating, Dietary, etc.)
+      const leakage = classifyNonFoodLeakage(name)
+      if (leakage.isLeakage) {
+        if (!result.party) result.party = {}
+        if (leakage.divertTo === 'party.decor_color') {
+          const existing = result.party.decor_color || ''
+          if (!existing.toLowerCase().includes(leakage.divertValue.toLowerCase())) {
+            result.party.decor_color = existing ? `${existing}; ${leakage.divertValue}` : leakage.divertValue
+          }
+        } else if (leakage.divertTo === 'party.seating_preference') {
+          const existing = result.party.seating_preference || ''
+          if (!existing.toLowerCase().includes(leakage.divertValue.toLowerCase())) {
+            result.party.seating_preference = existing ? `${existing}; ${leakage.divertValue}` : leakage.divertValue
+          }
+        } else if (leakage.divertTo === 'party.dietary_notes') {
+          const existing = result.party.dietary_notes || ''
+          if (!existing.toLowerCase().includes(leakage.divertValue.toLowerCase())) {
+            result.party.dietary_notes = existing ? `${existing}; ${leakage.divertValue}` : leakage.divertValue
+          }
+        } else if (leakage.divertTo === 'party.special_request') {
+          const existing = result.party.special_request || ''
+          if (!existing.toLowerCase().includes(leakage.divertValue.toLowerCase())) {
+            result.party.special_request = existing ? `${existing}; ${leakage.divertValue}` : leakage.divertValue
+          }
+        }
+
+        validations.push({
+          field: 'menu_items',
+          aiValue: name,
+          ruleValue: null,
+          chosenValue: leakage.divertTo,
+          chosenSource: 'rule',
+          aiConfidence: 0,
+          ruleConfidence: 0.99,
+          reason: leakage.reason
         })
         continue
       }
@@ -286,15 +337,6 @@ export function crossValidateResults(
     }
 
     result.menu_items = validDishes
-
-    if (divertedDecor.length > 0) {
-      if (!result.party) result.party = {}
-      const existingReq = result.party.special_request || ''
-      const newReqs = divertedDecor.filter(d => !existingReq.toLowerCase().includes(d.toLowerCase()))
-      if (newReqs.length > 0) {
-        result.party.special_request = existingReq ? `${existingReq}; ${newReqs.join('; ')}` : newReqs.join('; ')
-      }
-    }
   }
 
   // Sync note if party or decoration details are present

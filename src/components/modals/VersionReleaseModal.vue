@@ -100,13 +100,14 @@ const coreFeatures = [
 const versionTimeline = [
   {
     version: 'v2.5.0-APEX',
-    tag: 'Mới Nhất',
-    date: 'Tháng 7/2026',
+    tag: 'Production Apex',
+    date: 'Tháng 9/2026',
     status: 'current',
     highlights: [
-      'Canvas Adaptive Contrast Vision OCR cho bill mờ',
-      'Tích hợp 9 Cổng LLM API Miễn phí (0đ)',
-      'Git Tag release v2.5.0-APEX trên GitHub & Deploy Cloudflare Pages'
+      'Dual-Write Outbox chống mất đơn & PostgreSQL First (<100ms)',
+      'Bảo mật Edge Gateway & Code-Splitting giảm 84% JS bundle',
+      'Xếp bàn thông minh tự động (Smart Table Allocator) & Live Outbox Sync',
+      'Đồng bộ Real-Time Đa Tab qua BroadcastChannel API'
     ]
   },
   {

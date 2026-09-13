@@ -7,6 +7,7 @@ import { PARTY_TYPES } from '@/utils/constants'
 
 import { useAppStore } from '@/stores/useAppStore'
 import { cleanPhoneNumber } from '@/utils'
+import { allocateSmartTables } from '@/domain/booking/smartTableAllocator'
 
 const ui = useUIStore()
 const formStore = useFormStore()
@@ -129,18 +130,52 @@ const tableConflictWarning = computed(() => {
 
   return null
 })
+
+const smartTableRecommendation = computed(() => {
+  const pax = parseInt(formStore.customer.pax || '0', 10)
+  const time = formStore.customer.time
+  const date = formStore.customer.date
+  if (!pax || pax <= 0 || !time) return null
+
+  const existingBookings = appStore.historyList
+    .filter(o => o.id !== formStore.id && o.parsedCustomer?.date === date)
+    .map(o => {
+      const isCancelled = (o.parsedCustomer?.note || '').toLowerCase().includes('hủy') || (o.parsedCustomer?.note || '').toLowerCase().includes('cancel')
+      return {
+        tables: (o.parsedCustomer?.tables || '').split(/[\s,]+/).map(t => t.trim().toUpperCase()).filter(Boolean),
+        bookingTime: o.parsedCustomer?.time || '',
+        status: isCancelled ? 'cancelled' : 'confirmed'
+      }
+    })
+
+  const currentTable = formStore.customer.tables || ''
+  const firstZone = currentTable.trim().charAt(0).toUpperCase()
+  const preferredZone = ['A', 'B', 'C', 'D', 'E'].includes(firstZone) ? firstZone : 'A'
+
+  return allocateSmartTables({
+    guestCount: pax,
+    preferredZone,
+    bookingTime: time,
+    existingBookings
+  })
+})
+
+function applySmartRecommendation() {
+  if (!smartTableRecommendation.value) return
+  formStore.customer.tables = smartTableRecommendation.value.recommendedTables.join(', ')
+}
 </script>
 
 <template>
-  <div class="bg-white dark:bg-slate-900 rounded-3xl shadow-sm border p-5 md:p-6 space-y-5 transition-all duration-300 relative overflow-hidden text-slate-800 dark:text-slate-100"
-       :class="hasSoftWarning ? 'border-amber-300 dark:border-amber-700/60 bg-amber-50/10 dark:bg-amber-950/10' : 'border-slate-100 dark:border-slate-800'">
+  <div class="bg-white dark:bg-[#121B2B] rounded-3xl shadow-sm border p-5 md:p-6 space-y-5 transition-all duration-300 relative overflow-hidden text-slate-800 dark:text-slate-100"
+       :class="hasSoftWarning ? 'border-amber-300 dark:border-amber-700/60 bg-amber-50/10 dark:bg-amber-950/10' : 'border-slate-200 dark:border-[#223147]'">
     <!-- Top Decorative Line -->
     <div class="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-blue-500 via-indigo-500 to-purple-500"></div>
 
     <!-- Header -->
-    <div class="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
+    <div class="flex items-center justify-between border-b border-slate-100 dark:border-[#223147] pb-3">
       <div class="flex items-center gap-2.5">
-        <div class="w-8 h-8 rounded-xl bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 flex items-center justify-center text-sm shadow-sm border border-blue-100 dark:border-blue-800/50">
+        <div class="w-8 h-8 rounded-xl bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-[#62A5FF] flex items-center justify-center text-sm shadow-sm border border-blue-100 dark:border-blue-800/50">
           <i class="fa-solid fa-user-tag"></i>
         </div>
         <div>
@@ -161,7 +196,7 @@ const tableConflictWarning = computed(() => {
       </label>
       <div class="relative">
         <i class="fa-regular fa-user absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500"></i>
-        <input id="cust-name" v-model="formStore.customer.name" autocomplete="name" enterkeyhint="next" @focus="handleInputFocus" @blur="handleInputBlur" class="w-full border rounded-xl pl-10 pr-4 py-3 text-[16px] font-semibold text-slate-800 dark:text-slate-100 bg-white dark:bg-slate-800/70 focus:border-blue-500 dark:focus:border-blue-400 focus:ring-4 focus:ring-blue-50 dark:focus:ring-blue-900/30 outline-none transition-all placeholder-slate-400 dark:placeholder-slate-500" :class="formStore.aiMetadata?.confidences?.name?.needs_review ? 'border-amber-400 bg-amber-50/10 focus:border-amber-500 focus:ring-amber-100' : 'border-slate-200 dark:border-slate-700'" placeholder="Nhập tên khách hàng">
+        <input id="cust-name" v-model="formStore.customer.name" autocomplete="name" enterkeyhint="next" @focus="handleInputFocus" @blur="handleInputBlur" class="w-full border rounded-xl pl-10 pr-4 py-3 text-[16px] font-semibold text-slate-800 dark:text-slate-100 bg-white dark:bg-[#0B1220] focus:border-blue-500 dark:focus:border-[#78A6FF] focus:ring-4 focus:ring-blue-50 dark:focus:ring-[#2F67E8]/20 outline-none transition-all placeholder-slate-400 dark:placeholder-slate-500" :class="formStore.aiMetadata?.confidences?.name?.needs_review ? 'border-amber-400 bg-amber-50/10 focus:border-amber-500 focus:ring-amber-100' : 'border-slate-200 dark:border-[#293954]'" placeholder="Nhập tên khách hàng">
       </div>
     </div>
 
@@ -173,20 +208,20 @@ const tableConflictWarning = computed(() => {
       </label>
       <div class="relative">
         <i class="fa-solid fa-phone absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500"></i>
-        <input id="cust-phone" v-model="formStore.customer.phone" autocomplete="tel" inputmode="tel" enterkeyhint="next" @focus="handleInputFocus" @blur="(e) => { handleInputBlur(); checkCRM(); }" class="w-full border rounded-xl pl-10 pr-4 py-3 text-[16px] font-semibold text-slate-800 dark:text-slate-100 bg-white dark:bg-slate-800/70 focus:border-blue-500 dark:focus:border-blue-400 focus:ring-4 focus:ring-blue-50 dark:focus:ring-blue-900/30 outline-none transition-all placeholder-slate-400 dark:placeholder-slate-500" :class="formStore.aiMetadata?.confidences?.phone?.needs_review ? 'border-amber-400 bg-amber-50/10 focus:border-amber-500 focus:ring-amber-100' : 'border-slate-200 dark:border-slate-700'" placeholder="09xxxxxxx">
+        <input id="cust-phone" v-model="formStore.customer.phone" autocomplete="tel" inputmode="tel" enterkeyhint="next" @focus="handleInputFocus" @blur="(e) => { handleInputBlur(); checkCRM(); }" class="w-full border rounded-xl pl-10 pr-4 py-3 text-[16px] font-semibold text-slate-800 dark:text-slate-100 bg-white dark:bg-[#0B1220] focus:border-blue-500 dark:focus:border-[#78A6FF] focus:ring-4 focus:ring-blue-50 dark:focus:ring-[#2F67E8]/20 outline-none transition-all placeholder-slate-400 dark:placeholder-slate-500" :class="formStore.aiMetadata?.confidences?.phone?.needs_review ? 'border-amber-400 bg-amber-50/10 focus:border-amber-500 focus:ring-amber-100' : 'border-slate-200 dark:border-[#293954]'" placeholder="09xxxxxxx">
       </div>
     </div>
 
     <!-- CRM Profile Panel (Show when phone has history) -->
-    <div v-if="customerCrmProfile" class="bg-gradient-to-br from-blue-50 to-indigo-50/50 dark:from-blue-950/40 dark:to-slate-900/60 border border-blue-100 dark:border-blue-900/40 rounded-xl p-3.5 space-y-2 text-xs transition-all duration-300">
+    <div v-if="customerCrmProfile" class="bg-gradient-to-br from-blue-50 to-indigo-50/50 dark:from-[#182338] dark:to-[#121B2B] border border-blue-100 dark:border-[#293954] rounded-xl p-3.5 space-y-2 text-xs transition-all duration-300">
       <div class="flex items-center justify-between">
         <div class="flex items-center gap-2">
           <span :class="['px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-wider', 
             customerCrmProfile.vipStatus === 'VIP' ? 'bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 border border-amber-200 dark:border-amber-800/40' : 
-            customerCrmProfile.vipStatus === 'Khách quen' ? 'bg-blue-100 dark:bg-blue-950/60 text-blue-800 dark:text-blue-300 border border-blue-200 dark:border-blue-800/40' : 'bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 border border-slate-200 dark:border-slate-700']">
+            customerCrmProfile.vipStatus === 'Khách quen' ? 'bg-blue-100 dark:bg-blue-950/60 text-blue-800 dark:text-blue-300 border border-blue-200 dark:border-blue-800/40' : 'bg-slate-100 dark:bg-[#182338] text-slate-800 dark:text-slate-200 border border-slate-200 dark:border-[#293954]']">
             {{ customerCrmProfile.vipStatus }}
           </span>
-          <span class="font-black text-slate-700 dark:text-slate-200">Lịch sử: <span class="text-blue-700 dark:text-blue-400 font-extrabold">{{ customerCrmProfile.totalVisits }} lần</span></span>
+          <span class="font-black text-slate-700 dark:text-slate-200">Lịch sử: <span class="text-blue-700 dark:text-[#62A5FF] font-extrabold">{{ customerCrmProfile.totalVisits }} lần</span></span>
           <span v-if="customerCrmProfile.noShowCount > 0" class="px-1.5 py-0.5 rounded text-[9px] font-bold bg-rose-50 dark:bg-rose-950/50 text-rose-700 dark:text-rose-300 border border-rose-100 dark:border-rose-800/40 flex items-center gap-1 animate-pulse">
             <i class="fa-solid fa-triangle-exclamation"></i> Hủy/No-show: {{ customerCrmProfile.noShowCount }} lần
           </span>
@@ -195,8 +230,8 @@ const tableConflictWarning = computed(() => {
       </div>
 
       <!-- Quick Suggestion / Greeting -->
-      <div class="bg-white dark:bg-slate-800 rounded-lg p-2.5 border border-slate-100 dark:border-slate-700 space-y-1">
-        <div class="text-[10px] font-black text-blue-800 dark:text-blue-400 uppercase tracking-wider flex items-center gap-1">
+      <div class="bg-white dark:bg-[#0D1422] rounded-lg p-2.5 border border-slate-100 dark:border-[#223147] space-y-1">
+        <div class="text-[10px] font-black text-blue-800 dark:text-[#62A5FF] uppercase tracking-wider flex items-center gap-1">
           <i class="fa-regular fa-comment-dots"></i> Gợi ý câu chào:
         </div>
         <p class="text-slate-600 dark:text-slate-300 font-semibold italic text-[11px] leading-relaxed">
@@ -218,12 +253,12 @@ const tableConflictWarning = computed(() => {
         </label>
         <div class="relative">
           <i class="fa-regular fa-calendar absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500"></i>
-          <input id="cust-date" v-model="formStore.customer.date" autocomplete="off" inputmode="numeric" enterkeyhint="next" @focus="handleInputFocus" @blur="(e) => { handleInputBlur(); formatDate(); }" class="w-full border rounded-xl pl-9 pr-2 py-3 text-[16px] font-semibold text-slate-800 dark:text-slate-100 bg-white dark:bg-slate-800/70 focus:border-blue-500 dark:focus:border-blue-400 focus:ring-4 focus:ring-blue-50 dark:focus:ring-blue-900/30 outline-none transition-all placeholder-slate-400 dark:placeholder-slate-500" :class="formStore.aiMetadata?.confidences?.date?.needs_review ? 'border-amber-400 bg-amber-50/10 focus:border-amber-500 focus:ring-amber-100' : 'border-slate-200 dark:border-slate-700'" placeholder="dd/mm/yyyy">
+          <input id="cust-date" v-model="formStore.customer.date" autocomplete="off" inputmode="numeric" enterkeyhint="next" @focus="handleInputFocus" @blur="(e) => { handleInputBlur(); formatDate(); }" class="w-full border rounded-xl pl-9 pr-2 py-3 text-[16px] font-semibold text-slate-800 dark:text-slate-100 bg-white dark:bg-[#0B1220] focus:border-blue-500 dark:focus:border-[#78A6FF] focus:ring-4 focus:ring-blue-50 dark:focus:ring-[#2F67E8]/20 outline-none transition-all placeholder-slate-400 dark:placeholder-slate-500" :class="formStore.aiMetadata?.confidences?.date?.needs_review ? 'border-amber-400 bg-amber-50/10 focus:border-amber-500 focus:ring-amber-100' : 'border-slate-200 dark:border-[#293954]'" placeholder="dd/mm/yyyy">
         </div>
         <!-- Quick Chips for Date -->
-        <div class="flex gap-1.5 mt-1.5 flex-wrap">
-          <button @click.prevent="formStore.customer.date = getTodayStr()" class="px-2.5 py-1 min-h-[30px] text-[10px] font-black uppercase tracking-wider rounded-lg bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-blue-50 dark:hover:bg-blue-950/50 hover:text-blue-600 dark:hover:text-blue-400 hover:border-blue-200 dark:hover:border-blue-800 active:scale-95 transition-all">Hôm nay</button>
-          <button @click.prevent="formStore.customer.date = getTomorrowStr()" class="px-2.5 py-1 min-h-[30px] text-[10px] font-black uppercase tracking-wider rounded-lg bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-blue-50 dark:hover:bg-blue-950/50 hover:text-blue-600 dark:hover:text-blue-400 hover:border-blue-200 dark:hover:border-blue-800 active:scale-95 transition-all">Mai</button>
+        <div class="flex gap-1.5 mt-1.5 flex-nowrap overflow-x-auto no-scrollbar">
+          <button @click.prevent="formStore.customer.date = getTodayStr()" class="px-2.5 py-1 min-h-[30px] text-[10px] font-black uppercase tracking-wider rounded-lg bg-slate-100 dark:bg-[#182338] border border-slate-200 dark:border-[#293954] text-slate-600 dark:text-[#94A3B8] hover:bg-blue-50 dark:hover:bg-[#1E2C44] hover:text-blue-600 dark:hover:text-[#62A5FF] hover:border-blue-200 dark:hover:border-[#3B547C] active:scale-95 transition-all whitespace-nowrap shrink-0 cursor-pointer">Hôm nay</button>
+          <button @click.prevent="formStore.customer.date = getTomorrowStr()" class="px-2.5 py-1 min-h-[30px] text-[10px] font-black uppercase tracking-wider rounded-lg bg-slate-100 dark:bg-[#182338] border border-slate-200 dark:border-[#293954] text-slate-600 dark:text-[#94A3B8] hover:bg-blue-50 dark:hover:bg-[#1E2C44] hover:text-blue-600 dark:hover:text-[#62A5FF] hover:border-blue-200 dark:hover:border-[#3B547C] active:scale-95 transition-all whitespace-nowrap shrink-0 cursor-pointer">Mai</button>
         </div>
       </div>
       <!-- Giờ (40%) -->
@@ -234,13 +269,13 @@ const tableConflictWarning = computed(() => {
         </label>
         <div class="relative">
           <i class="fa-regular fa-clock absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500"></i>
-          <input id="cust-time" v-model="formStore.customer.time" autocomplete="off" inputmode="numeric" enterkeyhint="next" @focus="handleInputFocus" @blur="handleInputBlur" class="w-full border rounded-xl pl-9 pr-2 py-3 text-[16px] font-semibold text-slate-800 dark:text-slate-100 bg-white dark:bg-slate-800/70 focus:border-blue-500 dark:focus:border-blue-400 focus:ring-4 focus:ring-blue-50 dark:focus:ring-blue-900/30 outline-none transition-all placeholder-slate-400 dark:placeholder-slate-500" :class="formStore.aiMetadata?.confidences?.time?.needs_review ? 'border-amber-400 bg-amber-50/10 focus:border-amber-500 focus:ring-amber-100' : 'border-slate-200 dark:border-slate-700'" placeholder="18:30">
+          <input id="cust-time" v-model="formStore.customer.time" autocomplete="off" inputmode="numeric" enterkeyhint="next" @focus="handleInputFocus" @blur="handleInputBlur" class="w-full border rounded-xl pl-9 pr-2 py-3 text-[16px] font-semibold text-slate-800 dark:text-slate-100 bg-white dark:bg-[#0B1220] focus:border-blue-500 dark:focus:border-[#78A6FF] focus:ring-4 focus:ring-blue-50 dark:focus:ring-[#2F67E8]/20 outline-none transition-all placeholder-slate-400 dark:placeholder-slate-500" :class="formStore.aiMetadata?.confidences?.time?.needs_review ? 'border-amber-400 bg-amber-50/10 focus:border-amber-500 focus:ring-amber-100' : 'border-slate-200 dark:border-[#293954]'" placeholder="18:30">
         </div>
         <!-- Quick Chips for Time -->
-        <div class="flex gap-1.5 mt-1.5 flex-wrap">
-          <button @click.prevent="formStore.customer.time = '11:30'" class="px-2 py-1 min-h-[30px] text-[10px] font-black uppercase tracking-wider rounded-lg bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-blue-50 dark:hover:bg-blue-950/50 hover:text-blue-600 dark:hover:text-blue-400 active:scale-95 transition-all">11:30</button>
-          <button @click.prevent="formStore.customer.time = '18:00'" class="px-2 py-1 min-h-[30px] text-[10px] font-black uppercase tracking-wider rounded-lg bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-blue-50 dark:hover:bg-blue-950/50 hover:text-blue-600 dark:hover:text-blue-400 active:scale-95 transition-all">18:00</button>
-          <button @click.prevent="formStore.customer.time = '19:00'" class="px-2 py-1 min-h-[30px] text-[10px] font-black uppercase tracking-wider rounded-lg bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-blue-50 dark:hover:bg-blue-950/50 hover:text-blue-600 dark:hover:text-blue-400 active:scale-95 transition-all">19:00</button>
+        <div class="flex gap-1 mt-1.5 flex-nowrap overflow-x-auto no-scrollbar">
+          <button @click.prevent="formStore.customer.time = '11:30'" class="px-2 py-1 min-h-[30px] text-[10px] font-black uppercase tracking-wider rounded-lg bg-slate-100 dark:bg-[#182338] border border-slate-200 dark:border-[#293954] text-slate-600 dark:text-[#94A3B8] hover:bg-blue-50 dark:hover:bg-[#1E2C44] hover:text-blue-600 dark:hover:text-[#62A5FF] active:scale-95 transition-all shrink-0 cursor-pointer">11:30</button>
+          <button @click.prevent="formStore.customer.time = '18:00'" class="px-2 py-1 min-h-[30px] text-[10px] font-black uppercase tracking-wider rounded-lg bg-slate-100 dark:bg-[#182338] border border-slate-200 dark:border-[#293954] text-slate-600 dark:text-[#94A3B8] hover:bg-blue-50 dark:hover:bg-[#1E2C44] hover:text-blue-600 dark:hover:text-[#62A5FF] active:scale-95 transition-all shrink-0 cursor-pointer">18:00</button>
+          <button @click.prevent="formStore.customer.time = '19:00'" class="px-2 py-1 min-h-[30px] text-[10px] font-black uppercase tracking-wider rounded-lg bg-slate-100 dark:bg-[#182338] border border-slate-200 dark:border-[#293954] text-slate-600 dark:text-[#94A3B8] hover:bg-blue-50 dark:hover:bg-[#1E2C44] hover:text-blue-600 dark:hover:text-[#62A5FF] active:scale-95 transition-all shrink-0 cursor-pointer">19:00</button>
         </div>
       </div>
     </div>
@@ -255,13 +290,13 @@ const tableConflictWarning = computed(() => {
         </label>
         <div class="relative">
           <i class="fa-solid fa-user-group absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500"></i>
-          <input id="cust-pax" v-model="formStore.customer.pax" inputmode="numeric" enterkeyhint="next" @focus="handleInputFocus" @blur="handleInputBlur" class="w-full border rounded-xl pl-9 pr-2 py-3 text-[16px] font-semibold text-slate-800 dark:text-slate-100 bg-white dark:bg-slate-800/70 focus:border-blue-500 dark:focus:border-blue-400 focus:ring-4 focus:ring-blue-50 dark:focus:ring-blue-900/30 outline-none transition-all placeholder-slate-400 dark:placeholder-slate-500" :class="formStore.aiMetadata?.confidences?.pax?.needs_review ? 'border-amber-400 bg-amber-50/10 focus:border-amber-500 focus:ring-amber-100' : 'border-slate-200 dark:border-slate-700'" placeholder="SL">
+          <input id="cust-pax" v-model="formStore.customer.pax" inputmode="numeric" enterkeyhint="next" @focus="handleInputFocus" @blur="handleInputBlur" class="w-full border rounded-xl pl-9 pr-2 py-3 text-[16px] font-semibold text-slate-800 dark:text-slate-100 bg-white dark:bg-[#0B1220] focus:border-blue-500 dark:focus:border-[#78A6FF] focus:ring-4 focus:ring-blue-50 dark:focus:ring-[#2F67E8]/20 outline-none transition-all placeholder-slate-400 dark:placeholder-slate-500" :class="formStore.aiMetadata?.confidences?.pax?.needs_review ? 'border-amber-400 bg-amber-50/10 focus:border-amber-500 focus:ring-amber-100' : 'border-slate-200 dark:border-[#293954]'" placeholder="SL">
         </div>
         <!-- Quick Chips for Pax -->
-        <div class="flex gap-1.5 mt-1.5 flex-wrap">
-          <button @click.prevent="formStore.customer.pax = '2'" class="px-2 py-1 min-h-[30px] text-[10px] font-black uppercase tracking-wider rounded-lg bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-blue-50 dark:hover:bg-blue-950/50 hover:text-blue-600 dark:hover:text-blue-400 active:scale-95 transition-all">2</button>
-          <button @click.prevent="formStore.customer.pax = '4'" class="px-2 py-1 min-h-[30px] text-[10px] font-black uppercase tracking-wider rounded-lg bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-blue-50 dark:hover:bg-blue-950/50 hover:text-blue-600 dark:hover:text-blue-400 active:scale-95 transition-all">4</button>
-          <button @click.prevent="formStore.customer.pax = '10'" class="px-2 py-1 min-h-[30px] text-[10px] font-black uppercase tracking-wider rounded-lg bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-blue-50 dark:hover:bg-blue-950/50 hover:text-blue-600 dark:hover:text-blue-400 active:scale-95 transition-all">10</button>
+        <div class="flex gap-1.5 mt-1.5 flex-nowrap overflow-x-auto no-scrollbar">
+          <button @click.prevent="formStore.customer.pax = '2'" class="px-2.5 py-1 min-h-[30px] text-[10px] font-black uppercase tracking-wider rounded-lg bg-slate-100 dark:bg-[#182338] border border-slate-200 dark:border-[#293954] text-slate-600 dark:text-[#94A3B8] hover:bg-blue-50 dark:hover:bg-[#1E2C44] hover:text-blue-600 dark:hover:text-[#62A5FF] active:scale-95 transition-all shrink-0 cursor-pointer">2</button>
+          <button @click.prevent="formStore.customer.pax = '4'" class="px-2.5 py-1 min-h-[30px] text-[10px] font-black uppercase tracking-wider rounded-lg bg-slate-100 dark:bg-[#182338] border border-slate-200 dark:border-[#293954] text-slate-600 dark:text-[#94A3B8] hover:bg-blue-50 dark:hover:bg-[#1E2C44] hover:text-blue-600 dark:hover:text-[#62A5FF] active:scale-95 transition-all shrink-0 cursor-pointer">4</button>
+          <button @click.prevent="formStore.customer.pax = '10'" class="px-2.5 py-1 min-h-[30px] text-[10px] font-black uppercase tracking-wider rounded-lg bg-slate-100 dark:bg-[#182338] border border-slate-200 dark:border-[#293954] text-slate-600 dark:text-[#94A3B8] hover:bg-blue-50 dark:hover:bg-[#1E2C44] hover:text-blue-600 dark:hover:text-[#62A5FF] active:scale-95 transition-all shrink-0 cursor-pointer">10</button>
         </div>
       </div>
       <!-- Khu / Bàn (55%) -->
@@ -273,13 +308,24 @@ const tableConflictWarning = computed(() => {
         <div class="relative flex items-center gap-1.5">
           <div class="relative flex-1">
             <i class="fa-solid fa-map-location-dot absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500"></i>
-            <input id="cust-tables" v-model="formStore.customer.tables" autocomplete="off" enterkeyhint="next" @focus="handleInputFocus" @blur="handleInputBlur" class="w-full border rounded-xl pl-9 pr-2 py-3 text-[16px] font-semibold text-slate-800 dark:text-slate-100 bg-white dark:bg-slate-800/70 focus:border-blue-500 dark:focus:border-blue-400 focus:ring-4 focus:ring-blue-50 dark:focus:ring-blue-900/30 outline-none transition-all placeholder-slate-400 dark:placeholder-slate-500" :class="formStore.aiMetadata?.confidences?.tables?.needs_review ? 'border-amber-400 bg-amber-50/10 focus:border-amber-500 focus:ring-amber-100' : 'border-slate-200 dark:border-slate-700'" placeholder="VD: A1, B2...">
+            <input id="cust-tables" v-model="formStore.customer.tables" autocomplete="off" enterkeyhint="next" @focus="handleInputFocus" @blur="handleInputBlur" class="w-full border rounded-xl pl-9 pr-2 py-3 text-[16px] font-semibold text-slate-800 dark:text-slate-100 bg-white dark:bg-[#0B1220] focus:border-blue-500 dark:focus:border-[#78A6FF] focus:ring-4 focus:ring-blue-50 dark:focus:ring-[#2F67E8]/20 outline-none transition-all placeholder-slate-400 dark:placeholder-slate-500" :class="formStore.aiMetadata?.confidences?.tables?.needs_review ? 'border-amber-400 bg-amber-50/10 focus:border-amber-500 focus:ring-amber-100' : 'border-slate-200 dark:border-[#293954]'" placeholder="VD: A1, B2...">
           </div>
-          <button @click.prevent="ui.showFloorPlan = true" class="touch-target-48 w-11 h-11 bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/60 rounded-xl border border-blue-100 dark:border-blue-800/50 flex items-center justify-center transition-colors active:scale-95 shrink-0" title="Mở sơ đồ bàn" aria-label="Mở sơ đồ bàn">
+          <button @click.prevent="ui.showFloorPlan = true" class="touch-target-48 w-11 h-11 bg-blue-50 dark:bg-[#182338] text-blue-600 dark:text-[#62A5FF] hover:bg-blue-100 dark:hover:bg-[#1E2C44] rounded-xl border border-blue-100 dark:border-[#293954] flex items-center justify-center transition-colors active:scale-95 shrink-0 cursor-pointer" title="Mở sơ đồ bàn" aria-label="Mở sơ đồ bàn">
             <i class="fa-solid fa-border-all text-lg"></i>
           </button>
         </div>
-        <div v-if="tableConflictWarning" class="text-[10px] text-red-500 font-extrabold mt-1 leading-normal flex items-start gap-1">
+        <!-- Smart Table Allocation Recommendation Chip -->
+        <div v-if="smartTableRecommendation && (!formStore.customer.tables || formStore.customer.tables !== smartTableRecommendation.recommendedTables.join(', '))" class="mt-1 flex items-center gap-1.5 flex-wrap">
+          <button 
+            @click.prevent="applySmartRecommendation"
+            class="px-2 py-0.5 text-[10px] font-bold rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-700 dark:text-emerald-400 border border-emerald-500/30 flex items-center gap-1 transition-all active:scale-95 cursor-pointer"
+            :title="smartTableRecommendation.reason"
+          >
+            <i class="fa-solid fa-wand-magic-sparkles text-[9px] text-emerald-600 dark:text-emerald-400"></i>
+            <span>Gợi ý: {{ smartTableRecommendation.recommendedTables.join(', ') }}</span>
+          </button>
+        </div>
+        <div v-if="tableConflictWarning" class="text-[10px] text-red-500 dark:text-[#FF667A] font-extrabold mt-1 leading-normal flex items-start gap-1">
           <i class="fa-solid fa-circle-exclamation shrink-0 mt-0.5 animate-bounce"></i>
           <span>{{ tableConflictWarning }}</span>
         </div>
@@ -291,19 +337,19 @@ const tableConflictWarning = computed(() => {
       <label class="text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-wider ml-1">Loại tiệc <span class="text-red-500">*</span></label>
       <div class="relative">
         <i class="fa-solid absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500" :class="selectedIcon"></i>
-        <select v-model="formStore.customer.type" class="w-full border border-slate-200 dark:border-slate-700 rounded-xl pl-10 pr-10 py-3 text-[16px] font-semibold text-slate-800 dark:text-slate-100 bg-white dark:bg-slate-800/70 focus:border-blue-500 dark:focus:border-blue-400 focus:ring-4 focus:ring-blue-50 dark:focus:ring-blue-900/30 outline-none transition-all appearance-none">
-          <option v-for="pt in PARTY_TYPES" :key="pt.name" :value="pt.name" class="dark:bg-slate-900 dark:text-slate-100">{{ pt.name }}</option>
+        <select v-model="formStore.customer.type" class="w-full border border-slate-200 dark:border-[#293954] rounded-xl pl-10 pr-10 py-3 text-[16px] font-semibold text-slate-800 dark:text-slate-100 bg-white dark:bg-[#0B1220] focus:border-blue-500 dark:focus:border-[#78A6FF] focus:ring-4 focus:ring-blue-50 dark:focus:ring-[#2F67E8]/20 outline-none transition-all appearance-none">
+          <option v-for="pt in PARTY_TYPES" :key="pt.name" :value="pt.name" class="dark:bg-[#0D1422] dark:text-slate-100">{{ pt.name }}</option>
         </select>
         <i class="fa-solid fa-chevron-down absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500 text-xs pointer-events-none"></i>
       </div>
       <!-- Quick Chips for Party Type -->
-      <div class="flex gap-1 mt-1.5 flex-wrap">
-        <button @click.prevent="formStore.customer.type = 'Ăn thường'" class="px-2 py-0.5 text-[8px] font-black uppercase tracking-wider rounded bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 hover:bg-blue-50 dark:hover:bg-blue-950/50 hover:text-blue-600 dark:hover:text-blue-400 hover:border-blue-200 dark:hover:border-blue-800 active:scale-95 transition-all">Ăn thường</button>
-        <button @click.prevent="formStore.customer.type = 'Sinh nhật'" class="px-2 py-0.5 text-[8px] font-black uppercase tracking-wider rounded bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 hover:bg-blue-50 dark:hover:bg-blue-950/50 hover:text-blue-600 dark:hover:text-blue-400 hover:border-blue-200 dark:hover:border-blue-800 active:scale-95 transition-all">Sinh nhật</button>
-        <button @click.prevent="formStore.customer.type = 'Liên hoan'" class="px-2 py-0.5 text-[8px] font-black uppercase tracking-wider rounded bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 hover:bg-blue-50 dark:hover:bg-blue-950/50 hover:text-blue-600 dark:hover:text-blue-400 hover:border-blue-200 dark:hover:border-blue-800 active:scale-95 transition-all">Liên hoan</button>
-        <button @click.prevent="formStore.customer.type = 'Công ty'" class="px-2 py-0.5 text-[8px] font-black uppercase tracking-wider rounded bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 hover:bg-blue-50 dark:hover:bg-blue-950/50 hover:text-blue-600 dark:hover:text-blue-400 hover:border-blue-200 dark:hover:border-blue-800 active:scale-95 transition-all">Công ty</button>
-        <button @click.prevent="formStore.customer.type = 'Gia đình'" class="px-2 py-0.5 text-[8px] font-black uppercase tracking-wider rounded bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 hover:bg-blue-50 dark:hover:bg-blue-950/50 hover:text-blue-600 dark:hover:text-blue-400 hover:border-blue-200 dark:hover:border-blue-800 active:scale-95 transition-all">Gia đình</button>
-        <button @click.prevent="formStore.customer.type = 'Khác'" class="px-2 py-0.5 text-[8px] font-black uppercase tracking-wider rounded bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 hover:bg-blue-50 dark:hover:bg-blue-950/50 hover:text-blue-600 dark:hover:text-blue-400 hover:border-blue-200 dark:hover:border-blue-800 active:scale-95 transition-all">Khác</button>
+      <div class="flex gap-1 mt-1.5 overflow-x-auto no-scrollbar pb-0.5">
+        <button @click.prevent="formStore.customer.type = 'Ăn thường'" class="px-2.5 py-1 text-[9px] font-black uppercase tracking-wider rounded-lg bg-slate-50 dark:bg-[#182338] border border-slate-200 dark:border-[#293954] text-slate-500 dark:text-[#94A3B8] hover:bg-blue-50 dark:hover:bg-[#1E2C44] hover:text-blue-600 dark:hover:text-[#62A5FF] hover:border-blue-200 dark:hover:border-[#3B547C] active:scale-95 transition-all whitespace-nowrap shrink-0 cursor-pointer">Ăn thường</button>
+        <button @click.prevent="formStore.customer.type = 'Sinh nhật'" class="px-2.5 py-1 text-[9px] font-black uppercase tracking-wider rounded-lg bg-slate-50 dark:bg-[#182338] border border-slate-200 dark:border-[#293954] text-slate-500 dark:text-[#94A3B8] hover:bg-blue-50 dark:hover:bg-[#1E2C44] hover:text-blue-600 dark:hover:text-[#62A5FF] hover:border-blue-200 dark:hover:border-[#3B547C] active:scale-95 transition-all whitespace-nowrap shrink-0 cursor-pointer">Sinh nhật</button>
+        <button @click.prevent="formStore.customer.type = 'Liên hoan'" class="px-2.5 py-1 text-[9px] font-black uppercase tracking-wider rounded-lg bg-slate-50 dark:bg-[#182338] border border-slate-200 dark:border-[#293954] text-slate-500 dark:text-[#94A3B8] hover:bg-blue-50 dark:hover:bg-[#1E2C44] hover:text-blue-600 dark:hover:text-[#62A5FF] hover:border-blue-200 dark:hover:border-[#3B547C] active:scale-95 transition-all whitespace-nowrap shrink-0 cursor-pointer">Liên hoan</button>
+        <button @click.prevent="formStore.customer.type = 'Công ty'" class="px-2.5 py-1 text-[9px] font-black uppercase tracking-wider rounded-lg bg-slate-50 dark:bg-[#182338] border border-slate-200 dark:border-[#293954] text-slate-500 dark:text-[#94A3B8] hover:bg-blue-50 dark:hover:bg-[#1E2C44] hover:text-blue-600 dark:hover:text-[#62A5FF] hover:border-blue-200 dark:hover:border-[#3B547C] active:scale-95 transition-all whitespace-nowrap shrink-0 cursor-pointer">Công ty</button>
+        <button @click.prevent="formStore.customer.type = 'Gia đình'" class="px-2.5 py-1 text-[9px] font-black uppercase tracking-wider rounded-lg bg-slate-50 dark:bg-[#182338] border border-slate-200 dark:border-[#293954] text-slate-500 dark:text-[#94A3B8] hover:bg-blue-50 dark:hover:bg-[#1E2C44] hover:text-blue-600 dark:hover:text-[#62A5FF] hover:border-blue-200 dark:hover:border-[#3B547C] active:scale-95 transition-all whitespace-nowrap shrink-0 cursor-pointer">Gia đình</button>
+        <button @click.prevent="formStore.customer.type = 'Khác'" class="px-2.5 py-1 text-[9px] font-black uppercase tracking-wider rounded-lg bg-slate-50 dark:bg-[#182338] border border-slate-200 dark:border-[#293954] text-slate-500 dark:text-[#94A3B8] hover:bg-blue-50 dark:hover:bg-[#1E2C44] hover:text-blue-600 dark:hover:text-[#62A5FF] hover:border-blue-200 dark:hover:border-[#3B547C] active:scale-95 transition-all whitespace-nowrap shrink-0 cursor-pointer">Khác</button>
       </div>
     </div>
 
@@ -312,7 +358,7 @@ const tableConflictWarning = computed(() => {
       <label class="text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-wider ml-1">Ghi chú yêu cầu</label>
       <div class="relative">
         <i class="fa-solid fa-pen absolute left-4 top-3.5 text-slate-400 dark:text-slate-500"></i>
-        <textarea v-model="formStore.customer.note" @focus="handleInputFocus" @blur="handleInputBlur" class="w-full border border-slate-200 dark:border-slate-700 rounded-xl pl-10 pr-4 py-3 text-[16px] font-semibold text-slate-800 dark:text-slate-100 bg-white dark:bg-slate-800/70 focus:border-blue-500 dark:focus:border-blue-400 focus:ring-4 focus:ring-blue-50 dark:focus:ring-blue-900/30 outline-none transition-all resize-none placeholder-slate-400 dark:placeholder-slate-500" rows="2" placeholder="VD: Trang trí sinh nhật, không lấy đá..."></textarea>
+        <textarea v-model="formStore.customer.note" @focus="handleInputFocus" @blur="handleInputBlur" class="w-full border border-slate-200 dark:border-[#293954] rounded-xl pl-10 pr-4 py-3 text-[16px] font-semibold text-slate-800 dark:text-slate-100 bg-white dark:bg-[#0B1220] focus:border-blue-500 dark:focus:border-[#78A6FF] focus:ring-4 focus:ring-blue-50 dark:focus:ring-[#2F67E8]/20 outline-none transition-all resize-none placeholder-slate-400 dark:placeholder-slate-500 leading-relaxed" rows="2" placeholder="VD: Trang trí sinh nhật, không lấy đá..."></textarea>
       </div>
     </div>
   </div>

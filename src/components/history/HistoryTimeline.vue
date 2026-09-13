@@ -153,6 +153,11 @@ function triggerDatePicker() {
   }
 }
 
+function goToToday() {
+  const d = new Date()
+  selectedDateStr.value = `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`
+}
+
 const activeZone = ref('A')
 const activeZoneTables = computed(() => {
   const count = activeZone.value === 'A' ? 22 : activeZone.value === 'C' ? 16 : activeZone.value === 'B' ? 10 : 8
@@ -382,65 +387,94 @@ async function handleDrop(e: DragEvent, hour: string, table: string) {
       <div class="w-10"></div> <!-- Placeholder to balance header -->
     </div>
 
-    <!-- Top Controls -->
-    <div class="p-3 md:p-4 bg-white dark:bg-slate-900 border-b border-slate-100 dark:border-slate-800 flex gap-2 sm:gap-3 items-center z-10 shadow-sm overflow-x-auto no-scrollbar">
-      <div class="relative flex-grow min-w-[140px] border border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800/60 rounded-xl px-3 py-2 flex flex-col hover:border-blue-400 dark:hover:border-blue-500 transition-colors group">
-        <input 
-          ref="dateInputRef" 
-          type="date" 
-          v-model="selectedDateInput" 
-          class="absolute -z-10 opacity-0 w-0 h-0 pointer-events-none"
-        >
-        <label class="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase pointer-events-none group-hover:text-blue-500 transition-colors">Chọn ngày</label>
-        <div class="font-black text-slate-800 dark:text-slate-100 text-sm flex justify-between items-center">
+    <!-- Top Controls: Responsive 2-tier on mobile (< sm), 1-row on desktop (>= sm) -->
+    <div class="p-2.5 sm:p-3 md:p-4 bg-white dark:bg-slate-900 border-b border-slate-100 dark:border-slate-800 flex flex-col sm:flex-row gap-2 sm:gap-3 z-10 shadow-sm">
+      <!-- Row 1: Date picker & Primary Create Action -->
+      <div class="flex items-center gap-2 w-full sm:w-auto sm:flex-grow">
+        <!-- Date input card -->
+        <div class="relative flex-grow min-w-[140px] border border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800/60 rounded-xl px-3 py-1.5 sm:py-2 flex flex-col hover:border-blue-400 dark:hover:border-blue-500 transition-colors group">
           <input 
-            type="text" 
-            v-model="dateTextVal" 
-            @input="onDateTextInput" 
-            @blur="onDateTextBlur"
-            class="bg-transparent border-none font-black text-slate-800 dark:text-slate-100 text-sm outline-none w-full p-0"
-            placeholder="DD/MM/YYYY"
+            ref="dateInputRef" 
+            type="date" 
+            v-model="selectedDateInput" 
+            class="absolute -z-10 opacity-0 w-0 h-0 pointer-events-none"
           >
-          <button 
-            type="button"
-            @click.stop="triggerDatePicker" 
-            class="text-blue-600/70 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 transition-colors cursor-pointer shrink-0 ml-2"
-            aria-label="Mở lịch chọn ngày"
-          >
-            <i class="fa-solid fa-calendar-days text-sm"></i>
-          </button>
+          <label class="text-[9px] sm:text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase pointer-events-none group-hover:text-blue-500 transition-colors">Chọn ngày</label>
+          <div class="font-black text-slate-800 dark:text-slate-100 text-sm flex justify-between items-center">
+            <input 
+              type="text" 
+              v-model="dateTextVal" 
+              @input="onDateTextInput" 
+              @blur="onDateTextBlur"
+              class="bg-transparent border-none font-black text-slate-800 dark:text-slate-100 text-sm outline-none w-full p-0 font-tabular"
+              placeholder="DD/MM/YYYY"
+            >
+            <button 
+              type="button"
+              @click.stop="triggerDatePicker" 
+              class="text-blue-600/70 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 transition-colors cursor-pointer shrink-0 ml-2"
+              aria-label="Mở lịch chọn ngày"
+            >
+              <i class="fa-solid fa-calendar-days text-sm"></i>
+            </button>
+          </div>
         </div>
+
+        <!-- Create Button (Prominent & Accessible) -->
+        <button 
+          @click="resetForm(); ui.tab = 'create'" 
+          class="h-11 sm:h-12 px-3.5 sm:px-5 bg-blue-900 dark:bg-blue-700 hover:bg-blue-800 dark:hover:bg-blue-600 text-white rounded-xl font-black text-xs uppercase tracking-wider shadow-md shadow-blue-900/20 active:scale-95 transition-all flex justify-center items-center gap-1.5 whitespace-nowrap shrink-0 cursor-pointer"
+        >
+          <i class="fa-solid fa-plus text-xs text-blue-200"></i>
+          <span class="hidden sm:inline">Tạo lịch đặt mới</span>
+          <span class="sm:hidden">Tạo Đơn</span>
+        </button>
       </div>
 
-      <!-- Density Toggle (P2-01: Standard vs Compact) -->
-      <button 
-        @click="toggleDensity" 
-        class="h-12 px-3 rounded-xl font-black text-xs uppercase tracking-wider shadow-sm active:scale-95 transition-all flex justify-center items-center gap-1.5 shrink-0 border cursor-pointer select-none"
-        :class="densityMode === 'compact' ? 'bg-blue-600 text-white border-blue-500 shadow-blue-500/20' : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 border-slate-200 dark:border-slate-700 hover:bg-slate-200'"
-        :title="densityMode === 'compact' ? 'Đang ở chế độ Gọn (Bấm để về Tiêu chuẩn)' : 'Đang ở chế độ Tiêu chuẩn (Bấm để chuyển Gọn)'"
-        aria-label="Chuyển mật độ hiển thị"
-      >
-        <i class="fa-solid" :class="densityMode === 'compact' ? 'fa-compress' : 'fa-expand'"></i>
-        <span class="text-[10px] font-black">{{ densityMode === 'compact' ? 'GỌN' : 'CHUẨN' }}</span>
-      </button>
-      
-      <!-- Quick View Floor Plan -->
-      <button 
-        @click="ui.showFloorPlan = true" 
-        class="h-12 px-3 bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-400 hover:bg-amber-100 dark:hover:bg-amber-900/50 rounded-xl font-black text-xs uppercase tracking-wider shadow-sm active:scale-95 transition-all flex justify-center items-center gap-1.5 shrink-0 border border-amber-200 dark:border-amber-800/40 cursor-pointer"
-        title="Xem sơ đồ mặt bằng bàn khu A, C, VIP"
-      >
-        <i class="fa-solid fa-map text-amber-600 dark:text-amber-400 text-sm"></i>
-        <span class="hidden sm:inline">Sơ Đồ Bàn</span>
-      </button>
+      <!-- Row 2: Secondary View Controls (Density, Floor Plan, Quick List, Today) -->
+      <div class="flex items-center gap-2 justify-between sm:justify-start shrink-0">
+        <!-- Density Toggle (Standard vs Compact) -->
+        <button 
+          @click="toggleDensity" 
+          class="h-10 sm:h-12 px-2.5 sm:px-3 rounded-xl font-black text-xs uppercase tracking-wider shadow-2xs active:scale-95 transition-all flex justify-center items-center gap-1.5 flex-1 sm:flex-initial border cursor-pointer select-none"
+          :class="densityMode === 'compact' ? 'bg-blue-600 text-white border-blue-500 shadow-blue-500/20' : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 border-slate-200 dark:border-slate-700 hover:bg-slate-200'"
+          :title="densityMode === 'compact' ? 'Đang ở chế độ Gọn (Bấm để về Tiêu chuẩn)' : 'Đang ở chế độ Tiêu chuẩn (Bấm để chuyển Gọn)'"
+          aria-label="Chuyển mật độ hiển thị"
+        >
+          <i class="fa-solid" :class="densityMode === 'compact' ? 'fa-compress text-xs' : 'fa-expand text-xs'"></i>
+          <span class="text-[10px] font-black">{{ densityMode === 'compact' ? 'GỌN' : 'CHUẨN' }}</span>
+        </button>
+        
+        <!-- Quick View Floor Plan -->
+        <button 
+          @click="ui.showFloorPlan = true" 
+          class="h-10 sm:h-12 px-2.5 sm:px-3 bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-400 hover:bg-amber-100 dark:hover:bg-amber-900/50 rounded-xl font-black text-xs uppercase tracking-wider shadow-2xs active:scale-95 transition-all flex justify-center items-center gap-1.5 flex-1 sm:flex-initial border border-amber-200 dark:border-amber-800/40 cursor-pointer"
+          title="Xem sơ đồ mặt bằng bàn khu A, C, VIP"
+        >
+          <i class="fa-solid fa-map text-amber-600 dark:text-amber-400 text-xs sm:text-sm"></i>
+          <span class="text-[10px] font-black">Sơ Đồ</span>
+        </button>
 
-      <button @click="showQuickView = true" class="h-12 w-12 bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400 rounded-xl font-black text-xl shadow-sm hover:bg-indigo-100 dark:hover:bg-indigo-900/50 active:scale-95 transition-all flex justify-center items-center shrink-0 border border-indigo-100 dark:border-indigo-800/40" title="Danh sách đơn đặt ngày này">
-        <i class="fa-solid fa-list-ul"></i>
-      </button>
-      
-      <button @click="resetForm(); ui.tab = 'create'" class="h-12 px-4 sm:px-5 bg-blue-900 dark:bg-blue-700 text-white rounded-xl font-black text-xs uppercase tracking-wider shadow-lg shadow-blue-900/20 active:scale-95 transition-all flex justify-center items-center gap-2 whitespace-nowrap shrink-0">
-        <i class="fa-solid fa-plus text-white/70"></i> <span class="hidden sm:inline">Tạo lịch đặt mới</span><span class="sm:hidden">Tạo</span>
-      </button>
+        <!-- Quick View List Modal -->
+        <button 
+          @click="showQuickView = true" 
+          class="h-10 sm:h-12 px-2.5 sm:w-12 bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400 rounded-xl font-black text-xs sm:text-xl shadow-2xs hover:bg-indigo-100 dark:hover:bg-indigo-900/50 active:scale-95 transition-all flex justify-center items-center gap-1.5 flex-1 sm:flex-initial border border-indigo-100 dark:border-indigo-800/40 cursor-pointer" 
+          title="Danh sách đơn đặt ngày này"
+        >
+          <i class="fa-solid fa-list-ul text-xs sm:text-base"></i>
+          <span class="sm:hidden text-[10px] font-black">Đơn</span>
+        </button>
+
+        <!-- Jump to Today Quick Button on Mobile -->
+        <button 
+          @click="goToToday" 
+          class="h-10 sm:hidden px-2.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-xl font-black text-[10px] uppercase tracking-wider active:scale-95 transition-all flex justify-center items-center gap-1 border border-slate-200 dark:border-slate-700 cursor-pointer"
+          title="Về lịch hôm nay"
+        >
+          <i class="fa-solid fa-calendar-day text-blue-500"></i>
+          <span>Nay</span>
+        </button>
+      </div>
     </div>
 
     <!-- Auto CRM Banner -->
@@ -585,45 +619,45 @@ async function handleDrop(e: DragEvent, hour: string, table: string) {
     </div>
 
     <!-- Legend Footer -->
-    <div class="p-3 sm:p-4 bg-white dark:bg-slate-900 border-t border-slate-100 dark:border-slate-800 flex justify-center gap-6 sm:gap-8 shadow-[0_-4px_10px_rgba(0,0,0,0.02)] z-10 text-slate-600 dark:text-slate-300">
+    <div class="p-3 sm:p-4 bg-white dark:bg-surface-2 border-t border-slate-100 dark:border-border-subtle flex justify-center gap-6 sm:gap-8 shadow-[0_-4px_10px_rgba(0,0,0,0.02)] z-10 text-slate-600 dark:text-slate-300">
       <div class="flex items-center gap-2">
         <i class="fa-solid fa-chair text-emerald-400 text-lg"></i>
-        <span class="font-bold text-xs text-slate-600">Còn trống</span>
+        <span class="font-bold text-xs text-slate-600 dark:text-slate-300">Còn trống</span>
       </div>
       <div class="flex items-center gap-2">
         <i class="fa-solid fa-chair text-blue-500 text-lg"></i>
-        <span class="font-bold text-xs text-slate-600">Đã đặt</span>
+        <span class="font-bold text-xs text-slate-600 dark:text-slate-300">Đã đặt</span>
       </div>
       <div class="flex items-center gap-2">
         <i class="fa-solid fa-chair text-rose-400 text-lg"></i>
-        <span class="font-bold text-xs text-slate-600">Đang giữ</span>
+        <span class="font-bold text-xs text-slate-600 dark:text-slate-300">Đang giữ</span>
       </div>
     </div>
 
     <!-- QUICK VIEW MODAL -->
     <transition name="fade">
       <div v-if="showQuickView" class="fixed inset-0 z-[100] flex items-end sm:items-center justify-center p-0 sm:p-4 pb-safe">
-        <div class="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" @click="showQuickView = false"></div>
+        <div class="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" @click="showQuickView = false"></div>
         <transition name="slide-up" appear>
-          <div v-if="showQuickView" class="bg-white w-full sm:max-w-md h-[85vh] sm:h-auto sm:max-h-[85vh] rounded-t-3xl sm:rounded-3xl shadow-2xl relative z-10 flex flex-col overflow-hidden">
+          <div v-if="showQuickView" class="bg-white dark:bg-surface-4 border border-slate-100 dark:border-border-default w-full sm:max-w-md h-[85vh] sm:h-auto sm:max-h-[85vh] rounded-t-3xl sm:rounded-3xl shadow-2xl relative z-10 flex flex-col overflow-hidden">
             <!-- Modal Header -->
-            <div class="px-5 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+            <div class="px-5 py-4 border-b border-slate-100 dark:border-border-subtle flex items-center justify-between bg-slate-50/50 dark:bg-surface-3">
               <div>
-                <h3 class="font-black text-slate-800 text-lg uppercase tracking-wider">Xem Nhanh</h3>
-                <p class="text-[11px] font-bold text-slate-500 mt-0.5">Ngày {{ selectedDateStr }} • {{ bookingsForSelectedDate.length }} Phiếu Đặt</p>
+                <h3 class="font-black text-slate-800 dark:text-slate-100 text-lg uppercase tracking-wider">Xem Nhanh</h3>
+                <p class="text-[11px] font-bold text-slate-500 dark:text-text-secondary mt-0.5">Ngày {{ selectedDateStr }} • {{ bookingsForSelectedDate.length }} Phiếu Đặt</p>
               </div>
-              <button @click="showQuickView = false" class="w-8 h-8 flex items-center justify-center bg-slate-200 text-slate-600 rounded-full hover:bg-slate-300 transition-colors">
+              <button @click="showQuickView = false" class="w-8 h-8 flex items-center justify-center bg-slate-200 dark:bg-surface-2 text-slate-600 dark:text-slate-300 rounded-full hover:bg-slate-300 dark:hover:bg-surface-1 transition-colors">
                 <i class="fa-solid fa-xmark"></i>
               </button>
             </div>
             
             <!-- Modal Body -->
-            <div class="flex-grow overflow-y-auto p-4 custom-scrollbar bg-slate-50 space-y-3 pb-8">
+            <div class="flex-grow overflow-y-auto p-4 custom-scrollbar bg-slate-50 dark:bg-surface-canvas/60 space-y-3 pb-8">
               <div v-if="bookingsForSelectedDate.length === 0" class="text-center py-10 opacity-50 flex flex-col items-center">
-                <div class="w-16 h-16 bg-slate-200 rounded-full flex items-center justify-center mb-3">
-                  <i class="fa-solid fa-calendar-xmark text-2xl text-slate-500"></i>
+                <div class="w-16 h-16 bg-slate-200 dark:bg-surface-3 rounded-full flex items-center justify-center mb-3">
+                  <i class="fa-solid fa-calendar-xmark text-2xl text-slate-500 dark:text-slate-400"></i>
                 </div>
-                <div class="text-sm font-bold text-slate-600">Trống lịch</div>
+                <div class="text-sm font-bold text-slate-600 dark:text-slate-300">Trống lịch</div>
                 <div class="text-[11px] text-slate-400 mt-1">Chưa có khách đặt bàn trong ngày này.</div>
               </div>
               
@@ -631,12 +665,12 @@ async function handleDrop(e: DragEvent, hour: string, table: string) {
                 v-for="order in bookingsForSelectedDate" 
                 :key="order.id"
                 @click="openBookingDetail(order); showQuickView = false"
-                class="bg-white p-3.5 rounded-2xl shadow-sm border border-slate-100 flex items-center gap-3 cursor-pointer hover:border-blue-300 transition-all active:scale-[0.98]"
+                class="bg-white dark:bg-surface-3 p-3.5 rounded-2xl shadow-sm border border-slate-100 dark:border-border-subtle flex items-center gap-3 cursor-pointer hover:border-blue-300 dark:hover:border-border-focus transition-all active:scale-[0.98]"
               >
                 <!-- Time & Table -->
-                <div class="w-14 flex flex-col items-center justify-center border-r border-slate-100 pr-3 shrink-0">
-                  <span class="font-black text-blue-900 text-[15px] leading-none">{{ order.parsedCustomer?.time || '--:--' }}</span>
-                  <span class="text-[9px] font-bold text-slate-500 uppercase tracking-widest mt-1.5 text-center truncate w-full px-1 py-0.5 bg-slate-100 rounded" title="Bàn">
+                <div class="w-14 flex flex-col items-center justify-center border-r border-slate-100 dark:border-border-subtle pr-3 shrink-0">
+                  <span class="font-black text-blue-900 dark:text-blue-400 text-[15px] leading-none">{{ order.parsedCustomer?.time || '--:--' }}</span>
+                  <span class="text-[9px] font-bold text-slate-500 dark:text-slate-300 uppercase tracking-widest mt-1.5 text-center truncate w-full px-1 py-0.5 bg-slate-100 dark:bg-surface-2 rounded" title="Bàn">
                     {{ order.parsedCustomer?.tables?.replace('Khu ', '') || '?' }}
                   </span>
                 </div>
@@ -644,15 +678,15 @@ async function handleDrop(e: DragEvent, hour: string, table: string) {
                 <!-- Info -->
                 <div class="flex-1 min-w-0 py-0.5">
                   <div class="flex items-center justify-between gap-2 mb-1.5">
-                    <span class="font-black text-slate-800 text-[13px] truncate">{{ order.parsedCustomer?.name }}</span>
-                    <span v-if="order.isDeposited" class="px-1.5 py-0.5 bg-emerald-100 text-emerald-700 rounded text-[9px] font-bold shrink-0">CỌC</span>
+                    <span class="font-black text-slate-800 dark:text-slate-100 text-[13px] truncate">{{ order.parsedCustomer?.name }}</span>
+                    <span v-if="order.isDeposited" class="px-1.5 py-0.5 bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/50 rounded text-[9px] font-bold shrink-0">CỌC</span>
                   </div>
-                  <div class="flex items-center gap-3 text-[10px] text-slate-500 font-semibold mb-1">
-                    <span><i class="fa-solid fa-users opacity-60 text-blue-500"></i> {{ order.parsedCustomer?.pax || '0' }} ng</span>
-                    <span v-if="order.parsedCustomer?.phone"><i class="fa-solid fa-phone opacity-60 text-green-500"></i> {{ order.parsedCustomer.phone }}</span>
+                  <div class="flex items-center gap-3 text-[10px] text-slate-500 dark:text-slate-400 font-semibold mb-1">
+                    <span><i class="fa-solid fa-users opacity-60 text-blue-500 dark:text-blue-400"></i> {{ order.parsedCustomer?.pax || '0' }} ng</span>
+                    <span v-if="order.parsedCustomer?.phone"><i class="fa-solid fa-phone opacity-60 text-green-500 dark:text-green-400"></i> {{ order.parsedCustomer.phone }}</span>
                   </div>
                   <!-- Items summary -->
-                  <div class="text-[9.5px] text-slate-400 font-medium truncate italic w-full">
+                  <div class="text-[9.5px] text-slate-400 dark:text-text-tertiary font-medium truncate italic w-full">
                     <span v-if="order.menuItems?.length > 0">
                       {{ order.menuItems.length }} món ({{ order.menuItems.map((i:any)=>i.name).join(', ') }})
                     </span>

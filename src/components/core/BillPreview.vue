@@ -199,11 +199,11 @@ function openZaloChat() {
     <!-- DESKTOP TOOLBAR (md:flex, hidden on mobile) -->
     <div :class="[
       'hidden md:flex px-4 py-2.5 border-b items-center justify-between gap-3 shrink-0 z-20 shadow-sm transition-colors duration-250 w-full',
-      isFullscreen ? 'bg-slate-900 border-slate-800 text-white' : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-200'
+      isFullscreen ? 'bg-surface-canvas border-border-default text-white' : 'bg-white dark:bg-surface-2 border-slate-200 dark:border-border-subtle text-slate-700 dark:text-slate-200'
     ]">
       <!-- Left: Navigation / Page Info -->
       <div class="flex items-center gap-2">
-        <button @click="ui.tab = 'create'" class="w-8 h-8 rounded-xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors text-slate-700 dark:text-slate-200" title="Quay lại">
+        <button @click="ui.tab = 'create'" class="w-8 h-8 rounded-xl bg-slate-100 dark:bg-surface-3 flex items-center justify-center hover:bg-slate-200 dark:hover:bg-surface-4 transition-colors text-slate-700 dark:text-slate-200" title="Quay lại">
           <i class="fa-solid fa-arrow-left"></i>
         </button>
         <h3 class="font-black text-slate-800 dark:text-slate-100 text-xs">Xem trước phiếu đặt bàn</h3>
@@ -298,12 +298,12 @@ function openZaloChat() {
     <!-- MOBILE TOOLBAR (block md:hidden) -->
     <div :class="[
       'flex md:hidden flex-col border-b shrink-0 z-[120] shadow-sm transition-colors duration-250 w-full relative',
-      isFullscreen ? 'bg-slate-900 border-slate-800 text-white' : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-200'
+      isFullscreen ? 'bg-surface-canvas border-border-default text-white' : 'bg-white dark:bg-surface-2 border-slate-200 dark:border-border-subtle text-slate-700 dark:text-slate-200'
     ]">
       <!-- Row 1: Back, Title, Status, More button (All min 44-48px hit areas) -->
-      <div class="px-3 py-2 flex items-center justify-between gap-2 border-b border-slate-100/60 dark:border-slate-800/60">
+      <div class="px-3 py-2 flex items-center justify-between gap-2 border-b border-slate-100/60 dark:border-border-subtle">
         <div class="flex items-center gap-2">
-          <button @click="ui.tab = 'create'" class="w-10 h-10 rounded-xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors text-slate-700 dark:text-slate-200 active:scale-95" aria-label="Quay lại tạo đơn">
+          <button @click="ui.tab = 'create'" class="w-10 h-10 rounded-xl bg-slate-100 dark:bg-surface-3 flex items-center justify-center hover:bg-slate-200 dark:hover:bg-surface-4 transition-colors text-slate-700 dark:text-slate-200 active:scale-95" aria-label="Quay lại tạo đơn">
             <i class="fa-solid fa-arrow-left text-sm"></i>
           </button>
           <span class="font-black text-slate-800 dark:text-slate-100 text-xs uppercase tracking-wider">Phiếu đặt</span>
@@ -319,15 +319,15 @@ function openZaloChat() {
         
         <!-- More Actions Dropdown Toggle (min 44px) -->
         <div class="relative flex items-center gap-1.5">
-          <button @click="setZoomMode('fit-width')" class="px-2.5 py-2 rounded-xl text-[10px] font-black text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 transition-all active:scale-95 min-h-[40px] flex items-center gap-1" title="Vừa chiều ngang">
+          <button @click="setZoomMode('fit-width')" class="px-2.5 py-2 rounded-xl text-[10px] font-black text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-surface-3 hover:bg-slate-200 dark:hover:bg-surface-4 transition-all active:scale-95 min-h-[40px] flex items-center gap-1" title="Vừa chiều ngang">
             <i class="fa-solid fa-arrows-left-right text-xs"></i> Vừa ngang
           </button>
-          <button @click="showMoreMenu = !showMoreMenu" class="w-10 h-10 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 flex items-center justify-center transition-all active:scale-95" aria-label="Menu thêm">
+          <button @click="showMoreMenu = !showMoreMenu" class="w-10 h-10 rounded-xl bg-slate-100 dark:bg-surface-3 hover:bg-slate-200 dark:hover:bg-surface-4 text-slate-700 dark:text-slate-200 flex items-center justify-center transition-all active:scale-95" aria-label="Menu thêm">
             <i class="fa-solid fa-ellipsis-vertical text-sm"></i>
           </button>
           
           <!-- Dropdown Menu -->
-          <div v-show="showMoreMenu" class="absolute right-0 top-full mt-2 w-52 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl z-50 py-2 animate-in fade-in slide-in-from-top-2 duration-150 text-slate-700 dark:text-slate-200">
+          <div v-show="showMoreMenu" class="absolute right-0 top-full mt-2 w-52 bg-white dark:bg-surface-4 border border-slate-200 dark:border-border-default rounded-2xl shadow-2xl z-50 py-2 animate-in fade-in slide-in-from-top-2 duration-150 text-slate-700 dark:text-slate-200">
             <button @click="copyBookingConfirmation(); showMoreMenu = false" class="w-full px-4 py-3 text-left text-xs font-black uppercase tracking-wider hover:bg-slate-50 dark:hover:bg-slate-800 active:bg-slate-100 flex items-center gap-2.5 min-h-[44px]">
               <i class="fa-solid fa-copy text-slate-400 w-4 text-center text-sm"></i> Copy tin nhắn
             </button>

@@ -81,6 +81,20 @@ export const useMenuStore = defineStore('menuStore', () => {
     }
   }
 
+  function setMenuList(items: MenuListItem[]) {
+    menuList.value = items
+    menuLoaded.value = true
+  }
+
+  function setMenuSheets(sheets: string[]) {
+    menuSheets.value = sheets
+  }
+
+  function setActiveMenuSheet(sheet: string) {
+    activeMenuSheet.value = sheet
+    localStorage.setItem('kg_v400_menu_sheet', sheet)
+  }
+
   return {
     activeMenuSheet,
     menuSheets,
@@ -90,6 +104,9 @@ export const useMenuStore = defineStore('menuStore', () => {
     menuAliases,
     cleanMenuList,
     loadMenuSheets,
-    loadMenu
+    loadMenu,
+    setMenuList,
+    setMenuSheets,
+    setActiveMenuSheet
   }
 })

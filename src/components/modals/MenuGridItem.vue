@@ -14,8 +14,11 @@ const emit = defineEmits(['select'])
 <template>
   <div @click="emit('select', dish)"
        :class="['bg-white rounded-2xl overflow-hidden cursor-pointer transition-all hover:shadow-lg hover:-translate-y-1 flex flex-col border', isSelected ? 'border-blue-500 shadow-md shadow-blue-500/20 ring-1 ring-blue-500' : 'border-slate-200 shadow-sm']">
-    <div class="relative pt-[100%] bg-slate-100">
-      <img :src="dish.image" alt="dish" class="absolute inset-0 w-full h-full object-cover">
+    <div class="relative pt-[100%] bg-slate-100 flex items-center justify-center">
+      <img v-if="dish.image" :src="dish.image" alt="dish" class="absolute inset-0 w-full h-full object-cover" @error="dish.image = ''">
+      <div v-else class="absolute inset-0 flex flex-col items-center justify-center text-slate-300">
+        <i class="fa-solid fa-utensils text-2xl"></i>
+      </div>
       <div v-if="isSelected" class="absolute top-2 right-2 w-6 h-6 bg-blue-500 text-white rounded-full flex items-center justify-center text-xs shadow-md border-2 border-white">
         <i class="fa-solid fa-check"></i>
       </div>

@@ -177,12 +177,12 @@ function onSelectSuggestion(s: any, index: number) {
 </script>
 
 <template>
-  <div class="bg-white dark:bg-slate-900 rounded-3xl shadow-sm border p-4 sm:p-5 md:p-6 transition-all duration-300 relative overflow-hidden"
-       :class="hasSoftWarning ? 'border-amber-300 dark:border-amber-700/60 bg-amber-50/10' : 'border-slate-100 dark:border-slate-800'">
+  <div class="bg-white dark:bg-surface-2 rounded-3xl shadow-sm border p-4 sm:p-5 md:p-6 transition-all duration-300 relative overflow-hidden"
+       :class="hasSoftWarning ? 'border-amber-300 dark:border-amber-700/60 bg-amber-50/10' : 'border-slate-100 dark:border-border-subtle'">
     <!-- Top Decorative Line -->
     <div class="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-emerald-500 via-teal-500 to-cyan-500"></div>
 
-    <div class="flex justify-between items-center mb-4 border-b border-slate-100 dark:border-slate-800 pb-3">
+    <div class="flex justify-between items-center mb-4 border-b border-slate-100 dark:border-border-subtle pb-3">
       <div class="flex items-center gap-2.5">
         <div class="w-8 h-8 rounded-xl bg-emerald-50 dark:bg-emerald-950/50 text-emerald-600 dark:text-emerald-400 flex items-center justify-center text-sm shadow-sm border border-emerald-100 dark:border-emerald-800/40 shrink-0">
           <i class="fa-solid fa-bell-concierge"></i>
@@ -195,7 +195,7 @@ function onSelectSuggestion(s: any, index: number) {
           <p class="text-[10px] font-bold text-slate-400 dark:text-slate-500">Chọn từ thực đơn hoặc nhập tự do</p>
         </div>
       </div>
-      <button @click="ui.showMenuManager = true" class="text-[10px] bg-slate-50 dark:bg-slate-800 px-3 py-2 rounded-xl text-slate-600 dark:text-slate-300 font-black border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-750 active:scale-95 transition-all uppercase tracking-widest flex items-center gap-1.5 cursor-pointer shadow-xs min-h-[36px]">
+      <button @click="ui.showMenuManager = true" class="text-[10px] bg-slate-50 dark:bg-surface-3 px-3 py-2 rounded-xl text-slate-600 dark:text-slate-300 font-black border border-slate-200 dark:border-border-subtle hover:bg-slate-100 dark:hover:bg-surface-4 active:scale-95 transition-all uppercase tracking-widest flex items-center gap-1.5 cursor-pointer shadow-xs min-h-[36px]">
         <i class="fa-solid fa-book-open text-blue-600 dark:text-blue-400"></i> {{ appStore.activeSheet }}
       </button>
     </div>
@@ -213,10 +213,10 @@ function onSelectSuggestion(s: any, index: number) {
         <button @click="triggerCreateMenu" class="px-4 py-2.5 bg-blue-900 dark:bg-blue-600 text-white text-[11px] font-black rounded-xl uppercase tracking-wider active:scale-95 transition-all shadow-sm min-h-[44px]">
           <i class="fa-solid fa-plus mr-1"></i> Tạo menu mới
         </button>
-        <button @click="triggerPasteMenu" class="px-4 py-2.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 text-[11px] font-black rounded-xl uppercase tracking-wider active:scale-95 transition-all shadow-sm min-h-[44px]">
+        <button @click="triggerPasteMenu" class="px-4 py-2.5 bg-white dark:bg-surface-3 border border-slate-200 dark:border-border-subtle text-slate-700 dark:text-slate-200 text-[11px] font-black rounded-xl uppercase tracking-wider active:scale-95 transition-all shadow-sm min-h-[44px]">
           <i class="fa-solid fa-paste mr-1"></i> Dán menu text
         </button>
-        <button @click="triggerUploadMenuImg" class="px-4 py-2.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 text-[11px] font-black rounded-xl uppercase tracking-wider active:scale-95 transition-all shadow-sm min-h-[44px]">
+        <button @click="triggerUploadMenuImg" class="px-4 py-2.5 bg-white dark:bg-surface-3 border border-slate-200 dark:border-border-subtle text-slate-700 dark:text-slate-200 text-[11px] font-black rounded-xl uppercase tracking-wider active:scale-95 transition-all shadow-sm min-h-[44px]">
           <i class="fa-solid fa-image mr-1"></i> Tải ảnh menu (AI)
         </button>
         <button @click="useSampleMenu" class="px-4 py-2.5 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-100 dark:border-emerald-800/40 text-emerald-700 dark:text-emerald-300 text-[11px] font-black rounded-xl uppercase tracking-wider active:scale-95 transition-all shadow-sm min-h-[44px]">
@@ -235,9 +235,9 @@ function onSelectSuggestion(s: any, index: number) {
            @drop="onDrop($event, index)"
            @dragend="draggedIndex = null; dragOverIndex = null"
            :class="[
-             'relative bg-white dark:bg-slate-900 border rounded-2xl p-3 sm:p-4 shadow-sm hover:shadow-md transition-all group',
+             'relative bg-white dark:bg-surface-3/80 border rounded-2xl p-3 sm:p-4 shadow-sm hover:shadow-md transition-all group',
              draggedIndex === index ? 'opacity-40 scale-[0.98]' : '',
-             dragOverIndex === index && draggedIndex !== index ? 'border-t-4 border-t-blue-600 pt-5 scale-[1.02] shadow-lg' : 'border-slate-200 dark:border-slate-800',
+             dragOverIndex === index && draggedIndex !== index ? 'border-t-4 border-t-blue-600 pt-5 scale-[1.02] shadow-lg' : 'border-slate-200 dark:border-border-subtle',
              item.note ? 'border-rose-200 dark:border-rose-900/60 bg-rose-50/10' : ''
            ]">
         <div class="flex flex-col gap-3">
@@ -290,15 +290,15 @@ function onSelectSuggestion(s: any, index: number) {
               </div>
 
               <!-- Suggestion Dropdown: Generous full width, non-truncated -->
-              <div v-if="ui.focusIdx === index" class="absolute top-full left-0 right-0 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl max-h-[340px] overflow-hidden z-50 mt-1.5 flex flex-col">
+              <div v-if="ui.focusIdx === index" class="absolute top-full left-0 right-0 bg-white dark:bg-surface-4 border border-slate-200 dark:border-border-default rounded-2xl shadow-2xl max-h-[340px] overflow-hidden z-50 mt-1.5 flex flex-col">
                 <!-- Category Tabs inside Dropdown -->
-                <div class="flex gap-1.5 p-2 bg-slate-50 dark:bg-slate-950 border-b border-slate-100 dark:border-slate-800 overflow-x-auto no-scrollbar shrink-0">
+                <div class="flex gap-1.5 p-2 bg-slate-50 dark:bg-surface-canvas border-b border-slate-100 dark:border-border-subtle overflow-x-auto no-scrollbar shrink-0">
                   <button
                     v-for="cat in CATEGORIES"
                     :key="cat.name"
                     @mousedown.prevent="selectedCategory = cat.name"
                     class="px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-wider transition-all cursor-pointer min-h-[32px] whitespace-nowrap"
-                    :class="selectedCategory === cat.name ? 'bg-blue-600 text-white shadow-sm' : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700'"
+                    :class="selectedCategory === cat.name ? 'bg-blue-600 text-white shadow-sm' : 'bg-white dark:bg-surface-3 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-border-subtle hover:bg-slate-100 dark:hover:bg-surface-4'"
                   >
                     {{ cat.name }}
                   </button>
@@ -314,7 +314,7 @@ function onSelectSuggestion(s: any, index: number) {
                     v-for="s in filteredSuggestions" 
                     :key="s.name" 
                     @mousedown.prevent="onSelectSuggestion(s, index)" 
-                    class="p-2.5 hover:bg-blue-50 dark:hover:bg-slate-800/80 cursor-pointer flex justify-between items-center rounded-xl transition-colors border-b last:border-0 border-slate-100 dark:border-slate-800 min-h-[48px] gap-2"
+                    class="p-2.5 hover:bg-blue-50 dark:hover:bg-surface-3/80 cursor-pointer flex justify-between items-center rounded-xl transition-colors border-b last:border-0 border-slate-100 dark:border-border-subtle min-h-[48px] gap-2"
                   >
                     <div class="flex flex-col min-w-0 flex-1 pr-2">
                       <span class="font-black text-slate-800 dark:text-slate-100 text-xs uppercase leading-snug whitespace-normal break-words" v-html="highlightMatch(s.name, index)"></span>
@@ -329,15 +329,15 @@ function onSelectSuggestion(s: any, index: number) {
             </div>
           </div>
 
-          <!-- Row 2: Stepper, Price & Subtotal (Unified single line) -->
-          <div class="flex items-center justify-between gap-2 pt-2 border-t border-slate-100 dark:border-slate-800">
+          <!-- Row 2: Stepper, Price & Subtotal (Unified single line, fits 360px+) -->
+          <div class="flex items-center justify-between gap-1.5 sm:gap-2 pt-2 border-t border-slate-100 dark:border-slate-800 flex-wrap sm:flex-nowrap">
             <!-- Left Group: Stepper + Price -->
-            <div class="flex items-center gap-2 flex-wrap sm:flex-nowrap">
+            <div class="flex items-center gap-1.5 sm:gap-2 shrink-0">
               <!-- Stepper with >=36px hit targets (16px font on mobile prevents iOS zoom) -->
               <div class="flex items-center bg-slate-50 dark:bg-slate-800/70 rounded-xl border border-slate-200 dark:border-slate-700 p-0.5 shadow-inner shrink-0">
                 <button 
                   @click.prevent="if (item.qty > 1) item.qty--; else formStore.items.splice(index, 1)" 
-                  class="w-9 h-9 sm:w-10 sm:h-10 rounded-lg bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 flex items-center justify-center border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 font-bold active:scale-90 transition-transform cursor-pointer select-none shrink-0"
+                  class="w-8 h-8 sm:w-10 sm:h-10 rounded-lg bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 flex items-center justify-center border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 font-bold active:scale-90 transition-transform cursor-pointer select-none shrink-0"
                   title="Giảm số lượng"
                   aria-label="Giảm số lượng"
                 >
@@ -350,13 +350,13 @@ function onSelectSuggestion(s: any, index: number) {
                   v-model="item.qty" 
                   @focus="handleInputFocus" 
                   @blur="handleInputBlur" 
-                  class="w-8 sm:w-10 text-center font-black border-none bg-transparent text-[16px] sm:text-sm outline-none text-slate-800 dark:text-slate-100 placeholder-slate-400 font-tabular" 
+                  class="w-7 sm:w-10 text-center font-black border-none bg-transparent text-[16px] sm:text-sm outline-none text-slate-800 dark:text-slate-100 placeholder-slate-400 font-tabular" 
                   placeholder="SL"
                 >
                 
                 <button 
                   @click.prevent="item.qty++" 
-                  class="w-9 h-9 sm:w-10 sm:h-10 rounded-lg bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 flex items-center justify-center border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 font-bold active:scale-90 transition-transform cursor-pointer select-none shrink-0"
+                  class="w-8 h-8 sm:w-10 sm:h-10 rounded-lg bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 flex items-center justify-center border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 font-bold active:scale-90 transition-transform cursor-pointer select-none shrink-0"
                   title="Tăng số lượng"
                   aria-label="Tăng số lượng"
                 >
@@ -365,8 +365,8 @@ function onSelectSuggestion(s: any, index: number) {
               </div>
 
               <!-- Price Input with currency label (16px font on mobile) -->
-              <div class="flex items-center gap-1 bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 rounded-xl px-2.5 py-1.5 shrink-0">
-                <span class="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase">Đơn giá:</span>
+              <div class="flex items-center gap-1 bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 rounded-xl px-2 sm:px-2.5 py-1.5 shrink-0">
+                <span class="text-[9px] sm:text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase">Giá:</span>
                 <input 
                   type="text" 
                   inputmode="numeric"
@@ -374,18 +374,18 @@ function onSelectSuggestion(s: any, index: number) {
                   @input="updateItemPrice(index, ($event.target as HTMLInputElement).value)" 
                   @focus="handleInputFocus" 
                   @blur="handleInputBlur" 
-                  class="w-20 sm:w-24 text-right font-black text-blue-700 dark:text-blue-300 bg-transparent text-[16px] sm:text-sm outline-none placeholder-slate-400 font-tabular" 
+                  class="w-16 sm:w-24 text-right font-black text-blue-700 dark:text-blue-300 bg-transparent text-[16px] sm:text-sm outline-none placeholder-slate-400 font-tabular" 
                   placeholder="0"
                 >
-                <span class="text-[10px] font-bold text-slate-400">đ</span>
+                <span class="text-[9px] sm:text-[10px] font-bold text-slate-400">đ</span>
               </div>
             </div>
 
             <!-- Subtotal: Compact Badge on the Right -->
-            <div class="flex items-center gap-1 px-2.5 py-1.5 bg-emerald-50 dark:bg-emerald-950/40 rounded-xl border border-emerald-200/60 dark:border-emerald-800/40 text-[11px] font-black text-emerald-700 dark:text-emerald-300 font-tabular shrink-0" title="Thành tiền món này">
+            <div class="flex items-center gap-1 px-2 sm:px-2.5 py-1.5 bg-emerald-50 dark:bg-emerald-950/40 rounded-xl border border-emerald-200/60 dark:border-emerald-800/40 text-[11px] sm:text-xs font-black text-emerald-700 dark:text-emerald-300 font-tabular shrink-0" title="Thành tiền món này">
               <span class="hidden sm:inline text-[9px] font-bold text-emerald-600 dark:text-emerald-400 uppercase">Thành tiền:</span>
-              <span class="sm:hidden text-[9px] font-bold text-emerald-600 dark:text-emerald-400">=</span>
-              <span>{{ formatVND((item.price || 0) * (item.qty || 1)) }}</span>
+              <span class="sm:hidden text-[10px] font-bold text-emerald-600 dark:text-emerald-400">=</span>
+              <span class="whitespace-nowrap">{{ formatVND((item.price || 0) * (item.qty || 1)) }}</span>
             </div>
           </div>
 
@@ -449,7 +449,7 @@ function onSelectSuggestion(s: any, index: number) {
     </div>
     
     <!-- Add Item Button: 50px height -->
-    <button @click="addNewItem" class="mt-4 w-full bg-blue-50/70 dark:bg-blue-950/40 border-2 border-dashed border-blue-200 dark:border-blue-800/60 text-blue-700 dark:text-blue-300 py-3.5 rounded-2xl font-black hover:bg-blue-100/60 dark:hover:bg-blue-900/40 hover:border-blue-400 dark:hover:border-blue-700 transition-all active:scale-95 uppercase tracking-widest min-h-[50px] flex items-center justify-center gap-2 cursor-pointer shadow-xs">
+    <button @click="addNewItem" class="mt-4 w-full bg-blue-50/70 dark:bg-surface-3 border-2 border-dashed border-blue-200 dark:border-border-default text-blue-700 dark:text-blue-300 py-3.5 rounded-2xl font-black hover:bg-blue-100/60 dark:hover:bg-surface-4 hover:border-blue-400 dark:hover:border-border-focus transition-all active:scale-95 uppercase tracking-widest min-h-[50px] flex items-center justify-center gap-2 cursor-pointer shadow-xs">
       <i class="fa-solid fa-plus text-base"></i> THÊM MÓN
     </button>
 

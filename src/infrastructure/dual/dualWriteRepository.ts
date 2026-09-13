@@ -10,6 +10,19 @@ import * as outbox from '@/infrastructure/outbox/outbox'
 import { triggerSync as triggerOutboxSync } from '@/infrastructure/outbox/outboxSync'
 import { getBackendMode } from '@/utils/backendMode'
 
+async function notifyStoreOutboxUpdate() {
+  try {
+    const { getActivePinia } = await import('pinia')
+    if (getActivePinia()) {
+      const { useAppStore } = await import('@/stores/useAppStore')
+      const store = useAppStore()
+      if (store && typeof store.updateOfflineQueueCount === 'function') {
+        store.updateOfflineQueueCount().catch(() => {})
+      }
+    }
+  } catch {}
+}
+
 export class DualWriteOrderRepository implements OrderRepository {
   private gas = new GasOrderRepository()
   private pg = new PostgresOrderRepository()
@@ -23,22 +36,24 @@ export class DualWriteOrderRepository implements OrderRepository {
       return this.pg.getHistory(onBgUpdate)
     }
     
-    // Dual Write Mode: Ưu tiên đọc từ GAS (Google Sheets) làm nguồn lịch sử chính chủ
+    // Dual Write Mode: Ưu tiên đọc từ PostgreSQL (Supabase) để đạt tốc độ cao (<100ms)
     try {
-      const gasResult = await this.gas.getHistory(onBgUpdate)
-      if (gasResult && gasResult.ok && Array.isArray(gasResult.data) && gasResult.data.length > 0) {
-        return gasResult
+      const pgResult = await this.pg.getHistory(onBgUpdate)
+      if (pgResult && pgResult.ok && Array.isArray(pgResult.data) && pgResult.data.length > 0) {
+        return pgResult
       }
     } catch (e: any) {
-      console.warn('[DualWrite] GAS read failed, falling back to PG:', e.message)
+      console.warn('[DualWrite] PG read failed, falling back to GAS:', e.message)
     }
 
     try {
-      const pgResult = await this.pg.getHistory(onBgUpdate)
-      if (pgResult.ok) return pgResult
-      throw new Error(pgResult.message || 'PG Read failed')
+      const gasResult = await this.gas.getHistory(onBgUpdate)
+      if (gasResult && gasResult.ok && Array.isArray(gasResult.data)) {
+        return gasResult
+      }
+      throw new Error(gasResult?.message || 'GAS Read failed')
     } catch (e: any) {
-      console.warn('[DualWrite] Both GAS and PG read failed:', e.message)
+      console.warn('[DualWrite] Both PG and GAS read failed:', e.message)
       return { ok: false, message: e.message }
     }
   }
@@ -77,10 +92,26 @@ export class DualWriteOrderRepository implements OrderRepository {
     } catch {}
 
     if (mode === 'gas') {
-      return this.gas.saveOrder(data)
+      try {
+        const gasRes = await this.gas.saveOrder(data)
+        if (gasRes && gasRes.ok) return gasRes
+        throw new Error(gasRes?.message || 'GAS save failed')
+      } catch (err: any) {
+        await outbox.addToOutbox(orderId, 'upsert', data)
+        notifyStoreOutboxUpdate()
+        return { ok: true, id: orderId, status: 'pending', message: 'Saved to local outbox (GAS offline)' }
+      }
     }
     if (mode === 'postgres') {
-      return this.pg.saveOrder(data, token)
+      try {
+        const pgRes = await this.pg.saveOrder(data, token)
+        if (pgRes && pgRes.ok) return pgRes
+        throw new Error(pgRes?.message || 'PostgreSQL save failed')
+      } catch (err: any) {
+        await outbox.addToOutbox(orderId, 'upsert', data)
+        notifyStoreOutboxUpdate()
+        return { ok: true, id: orderId, status: 'pending', message: 'Saved to local outbox (PostgreSQL offline)' }
+      }
     }
 
     // Dual Write mode: Lưu đồng thời vào Google Sheets và PostgreSQL (Promise.allSettled) để đạt tốc độ tối đa
@@ -92,9 +123,45 @@ export class DualWriteOrderRepository implements OrderRepository {
     const gasRes = gasResult.status === 'fulfilled' ? gasResult.value : { ok: false }
     const pgRes = pgResult.status === 'fulfilled' ? pgResult.value : { ok: false }
 
-    if (gasRes && gasRes.ok) return gasRes
-    if (pgRes && pgRes.ok) return pgRes
-    return { ok: true, id: orderId, message: 'Order Saved' }
+    const gasOk = !!(gasRes && gasRes.ok)
+    const pgOk = !!(pgRes && pgRes.ok)
+
+    if (gasOk && pgOk) {
+      // Cả 2 nguồn đều thành công
+      return {
+        ok: true,
+        id: orderId,
+        status: 'synced',
+        message: 'Order Saved to GAS & PostgreSQL',
+        calendarSync: gasRes.calendarSync
+      }
+    }
+
+    if (gasOk || pgOk) {
+      // Lưu thành công 1 nguồn, nguồn còn lại lỗi -> Đưa vào Outbox để retry bù trừ ngầm
+      await outbox.addToOutbox(orderId, 'upsert', data)
+      notifyStoreOutboxUpdate()
+      triggerOutboxSync().catch(() => {})
+      const failedTarget = !gasOk ? 'Google Sheets' : 'PostgreSQL'
+      return {
+        ok: true,
+        id: orderId,
+        status: 'partially_synced',
+        message: `Order saved to ${gasOk ? 'Google Sheets' : 'PostgreSQL'}, queued for ${failedTarget}`,
+        calendarSync: gasRes?.calendarSync
+      }
+    }
+
+    // CẢ 2 NGUỒN ĐỀU THẤT BẠI (Mất mạng / Offline / Lỗi server đồng thời)
+    // BẮT BUỘC ĐƯA VÀO OUTBOX MÃ HÓA CỤC BỘ ĐỂ KHÔNG MẤT DỮ LIỆU
+    await outbox.addToOutbox(orderId, 'upsert', data)
+    notifyStoreOutboxUpdate()
+    return {
+      ok: true,
+      id: orderId,
+      status: 'pending',
+      message: 'Saved to local outbox (Offline mode - will sync when online)'
+    }
   }
 
   async saveOrdersBatch(payloads: any[]): Promise<any> {
@@ -126,10 +193,26 @@ export class DualWriteOrderRepository implements OrderRepository {
     }
 
     if (mode === 'gas') {
-      return this.gas.deleteOrder(id, password, resolvedToken)
+      try {
+        const res = await this.gas.deleteOrder(id, password, resolvedToken)
+        if (res && res.ok) return res
+        throw new Error(res?.message || 'GAS delete failed')
+      } catch (err: any) {
+        await outbox.addToOutbox(id, 'delete', { id, password, token: resolvedToken })
+        notifyStoreOutboxUpdate()
+        return { ok: true, id, status: 'pending', message: 'Queued for offline deletion (GAS)' }
+      }
     }
     if (mode === 'postgres') {
-      return this.pg.deleteOrder(id, password, resolvedToken)
+      try {
+        const res = await this.pg.deleteOrder(id, password, resolvedToken)
+        if (res && res.ok) return res
+        throw new Error(res?.message || 'Postgres delete failed')
+      } catch (err: any) {
+        await outbox.addToOutbox(id, 'delete', { id, password, token: resolvedToken })
+        notifyStoreOutboxUpdate()
+        return { ok: true, id, status: 'pending', message: 'Queued for offline deletion (PostgreSQL)' }
+      }
     }
 
     // Dual Write mode: Xóa song song ở cả 2 nguồn
@@ -141,7 +224,25 @@ export class DualWriteOrderRepository implements OrderRepository {
     const pgRes = pgResult.status === 'fulfilled' ? pgResult.value : { ok: false }
     const gasRes = gasResult.status === 'fulfilled' ? gasResult.value : { ok: false }
 
-    return (pgRes && pgRes.ok) ? pgRes : (gasRes && gasRes.ok) ? gasRes : { ok: false }
+    const pgOk = !!(pgRes && pgRes.ok)
+    const gasOk = !!(gasRes && gasRes.ok)
+
+    if (pgOk && gasOk) {
+      return { ok: true, id, status: 'synced', message: 'Deleted from PG & GAS' }
+    }
+
+    if (pgOk || gasOk) {
+      // Xóa thành công 1 bên, đưa tác vụ xóa bên còn lại vào Outbox
+      await outbox.addToOutbox(id, 'delete', { id, password, token: resolvedToken })
+      notifyStoreOutboxUpdate()
+      triggerOutboxSync().catch(() => {})
+      return { ok: true, id, status: 'partially_synced', message: 'Partially deleted, queued for remaining target' }
+    }
+
+    // Cả 2 bên đều thất bại (Offline)
+    await outbox.addToOutbox(id, 'delete', { id, password, token: resolvedToken })
+    notifyStoreOutboxUpdate()
+    return { ok: true, id, status: 'pending', message: 'Queued for offline deletion' }
   }
 
   async syncBookingCalendar(id: string, token?: string): Promise<any> {

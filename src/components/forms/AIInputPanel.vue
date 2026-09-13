@@ -263,6 +263,21 @@ const showClipboardPill = ref(false)
 async function checkClipboard() {
   try {
     if (!navigator.clipboard || !navigator.clipboard.readText) return
+    // Guard against aggressive browser permission prompt on passive window focus:
+    // Only attempt passive read if permission is already granted
+    if (navigator.permissions && navigator.permissions.query) {
+      try {
+        const perm = await navigator.permissions.query({ name: 'clipboard-read' as any })
+        if (perm.state !== 'granted') {
+          showClipboardPill.value = false
+          return
+        }
+      } catch {
+        // If clipboard-read query is not supported, do not trigger prompt on passive focus
+        return
+      }
+    }
+
     const text = await navigator.clipboard.readText()
     if (!text || !text.trim() || text.trim() === formStore.rawInput?.trim()) {
       showClipboardPill.value = false
@@ -314,131 +329,135 @@ onUnmounted(() => {
     <!-- Compact Collapsed State (Preserves viewport space) -->
     <div 
       v-if="isPanelCollapsed"
-      class="bg-gradient-to-r from-blue-600 to-indigo-700 p-3 rounded-2xl shadow-md flex items-center justify-between text-white transition-all duration-200 mb-3"
+      class="bg-surface-2 dark:bg-surface-2 border border-border-subtle p-3 rounded-2xl shadow-sm flex items-center justify-between text-text-primary transition-all duration-200 mb-3"
     >
       <div class="flex items-center gap-2.5 min-w-0">
-        <div class="w-8 h-8 rounded-xl bg-white/20 flex items-center justify-center shrink-0">
-          <i class="fa-solid fa-wand-sparkles text-yellow-300 text-xs"></i>
+        <div class="w-8 h-8 rounded-xl bg-primary/10 border border-primary/20 text-apex-primary flex items-center justify-center shrink-0">
+          <i class="fa-solid fa-wand-magic-sparkles text-xs"></i>
         </div>
         <div class="min-w-0">
-          <div class="font-black text-xs uppercase tracking-wide flex items-center gap-1.5">
+          <div class="font-bold text-xs uppercase tracking-wide flex items-center gap-1.5 text-text-primary">
             <span>AI Đã Trích Xuất</span>
-            <span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
+            <span class="w-1.5 h-1.5 rounded-full bg-apex-success"></span>
           </div>
-          <div class="text-[11px] text-blue-100 truncate">
+          <div class="text-[11px] text-text-secondary truncate">
             {{ formStore.customer.name ? `Khách: ${formStore.customer.name}` : 'Đã nạp dữ liệu' }}
           </div>
         </div>
       </div>
       <button 
         @click="isPanelCollapsed = false" 
-        class="touch-target-48 px-3 py-1.5 bg-white/20 hover:bg-white/30 active:scale-95 text-white rounded-xl text-xs font-bold transition-all flex items-center gap-1 shrink-0"
+        class="touch-target-48 px-3 py-1.5 bg-surface-3 hover:bg-surface-hover active:scale-95 text-text-primary border border-border-subtle rounded-xl text-xs font-bold transition-all flex items-center gap-1 shrink-0 cursor-pointer"
         aria-label="Mở rộng AI Core"
       >
-        <i class="fa-solid fa-pen-to-square text-xs"></i>
+        <i class="fa-solid fa-pen-to-square text-xs text-apex-primary"></i>
         <span>Mở lại</span>
       </button>
     </div>
 
-    <!-- Full AI Core Panel -->
+    <!-- Full AI Core Panel (Clean, Surface 2 Minimalist Architecture) -->
     <div 
       v-else
-      class="bg-gradient-to-br from-blue-600 to-indigo-700 p-4 rounded-2xl shadow-xl relative overflow-hidden group transition-all glow-border"
-      :class="{'ring-8 ring-yellow-400 ring-inset scale-[1.02]': isDragging}"
+      class="bg-surface-2 dark:bg-surface-2 border border-border-default dark:border-border-subtle p-4 rounded-2xl shadow-sm relative overflow-hidden group transition-all"
+      :class="{'ring-2 ring-primary border-primary scale-[1.01]': isDragging}"
       @dragover="onDragOver"
       @dragleave="onDragLeave"
       @drop="onDrop"
     >
       <!-- Drag Overlay -->
-      <div v-if="isDragging" class="absolute inset-0 bg-blue-600/60 backdrop-blur-sm z-50 flex flex-col items-center justify-center text-white pointer-events-none border-4 border-dashed border-white/50 m-2 rounded-xl">
-        <i class="fa-solid fa-cloud-arrow-up text-5xl animate-bounce mb-2"></i>
-        <div class="font-black text-lg uppercase tracking-tighter">THẢ ẢNH VÀO ĐÂY</div>
-        <div class="text-xs opacity-80 uppercase tracking-widest mt-1">AI Sẽ Tự Động Phân Tích</div>
+      <div v-if="isDragging" class="absolute inset-0 bg-surface-canvas/90 backdrop-blur-sm z-50 flex flex-col items-center justify-center text-text-primary pointer-events-none border-2 border-dashed border-primary m-2 rounded-xl">
+        <i class="fa-solid fa-cloud-arrow-up text-4xl animate-bounce mb-2 text-apex-primary"></i>
+        <div class="font-black text-base uppercase tracking-wider text-text-primary">THẢ ẢNH VÀO ĐÂY</div>
+        <div class="text-xs text-text-secondary uppercase tracking-widest mt-1">AI Sẽ Tự Động Phân Tích</div>
       </div>
 
-      <div class="absolute top-0 right-0 p-6 opacity-10 pointer-events-none transform translate-x-4 -translate-y-4"><i class="fa-solid fa-bolt-lightning text-7xl text-white"></i></div>
       <div class="flex justify-between items-center mb-3 relative z-10">
-        <h3 class="font-black text-white text-[9px] uppercase tracking-widest flex items-center gap-2"><i class="fa-solid fa-wand-sparkles text-yellow-300"></i> AI Core v7.0</h3>
         <div class="flex items-center gap-2">
+          <div class="w-6 h-6 rounded-lg bg-primary/10 border border-primary/20 flex items-center justify-center text-apex-primary text-xs">
+            <i class="fa-solid fa-wand-magic-sparkles"></i>
+          </div>
+          <h3 class="font-bold text-text-primary text-xs uppercase tracking-wider">AI Core Pipeline v7.0</h3>
+        </div>
+        <div class="flex items-center gap-1.5">
           <button 
             @click="isPanelCollapsed = true"
-            class="px-2 py-0.5 rounded-full font-black text-[8px] uppercase tracking-wider bg-white/20 hover:bg-white/30 text-white border border-white/30 transition-all select-none cursor-pointer"
+            class="px-2 py-0.5 rounded-lg font-bold text-[9px] uppercase tracking-wider bg-surface-3 hover:bg-surface-hover text-text-secondary border border-border-subtle transition-all select-none cursor-pointer"
             title="Thu gọn panel AI"
           >
             <i class="fa-solid fa-chevron-up text-[8px]"></i> Thu gọn
           </button>
           <button 
             @click.prevent="configStore.defaults.enableAutoRecognize = !configStore.defaults.enableAutoRecognize; ui.showToast(configStore.defaults.enableAutoRecognize ? '⚡ Đã BẬT Tự động nhận diện' : '🛡️ Đã TẮT Tự động nhận diện', configStore.defaults.enableAutoRecognize ? 'success' : 'info')"
-            class="px-2 py-0.5 rounded-full font-black text-[8px] uppercase tracking-wider flex items-center gap-1 transition-all select-none cursor-pointer shadow-sm border"
-            :class="configStore.defaults.enableAutoRecognize ? 'bg-amber-400 text-slate-900 border-amber-300' : 'bg-white/20 text-white/80 border-white/30 hover:bg-white/30'"
+            class="px-2 py-0.5 rounded-lg font-bold text-[9px] uppercase tracking-wider flex items-center gap-1 transition-all select-none cursor-pointer border"
+            :class="configStore.defaults.enableAutoRecognize ? 'bg-apex-warning/15 text-apex-warning border-apex-warning/30' : 'bg-surface-3 text-text-tertiary border-border-subtle hover:bg-surface-hover'"
             :title="configStore.defaults.enableAutoRecognize ? 'Tự động nhận diện nhanh: ĐANG BẬT' : 'Tự động nhận diện nhanh: ĐANG TẮT'"
           >
             <i class="fa-solid fa-bolt-lightning text-[8px]"></i>
             {{ configStore.defaults.enableAutoRecognize ? 'Tự động: BẬT' : 'Tự động: TẮT' }}
           </button>
-          <span class="text-[8px] px-2 py-0.5 bg-white text-blue-700 rounded-full font-black uppercase shadow-sm border border-white/50" :class="{'animate-pulse': ui.listening}">{{ ui.listening ? 'LISTENING...' : 'SMART ROUTING ON' }}</span>
         </div>
       </div>
 
-    <!-- Clipboard Toast Pill -->
-    <transition name="fade">
-      <div v-if="showClipboardPill && clipboardPillText" class="mb-3 p-2.5 bg-yellow-400 text-slate-900 rounded-xl flex items-center justify-between gap-3 text-xs font-black shadow-lg relative z-20 border border-yellow-500">
-        <div class="flex items-center gap-1.5 min-w-0">
-          <i class="fa-solid fa-clipboard text-sm shrink-0"></i>
-          <span class="truncate">Phát hiện: "{{ clipboardPillText }}"</span>
+      <!-- Clipboard Toast Pill -->
+      <transition name="fade">
+        <div v-if="showClipboardPill && clipboardPillText" class="mb-3 p-2.5 bg-apex-warning/15 text-text-primary rounded-xl flex items-center justify-between gap-3 text-xs font-bold relative z-20 border border-apex-warning/30">
+          <div class="flex items-center gap-1.5 min-w-0">
+            <i class="fa-solid fa-clipboard text-sm text-apex-warning shrink-0"></i>
+            <span class="truncate">Phát hiện: "{{ clipboardPillText }}"</span>
+          </div>
+          <div class="flex items-center gap-1.5 shrink-0">
+            <button @click.prevent="importFromClipboard" class="px-2.5 py-1 bg-apex-primary hover:bg-apex-primary-hover text-white rounded-lg text-[9px] font-black uppercase tracking-wider transition-all select-none cursor-pointer shadow-xs">
+              NẠP NHANH
+            </button>
+            <button @click.prevent="showClipboardPill = false" class="text-text-tertiary hover:text-text-primary text-xs px-1 select-none cursor-pointer">
+              ✕
+            </button>
+          </div>
         </div>
-        <div class="flex items-center gap-1.5 shrink-0">
-          <button @click.prevent="importFromClipboard" class="px-2.5 py-1.5 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-[9px] font-black uppercase tracking-wider transition-all select-none cursor-pointer">
-            NẠP NHANH
-          </button>
-          <button @click.prevent="showClipboardPill = false" class="text-slate-700 hover:text-slate-900 text-xs px-1.5 select-none cursor-pointer">
-            ✕
-          </button>
+      </transition>
+
+      <div class="space-y-2 relative z-10">
+        <div class="relative">
+          <textarea v-model="formStore.rawInput" @focus="handleInputFocus" @blur="handleInputBlur" @paste="onPaste" rows="3" class="w-full pt-9 pb-11 px-3.5 border border-border-default dark:border-border-subtle rounded-xl text-xs sm:text-sm bg-surface-input text-text-primary font-normal focus:border-border-focus focus:ring-2 focus:ring-border-focus/20 outline-none shadow-sm placeholder-text-tertiary transition-all custom-scrollbar resize-none" placeholder="Dán nội dung đặt bàn, đoạn chat hoặc kéo thả ảnh bill vào đây..."></textarea>
+          
+          <!-- OCR Loading Overlay -->
+          <div v-if="isOcrProcessing" class="absolute inset-0 bg-surface-canvas/80 backdrop-blur-sm z-30 flex flex-col items-center justify-center rounded-xl text-text-primary">
+            <i class="fa-solid fa-spinner animate-spin text-2xl mb-2 text-apex-primary"></i>
+            <span class="text-xs font-bold uppercase tracking-widest text-text-secondary">Đang chạy OCR nhận diện ảnh...</span>
+          </div>
+
+          <!-- Top Right Actions inside textarea -->
+          <div class="absolute top-2 right-2 flex gap-1 z-20 bg-surface-3/80 backdrop-blur rounded-lg p-0.5 border border-border-subtle shadow-xs">
+            <button @click.prevent="clearText" class="px-2 py-0.5 text-[9px] font-bold text-text-tertiary hover:text-apex-danger uppercase tracking-wider rounded transition-all select-none cursor-pointer" title="Xóa hết chữ">Xóa</button>
+            <div class="w-[1px] h-3 bg-border-default align-middle my-auto"></div>
+            <button @click.prevent="pasteClipboard" class="px-2 py-0.5 text-[9px] font-bold text-text-secondary hover:text-apex-primary uppercase tracking-wider rounded transition-all select-none cursor-pointer" title="Dán từ Clipboard">Dán</button>
+          </div>
+
+          <!-- Bottom Right Tools -->
+          <div class="absolute bottom-2 right-2 flex gap-1.5 z-20">
+            <button v-if="ui.isVoiceSupported" @click="toggleVoiceMode" :class="['w-8 h-8 rounded-lg flex items-center justify-center transition-all shadow-xs border', ui.listening ? 'bg-danger text-white border-danger' : 'bg-surface-3 text-text-secondary hover:text-text-primary border-border-subtle hover:bg-surface-hover']" title="Nhận diện giọng nói"><i class="fa-solid fa-microphone text-xs"></i></button>
+            <button @click="aiFileIn?.click()" class="w-8 h-8 rounded-lg bg-surface-3 text-text-secondary hover:text-text-primary hover:bg-surface-hover flex items-center justify-center transition-all shadow-xs border border-border-subtle" title="Tải ảnh hóa đơn / tin nhắn"><i class="fa-solid fa-image text-xs"></i></button>
+            <input type="file" ref="aiFileIn" @change="onImageSelect" class="hidden" accept="image/*">
+          </div>
+        </div>
+
+        <div v-if="formStore.aiImage" class="flex items-center p-2 bg-surface-3 rounded-xl gap-3 border border-border-subtle">
+          <img :src="formStore.aiImage" class="h-10 w-10 object-cover rounded-lg shadow-sm border border-border-default">
+          <div class="flex-grow min-w-0">
+            <div class="text-[10px] font-bold text-text-primary uppercase tracking-wider truncate">Đã nhận diện hình ảnh</div>
+            <div class="text-[9px] text-text-tertiary">Vision OCR Ready</div>
+          </div>
+          <button @click="formStore.aiImage = null" class="text-text-tertiary hover:text-apex-danger mr-1 transition-colors min-h-[36px] min-w-[36px] flex items-center justify-center"><i class="fa-solid fa-trash-can text-xs"></i></button>
         </div>
       </div>
-    </transition>
 
-    <div class="space-y-2 relative z-10 text-white">
-      <div class="relative">
-        <textarea v-model="formStore.rawInput" @focus="handleInputFocus" @blur="handleInputBlur" @paste="onPaste" rows="3" class="w-full pt-10 pb-12 px-3 border-none rounded-xl text-sm bg-white/95 text-slate-800 font-medium focus:ring-4 focus:ring-yellow-400 outline-none shadow-xl placeholder-slate-400 transition-all custom-scrollbar" placeholder="Dán nội dung đặt bàn, nói 'Hey King', hoặc kéo thả ảnh Bill vào đây..."></textarea>
-        
-        <!-- OCR Loading Overlay -->
-        <div v-if="isOcrProcessing" class="absolute inset-0 bg-slate-900/75 backdrop-blur-sm z-30 flex flex-col items-center justify-center rounded-xl text-white">
-          <i class="fa-solid fa-spinner animate-spin text-3xl mb-2 text-blue-400"></i>
-          <span class="text-xs font-black uppercase tracking-widest">Đang chạy OCR nhận diện ảnh...</span>
-        </div>
-
-        <!-- Top Right Actions inside textarea -->
-        <div class="absolute top-2 right-2 flex gap-1 z-20 bg-slate-100/80 backdrop-blur rounded-lg p-0.5 border border-slate-200 shadow-sm">
-          <button @click.prevent="clearText" class="px-2 py-1 text-[9px] font-black text-slate-600 hover:text-red-600 uppercase tracking-widest rounded transition-all select-none cursor-pointer" title="Xóa hết chữ">Xóa</button>
-          <div class="w-[1px] h-3 bg-slate-300 align-middle my-auto"></div>
-          <button @click.prevent="pasteClipboard" class="px-2 py-1 text-[9px] font-black text-slate-600 hover:text-blue-600 uppercase tracking-widest rounded transition-all select-none cursor-pointer" title="Dán từ Clipboard">Dán nhanh</button>
-        </div>
-
-        <div class="absolute bottom-2 right-2 flex gap-1.5 z-20">
-          <button v-if="ui.isVoiceSupported" @click="toggleVoiceMode" :class="['w-9 h-9 rounded-full flex items-center justify-center transition-all shadow-lg active-effect', ui.listening ? 'animate-breathing bg-rose-500 text-white' : 'bg-white text-blue-600 hover-effect']" title="Voice Assistant"><i class="fa-solid fa-microphone text-sm"></i></button>
-          <button @click="aiFileIn?.click()" class="w-9 h-9 rounded-full bg-white text-indigo-600 flex items-center justify-center transition-all shadow-lg active-effect hover-effect" title="Upload Image"><i class="fa-solid fa-image text-sm"></i></button>
-          <input type="file" ref="aiFileIn" @change="onImageSelect" class="hidden" accept="image/*">
-        </div>
-      </div>
-
-      <div v-if="formStore.aiImage" class="flex items-center p-2 bg-white/10 backdrop-blur rounded-xl gap-3 border border-white/20">
-        <img :src="formStore.aiImage" class="h-12 w-12 object-cover rounded-lg shadow-md border-2 border-white">
-        <div class="flex-grow">
-          <div class="text-[9px] font-black text-white uppercase tracking-wider">Đã nhận diện hình ảnh</div>
-          <div class="text-[8px] text-blue-100 italic">Vision OCR Ready</div>
-        </div>
-        <button @click="formStore.aiImage = null" class="text-white/60 hover:text-red-300 mr-2 transition-colors min-h-[44px] min-w-[44px]"><i class="fa-solid fa-trash-can"></i></button>
-      </div>
+      <button @click="handleAnalyze(false)" class="w-full mt-3 py-2.5 px-4 rounded-xl font-bold text-xs uppercase shadow-sm border flex justify-center items-center gap-2 active:scale-98 transition-all min-h-[44px] cursor-pointer"
+        :class="isProcessing ? 'bg-danger hover:bg-danger/90 text-white border-danger animate-pulse' : 'bg-apex-primary hover:bg-apex-primary-hover text-white border-apex-primary'">
+        <i v-if="isProcessing" class="fa-solid fa-spinner animate-spin"></i>
+        <i v-else class="fa-solid fa-wand-magic-sparkles text-xs"></i>
+        <span>{{ isProcessing ? 'HỦY PHÂN TÍCH (CANCEL)' : 'PHÂN TÍCH TIN NHẮN (ANALYZE)' }}</span>
+      </button>
     </div>
-
-    <button @click="handleAnalyze(false)" class="w-full mt-3 py-3 rounded-xl font-black text-sm shadow-lg border flex justify-center items-center gap-2 hover:-translate-y-1 hover:shadow-blue-500/20 active:scale-95 transition-all duration-300 min-h-[48px] active-effect cursor-pointer"
-      :class="isProcessing ? 'bg-red-500 hover:bg-red-600 text-white border-red-600 animate-pulse' : 'bg-white hover:bg-slate-50 text-blue-700 border-white/50'">
-      <i v-if="isProcessing" class="fa-solid fa-spinner animate-spin"></i>
-      <i v-else class="fa-solid fa-rocket"></i>
-      {{ isProcessing ? 'HỦY PHÂN TÍCH (CANCEL)' : 'PHÂN TÍCH (QUICK EXTRACT)' }}
-    </button>
-  </div>
 
   <!-- Parsed Fields Review Card -->
   <transition name="fade">

@@ -48,6 +48,7 @@ import type { PromptProfile } from '@/domain/ai/promptBuilder'
 import { retrieveMenuCandidates } from '@/domain/menu/menuCandidateRetriever'
 import { validateAIResult } from '@/domain/ai/aiResultValidator'
 import { analyzeBookingIntelligenceV2 } from '@/domain/ai/v2/bookingIntelligenceV2'
+import { generateOperationalDispatch, resolvePeopleRoles } from '@/domain/ai/expertEntityDisambiguator'
 
 export function useAI() {
   const uiStore = useUIStore()
@@ -865,6 +866,19 @@ export function useAI() {
 
       const validatedResult = validateParsedFields(finalParsedResult)
       validatedResult.routing = routingInfo
+
+      // Multi-Department Operational Dispatch (BEO)
+      try {
+        validatedResult.operationalDispatch = generateOperationalDispatch({
+          customer: validatedResult.customer,
+          booking: validatedResult.booking,
+          party: validatedResult.party,
+          items: validatedResult.menu_items,
+          deposit: validatedResult.deposit
+        })
+      } catch (errDispatch) {
+        console.warn('[useAI] Operational dispatch generation failed:', errDispatch)
+      }
       
       logStore.addLog(`Độ tin cậy tổng thể: ${Math.round((validatedResult.confidence?.overall || 0) * 100)}%`)
       if (validatedResult.needs_review_fields.length > 0) {
@@ -1235,10 +1249,16 @@ Salad bò - 120000
             const correctedName = curr.name.trim()
             if (rawInputName && correctedName && rawInputName.toLowerCase() !== correctedName.toLowerCase()) {
               try {
-                console.log(`[AI Auto-Learn] Learning menu alias: "${rawInputName}" -> "${correctedName}"`)
-                await appStore.saveAlias(rawInputName, correctedName)
+                console.log(`[AI Auto-Learn] Logging menu correction: "${rawInputName}" -> "${correctedName}"`)
+                await appStore.logAiCorrection(
+                  rawInputName,
+                  orig.name,
+                  correctedName,
+                  'menu_item',
+                  appStore.adminToken
+                )
               } catch (e) {
-                console.warn('[AI Auto-Learn] Failed to save menu alias:', e)
+                console.warn('[AI Auto-Learn] Failed to log menu correction:', e)
               }
             }
           }
@@ -1261,6 +1281,8 @@ Salad bò - 120000
     classifyInputType,
     validateParsedFields,
     repairAndNormalizeJSON,
-    analyzeBookingIntelligenceV2
+    analyzeBookingIntelligenceV2,
+    resolvePeopleRoles,
+    generateOperationalDispatch
   }
 }

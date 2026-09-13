@@ -13,6 +13,8 @@ export interface Env {
   SHARED_SECRET?: string; // Shared access token secret
   GAS_URL?: string;
   SHEETS_QUEUE?: any; // Cloudflare Queue binding
+  FB_PAGE_ACCESS_TOKEN?: string;
+  FB_VERIFY_TOKEN?: string;
 }
 
 // In-Memory Rate Limiter
@@ -327,7 +329,7 @@ export default {
     const corsHeaders = {
       "Access-Control-Allow-Origin": origin,
       "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
-      "Access-Control-Allow-Headers": "Content-Type, Authorization, X-KG-Role",
+      "Access-Control-Allow-Headers": "Content-Type, Authorization, X-KG-Role, X-FB-Access-Token",
       "Access-Control-Max-Age": "86400"
     };
 
@@ -376,13 +378,95 @@ export default {
         return new Response("Forbidden: Invalid verify token", { status: 403 });
       }
 
+      // Facebook Graph API Proxy Endpoints (Protected by Edge Gateway)
+      if (path.startsWith("/api/facebook/")) {
+        const clientToken = request.headers.get("x-fb-access-token");
+        const effectiveToken = clientToken || env.FB_PAGE_ACCESS_TOKEN || "";
+        if (!effectiveToken) {
+          return new Response(JSON.stringify({ error: "Facebook Page Access Token not configured on Gateway" }), {
+            status: 401,
+            headers: { ...corsHeaders, "Content-Type": "application/json" }
+          });
+        }
+
+        // GET /api/facebook/conversations
+        if (path === "/api/facebook/conversations" && request.method === "GET") {
+          const limit = url.searchParams.get("limit") || "50";
+          const fbUrl = `https://graph.facebook.com/v19.0/me/conversations?fields=id,updated_time,senders,participants,unread_count,messages{id,message,created_time,from}&limit=${encodeURIComponent(limit)}&access_token=${encodeURIComponent(effectiveToken)}`;
+          const fbRes = await fetch(fbUrl);
+          const fbData = await fbRes.json();
+          return new Response(JSON.stringify(fbData), {
+            status: fbRes.status,
+            headers: { ...corsHeaders, "Content-Type": "application/json" }
+          });
+        }
+
+        // GET /api/facebook/messages?conversationId=...
+        if (path === "/api/facebook/messages" && request.method === "GET") {
+          const conversationId = url.searchParams.get("conversationId");
+          if (!conversationId) {
+            return new Response(JSON.stringify({ error: "conversationId is required" }), {
+              status: 400,
+              headers: { ...corsHeaders, "Content-Type": "application/json" }
+            });
+          }
+          const limit = url.searchParams.get("limit") || "50";
+          const fbUrl = `https://graph.facebook.com/v19.0/${encodeURIComponent(conversationId)}/messages?fields=id,message,created_time,from&limit=${encodeURIComponent(limit)}&access_token=${encodeURIComponent(effectiveToken)}`;
+          const fbRes = await fetch(fbUrl);
+          const fbData = await fbRes.json();
+          return new Response(JSON.stringify(fbData), {
+            status: fbRes.status,
+            headers: { ...corsHeaders, "Content-Type": "application/json" }
+          });
+        }
+
+        // POST /api/facebook/messages
+        if (path === "/api/facebook/messages" && request.method === "POST") {
+          const postBody = await request.json() as any;
+          const fbUrl = `https://graph.facebook.com/v19.0/me/messages?access_token=${encodeURIComponent(effectiveToken)}`;
+          const fbRes = await fetch(fbUrl, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(postBody)
+          });
+          const fbData = await fbRes.json();
+          return new Response(JSON.stringify(fbData), {
+            status: fbRes.status,
+            headers: { ...corsHeaders, "Content-Type": "application/json" }
+          });
+        }
+
+        // GET /api/facebook/user-profiles?ids=... or ?psid=...
+        if (path === "/api/facebook/user-profiles" && request.method === "GET") {
+          const ids = url.searchParams.get("ids");
+          const psid = url.searchParams.get("psid");
+          let fbUrl = "";
+          if (ids) {
+            fbUrl = `https://graph.facebook.com/v19.0/?ids=${encodeURIComponent(ids)}&fields=name,picture{url}&access_token=${encodeURIComponent(effectiveToken)}`;
+          } else if (psid) {
+            fbUrl = `https://graph.facebook.com/v19.0/${encodeURIComponent(psid)}?fields=name,picture{url}&access_token=${encodeURIComponent(effectiveToken)}`;
+          } else {
+            return new Response(JSON.stringify({ error: "ids or psid required" }), {
+              status: 400,
+              headers: { ...corsHeaders, "Content-Type": "application/json" }
+            });
+          }
+          const fbRes = await fetch(fbUrl);
+          const fbData = await fbRes.json();
+          return new Response(JSON.stringify(fbData), {
+            status: fbRes.status,
+            headers: { ...corsHeaders, "Content-Type": "application/json" }
+          });
+        }
+      }
+
 
       // Facebook Messenger Webhook Message Ingestion (POST)
       if ((path === "/api/webhook/facebook" || path === "/webhook/facebook") && request.method === "POST") {
         try {
           const body = await request.json() as any;
           if (body.object === 'page') {
-            const pageAccessToken = env.FB_PAGE_ACCESS_TOKEN || "EAAYwJz8TUaABSOZB52MUg7ZBeIrk7ckvQSKwKhI8SWXS8R9AcOAoiV4ZCnUWVLtLtZAxC0hXve5SlGyZAvLS68jCdmAr2GatmuYSOsWFsG9k0my7KKOlyLN6MMB8Gt6yrGlzBx43bGPGSgK4MlO40GQ6UrKyN5xsZCPViGgZC1Y2mV3OzRL8BFV5YrBDQIec7ShIfNswECw";
+            const pageAccessToken = env.FB_PAGE_ACCESS_TOKEN || "";
             
             for (const entry of body.entry || []) {
               const webhookEvent = entry.messaging?.[0];

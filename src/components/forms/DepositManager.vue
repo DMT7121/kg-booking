@@ -101,8 +101,8 @@ function onDrop(e: DragEvent) {
 
 <template>
   <div 
-    class="bg-white dark:bg-slate-900 p-5 md:p-6 rounded-3xl border border-slate-100 dark:border-slate-800 shadow-sm relative overflow-hidden transition-all duration-300" 
-    :class="{'ring-4 ring-emerald-500/20 bg-emerald-50/20 dark:bg-emerald-950/20 border-emerald-200 dark:border-emerald-800/60': formStore.deposit.isPaid, 'ring-8 ring-indigo-500/20 bg-indigo-50/50 dark:bg-indigo-950/40 scale-[1.02]': isDragging}"
+    class="bg-white dark:bg-surface-2 p-5 md:p-6 rounded-3xl border border-slate-100 dark:border-border-subtle shadow-sm relative overflow-hidden transition-all duration-300" 
+    :class="{'ring-4 ring-emerald-500/20 bg-emerald-50/20 dark:bg-emerald-950/20 border-emerald-200 dark:border-emerald-800/40': formStore.deposit.isPaid, 'ring-8 ring-indigo-500/20 bg-indigo-50/50 dark:bg-indigo-950/40 scale-[1.02]': isDragging}"
     @dragover="onDragOver"
     @dragleave="onDragLeave"
     @drop="onDrop"
@@ -114,29 +114,29 @@ function onDrop(e: DragEvent) {
     </div>
     
     <!-- Title & Auto buttons -->
-    <div class="flex justify-between items-center mb-4 border-b border-slate-100 dark:border-slate-800 pb-3">
-      <div class="flex items-center gap-2">
+    <div class="flex flex-wrap sm:flex-nowrap justify-between items-center gap-2 mb-4 border-b border-slate-100 dark:border-border-subtle pb-3">
+      <div class="flex items-center gap-2 min-w-0">
         <div class="w-8 h-8 rounded-xl bg-emerald-50 dark:bg-emerald-950/50 text-emerald-600 dark:text-emerald-400 flex items-center justify-center text-sm shadow-sm border border-emerald-100 dark:border-emerald-800/40 shrink-0">
           <i class="fa-solid fa-vault"></i>
         </div>
-        <div>
-          <h3 class="font-black text-slate-800 dark:text-slate-100 text-xs uppercase tracking-widest">Quản Lý Tiền Cọc</h3>
-          <p class="text-[10px] font-bold text-slate-400 dark:text-slate-400">Theo dõi đặt cọc & Bill chuyển khoản</p>
+        <div class="min-w-0">
+          <h3 class="font-black text-slate-800 dark:text-slate-100 text-xs uppercase tracking-widest truncate">Quản Lý Tiền Cọc</h3>
+          <p class="text-[10px] font-bold text-slate-400 dark:text-slate-400 truncate">Theo dõi đặt cọc & Bill chuyển khoản</p>
         </div>
       </div>
-      <div class="flex items-center gap-2">
-        <div class="text-[9px] font-black bg-slate-100 dark:bg-slate-800 px-2.5 py-1.5 rounded-xl text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 uppercase tracking-tight flex items-center gap-1 min-h-[36px]" title="Nhân viên trực">
+      <div class="flex items-center gap-1.5 sm:gap-2 shrink-0">
+        <div class="text-[9px] font-black bg-slate-100 dark:bg-surface-3 px-2.5 py-1.5 rounded-xl text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-border-subtle uppercase tracking-tight flex items-center gap-1 min-h-[34px]" title="Nhân viên trực">
           <i class="fa-regular fa-user text-[10px]"></i>
           <span>{{ formStore.staff.name }}</span>
         </div>
-        <button @click="autoCalcDeposit" class="text-[9px] bg-indigo-50 dark:bg-indigo-950/50 px-3 py-1.5 rounded-xl text-indigo-700 dark:text-indigo-300 font-black hover:bg-indigo-100 dark:hover:bg-indigo-900/50 transition active:scale-95 border border-indigo-100 dark:border-indigo-800/40 min-h-[36px] cursor-pointer" aria-label="Tự động tính cọc 1/3">
+        <button @click="autoCalcDeposit" class="text-[9px] bg-indigo-50 dark:bg-indigo-950/50 px-2.5 sm:px-3 py-1.5 rounded-xl text-indigo-700 dark:text-indigo-300 font-black hover:bg-indigo-100 dark:hover:bg-indigo-900/50 transition active:scale-95 border border-indigo-100 dark:border-indigo-800/40 min-h-[34px] cursor-pointer" aria-label="Tự động tính cọc 1/3">
           AUTO 1/3
         </button>
       </div>
     </div>
 
     <!-- Semantic Status Card & Amount Entry -->
-    <div class="bg-slate-50/70 dark:bg-slate-950/60 p-3 sm:p-4 rounded-2xl border border-slate-100 dark:border-slate-800 space-y-3">
+    <div class="bg-slate-50/70 dark:bg-surface-canvas/60 p-3 sm:p-4 rounded-2xl border border-slate-100 dark:border-border-subtle space-y-3">
       <!-- Amount input with label and tabular font -->
       <div>
         <label for="deposit-amount-input" class="block text-[10px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-300 mb-1.5">Số tiền đặt cọc</label>
@@ -148,7 +148,7 @@ function onDrop(e: DragEvent) {
             inputmode="numeric" 
             @focus="onFocus" 
             @blur="onBlur" 
-            class="w-full h-12 border border-slate-200 dark:border-slate-700 rounded-xl px-3 font-black text-red-600 dark:text-red-400 text-lg sm:text-xl bg-white dark:bg-slate-900 focus:border-red-400 dark:focus:border-red-500 focus:ring-4 focus:ring-red-50 dark:focus:ring-red-950/40 outline-none shadow-sm text-left font-tabular"
+            class="w-full h-12 border border-slate-200 dark:border-border-default rounded-xl px-3 font-black text-red-600 dark:text-red-400 text-lg sm:text-xl bg-white dark:bg-surface-input focus:border-red-400 dark:focus:border-red-500 focus:ring-4 focus:ring-red-50 dark:focus:ring-red-950/40 outline-none shadow-sm text-left font-tabular"
             placeholder="0đ"
           >
         </div>
@@ -228,7 +228,7 @@ function onDrop(e: DragEvent) {
     </div>
     
     <div v-if="formStore.deposit.image" class="mt-4 relative group">
-      <img :src="formStore.deposit.image" class="w-full h-32 object-contain rounded-2xl border-2 border-slate-100 dark:border-slate-700 bg-white dark:bg-slate-800 shadow-md" crossorigin="anonymous" referrerpolicy="no-referrer">
+      <img :src="formStore.deposit.image" class="w-full h-32 object-contain rounded-2xl border-2 border-slate-100 dark:border-border-default bg-white dark:bg-surface-3 shadow-md" crossorigin="anonymous" referrerpolicy="no-referrer">
       <button @click="clearDeposit" aria-label="Xóa ảnh chuyển khoản" class="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-8 h-8 flex items-center justify-center shadow-xl hover:bg-red-600 transition-colors min-h-[44px] min-w-[44px] cursor-pointer"><i class="fa-solid fa-xmark"></i></button>
     </div>
   </div>

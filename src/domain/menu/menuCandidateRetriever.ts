@@ -42,6 +42,8 @@ const MENU_SEARCH_STOP_WORDS = new Set([
   'anh', 'chi', 'em', 'bac', 'chu', 'co', 'ong', 'ba', 'be', 'khach', 'minh', 'toi',
   'le', 'tan', 'nhan', 'vien', 'giup', 'cho', 'nhe', 'nha', 'lien', 'he', 'so',
   'trang', 'tri', 'tong', 'mau', 'tone', 'color', 'guong', 'bang', 'chu', 'bong', 'bay', 'hoa', 'tuoi', 'lua',
+  'ghe', 'baby', 'chair', 'phong', 'vip', 'khu', 'view', 'ban', 'cong', 'rooftop', 'san', 'thuong',
+  'khau', 'vi', 'cay', 'di', 'ung', 'dau', 'phong', 'lac', 'an', 'chay', 'diet',
   'thu', 'hai', 'ba', 'tu', 'sau', 'bay', 'nhat'
 ])
 

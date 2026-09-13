@@ -78,6 +78,11 @@ export const useBookingStore = defineStore('bookingStore', () => {
     cacheHistory(history.value)
   }
 
+  function setHistory(list: HistoryOrder[]) {
+    history.value = list
+    historyLoaded.value = true
+  }
+
   return {
     history,
     historyLoading,
@@ -90,6 +95,7 @@ export const useBookingStore = defineStore('bookingStore', () => {
     filteredHistory,
     loadHistory,
     addOrUpdateBooking,
-    removeBooking
+    removeBooking,
+    setHistory
   }
 })

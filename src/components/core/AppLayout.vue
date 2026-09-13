@@ -134,11 +134,17 @@ onMounted(() => {
   if (!formStore.id) formStore.id = crypto.randomUUID()
   ui.isVoiceSupported = 'webkitSpeechRecognition' in window || 'SpeechRecognition' in window
 
-  appStore.fetchSheets()
+  // Critical first-paint hydration: Menu and AI runtime config (needed immediately for active form)
   appStore.fetchMenu()
-  appStore.loadHistory(true)
-  appStore.fetchRemoteConfig()
   configStore.hydrateAiRuntimeConfig()
+
+  // Non-blocking secondary hydration: History sync, Sheets list, Remote config
+  // Staggered to prevent Startup Storm and Google Script concurrency quota bursts
+  setTimeout(() => {
+    appStore.loadHistory(true)
+    appStore.fetchSheets()
+    appStore.fetchRemoteConfig()
+  }, 150)
 
   // Keyboard detection via visualViewport
   if (window.visualViewport) {
@@ -480,6 +486,74 @@ function handleGlobalKeydown(e: KeyboardEvent) {
       ui.resolveModal('prompt', null)
       return
     }
+  }
+
+  // Handle Escape key for all open modals, drawers, and command palette
+  if (e.key === 'Escape') {
+    if (ui.showCommandPalette) {
+      e.preventDefault()
+      ui.showCommandPalette = false
+      return
+    }
+    if (ui.activeSettingModal) {
+      e.preventDefault()
+      ui.closeConfig()
+      return
+    }
+    if (ui.showSettingsHub) {
+      e.preventDefault()
+      ui.showSettingsHub = false
+      return
+    }
+    if (ui.showFloorPlan) {
+      e.preventDefault()
+      ui.showFloorPlan = false
+      return
+    }
+    if (ui.showMenuManager) {
+      e.preventDefault()
+      ui.showMenuManager = false
+      return
+    }
+    if (ui.showBookingDetailModal) {
+      e.preventDefault()
+      ui.showBookingDetailModal = false
+      return
+    }
+    if (ui.showCustomerCareModal) {
+      e.preventDefault()
+      ui.showCustomerCareModal = false
+      return
+    }
+    if (ui.showVersionModal) {
+      e.preventDefault()
+      ui.showVersionModal = false
+      return
+    }
+    if (ui.showSocialBotModal) {
+      e.preventDefault()
+      ui.showSocialBotModal = false
+      return
+    }
+    if (ui.showBookingConfirmationModal) {
+      e.preventDefault()
+      ui.resolveBookingConfirmation(false)
+      return
+    }
+    if (ui.showStaffSelector) {
+      e.preventDefault()
+      ui.showStaffSelector = false
+      return
+    }
+  }
+
+  // Desktop quick tab switcher (Alt + 1..5)
+  if (e.altKey && !e.ctrlKey && !e.metaKey) {
+    if (e.key === '1') { e.preventDefault(); ui.tab = 'dashboard' }
+    else if (e.key === '2') { e.preventDefault(); ui.tab = 'create' }
+    else if (e.key === '3') { e.preventDefault(); ui.tab = 'timeline' }
+    else if (e.key === '4') { e.preventDefault(); ui.tab = 'history' }
+    else if (e.key === '5') { e.preventDefault(); ui.tab = 'preview' }
   }
 
   if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {

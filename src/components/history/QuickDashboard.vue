@@ -347,13 +347,13 @@ function handleRecentClick(order: any) {
     <!-- View Switcher & Executive Header Bar -->
     <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pb-1">
       <!-- Segmented View Mode Controls -->
-      <div class="inline-flex p-1 bg-slate-200/80 dark:bg-slate-900 rounded-2xl border border-slate-300/60 dark:border-slate-800 shadow-inner">
+      <div class="inline-flex p-1 bg-slate-200/80 dark:bg-surface-canvas rounded-2xl border border-slate-300/60 dark:border-border-subtle shadow-inner">
         <button 
           @click="activeView = 'summary'"
           :class="[
             'px-3.5 py-1.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all flex items-center gap-2',
             activeView === 'summary' 
-              ? 'bg-white dark:bg-slate-800 text-blue-600 dark:text-blue-400 shadow-sm' 
+              ? 'bg-white dark:bg-surface-3 text-blue-600 dark:text-blue-400 shadow-sm' 
               : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
           ]"
         >
@@ -365,7 +365,7 @@ function handleRecentClick(order: any) {
           :class="[
             'px-3.5 py-1.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all flex items-center gap-2',
             activeView === 'operations' 
-              ? 'bg-white dark:bg-slate-800 text-amber-600 dark:text-amber-400 shadow-sm' 
+              ? 'bg-white dark:bg-surface-3 text-amber-600 dark:text-amber-400 shadow-sm' 
               : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
           ]"
         >
@@ -381,7 +381,7 @@ function handleRecentClick(order: any) {
       <div class="flex items-center gap-2 self-end sm:self-auto">
         <button 
           @click="appStore.loadHistory(false)" 
-          class="px-3.5 py-2 min-h-[44px] bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800 active:scale-95 rounded-xl text-xs font-black uppercase tracking-wider text-slate-700 dark:text-slate-300 transition-all flex items-center gap-2 shadow-sm touch-target-48"
+          class="px-3.5 py-2 min-h-[44px] bg-white dark:bg-surface-2 border border-slate-200 dark:border-border-subtle hover:bg-slate-50 dark:hover:bg-surface-3 active:scale-95 rounded-xl text-xs font-black uppercase tracking-wider text-slate-700 dark:text-slate-300 transition-all flex items-center gap-2 shadow-sm touch-target-48"
           aria-label="Làm mới dữ liệu ca trực"
         >
           <i class="fa-solid fa-rotate text-blue-600 dark:text-blue-400" :class="{'animate-spin': ui.isFetchingAPI}"></i>
@@ -404,69 +404,69 @@ function handleRecentClick(order: any) {
     <!-- VIEW 2: EXECUTIVE SUMMARY & DASHBOARD -->
     <div v-else class="space-y-5">
       <!-- Top Welcoming & Quick Stats -->
-      <div class="bg-gradient-to-br from-blue-900 via-indigo-900 to-slate-900 rounded-3xl p-4 text-white shadow-xl relative overflow-hidden border border-blue-800/40 dark:border-slate-800">
-        <div class="absolute inset-0 bg-gradient-to-r from-blue-500/10 to-transparent pointer-events-none"></div>
+      <div class="bg-gradient-to-br from-slate-900 via-[#121B2B] to-[#0D1422] dark:bg-surface-2 rounded-3xl p-4 sm:p-5 text-white shadow-xl relative overflow-hidden border border-slate-200/20 dark:border-border-subtle">
+        <div class="absolute inset-0 bg-[radial-gradient(circle_at_90%_10%,rgba(47,103,232,0.12)_0%,transparent_60%)] pointer-events-none"></div>
         <div class="relative z-10 flex flex-col md:flex-row justify-between items-start md:items-center gap-3">
           <div>
             <h2 class="text-base font-black tracking-tight uppercase" style="font-family: 'Be Vietnam Pro', sans-serif;">
               BẢNG ĐIỀU KHIỂN NHÀ HÀNG
             </h2>
-            <p class="text-[11px] text-blue-200 mt-0.5 font-medium">Tóm tắt vận hành và việc cần xử lý hôm nay.</p>
+            <p class="text-[11px] text-slate-300 dark:text-text-secondary mt-0.5 font-medium">Tóm tắt vận hành và việc cần xử lý hôm nay.</p>
           </div>
         </div>
         
         <!-- Summary mini widgets (Compact 2x2 grid on mobile/tablet) -->
         <div class="grid grid-cols-2 lg:grid-cols-4 gap-2.5 mt-3.5 relative z-10">
-          <div class="bg-white/10 dark:bg-white/5 rounded-2xl py-2.5 px-3.5 border border-white/10">
-            <div class="text-[10px] text-blue-200 font-bold uppercase tracking-wider leading-tight">Tiệc hôm nay</div>
-            <div class="text-lg font-black mt-0.5 tabular-nums">
-              {{ calendarSummary[0]?.bookings || 0 }} <span class="text-xs text-slate-300 font-normal">bàn</span>
+          <div class="bg-white/10 dark:bg-surface-3/90 rounded-2xl py-2.5 px-3.5 border border-white/10 dark:border-border-subtle">
+            <div class="text-[10px] text-slate-300 dark:text-text-tertiary font-bold uppercase tracking-wider leading-tight">Tiệc hôm nay</div>
+            <div class="text-lg font-black mt-0.5 tabular-nums font-tabular">
+              {{ calendarSummary[0]?.bookings || 0 }} <span class="text-xs text-slate-400 font-normal">bàn</span>
             </div>
           </div>
-          <div class="bg-white/10 dark:bg-white/5 rounded-2xl py-2.5 px-3.5 border border-white/10">
-            <div class="text-[10px] text-blue-200 font-bold uppercase tracking-wider leading-tight">Khách hôm nay</div>
-            <div class="text-lg font-black mt-0.5 tabular-nums">
-              {{ calendarSummary[0]?.guests || 0 }} <span class="text-xs text-slate-300 font-normal">người</span>
+          <div class="bg-white/10 dark:bg-surface-3/90 rounded-2xl py-2.5 px-3.5 border border-white/10 dark:border-border-subtle">
+            <div class="text-[10px] text-slate-300 dark:text-text-tertiary font-bold uppercase tracking-wider leading-tight">Khách hôm nay</div>
+            <div class="text-lg font-black mt-0.5 tabular-nums font-tabular">
+              {{ calendarSummary[0]?.guests || 0 }} <span class="text-xs text-slate-400 font-normal">người</span>
             </div>
           </div>
-          <div class="bg-white/10 dark:bg-white/5 rounded-2xl py-2.5 px-3.5 border border-white/10">
-            <div class="text-[10px] text-yellow-300 font-bold uppercase tracking-wider leading-tight">Cần xử lý</div>
-            <div class="text-lg font-black mt-0.5 text-yellow-300 tabular-nums">
-              {{ todoItems.length }} <span class="text-xs text-slate-300 font-normal">việc</span>
+          <div class="bg-white/10 dark:bg-surface-3/90 rounded-2xl py-2.5 px-3.5 border border-white/10 dark:border-border-subtle">
+            <div class="text-[10px] text-yellow-300 dark:text-amber-400 font-bold uppercase tracking-wider leading-tight">Cần xử lý</div>
+            <div class="text-lg font-black mt-0.5 text-yellow-300 dark:text-amber-400 tabular-nums font-tabular">
+              {{ todoItems.length }} <span class="text-xs text-slate-400 font-normal">việc</span>
             </div>
           </div>
-          <div class="bg-white/10 dark:bg-white/5 rounded-2xl py-2.5 px-3.5 border border-white/10">
-            <div class="text-[10px] text-blue-200 font-bold uppercase tracking-wider leading-tight">Tổng đơn</div>
-            <div class="text-lg font-black mt-0.5 tabular-nums">
-              {{ Object.keys(appStore.groupedHistory).length }} <span class="text-xs text-slate-300 font-normal">đơn</span>
+          <div class="bg-white/10 dark:bg-surface-3/90 rounded-2xl py-2.5 px-3.5 border border-white/10 dark:border-border-subtle">
+            <div class="text-[10px] text-slate-300 dark:text-text-tertiary font-bold uppercase tracking-wider leading-tight">Tổng đơn</div>
+            <div class="text-lg font-black mt-0.5 tabular-nums font-tabular">
+              {{ Object.keys(appStore.groupedHistory).length }} <span class="text-xs text-slate-400 font-normal">đơn</span>
             </div>
           </div>
         </div>
 
         <!-- Quick Action Chips -->
-        <div class="flex items-center gap-2 overflow-x-auto scrollbar-none pt-3 pb-1 flex-nowrap -mx-1 border-t border-white/10 mt-3.5">
-          <button @click="ui.tab = 'create'" class="px-3.5 py-2 min-h-[40px] bg-white/15 hover:bg-white/25 active:scale-95 text-white rounded-full text-[11px] font-black uppercase tracking-wider transition-all flex items-center gap-1.5 shrink-0 border border-white/15">
-            <i class="fa-solid fa-plus text-[9px] text-blue-300"></i> Tạo nhanh
+        <div class="flex items-center gap-2 overflow-x-auto scrollbar-none pt-3 pb-1 flex-nowrap -mx-1 border-t border-white/10 dark:border-border-subtle mt-3.5">
+          <button @click="ui.tab = 'create'" class="px-3.5 py-2 min-h-[40px] bg-white/15 dark:bg-surface-3 hover:bg-white/25 dark:hover:bg-surface-4 active:scale-95 text-white rounded-full text-[11px] font-black uppercase tracking-wider transition-all flex items-center gap-1.5 shrink-0 border border-white/15 dark:border-border-subtle">
+            <i class="fa-solid fa-plus text-[9px] text-blue-400"></i> Tạo nhanh
           </button>
-          <button @click="ui.selectedTimelineDate = todayStr; ui.tab = 'timeline'" class="px-3.5 py-2 min-h-[40px] bg-white/15 hover:bg-white/25 active:scale-95 text-white rounded-full text-[11px] font-black uppercase tracking-wider transition-all flex items-center gap-1.5 shrink-0 border border-white/15">
-            <i class="fa-solid fa-calendar-day text-[9px] text-indigo-300"></i> Hôm nay
+          <button @click="ui.selectedTimelineDate = todayStr; ui.tab = 'timeline'" class="px-3.5 py-2 min-h-[40px] bg-white/15 dark:bg-surface-3 hover:bg-white/25 dark:hover:bg-surface-4 active:scale-95 text-white rounded-full text-[11px] font-black uppercase tracking-wider transition-all flex items-center gap-1.5 shrink-0 border border-white/15 dark:border-border-subtle">
+            <i class="fa-solid fa-calendar-day text-[9px] text-indigo-400"></i> Hôm nay
           </button>
-          <button @click="ui.tab = 'history'; ui.historyFilters.deposit = 'unpaid'; appStore.loadHistory(false)" class="px-3.5 py-2 min-h-[40px] bg-white/15 hover:bg-white/25 active:scale-95 text-white rounded-full text-[11px] font-black uppercase tracking-wider transition-all flex items-center gap-1.5 shrink-0 border border-white/15">
-            <i class="fa-solid fa-hourglass-half text-[9px] text-amber-300"></i> Chưa cọc
+          <button @click="ui.tab = 'history'; ui.historyFilters.deposit = 'unpaid'; appStore.loadHistory(false)" class="px-3.5 py-2 min-h-[40px] bg-white/15 dark:bg-surface-3 hover:bg-white/25 dark:hover:bg-surface-4 active:scale-95 text-white rounded-full text-[11px] font-black uppercase tracking-wider transition-all flex items-center gap-1.5 shrink-0 border border-white/15 dark:border-border-subtle">
+            <i class="fa-solid fa-hourglass-half text-[9px] text-amber-400"></i> Chưa cọc
           </button>
-          <button @click="ui.tab = 'history'; ui.historyFilters.deposit = 'all'; ui.historyFilters.time = 'today'; appStore.loadHistory(false)" class="px-3.5 py-2 min-h-[40px] bg-white/15 hover:bg-white/25 active:scale-95 text-white rounded-full text-[11px] font-black uppercase tracking-wider transition-all flex items-center gap-1.5 shrink-0 border border-white/15">
-            <i class="fa-solid fa-bell-concierge text-[9px] text-purple-300"></i> Chưa món
+          <button @click="ui.tab = 'history'; ui.historyFilters.deposit = 'all'; ui.historyFilters.time = 'today'; appStore.loadHistory(false)" class="px-3.5 py-2 min-h-[40px] bg-white/15 dark:bg-surface-3 hover:bg-white/25 dark:hover:bg-surface-4 active:scale-95 text-white rounded-full text-[11px] font-black uppercase tracking-wider transition-all flex items-center gap-1.5 shrink-0 border border-white/15 dark:border-border-subtle">
+            <i class="fa-solid fa-bell-concierge text-[9px] text-purple-400"></i> Chưa món
           </button>
-          <button @click="ui.tab = 'preview'" class="px-3.5 py-2 min-h-[40px] bg-white/15 hover:bg-white/25 active:scale-95 text-white rounded-full text-[11px] font-black uppercase tracking-wider transition-all flex items-center gap-1.5 shrink-0 border border-white/15">
-            <i class="fa-solid fa-eye text-[9px] text-emerald-300"></i> Xem phiếu
+          <button @click="ui.tab = 'preview'" class="px-3.5 py-2 min-h-[40px] bg-white/15 dark:bg-surface-3 hover:bg-white/25 dark:hover:bg-surface-4 active:scale-95 text-white rounded-full text-[11px] font-black uppercase tracking-wider transition-all flex items-center gap-1.5 shrink-0 border border-white/15 dark:border-border-subtle">
+            <i class="fa-solid fa-eye text-[9px] text-emerald-400"></i> Xem phiếu
           </button>
         </div>
       </div>
 
       <!-- Fanpage AI Chatbot Live Control Banner -->
       <div 
-        class="bg-white dark:bg-slate-900 border rounded-3xl p-4 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4 transition-all"
-        :class="isFbBotActive ? 'border-emerald-200 dark:border-emerald-900/60 bg-emerald-50/20 dark:bg-emerald-950/20' : 'border-rose-200 dark:border-rose-900/60 bg-rose-50/20 dark:bg-rose-950/20'"
+        class="bg-white dark:bg-surface-2 border rounded-3xl p-4 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4 transition-all"
+        :class="isFbBotActive ? 'border-emerald-200 dark:border-emerald-900/40 bg-emerald-50/20 dark:bg-emerald-950/20' : 'border-rose-200 dark:border-rose-900/40 bg-rose-50/20 dark:bg-rose-950/20'"
       >
         <div class="flex items-center gap-3">
           <div :class="['w-10 h-10 rounded-2xl flex items-center justify-center text-lg shadow-sm shrink-0', isFbBotActive ? 'bg-emerald-100 dark:bg-emerald-900/60 text-emerald-700 dark:text-emerald-300' : 'bg-rose-100 dark:bg-rose-900/60 text-rose-700 dark:text-rose-300']">
@@ -496,7 +496,7 @@ function handleRecentClick(order: any) {
           </button>
           <button 
             @click="ui.showSocialBotModal = true"
-            class="w-9 h-9 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 flex items-center justify-center transition-all border border-slate-200 dark:border-slate-700"
+            class="w-9 h-9 rounded-xl bg-slate-100 dark:bg-surface-3 hover:bg-slate-200 dark:hover:bg-surface-4 text-slate-600 dark:text-slate-300 flex items-center justify-center transition-all border border-slate-200 dark:border-border-subtle"
             title="Mở Cửa Sổ Quản Lý Social Bot"
           >
             <i class="fa-solid fa-gear"></i>
@@ -505,7 +505,7 @@ function handleRecentClick(order: any) {
       </div>
 
       <!-- Quick Create Panel -->
-      <div class="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-3xl p-5 shadow-sm space-y-4">
+      <div class="bg-white dark:bg-surface-2 border border-slate-200/80 dark:border-border-subtle rounded-3xl p-5 shadow-sm space-y-4">
         <div class="flex items-center gap-2">
           <div class="w-8 h-8 rounded-lg bg-blue-50 dark:bg-blue-950 text-blue-600 dark:text-blue-400 flex items-center justify-center text-sm shadow-sm"><i class="fa-solid fa-wand-magic-sparkles"></i></div>
           <div>
@@ -517,12 +517,12 @@ function handleRecentClick(order: any) {
           <textarea
             v-model="quickInputText"
             rows="3"
-            class="w-full p-4 border border-slate-200 dark:border-slate-700 rounded-2xl text-xs font-bold text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-4 focus:ring-blue-100 dark:focus:ring-blue-900/40 focus:border-blue-500 bg-slate-50/50 dark:bg-slate-800/60 shadow-inner placeholder-slate-400 dark:placeholder-slate-500 transition-all custom-scrollbar resize-none"
+            class="w-full p-4 border border-slate-200 dark:border-border-default rounded-2xl text-xs font-bold text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-4 focus:ring-blue-100 dark:focus:ring-blue-900/40 focus:border-blue-500 bg-slate-50/50 dark:bg-surface-input shadow-inner placeholder-slate-400 dark:placeholder-slate-500 transition-all custom-scrollbar resize-none"
             placeholder="Dán tin nhắn đặt bàn của khách tại đây..."
           ></textarea>
           <div class="flex flex-wrap items-center justify-between gap-3">
             <div class="text-[10px] text-slate-400 dark:text-slate-500 font-bold">
-              <span class="bg-slate-100 dark:bg-slate-800 px-2 py-1 rounded text-slate-500 dark:text-slate-400 border border-slate-200/60 dark:border-slate-700">Ctrl + K</span> để tìm kiếm nhanh mọi lúc
+              <span class="bg-slate-100 dark:bg-surface-3 px-2 py-1 rounded text-slate-500 dark:text-slate-400 border border-slate-200/60 dark:border-border-subtle">Ctrl + K</span> để tìm kiếm nhanh mọi lúc
             </div>
             <button
               @click="handleQuickAnalyze"
@@ -540,7 +540,7 @@ function handleRecentClick(order: any) {
       <!-- Layout Grid: Smart To-do & Quick Calendar Summary -->
       <div class="grid grid-cols-1 md:grid-cols-12 gap-5">
         <!-- Left: Smart To-do (7 cols) -->
-        <div class="md:col-span-7 bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-3xl p-5 shadow-sm flex flex-col min-h-[300px]">
+        <div class="md:col-span-7 bg-white dark:bg-surface-2 border border-slate-200/80 dark:border-border-subtle rounded-3xl p-5 shadow-sm flex flex-col min-h-[300px]">
           <div class="flex items-center justify-between mb-4">
             <div class="flex items-center gap-2">
               <div class="w-8 h-8 rounded-lg bg-yellow-50 dark:bg-yellow-950/60 text-yellow-600 dark:text-yellow-400 flex items-center justify-center text-sm shadow-sm"><i class="fa-solid fa-list-check"></i></div>
@@ -564,7 +564,7 @@ function handleRecentClick(order: any) {
             <div
               v-for="todo in displayedTodoItems"
               :key="todo.id"
-              class="p-3 border rounded-2xl flex items-center justify-between gap-3 transition-all hover:bg-slate-50 dark:hover:bg-slate-800/60"
+              class="p-3 border rounded-2xl flex items-center justify-between gap-3 transition-all hover:bg-slate-50 dark:hover:bg-surface-3/60"
               :class="{
                 'border-rose-200/70 dark:border-rose-900/60 bg-rose-50/20 dark:bg-rose-950/20': todo.type === 'danger',
                 'border-amber-200/70 dark:border-amber-900/60 bg-amber-50/20 dark:bg-amber-950/20': todo.type === 'warning',
@@ -587,14 +587,14 @@ function handleRecentClick(order: any) {
               </div>
               <button
                 @click="handleTodoAction(todo)"
-                class="px-3 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl font-black text-[9px] uppercase tracking-wider text-slate-700 dark:text-slate-200 hover:border-blue-500 hover:text-blue-600 dark:hover:text-blue-400 active:scale-95 transition-all shrink-0 shadow-sm"
+                class="px-3 py-2 bg-white dark:bg-surface-3 border border-slate-200 dark:border-border-default rounded-xl font-black text-[9px] uppercase tracking-wider text-slate-700 dark:text-slate-200 hover:border-blue-500 hover:text-blue-600 dark:hover:text-blue-400 active:scale-95 transition-all shrink-0 shadow-sm"
               >
                 {{ todo.actionLabel }}
               </button>
             </div>
 
             <!-- Xem tất cả / Thu gọn toggle button -->
-            <div v-if="todoItems.length > 3" class="pt-2 flex justify-center border-t border-slate-100 dark:border-slate-800 mt-2">
+            <div v-if="todoItems.length > 3" class="pt-2 flex justify-center border-t border-slate-100 dark:border-border-subtle mt-2">
               <button @click="showAllTodo = !showAllTodo" class="text-[11px] font-black text-blue-600 dark:text-blue-400 hover:text-blue-700 flex items-center gap-1.5 uppercase tracking-wider">
                 <span>{{ showAllTodo ? 'Thu gọn' : `Xem tất cả (${todoItems.length})` }}</span>
                 <i class="fa-solid" :class="showAllTodo ? 'fa-chevron-up' : 'fa-chevron-down'"></i>
@@ -604,7 +604,7 @@ function handleRecentClick(order: any) {
         </div>
 
         <!-- Right: Quick Calendar Summary (5 cols) -->
-        <div class="md:col-span-5 bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-3xl p-5 shadow-sm flex flex-col min-h-[300px]">
+        <div class="md:col-span-5 bg-white dark:bg-surface-2 border border-slate-200/80 dark:border-border-subtle rounded-3xl p-5 shadow-sm flex flex-col min-h-[300px]">
           <div class="flex items-center gap-2 mb-4">
             <div class="w-8 h-8 rounded-lg bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 flex items-center justify-center text-sm shadow-sm"><i class="fa-solid fa-calendar-days"></i></div>
             <div>
@@ -618,15 +618,15 @@ function handleRecentClick(order: any) {
               v-for="day in calendarSummary"
               :key="day.dateStr"
               @click="openTimelineDate(day.dateStr)"
-              class="p-3 border border-slate-100 dark:border-slate-800 rounded-2xl flex items-center justify-between hover:bg-slate-50 dark:hover:bg-slate-800/60 transition-all cursor-pointer active:scale-[0.99]"
+              class="p-3 border border-slate-100 dark:border-border-subtle rounded-2xl flex items-center justify-between hover:bg-slate-50 dark:hover:bg-surface-3/60 transition-all cursor-pointer active:scale-[0.99]"
               :class="{
                 'ring-2 ring-blue-600 ring-offset-2 dark:ring-offset-slate-900 bg-blue-50/10': day.isToday,
-                'bg-slate-50/20 dark:bg-slate-800/20': day.isTomorrow
+                'bg-slate-50/20 dark:bg-surface-3/30': day.isTomorrow
               }"
             >
               <div class="flex items-center gap-3">
-                <div class="w-11 h-11 rounded-xl flex flex-col items-center justify-center font-black shrink-0 border border-slate-200/50 dark:border-slate-700"
-                     :class="day.isToday ? 'bg-blue-600 text-white border-blue-600' : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300'">
+                <div class="w-11 h-11 rounded-xl flex flex-col items-center justify-center font-black shrink-0 border border-slate-200/50 dark:border-border-subtle"
+                     :class="day.isToday ? 'bg-blue-600 text-white border-blue-600' : 'bg-slate-100 dark:bg-surface-3 text-slate-600 dark:text-slate-300'">
                   <span class="text-xs leading-none font-black mt-1">{{ day.dayOfMonth }}</span>
                   <span class="text-[9px] uppercase font-black tracking-wider leading-none mb-1 mt-0.5" :class="day.isToday ? 'text-blue-100' : 'text-slate-400'">{{ day.shortLabel }}</span>
                 </div>
@@ -659,7 +659,7 @@ function handleRecentClick(order: any) {
       </div>
 
       <!-- Recent Operations Section -->
-      <div class="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-3xl p-5 shadow-sm">
+      <div class="bg-white dark:bg-surface-2 border border-slate-200/80 dark:border-border-subtle rounded-3xl p-5 shadow-sm">
         <div class="flex items-center gap-2 mb-4">
           <div class="w-8 h-8 rounded-lg bg-teal-50 dark:bg-teal-950/60 text-teal-600 dark:text-teal-400 flex items-center justify-center text-sm shadow-sm"><i class="fa-solid fa-clock-rotate-left"></i></div>
           <div>
@@ -668,10 +668,10 @@ function handleRecentClick(order: any) {
           </div>
         </div>
 
-        <div class="overflow-x-auto w-full border border-slate-100 dark:border-slate-800 rounded-2xl bg-slate-50/30 dark:bg-slate-900/40">
+        <div class="overflow-x-auto w-full border border-slate-100 dark:border-border-subtle rounded-2xl bg-slate-50/30 dark:bg-surface-canvas/60">
           <table class="w-full text-left border-collapse min-w-[600px] text-xs">
             <thead>
-              <tr class="bg-slate-100 dark:bg-slate-800/80 text-slate-500 dark:text-slate-400 font-black uppercase tracking-wider border-b border-slate-200 dark:border-slate-700">
+              <tr class="bg-slate-100 dark:bg-surface-3 text-slate-500 dark:text-slate-400 font-black uppercase tracking-wider border-b border-slate-200 dark:border-border-subtle">
                 <th class="p-3 w-36">Thời gian sửa</th>
                 <th class="p-3">Khách hàng</th>
                 <th class="p-3 w-28">Số bàn</th>
@@ -680,11 +680,11 @@ function handleRecentClick(order: any) {
                 <th class="p-3 w-20 text-center">Thao tác</th>
               </tr>
             </thead>
-            <tbody class="divide-y divide-slate-100 dark:divide-slate-800">
+            <tbody class="divide-y divide-slate-100 dark:divide-border-subtle">
               <tr v-if="recentOperations.length === 0">
                 <td colspan="6" class="p-8 text-center text-slate-400 dark:text-slate-500 font-semibold">Chưa có thao tác nào gần đây. Hãy tạo một phiếu mới!</td>
               </tr>
-              <tr v-for="order in recentOperations" :key="order.id" class="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
+              <tr v-for="order in recentOperations" :key="order.id" class="hover:bg-slate-50 dark:hover:bg-surface-3/50 transition-colors">
                 <td class="p-3 text-[10px] font-mono text-slate-400 dark:text-slate-500 font-semibold">
                   {{ new Date(order.timestamp || Date.now()).toLocaleString('vi-VN', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit' }) }}
                 </td>
@@ -714,7 +714,7 @@ function handleRecentClick(order: any) {
                 <td class="p-3 text-center">
                   <button
                     @click="handleRecentClick(order)"
-                    class="px-2.5 py-1.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 rounded-lg hover:border-blue-500 hover:text-blue-600 dark:hover:text-blue-400 active:scale-95 transition-all text-[10px] font-bold shadow-sm"
+                    class="px-2.5 py-1.5 bg-white dark:bg-surface-3 border border-slate-200 dark:border-border-default text-slate-600 dark:text-slate-300 rounded-lg hover:border-blue-500 hover:text-blue-600 dark:hover:text-blue-400 active:scale-95 transition-all text-[10px] font-bold shadow-sm"
                   >
                     Sửa
                   </button>

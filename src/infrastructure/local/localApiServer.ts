@@ -85,7 +85,7 @@ export async function handleLocalApi(req: http.IncomingMessage, res: http.Server
   res.setHeader('Content-Type', 'application/json')
   res.setHeader('Access-Control-Allow-Origin', '*')
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization')
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-FB-Access-Token')
 
   if (req.method === 'OPTIONS') {
     res.statusCode = 204
@@ -97,6 +97,87 @@ export async function handleLocalApi(req: http.IncomingMessage, res: http.Server
   let bodyText = ''
   for await (const chunk of req) {
     bodyText += chunk
+  }
+
+  // Facebook Graph API Local Dev Proxy (Zero-token client exposure)
+  if (url.pathname.startsWith('/api/facebook')) {
+    const clientToken = (req.headers['x-fb-access-token'] as string) || ''
+    const effectiveToken = clientToken || process.env.FB_PAGE_ACCESS_TOKEN || process.env.VITE_FB_PAGE_ACCESS_TOKEN || ''
+
+    if (!effectiveToken) {
+      res.statusCode = 401
+      res.end(JSON.stringify({ error: 'Facebook Page Access Token not configured on local server' }))
+      return true
+    }
+
+    try {
+      if (url.pathname === '/api/facebook/conversations' && req.method === 'GET') {
+        const limit = url.searchParams.get('limit') || '50'
+        const fbUrl = `https://graph.facebook.com/v19.0/me/conversations?fields=id,updated_time,senders,participants,unread_count,messages{id,message,created_time,from}&limit=${encodeURIComponent(limit)}&access_token=${encodeURIComponent(effectiveToken)}`
+        const fbRes = await fetch(fbUrl)
+        const fbData = await fbRes.json()
+        res.statusCode = fbRes.status
+        res.end(JSON.stringify(fbData))
+        return true
+      }
+
+      if (url.pathname === '/api/facebook/messages' && req.method === 'GET') {
+        const conversationId = url.searchParams.get('conversationId')
+        if (!conversationId) {
+          res.statusCode = 400
+          res.end(JSON.stringify({ error: 'conversationId is required' }))
+          return true
+        }
+        const limit = url.searchParams.get('limit') || '50'
+        const fbUrl = `https://graph.facebook.com/v19.0/${encodeURIComponent(conversationId)}/messages?fields=id,message,created_time,from&limit=${encodeURIComponent(limit)}&access_token=${encodeURIComponent(effectiveToken)}`
+        const fbRes = await fetch(fbUrl)
+        const fbData = await fbRes.json()
+        res.statusCode = fbRes.status
+        res.end(JSON.stringify(fbData))
+        return true
+      }
+
+      if (url.pathname === '/api/facebook/messages' && req.method === 'POST') {
+        let postBody: any = {}
+        try {
+          if (bodyText) postBody = JSON.parse(bodyText)
+        } catch {}
+        const fbUrl = `https://graph.facebook.com/v19.0/me/messages?access_token=${encodeURIComponent(effectiveToken)}`
+        const fbRes = await fetch(fbUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(postBody)
+        })
+        const fbData = await fbRes.json()
+        res.statusCode = fbRes.status
+        res.end(JSON.stringify(fbData))
+        return true
+      }
+
+      if (url.pathname === '/api/facebook/user-profiles' && req.method === 'GET') {
+        const ids = url.searchParams.get('ids')
+        const psid = url.searchParams.get('psid')
+        let fbUrl = ''
+        if (ids) {
+          fbUrl = `https://graph.facebook.com/v19.0/?ids=${encodeURIComponent(ids)}&fields=name,picture{url}&access_token=${encodeURIComponent(effectiveToken)}`
+        } else if (psid) {
+          fbUrl = `https://graph.facebook.com/v19.0/${encodeURIComponent(psid)}?fields=name,picture{url}&access_token=${encodeURIComponent(effectiveToken)}`
+        } else {
+          res.statusCode = 400
+          res.end(JSON.stringify({ error: 'ids or psid required' }))
+          return true
+        }
+        const fbRes = await fetch(fbUrl)
+        const fbData = await fbRes.json()
+        res.statusCode = fbRes.status
+        res.end(JSON.stringify(fbData))
+        return true
+      }
+    } catch (e: any) {
+      res.statusCode = 500
+      res.end(JSON.stringify({ error: e.message }))
+      return true
+    }
   }
 
   let payload: Record<string, any> = {}

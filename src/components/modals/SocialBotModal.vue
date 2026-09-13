@@ -12,7 +12,7 @@ function closeModal() {
 
 // System Bot Status & Tokens
 const isBotActive = ref(localStorage.getItem('kg_fb_bot_active') !== 'false')
-const fbToken = ref(localStorage.getItem('kg_fb_page_access_token') || 'EAAYwJz8TUaABSOZB52MUg7ZBeIrk7ckvQSKwKhI8SWXS8R9AcOAoiV4ZCnUWVLtLtZAxC0hXve5SlGyZAvLS68jCdmAr2GatmuYSOsWFsG9k0my7KKOlyLN6MMB8Gt6yrGlzBx43bGPGSgK4MlO40GQ6UrKyN5xsZCPViGgZC1Y2mV3OzRL8BFV5YrBDQIec7ShIfNswECw')
+const fbToken = ref(localStorage.getItem('kg_fb_page_access_token') || '')
 const verifyToken = ref('kg_booking_facebook_secret_token')
 const webhookUrl = ref('https://kg-ai-gateway.dmt-kgwork.workers.dev/api/webhook/facebook')
 

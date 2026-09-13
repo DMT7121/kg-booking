@@ -95,7 +95,6 @@ async function deleteHistoricOrder(id: string) {
   try {
     const res = await appStore.deleteOrder(id, undefined, token)
     if (res.ok) {
-      appStore.historyList = appStore.historyList.filter((i: any) => i.id !== id)
       expandedKey.value = null
       ui.showToast('Đã xóa!', 'success')
     } else {
@@ -135,7 +134,6 @@ async function deleteBatchOrders() {
     ui.loading.subMsg = `Processing ${processed}/${idsToDelete.length}`
   }
 
-  appStore.historyList = appStore.historyList.filter((h: any) => !idsToDelete.includes(h.id))
   ui.selectedIds = []
   ui.isBatchMode = false
   ui.loading.is = false
@@ -168,29 +166,29 @@ function isOrderCared(id: string) {
     <div class="flex-grow flex flex-col overflow-hidden bg-slate-50 dark:bg-slate-950 min-h-0">
 
       <!-- Search & Filters -->
-      <div class="p-4 bg-slate-50 dark:bg-slate-950 space-y-3 z-10 shrink-0 border-b border-slate-200/40 dark:border-slate-800/80">
+      <div class="p-3 sm:p-4 bg-slate-50 dark:bg-slate-950 space-y-2.5 sm:space-y-3 z-10 shrink-0 border-b border-slate-200/40 dark:border-slate-800/80">
         <div class="flex gap-2">
           <div class="relative flex-grow">
-            <input v-model="localSearch" type="text" class="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 font-bold text-slate-700 dark:text-slate-200 text-[13px] focus:border-blue-600 dark:focus:border-blue-400 outline-none transition-all placeholder-slate-400 dark:placeholder-slate-500" placeholder="Tìm kiếm theo tên, SĐT, mã phiếu...">
+            <input v-model="localSearch" type="text" class="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 font-bold text-slate-700 dark:text-slate-200 text-[13px] focus:border-blue-600 dark:focus:border-blue-400 outline-none transition-all placeholder-slate-400 dark:placeholder-slate-500" placeholder="Tìm tên, SĐT, mã phiếu...">
             <i class="fa-solid fa-magnifying-glass absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400"></i>
           </div>
-          <button @click="ui.isBatchMode = !ui.isBatchMode" class="px-4 py-2.5 rounded-xl border font-bold text-[13px] flex items-center gap-2 active:scale-95 transition-all whitespace-nowrap shadow-sm" :class="ui.isBatchMode ? 'border-red-200 dark:border-red-800/60 bg-red-50 dark:bg-red-950/40 text-red-600 dark:text-red-400' : 'border-blue-200 dark:border-blue-800/60 bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400'">
+          <button @click="ui.isBatchMode = !ui.isBatchMode" class="px-3.5 sm:px-4 py-2.5 rounded-xl border font-bold text-xs sm:text-[13px] flex items-center gap-1.5 sm:gap-2 active:scale-95 transition-all whitespace-nowrap shadow-sm cursor-pointer" :class="ui.isBatchMode ? 'border-red-200 dark:border-red-800/60 bg-red-50 dark:bg-red-950/40 text-red-600 dark:text-red-400' : 'border-blue-200 dark:border-blue-800/60 bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400'">
             <i class="fa-solid" :class="ui.isBatchMode ? 'fa-trash' : 'fa-filter'"></i> {{ ui.isBatchMode ? 'Xóa Nhiều' : 'Bộ lọc' }}
           </button>
         </div>
         
         <!-- Filter Dropdowns -->
         <div class="flex gap-2 overflow-x-auto custom-scrollbar pb-1 no-scrollbar">
-          <select v-model="ui.historyFilters.time" class="min-h-[40px] px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 text-xs font-bold shrink-0 outline-none appearance-none pr-8">
+          <select v-model="ui.historyFilters.time" class="min-h-[38px] px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 text-xs font-bold shrink-0 outline-none appearance-none pr-8">
             <option value="all">Tất cả thời gian</option>
             <option value="today">Hôm nay</option>
           </select>
-          <select v-model="ui.historyFilters.status" class="min-h-[40px] px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 text-xs font-bold shrink-0 outline-none appearance-none pr-8">
+          <select v-model="ui.historyFilters.status" class="min-h-[38px] px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 text-xs font-bold shrink-0 outline-none appearance-none pr-8">
             <option value="all">Tất cả trạng thái</option>
             <option value="synced">Đã đồng bộ</option>
             <option value="syncing">Đang chờ</option>
           </select>
-          <select v-model="ui.historyFilters.deposit" class="min-h-[40px] px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 text-xs font-bold shrink-0 outline-none appearance-none pr-8">
+          <select v-model="ui.historyFilters.deposit" class="min-h-[38px] px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 text-xs font-bold shrink-0 outline-none appearance-none pr-8">
             <option value="all">Tất cả cọc</option>
             <option value="paid">Đã cọc</option>
             <option value="unpaid">Chưa cọc</option>
@@ -198,7 +196,7 @@ function isOrderCared(id: string) {
         </div>
         
         <!-- Compact Summary Chip Bar -->
-        <div class="flex items-center gap-2 py-1 overflow-x-auto no-scrollbar font-tabular">
+        <div class="flex items-center gap-2 py-1 overflow-x-auto no-scrollbar font-tabular pr-4">
           <span class="px-3 py-1.5 rounded-xl bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 font-black text-xs shrink-0 shadow-xs border border-blue-100/50">
             {{ stats.totalBookings }} booking
           </span>
@@ -234,7 +232,7 @@ function isOrderCared(id: string) {
       <!-- History List -->
       <div
         ref="scrollContainer"
-        class="flex-grow overflow-y-auto px-4 pb-28 md:pb-6 space-y-4 custom-scrollbar bg-slate-50 dark:bg-slate-950"
+        class="flex-grow overflow-y-auto px-3 sm:px-4 pb-28 md:pb-6 space-y-3 sm:space-y-4 custom-scrollbar bg-slate-50 dark:bg-slate-950"
         @touchstart="(e: TouchEvent) => scrollContainer && onPullStart(e, scrollContainer)"
         @touchmove="onPullMove"
         @touchend="onPullEnd"
@@ -245,15 +243,16 @@ function isOrderCared(id: string) {
         </div>
 
         <div v-for="(group, key) in appStore.filteredHistory" :key="key"
-          class="bg-white dark:bg-slate-900 rounded-3xl shadow-[0_2px_12px_rgba(0,0,0,0.04)] dark:shadow-none border border-slate-100 dark:border-slate-800 p-4 transition-all duration-200 relative group overflow-hidden"
+          class="bg-white dark:bg-surface-2 rounded-2xl shadow-[0_2px_12px_rgba(0,0,0,0.04)] dark:shadow-none border border-slate-200/80 dark:border-border-subtle p-3 sm:p-3.5 transition-all duration-200 relative group overflow-hidden"
           :class="[
-            ui.isBatchMode && ui.selectedIds.includes(String(key)) ? 'ring-2 ring-red-500 bg-red-50 dark:bg-red-950/20' : ''
+            ui.isBatchMode && ui.selectedIds.includes(String(key)) ? 'ring-2 ring-red-500 bg-red-50 dark:bg-red-950/20' : '',
+            group.latest.isDeposited ? 'status-rail-emerald' : (!group.latest.parsedCustomer?.tables || group.latest.parsedCustomer?.tables === '---' || group.latest.parsedCustomer?.tables.toLowerCase().includes('chưa') ? 'status-rail-rose' : 'status-rail-amber')
           ]"
           @click="ui.isBatchMode ? ui.toggleSelection(group) : toggleExpand(String(key))"
         >
           <!-- Top row -->
-          <div class="flex justify-between items-start mb-4">
-            <div class="flex items-start gap-3">
+          <div class="flex justify-between items-start mb-2.5 sm:mb-3">
+            <div class="flex items-start gap-2.5 sm:gap-3">
               <div v-if="ui.isBatchMode" class="mt-1">
                 <div class="w-5 h-5 rounded border-2 flex items-center justify-center transition-colors" :class="ui.selectedIds.includes(String(key)) ? 'bg-red-600 border-red-600' : 'border-slate-300 dark:border-slate-600'">
                   <i v-if="ui.selectedIds.includes(String(key))" class="fa-solid fa-check text-white text-[10px]"></i>
@@ -261,90 +260,101 @@ function isOrderCared(id: string) {
               </div>
 
               <!-- Type Icon -->
-              <div class="w-10 h-10 rounded-2xl flex items-center justify-center text-lg shrink-0"
-                   :class="group.latest.parsedCustomer?.type === 'Mang về' ? 'bg-amber-50 dark:bg-amber-950/50 text-amber-500' : 'bg-purple-50 dark:bg-purple-950/50 text-purple-500'">
+              <div class="w-8 h-8 sm:w-9 sm:h-9 rounded-xl flex items-center justify-center text-sm sm:text-base shrink-0"
+                   :class="group.latest.parsedCustomer?.type === 'Mang về' ? 'bg-amber-50 dark:bg-amber-950/50 text-amber-500' : 'bg-blue-50 dark:bg-blue-950/50 text-blue-500'">
                 <i class="fa-solid" :class="group.latest.parsedCustomer?.type === 'Mang về' ? 'fa-bag-shopping' : 'fa-calendar-days'"></i>
               </div>
               
               <div>
-                <div class="font-black text-[14px] text-blue-900 dark:text-blue-400 leading-tight cursor-pointer font-tabular" @click.stop="copyToClipboard(String(key))">#{{ String(key).substring(0, 11) }}</div>
-                <div class="flex gap-1.5 mt-1.5 flex-wrap">
-                  <span class="text-[9px] font-black bg-purple-50 dark:bg-purple-950/50 text-purple-600 dark:text-purple-400 px-2 py-0.5 rounded border border-purple-100 dark:border-purple-800/40">{{ group.latest.parsedCustomer?.type || 'Đặt bàn' }}</span>
+                <div class="font-black text-[13px] sm:text-[14px] text-blue-900 dark:text-blue-400 leading-tight cursor-pointer font-tabular" @click.stop="copyToClipboard(String(key))">#{{ String(key).substring(0, 11) }}</div>
+                <div class="flex gap-1.5 mt-1 flex-wrap">
+                  <span class="text-[9px] font-black bg-slate-100 dark:bg-surface-3 text-slate-700 dark:text-slate-300 px-2 py-0.5 rounded border border-slate-200/60 dark:border-border-subtle">{{ group.latest.parsedCustomer?.type || 'Đặt bàn' }}</span>
                   <span class="text-[9px] font-black px-2 py-0.5 rounded border font-tabular" :class="group.latest.isDeposited ? 'bg-emerald-50 dark:bg-emerald-950/50 text-emerald-600 dark:text-emerald-400 border-emerald-100 dark:border-emerald-800/40' : 'bg-orange-50 dark:bg-orange-950/50 text-orange-600 dark:text-orange-400 border-orange-100 dark:border-orange-800/40'">{{ group.latest.isDeposited ? 'Đã xác nhận' : 'Chờ đặt cọc' }}</span>
                   <span v-if="isOrderCared(group.latest.id)" class="text-[9px] font-black bg-rose-50 dark:bg-rose-950/50 text-rose-600 dark:text-rose-400 px-2 py-0.5 rounded border border-rose-100 dark:border-rose-800/40"><i class="fa-solid fa-heart mr-0.5"></i> Đã CSKH</span>
                 </div>
               </div>
             </div>
-            <div class="flex flex-col items-end gap-1.5 shrink-0">
+            <div class="flex flex-col items-end gap-1 shrink-0">
               <span class="text-[10px] font-bold text-slate-500 dark:text-slate-400 font-tabular">{{ group.latest.parsedCustomer?.date }} • {{ group.latest.parsedCustomer?.time }}</span>
-              <button class="text-slate-300 dark:text-slate-600 hover:text-blue-900 dark:hover:text-blue-400 p-1 min-h-[36px] min-w-[36px] flex items-center justify-center"><i class="fa-solid fa-ellipsis-vertical"></i></button>
+              <button class="text-slate-300 dark:text-slate-600 hover:text-blue-900 dark:hover:text-blue-400 p-1 min-h-[32px] min-w-[32px] flex items-center justify-center"><i class="fa-solid fa-ellipsis-vertical"></i></button>
             </div>
           </div>
 
-          <!-- Info Grid -->
-          <div class="grid grid-cols-3 gap-2 mb-4">
-            <!-- Col 1 -->
-            <div class="space-y-2 border-r border-slate-100 dark:border-slate-800 pr-1">
-              <div class="flex items-center gap-2 text-slate-500 dark:text-slate-400">
-                <i class="fa-regular fa-user text-[10px] shrink-0 w-3 text-center"></i>
-                <span class="text-[11px] font-bold truncate text-slate-700 dark:text-slate-200">{{ group.latest.parsedCustomer?.name || '---' }}</span>
+          <!-- Info Grid (Responsive: 2-column on mobile with ample breathing room, 3-column on desktop) -->
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-2.5 mb-2.5 text-xs">
+            <!-- Col 1: Customer info -->
+            <div class="space-y-1.5 sm:border-r border-slate-100 dark:border-border-subtle pr-1">
+              <div class="flex items-center gap-2 text-slate-700 dark:text-slate-200">
+                <i class="fa-regular fa-user text-[10px] text-slate-400 shrink-0 w-3 text-center"></i>
+                <span class="font-black text-slate-800 dark:text-slate-100 truncate text-[12px] sm:text-[11px]">{{ group.latest.parsedCustomer?.name || '---' }}</span>
               </div>
               <div class="flex items-center gap-2 text-slate-500 dark:text-slate-400">
-                <i class="fa-solid fa-phone text-[10px] shrink-0 w-3 text-center"></i>
-                <span class="text-[11px] font-bold truncate text-slate-700 dark:text-slate-200 font-tabular">{{ group.latest.parsedCustomer?.phone || '---' }}</span>
-              </div>
-            </div>
-            <!-- Col 2 -->
-            <div class="space-y-2 border-r border-slate-100 dark:border-slate-800 pr-1 pl-1">
-              <div class="flex items-center gap-2 text-slate-500 dark:text-slate-400">
-                <i class="fa-solid fa-utensils text-[10px] shrink-0 w-3 text-center"></i>
-                <span class="text-[11px] font-bold truncate text-slate-700 dark:text-slate-200 font-tabular">{{ group.latest.menuItems?.length || 0 }} món</span>
-              </div>
-              <div class="flex items-center gap-2 text-slate-500 dark:text-slate-400">
-                <i class="fa-solid fa-money-bill text-[10px] shrink-0 w-3 text-center"></i>
-                <span class="text-[11px] font-bold truncate text-slate-700 dark:text-slate-200 font-tabular">{{ formatVND(group.latest.totalAmount || 0) }}</span>
+                <i class="fa-solid fa-phone text-[10px] text-slate-400 shrink-0 w-3 text-center"></i>
+                <span class="font-bold truncate font-tabular">{{ group.latest.parsedCustomer?.phone || '---' }}</span>
               </div>
             </div>
-            <!-- Col 3 -->
-            <div class="space-y-2 pl-1">
-              <div class="flex items-center gap-2" :class="group.latest.isDeposited ? 'text-emerald-500' : 'text-orange-500'">
+
+            <!-- Col 2: Dishes & Total -->
+            <div class="space-y-1.5 sm:border-r border-slate-100 dark:border-border-subtle sm:px-2">
+              <div class="flex items-center gap-2 text-slate-600 dark:text-slate-300">
+                <i class="fa-solid fa-utensils text-[10px] text-slate-400 shrink-0 w-3 text-center"></i>
+                <span class="font-bold font-tabular">{{ group.latest.menuItems?.length || 0 }} món</span>
+                <span v-if="group.latest.parsedCustomer?.pax" class="text-slate-400 text-[10px]">({{ group.latest.parsedCustomer.pax }} khách)</span>
+              </div>
+              <div class="flex items-center gap-2 text-blue-700 dark:text-blue-400">
+                <i class="fa-solid fa-money-bill text-[10px] text-slate-400 shrink-0 w-3 text-center"></i>
+                <span class="font-black font-tabular">{{ formatVND(group.latest.totalAmount || 0) }}</span>
+              </div>
+            </div>
+
+            <!-- Col 3: Deposit details -->
+            <div class="space-y-1.5 sm:pl-1 flex sm:block justify-between items-center pt-1 sm:pt-0 border-t sm:border-t-0 border-dashed border-slate-100 dark:border-border-subtle">
+              <div class="flex items-center gap-1.5" :class="group.latest.isDeposited ? 'text-emerald-600 dark:text-emerald-400' : 'text-amber-600 dark:text-amber-400'">
                 <i class="fa-regular" :class="group.latest.isDeposited ? 'fa-circle-check text-[10px]' : 'fa-clock text-[10px]'"></i>
-                <span class="text-[10px] font-black">{{ group.latest.isDeposited ? 'Đã đặt cọc' : 'Chờ đặt cọc' }}</span>
+                <span class="text-[10px] font-black uppercase tracking-wider">{{ group.latest.isDeposited ? 'Đã đặt cọc' : 'Chờ đặt cọc' }}</span>
               </div>
-              <div class="text-[11px] font-black text-slate-800 dark:text-slate-100 truncate font-tabular" :class="!group.latest.isDeposited ? 'text-slate-400 dark:text-slate-500' : ''">
-                {{ formatVND(group.latest.depositAmount || 0) }} <span class="text-[9px] text-slate-400 dark:text-slate-500" v-if="group.latest.depositAmount">({{ Math.round((group.latest.depositAmount / (group.latest.totalAmount || 1)) * 100) }}%)</span>
+              <div class="text-[11px] font-black text-slate-800 dark:text-slate-100 font-tabular" :class="!group.latest.isDeposited ? 'text-slate-400 dark:text-slate-500' : ''">
+                {{ formatVND(group.latest.depositAmount || 0) }} 
+                <span class="text-[9px] text-slate-400 font-normal" v-if="group.latest.depositAmount && group.latest.totalAmount">
+                  ({{ Math.round((group.latest.depositAmount / group.latest.totalAmount) * 100) }}%)
+                </span>
               </div>
             </div>
           </div>
 
-          <div class="h-[1px] bg-slate-100 dark:bg-slate-800 w-full mb-2"></div>
+          <div class="h-[1px] bg-slate-100 dark:bg-border-subtle w-full mb-1.5"></div>
 
-          <!-- Actions Bottom Bar (min 40-44px touch targets) -->
-          <div class="flex justify-between items-center gap-1" @click.stop>
-            <button @click="ui.activeOrderForCare = group.latest; ui.showCustomerCareModal = true" class="min-h-[40px] px-2.5 rounded-xl hover:bg-rose-50 dark:hover:bg-rose-950/30 flex items-center gap-1 text-xs font-black text-rose-500 hover:text-rose-700 dark:hover:text-rose-400 transition-colors active:scale-95">
-              <i class="fa-solid fa-heart text-[11px]"></i> CSKH
+          <!-- Actions Bottom Bar (Harmonized subtle icons + labels, >=40px touch targets) -->
+          <div class="grid grid-cols-5 gap-1 items-center" @click.stop>
+            <button @click="ui.activeOrderForCare = group.latest; ui.showCustomerCareModal = true" class="min-h-[40px] px-1 rounded-xl hover:bg-slate-100 dark:hover:bg-surface-3 flex flex-col sm:flex-row items-center justify-center gap-0.5 sm:gap-1 text-[10px] sm:text-xs font-bold text-slate-600 dark:text-slate-300 hover:text-rose-500 dark:hover:text-rose-400 transition-colors active:scale-95">
+              <i class="fa-solid fa-heart text-[11px]"></i>
+              <span>CSKH</span>
             </button>
-            <button @click="handleEditOrder(group.latest)" class="min-h-[40px] px-2.5 rounded-xl hover:bg-blue-50 dark:hover:bg-blue-950/30 flex items-center gap-1 text-xs font-black text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 transition-colors active:scale-95">
-              <i class="fa-solid fa-pen text-[11px]"></i> Sửa
+            <button @click="handleEditOrder(group.latest)" class="min-h-[40px] px-1 rounded-xl hover:bg-slate-100 dark:hover:bg-surface-3 flex flex-col sm:flex-row items-center justify-center gap-0.5 sm:gap-1 text-[10px] sm:text-xs font-bold text-slate-600 dark:text-slate-300 hover:text-blue-500 dark:hover:text-blue-400 transition-colors active:scale-95">
+              <i class="fa-solid fa-pen text-[11px]"></i>
+              <span>Sửa</span>
             </button>
-            <button @click="shareBillLink(group.latest.id, group.latest.parsedCustomer?.name)" class="min-h-[40px] px-2.5 rounded-xl hover:bg-blue-50 dark:hover:bg-blue-950/30 flex items-center gap-1 text-xs font-black text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 transition-colors active:scale-95">
-              <i class="fa-solid fa-link text-[11px]"></i> Link
+            <button @click="shareBillLink(group.latest.id, group.latest.parsedCustomer?.name)" class="min-h-[40px] px-1 rounded-xl hover:bg-slate-100 dark:hover:bg-surface-3 flex flex-col sm:flex-row items-center justify-center gap-0.5 sm:gap-1 text-[10px] sm:text-xs font-bold text-slate-600 dark:text-slate-300 hover:text-blue-400 dark:hover:text-blue-300 transition-colors active:scale-95">
+              <i class="fa-solid fa-link text-[11px]"></i>
+              <span>Link</span>
             </button>
-            <button @click="ui.selectedBooking = group.latest; ui.showBookingDetailModal = true" class="min-h-[40px] px-2.5 rounded-xl hover:bg-blue-50 dark:hover:bg-blue-950/30 flex items-center gap-1 text-xs font-black text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 transition-colors active:scale-95">
-              <i class="fa-solid fa-eye text-[11px]"></i> Xem
+            <button @click="ui.selectedBooking = group.latest; ui.showBookingDetailModal = true" class="min-h-[40px] px-1 rounded-xl hover:bg-slate-100 dark:hover:bg-surface-3 flex flex-col sm:flex-row items-center justify-center gap-0.5 sm:gap-1 text-[10px] sm:text-xs font-bold text-slate-600 dark:text-slate-300 hover:text-indigo-400 dark:hover:text-indigo-300 transition-colors active:scale-95">
+              <i class="fa-solid fa-eye text-[11px]"></i>
+              <span>Xem</span>
             </button>
-            <button @click="deleteHistoricOrder(group.latest.id)" class="min-h-[40px] px-2.5 rounded-xl hover:bg-red-50 dark:hover:bg-red-950/30 flex items-center gap-1 text-xs font-black text-slate-400 hover:text-red-600 dark:hover:text-red-400 transition-colors active:scale-95">
-              <i class="fa-solid fa-trash-can text-[11px]"></i> Xóa
+            <button @click="deleteHistoricOrder(group.latest.id)" class="min-h-[40px] px-1 rounded-xl hover:bg-slate-100 dark:hover:bg-surface-3 flex flex-col sm:flex-row items-center justify-center gap-0.5 sm:gap-1 text-[10px] sm:text-xs font-bold text-slate-400 hover:text-red-600 dark:hover:text-red-400 transition-colors active:scale-95">
+              <i class="fa-solid fa-trash-can text-[11px]"></i>
+              <span>Xóa</span>
             </button>
           </div>
           
           <!-- Dropdown/expand area: Notes & Full Menu Items -->
-          <div v-if="expandedKey === String(key)" class="mt-4 p-3.5 bg-slate-50 dark:bg-slate-800/60 rounded-2xl text-xs text-slate-600 dark:text-slate-300 border border-slate-100 dark:border-slate-700 shadow-inner space-y-3">
+          <div v-if="expandedKey === String(key)" class="mt-3 p-3.5 bg-slate-50 dark:bg-surface-3/60 rounded-2xl text-xs text-slate-600 dark:text-slate-300 border border-slate-100 dark:border-border-subtle shadow-inner space-y-3">
             <div v-if="group.latest.parsedCustomer?.note">
               <div class="font-black text-[10px] uppercase text-slate-500 dark:text-slate-400 tracking-wider mb-1 flex items-center gap-1.5">
                 <i class="fa-solid fa-comment-dots text-blue-500"></i> Ghi chú tiệc:
               </div>
-              <p class="font-semibold text-slate-800 dark:text-slate-200 bg-white dark:bg-slate-900/60 p-2.5 rounded-xl border border-slate-200/60 dark:border-slate-700/60 leading-relaxed whitespace-pre-line">{{ group.latest.parsedCustomer?.note }}</p>
+              <p class="font-semibold text-slate-800 dark:text-slate-200 bg-white dark:bg-surface-2 p-2.5 rounded-xl border border-slate-200/60 dark:border-border-subtle leading-relaxed whitespace-pre-line">{{ group.latest.parsedCustomer?.note }}</p>
             </div>
 
             <div>
@@ -356,11 +366,11 @@ function isOrderCared(id: string) {
                   Tổng: {{ formatVND(group.latest.totalAmount) }}
                 </span>
               </div>
-              <div v-if="!group.latest.menuItems || group.latest.menuItems.length === 0" class="text-[11px] text-slate-400 italic py-1 text-center bg-white dark:bg-slate-900/40 rounded-xl p-2 border border-slate-150 dark:border-slate-800">
+              <div v-if="!group.latest.menuItems || group.latest.menuItems.length === 0" class="text-[11px] text-slate-400 italic py-1 text-center bg-white dark:bg-surface-2 rounded-xl p-2 border border-slate-150 dark:border-border-subtle">
                 Chưa đặt món trước (Khách gọi trực tiếp tại nhà hàng)
               </div>
               <div v-else class="space-y-1.5 max-h-[180px] overflow-y-auto pr-1 custom-scrollbar">
-                <div v-for="(item, i) in group.latest.menuItems" :key="i" class="p-2 bg-white dark:bg-slate-900/80 rounded-xl border border-slate-200/50 dark:border-slate-700/50 flex items-start justify-between gap-2 shadow-2xs">
+                <div v-for="(item, i) in group.latest.menuItems" :key="i" class="p-2 bg-white dark:bg-surface-2 rounded-xl border border-slate-200/50 dark:border-border-subtle flex items-start justify-between gap-2 shadow-2xs">
                   <div class="min-w-0 flex-1">
                     <span class="font-bold text-xs text-slate-800 dark:text-slate-100 uppercase leading-snug whitespace-normal break-words">{{ item.name }}</span>
                     <span class="text-blue-600 dark:text-blue-400 font-black text-[10px] ml-1 font-tabular">x{{ item.qty || item.quantity || 1 }}</span>

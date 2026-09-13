@@ -22,6 +22,9 @@ import {
 import { clearAIResponseCache, hashAndStringifyLargeObject } from '@/services/ai/aiResponseCache'
 import { can, UserRole, Permission } from '@/auth/permissions'
 import { sha256 } from '@/utils/security'
+import { broadcastSyncEvent, onSyncEvent } from '@/services/crossTabSync'
+import { useBookingStore } from './useBookingStore'
+import { useMenuStore } from './useMenuStore'
 
 const orderRepo = new GasOrderRepository()
 const menuRepo = new GasMenuRepository()
@@ -322,6 +325,7 @@ export const useAppStore = defineStore('app', () => {
         menuSheets.value = remoteFiltered
         await cacheMenuSheets(remoteFiltered)
         scheduleMenusPrecache(remoteFiltered, { reason: 'app-startup-network' })
+        try { useMenuStore().setMenuSheets(remoteFiltered) } catch {}
       }
     } catch (e) {
       console.error('Fetch Sheets Error', e)
@@ -535,6 +539,7 @@ export const useAppStore = defineStore('app', () => {
           rebuildBookingTimeIndex(normFresh)
           uiStore.connectionStatus = 'online'
           cacheHistory(normFresh)
+          try { useBookingStore().setHistory(normFresh) } catch {}
         }
       })
       if (data && data.ok && Array.isArray(data.data)) {
@@ -543,6 +548,7 @@ export const useAppStore = defineStore('app', () => {
         rebuildBookingTimeIndex(normData)
         uiStore.connectionStatus = 'online'
         cacheHistory(normData)
+        try { useBookingStore().setHistory(normData) } catch {}
       } else {
         uiStore.connectionStatus = hasCache ? 'online' : 'error'
         if (hasCache && cached) {
@@ -607,6 +613,10 @@ export const useAppStore = defineStore('app', () => {
         menuDetails.value = ds
         activeSheet.value = targetSheet
         await cacheMenu(targetSheet, data.data)
+        try {
+          useMenuStore().setMenuList(data.data)
+          useMenuStore().setActiveMenuSheet(targetSheet)
+        } catch {}
       } else if (menuList.value.length === 0) {
         menuList.value = DEFAULT_FALLBACK_MENU_ITEMS
         computeMenuFingerprint()
@@ -723,7 +733,9 @@ export const useAppStore = defineStore('app', () => {
       activeSheet.value = sheetName
       localStorage.setItem(CACHE_KEYS.MENU_SHEET, sheetName)
       uiStore.showMenuManager = false
+      try { useMenuStore().setActiveMenuSheet(sheetName) } catch {}
       await fetchMenu(sheetName)
+      broadcastSyncEvent('MENU_UPDATED', { sheet: sheetName })
     } catch (e: any) {
       console.error(e)
     }
@@ -1141,8 +1153,9 @@ export const useAppStore = defineStore('app', () => {
     }
   }
 
-  async function verifySession(permission: Permission): Promise<boolean> {
+  async function verifySession(permission: Permission, promptUser = true): Promise<boolean> {
     if (can(currentUserRole.value, permission)) return true
+    if (!promptUser) return false
 
     // Prompt user to unlock
     const pass = await uiStore.showPrompt(
@@ -1183,6 +1196,9 @@ export const useAppStore = defineStore('app', () => {
       }
       setOptimisticOrder(normalized)
 
+      // Broadcast to other open tabs
+      broadcastSyncEvent('ORDER_SAVED', normalized)
+
       await triggerAuditLog(
         beforeOrder ? 'booking:update' : 'booking:create',
         'booking',
@@ -1202,6 +1218,13 @@ export const useAppStore = defineStore('app', () => {
       historyList.value = list
       rebuildBookingTimeIndex(list)
       await cacheHistory(list)
+
+      try {
+        useBookingStore().removeBooking(id)
+      } catch {}
+
+      // Broadcast to other open tabs
+      broadcastSyncEvent('ORDER_DELETED', { id })
 
       await triggerAuditLog(
         'booking:delete',
@@ -1360,8 +1383,8 @@ export const useAppStore = defineStore('app', () => {
     }
   }
 
-  async function saveAlias(alias: string, dishName: string) {
-    const isAuth = await verifySession('corrections:approve')
+  async function saveAlias(alias: string, dishName: string, promptUser = true) {
+    const isAuth = await verifySession('corrections:approve', promptUser)
     if (!isAuth) return { ok: false, message: 'Permission Denied' }
 
     const res = await menuRepo.saveMenuAlias(alias, dishName, adminToken.value)
@@ -1373,8 +1396,8 @@ export const useAppStore = defineStore('app', () => {
     return res
   }
 
-  async function deleteAlias(alias: string) {
-    const isAuth = await verifySession('corrections:approve')
+  async function deleteAlias(alias: string, promptUser = true) {
+    const isAuth = await verifySession('corrections:approve', promptUser)
     if (!isAuth) return { ok: false, message: 'Permission Denied' }
 
     const res = await menuRepo.deleteMenuAlias(alias, adminToken.value)
@@ -1410,8 +1433,37 @@ export const useAppStore = defineStore('app', () => {
     try {
       const pendingOutbox = await getPendingItems()
       offlineQueueCount.value = pendingOutbox.length
+      return offlineQueueCount.value
     } catch (e) {
       console.warn('Failed to read outbox queue:', e)
+      return 0
+    }
+  }
+
+  async function triggerManualSync() {
+    if (offlineQueueCount.value === 0) {
+      await updateOfflineQueueCount()
+      if (offlineQueueCount.value === 0) {
+        uiStore.showToast('Tất cả đơn hàng đã được đồng bộ Cloud!', 'info')
+        return
+      }
+    }
+
+    uiStore.showToast(`Đang đồng bộ ${offlineQueueCount.value} đơn hàng ngoại tuyến...`, 'info')
+    uiStore.connectionStatus = 'syncing'
+    try {
+      await triggerOutboxSync()
+      await updateOfflineQueueCount()
+      broadcastSyncEvent('OUTBOX_SYNCED', { count: offlineQueueCount.value })
+      if (offlineQueueCount.value === 0) {
+        uiStore.showToast('✅ Đã đồng bộ toàn bộ đơn ngoại tuyến lên Cloud!', 'success')
+        uiStore.connectionStatus = 'online'
+        await loadHistory(true)
+      } else {
+        uiStore.showToast(`⚠️ Còn ${offlineQueueCount.value} đơn đang chờ mạng để gửi tiếp.`, 'warning')
+      }
+    } catch (err: any) {
+      uiStore.showToast('Lỗi khi đồng bộ: ' + err.message, 'error')
     }
   }
 
@@ -1422,6 +1474,7 @@ export const useAppStore = defineStore('app', () => {
       if (cached && cached.length > 0 && historyList.value.length === 0) {
         historyList.value = cached
         rebuildBookingTimeIndex(cached)
+        try { useBookingStore().setHistory(cached) } catch {}
       }
     } catch (e) {
       console.warn('Failed to pre-hydrate history cache:', e)
@@ -1553,6 +1606,38 @@ export const useAppStore = defineStore('app', () => {
     uiStore.connectionStatus = 'error'
   })
 
+  // --- Cross-Tab Real-Time Sync (BroadcastChannel) ---
+  if (typeof window !== 'undefined') {
+    onSyncEvent((event) => {
+      if (event.type === 'ORDER_SAVED' && event.data) {
+        const order = event.data
+        const list = [...historyList.value]
+        const idx = list.findIndex(h => h.id === order.id)
+        if (idx !== -1) {
+          list[idx] = order
+        } else {
+          list.unshift(order)
+        }
+        historyList.value = list
+        rebuildBookingTimeIndex(list)
+        cacheHistory(list)
+        try { useBookingStore().addOrUpdateBooking(order) } catch {}
+      } else if (event.type === 'ORDER_DELETED' && event.data?.id) {
+        const id = event.data.id
+        const list = historyList.value.filter((i: any) => i.id !== id)
+        historyList.value = list
+        rebuildBookingTimeIndex(list)
+        cacheHistory(list)
+        try { useBookingStore().removeBooking(id) } catch {}
+      } else if (event.type === 'OUTBOX_SYNCED') {
+        updateOfflineQueueCount()
+      } else if (event.type === 'MENU_UPDATED') {
+        fetchSheets()
+        fetchMenu(activeSheet.value, { forceReloadCache: true })
+      }
+    })
+  }
+
   return {
     adminToken, adminExpiresAt, isAdminSettingsUnlocked, lockAdminSettings, unlockAdminSettings, defaultMenuProfileId, defaultBankAccountIndex, setDefaultBankAccount, setDefaultMenuProfile, autoSyncIfReady,
     showPortalMinigames,
@@ -1571,7 +1656,7 @@ export const useAppStore = defineStore('app', () => {
     fetchRemoteConfig, updateRemoteConfig, verifyAdminSession,
     currentUserRole, verifySession, saveOrder, deleteOrder, syncBookingCalendar, triggerAuditLog,
     logout, handleInactivityTimeout,
-    offlineQueueCount, updateOfflineQueueCount,
+    offlineQueueCount, updateOfflineQueueCount, triggerManualSync,
     scheduleMenuPrefetch, scheduleMenusPrecache,
     activeConflicts, saveConflicts, resolveConflict
   }

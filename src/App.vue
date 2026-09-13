@@ -1,12 +1,13 @@
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, watch } from 'vue'
+import { ref, onMounted, onUnmounted, watch, defineAsyncComponent } from 'vue'
 import { isIOS } from '@/utils'
 import { useUIStore } from '@/stores/useUIStore'
 import ErrorBoundary from '@/components/core/ErrorBoundary.vue'
-import AppLayout from '@/components/core/AppLayout.vue'
 import ToastSystem from '@/components/modals/ToastSystem.vue'
-import PublicBill from '@/components/core/PublicBill.vue'
-import CustomerBookingPage from '@/components/customer/CustomerBookingPage.vue'
+
+const CustomerBookingPage = defineAsyncComponent(() => import('@/components/customer/CustomerBookingPage.vue'))
+const PublicBill = defineAsyncComponent(() => import('@/components/core/PublicBill.vue'))
+const AppLayout = defineAsyncComponent(() => import('@/components/core/AppLayout.vue'))
 
 const ui = useUIStore()
 
