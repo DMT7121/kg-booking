@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted } from 'vue'
+import { ref, onMounted, onUnmounted, watch, nextTick } from 'vue'
 import { useUIStore } from '@/stores/useUIStore'
 import { useFormStore } from '@/stores/useFormStore'
 import { useAppStore } from '@/stores/useAppStore'
@@ -119,6 +119,16 @@ onUnmounted(() => {
   }
   window.removeEventListener('resize', updatePreviewScale)
   window.removeEventListener('keydown', handleKeyDown)
+})
+
+watch(() => ui.tab, (tab) => {
+  if (tab === 'preview') {
+    nextTick(() => {
+      updatePreviewScale()
+      setTimeout(updatePreviewScale, 100)
+      setTimeout(updatePreviewScale, 300)
+    })
+  }
 })
 
 // --- Parallax Effect for Stamp ---

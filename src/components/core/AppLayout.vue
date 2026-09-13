@@ -9,7 +9,6 @@ import { useForm } from '@/composables/useForm'
 import { isIOS } from '@/utils'
 import { onMounted, onUnmounted, ref, computed, watch, nextTick, defineAsyncComponent } from 'vue'
 import LeftPanel from './LeftPanel.vue'
-import BillPreview from './BillPreview.vue'
 
 // Lazy-loaded Modals (only fetched when user opens them → ~40% smaller initial bundle)
 const AiConfigModal = defineAsyncComponent(() => import('@/components/modals/AiConfigModal.vue'))

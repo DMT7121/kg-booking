@@ -11,6 +11,7 @@ import AIInputPanel from '@/components/forms/AIInputPanel.vue'
 import CustomerForm from '@/components/forms/CustomerForm.vue'
 import DepositManager from '@/components/forms/DepositManager.vue'
 import MenuItemsEditor from '@/components/forms/MenuItemsEditor.vue'
+import BillPreview from './BillPreview.vue'
 import { formatVND } from '@/utils'
 
 // Tab components (Async loaded on demand to minimize initial bundle)
