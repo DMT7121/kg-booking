@@ -6,8 +6,8 @@ export function cleanCustomerName(name: string): string {
   if (!name) return ''
   let cleaned = name.trim()
 
-  // Remove leading bullet/icon symbols like "▶", "●", "•", "*", "-", etc.
-  cleaned = cleaned.replace(/^[▶•●\*\-–—\u2800\s]+/g, '').trim()
+  // Remove leading bullet/icon symbols like "▶", "●", "•", "*", "-", "✔", "✓", "☑", "↳", etc.
+  cleaned = cleaned.replace(/^[▶•●\*\-–—✔✓☑↳\u2800\s]+/g, '').trim()
 
   // Remove conversational leading prefaces like "Em ơi cho anh đặt bàn tên Tuấn", "Đặt bàn cho chị Thảo", "Book bàn tên..."
   cleaned = cleaned.replace(/^(?:em\s*ơi|em\s*oi|ad\s*ơi|ad\s*oi|admin\s*ơi|admin\s*oi|mình\s*muốn|minh\s*muon|tôi\s*muốn|toi\s*muon)\s*/gi, '')
@@ -15,8 +15,8 @@ export function cleanCustomerName(name: string): string {
   cleaned = cleaned.replace(/^(?:đặt\s*bàn|đặt\s*tiệc|book\s*bàn|book\s*tiệc|đặt|book)\s*(?:cho\s+chị|cho\s+anh|cho\s+em|cho)?\s*(?:tên|ten)?\s*[:\-–—]?\s*/gi, '')
   cleaned = cleaned.replace(/^(?:tên|ten)\s*[:\-–—]?\s*/gi, '')
 
-  // Remove leading prefixes like "người đặt:", "tên khách:", "khách hàng:", "khách:"
-  cleaned = cleaned.replace(/^(?:ngu\u1eddi\s*\u0111\u1eb7t|t\u00ean\s*kh\u00e1ch|kh\u00e1ch\s*h\u00e0ng|kh\u00e1ch|li\u00ean\s*h\u1ec7|s\u0111t|sdt|tên|ten)\s*[:\-–—]?\s*/gi, '')
+  // Remove leading prefixes like "người đặt:", "tên khách/chủ tiệc:", "tên khách:", "khách hàng:", "khách:"
+  cleaned = cleaned.replace(/^(?:(?:người|nguoi)\s*đặt(?:\s*[/&,]\s*(?:chủ|chu)\s*tiệc)?|(?:tên|ten)\s*khách(?:\s*[/&,]\s*(?:chủ|chu)\s*tiệc)?|(?:chủ|chu)\s*tiệc(?:\s*[/&,]\s*(?:người|nguoi)\s*đặt)?|(?:chủ|chu)\s*tiệc(?:\s*[/&,]\s*(?:tên|ten)\s*khách)?|khách\s*hàng|khach\s*hang|tên\s*khách|ten\s*khach|người\s*liên\s*hệ|nguoi\s*lien\s*he|người\s*đặt|nguoi\s*dat|chủ\s*tiệc|chu\s*tiec|khách|khach|liên\s*hệ|lien\s*he|sđt|sdt|tên|ten)\s*[:\-–—]?\s*/gi, '')
 
   // Remove conversational suffixes like "... đặt bàn", "... book tiệc"
   cleaned = cleaned.replace(/\s+(?:đặt\s*bàn|đặt\s*tiệc|book\s*bàn|book\s*tiệc)$/gi, '')
@@ -32,8 +32,8 @@ export function cleanCustomerName(name: string): string {
   // 3. Remove single-letter abbreviation & English title prefixes like "C ", "c ", "C. ", "A. ", "Mr. ", "Ms. ", "Mrs. "
   cleaned = cleaned.replace(/^(?:mr\.|mr|ms\.|ms|mrs\.|mrs|c\.|c\/|c|a\.|a\/|a)\s+/gi, '')
 
-  // 4. Remove trailing/leading hyphen, comma, slash, colon, or space after stripping
-  cleaned = cleaned.replace(/^[\s-,\/:]+|[\s-,\/:]+$/g, '')
+  // 4. Remove trailing/leading hyphen, comma, slash, colon, underscore, or space after stripping
+  cleaned = cleaned.replace(/^[\s-,\/:_]+|[\s-,\/:_]+$/g, '')
 
   // 5. Double space cleanup
   cleaned = cleaned.replace(/\s+/g, ' ').trim()

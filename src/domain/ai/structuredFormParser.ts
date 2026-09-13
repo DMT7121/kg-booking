@@ -58,7 +58,7 @@ function cleanCustomerName(name: string): string {
   if (!name) return ''
   let cleaned = name.trim()
   cleaned = cleaned.replace(/^(?:anh|chị|chi|c\.|c|em|a\.|a|bác|bac|cô|co|chú|chu|bạn|ban|khách\s*hàng|khach\s*hang|khách|khach)\s+/i, '')
-  cleaned = cleaned.replace(/^[\s-,\/:]+|[\s-,\/:]+$/g, '')
+  cleaned = cleaned.replace(/^[\s-,\/:_.]+|[\s-,\/:_.]+$/g, '')
   return cleaned.trim()
 }
 
@@ -73,13 +73,14 @@ function normalizeKey(key: string): string {
  * Checks if a line resembles a key-value pair, e.g. "Tên: Lan", "SĐT - 0912...", "1. Ngày: 12/10"
  */
 function parseKeyValueLine(line: string): { key: string; value: string } | null {
-  const trimmed = line.trim().replace(/^[•▶●\*\-\d\.\)]+\s*/, '')
+  const trimmed = line.trim().replace(/^[-*+•▶▪▫◆✦★✓✔☑↳\d.)\s]+/u, '')
   // Match key followed by colon or hyphen e.g. "Tên khách: ..." or "SĐT - ..."
   const match = trimmed.match(/^([^:\-–—\n]+)\s*[:\-–—]\s*(.*)$/)
   if (!match) return null
-  const rawKey = match[1].trim()
+  let rawKey = match[1].trim()
   const rawVal = match[2].trim()
-  if (rawKey.length < 2 || rawKey.length > 35) return null
+  rawKey = rawKey.replace(/\([^)]*\)/g, '').trim()
+  if (rawKey.length < 2 || rawKey.length > 40) return null
   return { key: rawKey, value: rawVal }
 }
 
@@ -211,13 +212,13 @@ export function parseStructuredForm(text: string): StructuredFormParseResult {
 
   // Count core matched fields
   const keyAliases: Record<string, string[]> = {
-    customer_name: ['ten', 'tenkhach', 'tenkhachhang', 'khach', 'khachhang', 'nguoidat', 'nguoidatban', 'lienhe', 'customer', 'name'],
+    customer_name: ['ten', 'tenkhach', 'tenkhachhang', 'khach', 'khachhang', 'nguoidat', 'nguoidatban', 'lienhe', 'customer', 'name', 'tenkhachchutiec', 'nguoidatchutiec', 'tenchutiec'],
     phone: ['sdt', 'sodienthoai', 'sodt', 'dienthoai', 'phone', 'tel', 'zalo', 'hotline'],
-    date: ['ngay', 'ngaydat', 'ngaynhan', 'ngaytochuc', 'date', 'ngaynhanban'],
-    time: ['gio', 'giodat', 'gioden', 'thoigian', 'time', 'gioan'],
-    pax: ['sokhach', 'soluong', 'khach', 'pax', 'guest', 'songuoi', 'slkhach', 'soluongkhach', 'sl'],
+    date: ['ngay', 'ngaydat', 'ngaynhan', 'ngaytochuc', 'date', 'ngaynhanban', 'ngayvagiototuctiec', 'ngaygio', 'thoigian'],
+    time: ['gio', 'giodat', 'gioden', 'thoigian', 'time', 'gioan', 'ngayvagiototuctiec', 'thoigiantochuc'],
+    pax: ['sokhach', 'soluong', 'khach', 'pax', 'guest', 'songuoi', 'slkhach', 'soluongkhach', 'sl', 'nguoilon', 'soluongnguoilon'],
     table: ['ban', 'soban', 'khuban', 'khuban', 'khuvuc', 'table', 'vitriban'],
-    party_type: ['loaitiec', 'loaitec', 'nhucau', 'mucdich', 'tiec', 'loai', 'type', 'sukien'],
+    party_type: ['loaitiec', 'loaitec', 'nhucau', 'mucdich', 'tiec', 'loai', 'type', 'sukien', 'nhucautiec', 'nhucaudatban'],
     party_owner: ['chutiec', 'nguoiductochuc', 'tenbe', 'tenchutiec', 'chunhan', 'owner'],
     decor_color: ['tongmau', 'tone', 'tonemau', 'mausac', 'mauchudao', 'color', 'tonemauchudao', 'mau'],
     board_text: ['bangten', 'bangmung', 'bang', 'bangchu', 'noidungbang', 'displayboard', 'banghpbd'],
@@ -263,8 +264,22 @@ export function parseStructuredForm(text: string): StructuredFormParseResult {
   // Map Booking
   if (recognized.date) {
     result.data.booking.date = formatDateStr(recognized.date)
+    // If time is not separately given, extract from date string e.g. "17/09 - 20h"
+    if (!recognized.time) {
+      const timeInDateMatch = recognized.date.match(/(?:[-–—,\s]+)?(?:luc\s*)?(\d{1,2}(?::\d{2}|h\d{2}|h))\b/i)
+      if (timeInDateMatch) {
+        const tStr = timeInDateMatch[1]
+        if (tStr.includes(':')) {
+          const [h, m] = tStr.split(':')
+          result.data.booking.time = `${String(parseInt(h, 10)).padStart(2, '0')}:${m}`
+        } else if (tStr.includes('h')) {
+          const parts = tStr.split('h')
+          result.data.booking.time = `${String(parseInt(parts[0], 10)).padStart(2, '0')}:${(parts[1] || '00').padStart(2, '0')}`
+        }
+      }
+    }
   }
-  if (recognized.time) {
+  if (recognized.time && !result.data.booking.time) {
     const timeMatch = recognized.time.match(/(\d{1,2})\s*(?:h|gior|gio|:)\s*(\d{2})?/i)
       || recognized.time.match(/(\d{1,2}):(\d{2})/)
     if (timeMatch) {
