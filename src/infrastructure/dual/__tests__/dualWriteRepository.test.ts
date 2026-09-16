@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { DualWriteOrderRepository } from '../dualWriteRepository'
+import { DualWriteOrderRepository, mergeHistoryRecords } from '../dualWriteRepository'
 import { GasOrderRepository } from '../../gas/gasRepositories'
 import { PostgresOrderRepository } from '../../postgres/postgresRepository'
 import * as outbox from '../../outbox/outbox'
@@ -37,6 +37,7 @@ vi.mock('../../gas/gasRepositories', () => {
 
 vi.mock('../../postgres/postgresRepository', () => {
   return {
+    stringToUuid: vi.fn((str: string) => str || 'mock-uuid'),
     PostgresOrderRepository: vi.fn().mockImplementation(() => ({
       getHistory: vi.fn().mockResolvedValue({ ok: true, data: [] }),
       getOrderById: vi.fn().mockResolvedValue({ ok: true }),
@@ -107,7 +108,7 @@ describe('DualWriteOrderRepository Tests', () => {
     expect(res.ok).toBe(true)
     expect(res.id).toBe('test-id')
     expect(mockPgRepo.saveOrder).toHaveBeenCalledWith(testData, '')
-    expect(mockGasRepo.saveOrder).toHaveBeenCalledWith(testData)
+    expect(mockGasRepo.saveOrder).toHaveBeenCalledWith(testData, { silent: true })
   })
 
   it('should delete directly from pg and gas and return success when deleting in dual_write mode', async () => {
@@ -161,7 +162,7 @@ describe('DualWriteOrderRepository Tests', () => {
     expect(res.ok).toBe(true)
     expect(res.status).toBe('pending')
     expect(res.id).toBe('offline-order-1')
-    expect(addToOutboxSpy).toHaveBeenCalledWith('offline-order-1', 'upsert', testData)
+    expect(addToOutboxSpy).toHaveBeenCalledWith('offline-order-1', 'upsert', testData, { syncedToPg: false, syncedToSheets: false })
     addToOutboxSpy.mockRestore()
   })
 
@@ -176,7 +177,7 @@ describe('DualWriteOrderRepository Tests', () => {
 
     expect(res.ok).toBe(true)
     expect(res.status).toBe('partially_synced')
-    expect(addToOutboxSpy).toHaveBeenCalledWith('partial-order-1', 'upsert', testData)
+    expect(addToOutboxSpy).toHaveBeenCalledWith('partial-order-1', 'upsert', testData, { syncedToPg: false, syncedToSheets: true })
     addToOutboxSpy.mockRestore()
   })
 
@@ -191,7 +192,7 @@ describe('DualWriteOrderRepository Tests', () => {
 
     expect(res.ok).toBe(true)
     expect(res.status).toBe('partially_synced')
-    expect(addToOutboxSpy).toHaveBeenCalledWith('partial-order-2', 'upsert', testData)
+    expect(addToOutboxSpy).toHaveBeenCalledWith('partial-order-2', 'upsert', testData, { syncedToPg: true, syncedToSheets: false })
     addToOutboxSpy.mockRestore()
   })
 
@@ -205,7 +206,74 @@ describe('DualWriteOrderRepository Tests', () => {
 
     expect(res.ok).toBe(true)
     expect(res.status).toBe('pending')
-    expect(addToOutboxSpy).toHaveBeenCalledWith('del-order-1', 'delete', expect.objectContaining({ id: 'del-order-1' }))
+    expect(addToOutboxSpy).toHaveBeenCalledWith(
+      'del-order-1',
+      'delete',
+      expect.objectContaining({ id: 'del-order-1' }),
+      { syncedToPg: false, syncedToSheets: false }
+    )
     addToOutboxSpy.mockRestore()
   })
+
+  it('should call onBgUpdate with merged data from both PG and GAS in dual_write mode', async () => {
+    vi.stubEnv('VITE_BACKEND_MODE', 'dual_write')
+    mockPgRepo.getHistory.mockResolvedValue({
+      ok: true,
+      data: [{ id: 'order-pg-1', timestamp: '2026-09-16T10:00:00Z', parsedCustomer: { name: 'A', phone: '0901' } }]
+    })
+    mockGasRepo.getHistory.mockResolvedValue({
+      ok: true,
+      data: [{ id: 'KG-20260916-001', timestamp: '2026-09-16T11:00:00Z', parsedCustomer: { name: 'B', phone: '0902' } }]
+    })
+
+    const onBgUpdate = vi.fn()
+    const res = await repository.getHistory(onBgUpdate)
+
+    // Initial response is from PG fast path
+    expect(res.ok).toBe(true)
+    expect(res.data[0].id).toBe('order-pg-1')
+
+    // Wait for background GAS fetch and merge
+    await new Promise(resolve => setTimeout(resolve, 50))
+
+    expect(onBgUpdate).toHaveBeenCalled()
+    const mergedArg = onBgUpdate.mock.calls[0][0]
+    expect(mergedArg.ok).toBe(true)
+    expect(mergedArg.data.length).toBe(2)
+    const ids = mergedArg.data.map((d: any) => d.id)
+    expect(ids).toContain('order-pg-1')
+    expect(ids).toContain('KG-20260916-001')
+  })
 })
+
+describe('mergeHistoryRecords helper', () => {
+  it('should deduplicate records matching by UUID and retain the human readable ID', () => {
+    const gasList = [
+      { id: 'KG-20260916-001', version: 1, timestamp: '2026-09-16T10:00:00Z', parsedCustomer: { name: 'Customer A' } }
+    ]
+    // Suppose PG has the matching UUID generated from 'KG-20260916-001'
+    const pgList = [
+      { id: 'KG-20260916-001', version: 2, timestamp: '2026-09-16T10:30:00Z', parsedCustomer: { name: 'Customer A Updated' } }
+    ]
+
+    const merged = mergeHistoryRecords(pgList, gasList)
+    expect(merged.length).toBe(1)
+    expect(merged[0].parsedCustomer.name).toBe('Customer A Updated')
+    expect(merged[0].id).toBe('KG-20260916-001')
+  })
+
+  it('should include unique records from both sources', () => {
+    const gasList = [
+      { id: 'gas-only-1', version: 1, timestamp: '2026-09-16T09:00:00Z' }
+    ]
+    const pgList = [
+      { id: 'pg-only-1', version: 1, timestamp: '2026-09-16T08:00:00Z' }
+    ]
+
+    const merged = mergeHistoryRecords(pgList, gasList)
+    expect(merged.length).toBe(2)
+    expect(merged[0].id).toBe('gas-only-1') // newer timestamp comes first
+    expect(merged[1].id).toBe('pg-only-1')
+  })
+})
+

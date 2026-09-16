@@ -233,7 +233,8 @@ export async function postGAS(
 export async function fetchWithRetry(
   payload: Record<string, any>,
   retries = 3,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  options?: { silent?: boolean }
 ): Promise<any> {
   const ui = useUIStore()
   ui.activeRequests++
@@ -304,14 +305,17 @@ export async function fetchWithRetry(
       signal
     })
     if (!res.ok) throw new Error(`GAS fallback HTTP error! status: ${res.status}`)
-    const data = await res.json()
+    const ct = res.headers.get('content-type') || ''
+    const data = ct.includes('application/json') ? await res.json() : JSON.parse(await res.text())
     ui.connectionStatus = 'online'
     setTimeout(() => { ui.activeRequests-- }, 300)
     return data
   } catch (gasError: any) {
     if (gasError.name === 'AbortError') throw gasError
     ui.connectionStatus = 'error'
-    ui.showToast(`Đồng bộ thất bại (Đã thử ${retries} lần Gateway và fallback GAS): ${gasError.message}`, 'error')
+    if (!options?.silent) {
+      ui.showToast(`Đang gián đoạn kết nối tới Google Sheets (${gasError.message}). Dữ liệu đã được bảo lưu an toàn trong hàng đợi offline.`, 'warning')
+    }
     setTimeout(() => { ui.activeRequests-- }, 300)
     throw gasError
   }

@@ -187,4 +187,81 @@ describe('Outbox and OutboxSync Integration Tests', () => {
     // order-c2 should be successfully synced
     expect(c2?.synced).toBe(true)
   })
+
+  it('should track partial sync status and only sync missing target in dual_write mode', async () => {
+    vi.stubEnv('VITE_BACKEND_MODE', 'dual_write')
+    const bookingId = 'order-partial-1'
+    const payload = { id: bookingId, customer: { name: 'Partial Test' } }
+
+    // Enqueue with syncedToPg = true, syncedToSheets = false
+    await outbox.addToOutbox(bookingId, 'upsert', payload, { syncedToPg: true, syncedToSheets: false })
+
+    // Trigger sync
+    await triggerSync()
+
+    // Postgres saveOrder should NOT have been called because it was already synced to PG!
+    expect(saveSpy).not.toHaveBeenCalled()
+
+    // Sheets fetch should have been called
+    expect(fetchMock).toHaveBeenCalled()
+
+    // Both should now be marked synced
+    const rawItems = await outbox.getOutboxRawItems()
+    expect(rawItems[0].synced).toBe(true)
+    expect(rawItems[0].syncedToPg).toBe(true)
+    expect(rawItems[0].syncedToSheets).toBe(true)
+  })
+
+  it('should continue syncing subsequent items when an item fails sheets sync (non-blocking queue)', async () => {
+    vi.stubEnv('VITE_BACKEND_MODE', 'dual_write')
+
+    // Mock fetch to fail for order-fail, but succeed for order-pass
+    fetchMock.mockImplementation(async (url: string, opts: any) => {
+      const body = JSON.parse(opts.body)
+      if (body.id === 'order-fail') {
+        return { ok: false, status: 500, json: async () => ({ ok: false, message: 'GAS lock timeout' }) }
+      }
+      return { ok: true, status: 200, json: async () => ({ ok: true }) }
+    })
+
+    await outbox.addToOutbox('order-fail', 'upsert', { id: 'order-fail', name: 'Failed Sheets' })
+    await outbox.addToOutbox('order-pass', 'upsert', { id: 'order-pass', name: 'Success Item' })
+
+    const result = await triggerSync()
+
+    const rawItems = await outbox.getOutboxRawItems()
+    const failItem = rawItems.find(i => i.id === 'order-fail')
+    const passItem = rawItems.find(i => i.id === 'order-pass')
+
+    // order-fail should be unsynced with 1 attempt
+    expect(failItem?.synced).toBe(false)
+    expect(failItem?.attempts).toBe(1)
+
+    // order-pass MUST be synced (not blocked by order-fail!)
+    expect(passItem?.synced).toBe(true)
+    expect(result.processed).toBe(1)
+    expect(result.failures).toBe(1)
+  })
+
+  it('should support manual retry, item removal, and diagnostic retrieval', async () => {
+    const bookingId = 'order-diag-1'
+    await outbox.addToOutbox(bookingId, 'upsert', { id: bookingId, customer: { name: 'Diag Test' } })
+    await outbox.recordAttemptFailure(bookingId, 'upsert', 'Simulated error')
+
+    let decrypted = await outbox.getAllOutboxItemsDecrypted()
+    expect(decrypted.length).toBe(1)
+    expect(decrypted[0].attempts).toBe(1)
+    expect(decrypted[0].lastError).toBe('Simulated error')
+
+    // Retry resets attempts
+    await outbox.retryOutboxItem(bookingId, 'upsert')
+    decrypted = await outbox.getAllOutboxItemsDecrypted()
+    expect(decrypted[0].attempts).toBe(0)
+    expect(decrypted[0].lastError).toBeNull()
+
+    // Remove clears the item
+    await outbox.removeOutboxItem(bookingId, 'upsert')
+    decrypted = await outbox.getAllOutboxItemsDecrypted()
+    expect(decrypted.length).toBe(0)
+  })
 })

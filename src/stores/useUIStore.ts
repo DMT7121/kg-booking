@@ -79,6 +79,7 @@ export const useUIStore = defineStore('ui', () => {
   const showBookingDetailModal = ref(false)
   const showVersionModal = ref(false)
   const showSocialBotModal = ref(false)
+  const showOutboxModal = ref(false)
   const showBookingConfirmationModal = ref(false)
   const bookingConfirmationPayload = ref<any>(null)
   const bookingConfirmationResolve = ref<((value: boolean) => void) | null>(null)
@@ -237,7 +238,7 @@ export const useUIStore = defineStore('ui', () => {
   return {
     tab, connectionStatus, isKeyboardOpen, isVoiceSupported, selectedTimelineDate,
     loading, activeRequests, isFetchingAPI, error,
-    showSettingsHub, activeSettingModal, showCommandPalette, showAiConfig, showBankConfig, showMenuManager, showBrandingConfig, showStaffConfig, showStaffSelector, showWebhookConfig, showBookingDetailModal, showVersionModal, showSocialBotModal, showBookingConfirmationModal, bookingConfirmationPayload, showFloorPlan, showCustomerCareModal, activeOrderForCare, selectedBooking,
+    showSettingsHub, activeSettingModal, showCommandPalette, showAiConfig, showBankConfig, showMenuManager, showBrandingConfig, showStaffConfig, showStaffSelector, showWebhookConfig, showBookingDetailModal, showVersionModal, showSocialBotModal, showOutboxModal, showBookingConfirmationModal, bookingConfirmationPayload, showFloorPlan, showCustomerCareModal, activeOrderForCare, selectedBooking,
 
 
     pendingAction, menuTab, isUpdateMode, isDarkMode, showMenuUploadModal,

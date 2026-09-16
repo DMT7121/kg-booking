@@ -215,13 +215,20 @@ function goToTomorrowTimeline() {
               <i class="fa-solid fa-sparkles text-[8px] text-amber-300"></i>
               <span>v2.5.0-APEX</span>
             </button>
-            <span class="text-[9px] font-bold uppercase tracking-wider tabular-nums transition-colors"
+            <button 
+              v-if="appStore.offlineQueueCount > 0"
+              @click="ui.showOutboxModal = true; appStore.loadOutboxDetails()"
+              class="text-[9px] font-bold uppercase tracking-wider tabular-nums transition-colors text-amber-400 hover:text-amber-300 underline cursor-pointer"
+              title="Bấm để xem danh sách đơn chờ đồng bộ"
+            >
+              {{ appStore.offlineQueueCount }} đơn chờ
+            </button>
+            <span v-else class="text-[9px] font-bold uppercase tracking-wider tabular-nums transition-colors"
                   :class="(ui.connectionStatus === 'offline' || ui.connectionStatus === 'error') ? 'text-rose-400' : (ui.connectionStatus === 'reconnecting' || ui.connectionStatus === 'syncing') ? 'text-amber-400' : 'text-slate-400'">
               {{ 
                 ui.connectionStatus === 'syncing' ? 'Đang đồng bộ...' : 
                 ui.connectionStatus === 'reconnecting' ? 'Đang kết nối lại...' :
-                (ui.connectionStatus === 'offline' || ui.connectionStatus === 'error') ? 'Ngoại tuyến' : 
-                appStore.offlineQueueCount > 0 ? `${appStore.offlineQueueCount} đơn chờ` : 'Trực tuyến'
+                (ui.connectionStatus === 'offline' || ui.connectionStatus === 'error') ? 'Ngoại tuyến' : 'Trực tuyến'
               }}
             </span>
           </div>
@@ -339,9 +346,9 @@ function goToTomorrowTimeline() {
         <!-- Outbox Offline Queue Sync Badge (Desktop & Mobile) -->
         <button 
           v-if="appStore.offlineQueueCount > 0"
-          @click="appStore.triggerManualSync()" 
+          @click="ui.showOutboxModal = true; appStore.loadOutboxDetails()" 
           class="flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/40 text-amber-300 text-xs font-medium transition-all active:scale-95 animate-pulse cursor-pointer"
-          :title="'Có ' + appStore.offlineQueueCount + ' đơn chờ đồng bộ Cloud. Bấm để gửi ngay!'"
+          :title="'Có ' + appStore.offlineQueueCount + ' đơn chờ đồng bộ Cloud. Bấm để xem chi tiết và gửi ngay!'"
           aria-label="Đồng bộ đơn ngoại tuyến"
         >
           <i class="fa-solid fa-cloud-arrow-up text-xs"></i>
@@ -694,6 +701,24 @@ function goToTomorrowTimeline() {
             <h3 class="text-center font-black text-slate-800 dark:text-slate-100 text-base mb-4 uppercase tracking-widest">Danh Mục & Tiện Ích</h3>
             
             <div class="space-y-4">
+              <!-- Pending Outbox Sync (When offline items exist) -->
+              <button 
+                v-if="appStore.offlineQueueCount > 0"
+                @click="ui.showOutboxModal = true; appStore.loadOutboxDetails(); showMoreSheet = false"
+                class="bg-amber-950/40 dark:bg-amber-950/60 text-amber-200 p-3.5 rounded-2xl font-bold text-xs hover:opacity-95 transition-all active:scale-95 flex items-center justify-between w-full border border-amber-500/50 shadow-lg shadow-amber-500/10 cursor-pointer"
+              >
+                <div class="flex items-center gap-3">
+                  <div class="w-10 h-10 rounded-xl bg-amber-500/20 text-amber-400 flex items-center justify-center text-xl shrink-0 border border-amber-400/40">
+                    <i class="fa-solid fa-cloud-arrow-up animate-pulse"></i>
+                  </div>
+                  <div class="text-left">
+                    <div class="font-black text-amber-300 uppercase tracking-wider text-xs">Hàng đợi Cloud: {{ appStore.offlineQueueCount }} đơn chờ</div>
+                    <div class="text-[10px] text-amber-200/80 font-normal mt-0.5">Bấm để kiểm tra chi tiết & đồng bộ ngay</div>
+                  </div>
+                </div>
+                <i class="fa-solid fa-chevron-right text-amber-400 text-xs"></i>
+              </button>
+
               <!-- Featured: Social Bot Messenger -->
               <button 
                 @click="ui.showSocialBotModal = true; showMoreSheet = false" 

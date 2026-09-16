@@ -194,15 +194,22 @@ async function verifySupabaseJWT(token: string, secret: string): Promise<any | n
 
 // User Context Resolver
 async function getUserFromRequest(request: Request, env: Env): Promise<{ role: 'admin' | 'manager' | 'staff'; id: string } | null> {
-  const authHeader = request.headers.get("Authorization");
-  if (!authHeader || !authHeader.startsWith("Bearer ")) return null;
-  const token = authHeader.split(" ")[1];
-
-  // Support shared secret fallback if Supabase is not configured or as a bypass
   const sharedSecret = env.SHARED_SECRET || 'kg_booking_secret_token_2026';
-  if (token === sharedSecret) {
+  const xSecret = request.headers.get("X-KG-Secret");
+  if (xSecret && xSecret === sharedSecret) {
     return { role: 'admin', id: 'shared-secret-user' };
   }
+
+  const authHeader = request.headers.get("Authorization");
+  if (authHeader && authHeader.startsWith("Bearer ")) {
+    const token = authHeader.split(" ")[1];
+    if (token === sharedSecret) {
+      return { role: 'admin', id: 'shared-secret-user' };
+    }
+  }
+
+  if (!authHeader || !authHeader.startsWith("Bearer ")) return null;
+  const token = authHeader.split(" ")[1];
 
   // If Supabase secret is defined, verify strictly
   if (env.SUPABASE_JWT_SECRET) {
@@ -238,7 +245,26 @@ async function saveFacebookBookingToDB(senderPsid: string, text: string, env: En
     const eventDate = `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`;
 
     const nameMatch = text.match(/(anh|chị|khách)\s+([a-zA-ZÀ-ỹ\s]+)/i);
-    const customerName = nameMatch ? `${nameMatch[1]} ${nameMatch[2].trim()}` : `Khách FB (${senderPsid.slice(-4)})`;
+    let customerName = nameMatch ? `${nameMatch[1]} ${nameMatch[2].trim()}` : `Khách FB (${senderPsid.slice(-4)})`;
+    let customerAvatar = '';
+
+    // Fetch real Facebook name & avatar via Graph API if pageAccessToken is configured
+    const pageAccessToken = env.FB_PAGE_ACCESS_TOKEN || '';
+    if (pageAccessToken && senderPsid) {
+      try {
+        const profileRes = await fetch(`https://graph.facebook.com/v19.0/${senderPsid}?fields=name,picture{url}&access_token=${encodeURIComponent(pageAccessToken)}`);
+        if (profileRes.ok) {
+          const profileData = await profileRes.json() as any;
+          if (profileData && profileData.name) {
+            customerName = profileData.name;
+            customerAvatar = profileData.picture?.data?.url || '';
+            console.log(`[FB Profile] Resolved real name for PSID ${senderPsid}: "${customerName}"`);
+          }
+        }
+      } catch (profErr) {
+        console.warn(`[FB Profile] Failed to resolve name for PSID ${senderPsid}:`, profErr);
+      }
+    }
 
     const supabaseUrl = "https://azfkzheypuvfcitckovf.supabase.co";
 
@@ -282,7 +308,7 @@ async function saveFacebookBookingToDB(senderPsid: string, text: string, env: En
         action: "facebook_message_received",
         target_type: "messenger",
         target_id: senderPsid,
-        before_json: { customer_name: customerName, psid: senderPsid },
+        before_json: { customer_name: customerName, psid: senderPsid, avatar: customerAvatar },
         after_json: { text: text, time: new Date().toISOString() }
       })
     });
@@ -329,7 +355,7 @@ export default {
     const corsHeaders = {
       "Access-Control-Allow-Origin": origin,
       "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
-      "Access-Control-Allow-Headers": "Content-Type, Authorization, X-KG-Role, X-FB-Access-Token",
+      "Access-Control-Allow-Headers": "Content-Type, Authorization, X-KG-Role, X-FB-Access-Token, X-KG-Secret, *",
       "Access-Control-Max-Age": "86400"
     };
 
@@ -469,8 +495,70 @@ export default {
             const pageAccessToken = env.FB_PAGE_ACCESS_TOKEN || "";
             
             for (const entry of body.entry || []) {
-              const webhookEvent = entry.messaging?.[0];
-              if (webhookEvent && webhookEvent.message && !webhookEvent.message.is_echo) {
+              for (const webhookEvent of entry.messaging || []) {
+                if (!webhookEvent || !webhookEvent.message) continue;
+
+                // 1. Outgoing message from Restaurant / Staff / Bot (Echo event)
+                if (webhookEvent.message.is_echo) {
+                  const customerPsid = webhookEvent.recipient?.id;
+                  const messageText = webhookEvent.message?.text || '';
+                  const mid = webhookEvent.message?.mid;
+                  const appId = webhookEvent.message?.app_id;
+
+                  console.log(`[FB Webhook Echo] Outgoing message to PSID ${customerPsid}: "${messageText}"`);
+
+                  if (customerPsid && messageText) {
+                    ctx.waitUntil((async () => {
+                      const supabaseUrl = "https://azfkzheypuvfcitckovf.supabase.co";
+                      const anonKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImF6Zmt6aGV5cHV2ZmNpdGNrb3ZmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODUwNzc1MjEsImV4cCI6MjEwMDY1MzUyMX0.ltnY7GTzKGE7QiWTv8ZuDlfT_NWIR2sGfGudoVDw4NQ";
+
+                      // Deduplicate: avoid duplicate if our AI bot or webapp recently logged this exact message
+                      try {
+                        const checkRes = await fetch(
+                          `${supabaseUrl}/rest/v1/audit_logs?action=eq.facebook_message_sent&target_id=eq.${customerPsid}&order=created_at.desc&limit=5`,
+                          { headers: { "apikey": anonKey, "Authorization": `Bearer ${anonKey}` } }
+                        );
+                        if (checkRes.ok && typeof checkRes.json === 'function') {
+                          const existingLogs = await checkRes.json() as any[];
+                          const isDuplicate = existingLogs.some((l: any) => {
+                            const loggedText = l.after_json?.text || '';
+                            const diffMs = Math.abs(Date.now() - new Date(l.created_at).getTime());
+                            return loggedText === messageText && diffMs < 45000;
+                          });
+                          if (isDuplicate) {
+                            console.log(`[FB Webhook Echo] Duplicate skipped for PSID ${customerPsid}: "${messageText}"`);
+                            return;
+                          }
+                        }
+                      } catch (dupErr) {
+                        console.warn("[FB Webhook Echo] Error checking duplicate:", dupErr);
+                      }
+
+                      // Save outgoing staff reply from Meta Business Suite / Fanpage Inbox
+                      await fetch(`${supabaseUrl}/rest/v1/audit_logs`, {
+                        method: "POST",
+                        headers: {
+                          "apikey": anonKey,
+                          "Authorization": `Bearer ${anonKey}`,
+                          "Content-Type": "application/json",
+                          "Prefer": "return=minimal"
+                        },
+                        body: JSON.stringify({
+                          actor_role: "staff_fanpage",
+                          action: "facebook_message_sent",
+                          target_type: "messenger",
+                          target_id: customerPsid,
+                          before_json: { psid: customerPsid, page_id: webhookEvent.sender?.id, mid, app_id: appId },
+                          after_json: { text: messageText, time: new Date().toISOString(), is_echo: true, mid }
+                        })
+                      });
+                      console.log(`[FB Webhook Echo] Successfully recorded Fanpage staff reply to PSID ${customerPsid}`);
+                    })());
+                  }
+                  continue;
+                }
+
+                // 2. Incoming message from Customer (!webhookEvent.message.is_echo)
                 const senderPsid = webhookEvent.sender?.id;
                 const messageText = webhookEvent.message?.text || '';
                 console.log(`[FB Webhook] Event received from PSID ${senderPsid}: "${messageText}"`);
@@ -529,8 +617,6 @@ export default {
                       console.log(`[FB Reply Success] Sent AI reply to PSID ${senderPsid}`);
 
                       // Log AI Bot's reply message into Supabase PostgreSQL audit_logs!
-                      const supabaseUrl = "https://azfkzheypuvfcitckovf.supabase.co";
-                      const anonKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImF6Zmt6aGV5cHV2ZmNpdGNrb3ZmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODUwNzc1MjEsImV4cCI6MjEwMDY1MzUyMX0.ltnY7GTzKGE7QiWTv8ZuDlfT_NWIR2sGfGudoVDw4NQ";
                       await fetch(`${supabaseUrl}/rest/v1/audit_logs`, {
                         method: "POST",
                         headers: {
@@ -554,7 +640,6 @@ export default {
 
                   })());
                 }
-
               }
             }
             return new Response("EVENT_RECEIVED", { status: 200 });
@@ -638,6 +723,53 @@ export default {
 
         return new Response(JSON.stringify({ ok: true, key: tokenDetails.key }), {
           status: 200,
+          headers: { ...corsHeaders, "Content-Type": "application/json" }
+        });
+      }
+
+      // Sheets Sync Forwarding via Cloudflare Queue or Direct Fetch (Guarantees retry/DLQ)
+      if ((path === "/api" || path === "/api/") && request.method === "POST") {
+        const payload = await request.json() as any;
+
+        if (!env.SHEETS_QUEUE) {
+          const gasUrl = env.GAS_URL || 'https://script.google.com/macros/s/AKfycbxzjio4sat5fWoUncPgp8SfjoGqfGxW5vFoDgkHvBI3OKVWIaszsAaUt0LE2fCHtkCFsA/exec';
+          try {
+            const gasRes = await fetch(gasUrl, {
+              method: 'POST',
+              headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+              body: JSON.stringify(payload),
+              redirect: 'follow'
+            });
+            const text = await gasRes.text();
+            try {
+              const gasData = JSON.parse(text);
+              return new Response(JSON.stringify(gasData), {
+                status: gasRes.status,
+                headers: { ...corsHeaders, "Content-Type": "application/json" }
+              });
+            } catch {
+              return new Response(JSON.stringify({
+                ok: false,
+                error: text ? text.slice(0, 500) : 'GAS returned non-JSON response',
+                rawStatus: gasRes.status
+              }), {
+                status: gasRes.status >= 400 ? gasRes.status : 502,
+                headers: { ...corsHeaders, "Content-Type": "application/json" }
+              });
+            }
+          } catch (gasErr: any) {
+            return new Response(JSON.stringify({ ok: false, error: gasErr.message }), {
+              status: 500,
+              headers: { ...corsHeaders, "Content-Type": "application/json" }
+            });
+          }
+        }
+
+        // Push sync action to the queue
+        await env.SHEETS_QUEUE.send(payload);
+
+        return new Response(JSON.stringify({ ok: true, status: "pending", message: "Sheets sync task successfully queued" }), {
+          status: 202,
           headers: { ...corsHeaders, "Content-Type": "application/json" }
         });
       }
@@ -817,40 +949,6 @@ export default {
           totalFiles: listed.objects.length,
           totalSizeMB: (totalSize / 1024 / 1024).toFixed(2)
         }), { status: 200, headers: corsHeaders });
-      }
-
-      // Sheets Sync Forwarding via Cloudflare Queue (Guarantees retry/DLQ)
-      if (path === "/api" && request.method === "POST") {
-        const payload = await request.json() as any;
-
-        if (!env.SHEETS_QUEUE) {
-          const gasUrl = env.GAS_URL || 'https://script.google.com/macros/s/AKfycbxzjio4sat5fWoUncPgp8SfjoGqfGxW5vFoDgkHvBI3OKVWIaszsAaUt0LE2fCHtkCFsA/exec';
-          try {
-            const gasRes = await fetch(gasUrl, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify(payload)
-            });
-            const gasData = await gasRes.json();
-            return new Response(JSON.stringify(gasData), {
-              status: gasRes.status,
-              headers: { ...corsHeaders, "Content-Type": "application/json" }
-            });
-          } catch (gasErr: any) {
-            return new Response(JSON.stringify({ ok: false, error: gasErr.message }), {
-              status: 500,
-              headers: corsHeaders
-            });
-          }
-        }
-
-        // Push sync action to the queue
-        await env.SHEETS_QUEUE.send(payload);
-
-        return new Response(JSON.stringify({ ok: true, status: "pending", message: "Sheets sync task successfully queued" }), {
-          status: 202,
-          headers: { ...corsHeaders, "Content-Type": "application/json" }
-        });
       }
 
       return new Response(JSON.stringify({ ok: false, error: "Not found" }), { status: 404, headers: corsHeaders });

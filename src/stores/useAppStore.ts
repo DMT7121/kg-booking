@@ -11,7 +11,7 @@ import {
   cacheIsFresh, getOfflineQueue, removeFromQueue, clearOfflineQueue
 } from '@/services/cache'
 import { fetchWithRetry } from '@/infrastructure/gas/gasClient'
-import { getPendingItems, addToOutbox, markAsSynced } from '@/infrastructure/outbox/outbox'
+import { getPendingItems, addToOutbox, markAsSynced, getAllOutboxItemsDecrypted, retryOutboxItem, removeOutboxItem } from '@/infrastructure/outbox/outbox'
 import { triggerSync as triggerOutboxSync, setOutboxStoreDelegate } from '@/infrastructure/outbox/outboxSync'
 import { 
   DualWriteOrderRepository as GasOrderRepository, 
@@ -545,12 +545,31 @@ export const useAppStore = defineStore('app', () => {
     return list.map(normalizeHistoryOrder)
   }
 
+  function mergeWithPendingOutbox(list: any[], pendingItems: any[]): any[] {
+    if (!pendingItems || pendingItems.length === 0) return list
+    const currentMap = new Map<string, any>()
+    for (const item of list) {
+      if (item && item.id) currentMap.set(item.id, item)
+    }
+    for (const p of pendingItems) {
+      if (p.action === 'upsert' && p.payload) {
+        const optimistic = normalizePayloadToHistoryOrder(p.id, p.payload)
+        optimistic.isSyncing = true
+        currentMap.set(p.id, optimistic)
+      } else if (p.action === 'delete') {
+        currentMap.delete(p.id)
+      }
+    }
+    return Array.from(currentMap.values())
+  }
+
   // --- API Actions ---
   async function loadHistory(silent: boolean) {
     const cached = await getCachedHistory()
+    const pending = await getPendingItems().catch(() => [])
     const hasCache = cached && Array.isArray(cached) && cached.length > 0
     if (hasCache && historyList.value.length === 0) {
-      const normCached = normalizeHistoryList(cached)
+      const normCached = mergeWithPendingOutbox(normalizeHistoryList(cached), pending)
       historyList.value = normCached
       rebuildBookingTimeIndex(normCached)
     }
@@ -562,7 +581,7 @@ export const useAppStore = defineStore('app', () => {
     try {
       const data = await orderRepo.getHistory((freshData) => {
         if (freshData && freshData.ok && Array.isArray(freshData.data)) {
-          const normFresh = normalizeHistoryList(freshData.data)
+          const normFresh = mergeWithPendingOutbox(normalizeHistoryList(freshData.data), pending)
           historyList.value = normFresh
           rebuildBookingTimeIndex(normFresh)
           uiStore.connectionStatus = 'online'
@@ -571,7 +590,7 @@ export const useAppStore = defineStore('app', () => {
         }
       })
       if (data && data.ok && Array.isArray(data.data)) {
-        const normData = normalizeHistoryList(data.data)
+        const normData = mergeWithPendingOutbox(normalizeHistoryList(data.data), pending)
         historyList.value = normData
         rebuildBookingTimeIndex(normData)
         uiStore.connectionStatus = 'online'
@@ -580,7 +599,7 @@ export const useAppStore = defineStore('app', () => {
       } else {
         uiStore.connectionStatus = hasCache ? 'online' : 'error'
         if (hasCache && cached) {
-          const normCached = normalizeHistoryList(cached)
+          const normCached = mergeWithPendingOutbox(normalizeHistoryList(cached), pending)
           historyList.value = normCached
           rebuildBookingTimeIndex(normCached)
         }
@@ -1457,6 +1476,8 @@ export const useAppStore = defineStore('app', () => {
   }
 
   const offlineQueueCount = ref(0)
+  const outboxDetailsList = ref<any[]>([])
+
   async function updateOfflineQueueCount() {
     try {
       const pendingOutbox = await getPendingItems()
@@ -1468,7 +1489,69 @@ export const useAppStore = defineStore('app', () => {
     }
   }
 
-  async function triggerManualSync() {
+  async function loadOutboxDetails() {
+    try {
+      const items = await getAllOutboxItemsDecrypted()
+      outboxDetailsList.value = items
+      offlineQueueCount.value = items.length
+      return items
+    } catch (e) {
+      console.warn('Failed to read outbox details:', e)
+      return []
+    }
+  }
+
+  async function retrySingleOutboxItem(id: string, action: 'upsert' | 'delete') {
+    try {
+      await retryOutboxItem(id, action)
+      uiStore.showToast('Đang thử lại đơn hàng...', 'info')
+      await triggerOutboxSync(true)
+      await loadOutboxDetails()
+      await updateOfflineQueueCount()
+    } catch (err: any) {
+      uiStore.showToast('Lỗi khi thử lại: ' + err.message, 'error')
+    }
+  }
+
+  async function removeSingleOutboxItem(id: string, action: 'upsert' | 'delete') {
+    try {
+      await removeOutboxItem(id, action)
+      await loadOutboxDetails()
+      await updateOfflineQueueCount()
+      uiStore.showToast('Đã loại bỏ đơn khỏi hàng đợi đồng bộ.', 'info')
+    } catch (err: any) {
+      uiStore.showToast('Lỗi khi xóa: ' + err.message, 'error')
+    }
+  }
+
+  async function forceSyncAllOutbox() {
+    uiStore.connectionStatus = 'syncing'
+    uiStore.showToast('Đang đồng bộ tất cả đơn hàng lên Cloud...', 'info')
+    try {
+      const res = await triggerOutboxSync(true)
+      await loadOutboxDetails()
+      await updateOfflineQueueCount()
+      broadcastSyncEvent('OUTBOX_SYNCED', { count: offlineQueueCount.value })
+      if (offlineQueueCount.value === 0) {
+        uiStore.showToast('✅ Đã đồng bộ toàn bộ đơn ngoại tuyến lên Cloud!', 'success')
+        uiStore.connectionStatus = 'online'
+        await loadHistory(true)
+      } else {
+        uiStore.showToast(`Đã đồng bộ ${res.processed} đơn. Còn ${offlineQueueCount.value} đơn cần xử lý.`, 'warning')
+      }
+    } catch (err: any) {
+      uiStore.showToast('Lỗi khi đồng bộ: ' + err.message, 'error')
+    }
+  }
+
+  async function triggerManualSync(openModal = true) {
+    if (openModal) {
+      uiStore.showOutboxModal = true
+      await loadOutboxDetails()
+      triggerOutboxSync(true).then(() => loadOutboxDetails()).catch(() => {})
+      return
+    }
+
     if (offlineQueueCount.value === 0) {
       await updateOfflineQueueCount()
       if (offlineQueueCount.value === 0) {
@@ -1480,7 +1563,7 @@ export const useAppStore = defineStore('app', () => {
     uiStore.showToast(`Đang đồng bộ ${offlineQueueCount.value} đơn hàng ngoại tuyến...`, 'info')
     uiStore.connectionStatus = 'syncing'
     try {
-      await triggerOutboxSync()
+      const res = await triggerOutboxSync()
       await updateOfflineQueueCount()
       broadcastSyncEvent('OUTBOX_SYNCED', { count: offlineQueueCount.value })
       if (offlineQueueCount.value === 0) {
@@ -1699,6 +1782,7 @@ export const useAppStore = defineStore('app', () => {
     currentUserRole, verifySession, saveOrder, deleteOrder, syncBookingCalendar, triggerAuditLog,
     logout, handleInactivityTimeout,
     offlineQueueCount, updateOfflineQueueCount, triggerManualSync,
+    outboxDetailsList, loadOutboxDetails, retrySingleOutboxItem, removeSingleOutboxItem, forceSyncAllOutbox,
     scheduleMenuPrefetch, scheduleMenusPrecache,
     activeConflicts, saveConflicts, resolveConflict
   }

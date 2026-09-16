@@ -60,7 +60,7 @@ describe('Customer Online Booking Module Tests', () => {
     form.bookerName = 'Lê Văn C'
     form.phone = '0987654321'
     form.guestCount = 8
-    form.date = '2026-09-15'
+    form.date = '2026-09-20'
     form.time = '18:30'
     form.partyType = 'Liên hoan'
 

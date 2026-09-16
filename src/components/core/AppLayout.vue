@@ -25,6 +25,7 @@ const GuideConfigModal = defineAsyncComponent(() => import('@/components/modals/
 const ConflictResolutionModal = defineAsyncComponent(() => import('@/components/modals/ConflictResolutionModal.vue'))
 const VersionReleaseModal = defineAsyncComponent(() => import('@/components/modals/VersionReleaseModal.vue'))
 const SocialBotModal = defineAsyncComponent(() => import('@/components/modals/SocialBotModal.vue'))
+const OutboxSyncModal = defineAsyncComponent(() => import('@/components/modals/OutboxSyncModal.vue'))
 const BookingConfirmationModal = defineAsyncComponent(() => import('@/components/modals/BookingConfirmationModal.vue'))
 
 const ui = useUIStore()
@@ -534,6 +535,11 @@ function handleGlobalKeydown(e: KeyboardEvent) {
       ui.showSocialBotModal = false
       return
     }
+    if (ui.showOutboxModal) {
+      e.preventDefault()
+      ui.showOutboxModal = false
+      return
+    }
     if (ui.showBookingConfirmationModal) {
       e.preventDefault()
       ui.resolveBookingConfirmation(false)
@@ -993,6 +999,7 @@ const ambientTheme = computed(() => {
     <ConflictResolutionModal />
     <VersionReleaseModal />
     <SocialBotModal />
+    <OutboxSyncModal />
     <BookingConfirmationModal />
 
     <!-- COMMAND PALETTE MODAL -->

@@ -23,25 +23,43 @@ async function syncToSheets(item: outbox.DecryptedOutboxItem): Promise<boolean> 
     cleanPayload.deposit.image = ''
   }
 
-  const sheetsPayload = {
-    action: item.action === 'upsert' ? 'saveOrder' : 'deleteOrder',
+  const isUpsert = item.action === 'upsert'
+  const sheetsPayload = isUpsert ? {
+    action: 'saveOrder',
     id: item.id,
+    data: cleanPayload,
+    idempotencyKey: item.idempotencyKey
+  } : {
+    action: 'deleteOrder',
+    id: item.id,
+    password: cleanPayload?.password,
+    token: cleanPayload?.token,
     data: cleanPayload,
     idempotencyKey: item.idempotencyKey
   }
   
   const headers = buildGatewayHeaders()
 
-  // 1. Try API Gateway first (will proxy to GAS or Worker)
+  // 1. Try API Gateway first (will proxy to GAS or Worker) with 15s timeout
   try {
+    const controller = new AbortController()
+    const timer = setTimeout(() => controller.abort(), 15000)
     const res = await fetch(API_GATEWAY_URL, {
       method: 'POST',
       headers,
-      body: JSON.stringify(sheetsPayload)
-    })
+      body: JSON.stringify(sheetsPayload),
+      signal: controller.signal
+    }).finally(() => clearTimeout(timer))
     
     if (res.ok) {
-      const data = await res.json()
+      let data: any
+      try {
+        data = typeof res.json === 'function' ? await res.json() : JSON.parse(await res.text())
+      } catch {
+        try {
+          data = JSON.parse(await res.text())
+        } catch {}
+      }
       if (data && data.ok) {
         console.log('[Outbox Sync Sheets] Success via Gateway:', data)
         return true
@@ -51,15 +69,26 @@ async function syncToSheets(item: outbox.DecryptedOutboxItem): Promise<boolean> 
     console.warn('[Outbox Sync Sheets] Gateway failed:', err.message)
   }
 
-  // 2. Fallback to GAS directly
+  // 2. Fallback to GAS directly with 15s timeout
   try {
+    const controller = new AbortController()
+    const timer = setTimeout(() => controller.abort(), 15000)
     const res = await fetch(GAS_DIRECT_URL, {
       method: 'POST',
       headers: buildGASHeaders(),
-      body: JSON.stringify(sheetsPayload)
-    })
+      body: JSON.stringify(sheetsPayload),
+      signal: controller.signal
+    }).finally(() => clearTimeout(timer))
+
     if (res.ok) {
-      const data = await res.json()
+      let data: any
+      try {
+        data = typeof res.json === 'function' ? await res.json() : JSON.parse(await res.text())
+      } catch {
+        try {
+          data = JSON.parse(await res.text())
+        } catch {}
+      }
       if (data && data.ok) {
         console.log('[Outbox Sync Sheets] Success via GAS Fallback:', data)
         return true
@@ -72,13 +101,15 @@ async function syncToSheets(item: outbox.DecryptedOutboxItem): Promise<boolean> 
   return false
 }
 
-export async function triggerSync(): Promise<void> {
-  if (isSyncing) return
+export async function triggerSync(forceRetryAll = false): Promise<{ processed: number; failures: number }> {
+  if (isSyncing) return { processed: 0, failures: 0 }
   isSyncing = true
   
+  let processedCount = 0
+  let failureCount = 0
+  const failedItemIds = new Set<string>()
+
   try {
-    let pendingItems = await outbox.getPendingItems()
-    
     // Active JWT session token
     let token = ''
     try {
@@ -87,8 +118,12 @@ export async function triggerSync(): Promise<void> {
 
     const mode = getBackendMode()
 
-    while (pendingItems.length > 0) {
-      const item = pendingItems[0]
+    while (true) {
+      const allPending = await outbox.getPendingItems(forceRetryAll)
+      const candidate = allPending.find(it => !failedItemIds.has(`${it.id}:${it.action}`))
+      if (!candidate) break // No more eligible candidates in this pass
+
+      const item = candidate
       let success = false
       
       try {
@@ -152,7 +187,7 @@ export async function triggerSync(): Promise<void> {
 
         // 2. Perform database write operations based on resolved backend mode
         if (mode === 'gas') {
-          // GAS mode: sync to Google Sheets synchronously
+          // GAS mode: sync to Google Sheets
           const sheetsOk = await syncToSheets(item)
           if (!sheetsOk) {
             throw new Error('Failed to save to Google Sheets')
@@ -169,7 +204,7 @@ export async function triggerSync(): Promise<void> {
             const payload = { ...cleanPayload, idempotencyKey: item.idempotencyKey }
             res = await pgRepo.saveOrder(payload, token)
           } else if (item.action === 'delete') {
-            res = await pgRepo.deleteOrder(item.id, undefined, token)
+            res = await pgRepo.deleteOrder(item.id, item.payload?.password, token || item.payload?.token)
           }
           if (res && res.ok) {
             success = true
@@ -177,60 +212,64 @@ export async function triggerSync(): Promise<void> {
             throw new Error(res?.message || 'Postgres operation failed')
           }
         } else if (mode === 'dual_write') {
-          // Dual Write mode: sync to both Postgres and Google Sheets sequentially
-          let pgOk = false
-          if (item.action === 'upsert') {
-            const cleanPayload = JSON.parse(JSON.stringify(item.payload))
-            if (cleanPayload && cleanPayload.deposit && cleanPayload.deposit.image === '__OFFLINE_IMAGE_BUFFER_REF__') {
-              cleanPayload.deposit.image = ''
-            }
-            const payload = { ...cleanPayload, idempotencyKey: item.idempotencyKey }
-            const res = await pgRepo.saveOrder(payload, token)
-            pgOk = res && res.ok
-          } else if (item.action === 'delete') {
-            const res = await pgRepo.deleteOrder(item.id, undefined, token)
-            pgOk = res && res.ok
-          }
+          // Dual Write mode: sync selectively to missing targets
+          let pgOk = !!item.syncedToPg
           if (!pgOk) {
-            throw new Error('Postgres write failed in dual_write mode')
+            let res = { ok: false, message: '' }
+            if (item.action === 'upsert') {
+              const cleanPayload = JSON.parse(JSON.stringify(item.payload))
+              if (cleanPayload && cleanPayload.deposit && cleanPayload.deposit.image === '__OFFLINE_IMAGE_BUFFER_REF__') {
+                cleanPayload.deposit.image = ''
+              }
+              const payload = { ...cleanPayload, idempotencyKey: item.idempotencyKey }
+              res = await pgRepo.saveOrder(payload, token)
+            } else if (item.action === 'delete') {
+              res = await pgRepo.deleteOrder(item.id, item.payload?.password, token || item.payload?.token)
+            }
+            pgOk = !!(res && res.ok)
+            if (pgOk) {
+              await outbox.updateTargetSyncStatus(item.id, item.action, { syncedToPg: true })
+              item.syncedToPg = true
+            } else {
+              throw new Error(res?.message || 'PostgreSQL write failed in dual_write mode')
+            }
           }
 
-          const sheetsOk = await syncToSheets(item)
+          let sheetsOk = !!item.syncedToSheets
           if (!sheetsOk) {
-            throw new Error('Google Sheets write failed in dual_write mode')
+            sheetsOk = await syncToSheets(item)
+            if (sheetsOk) {
+              await outbox.updateTargetSyncStatus(item.id, item.action, { syncedToSheets: true })
+              item.syncedToSheets = true
+            } else {
+              throw new Error('Google Sheets write failed in dual_write mode')
+            }
           }
-          success = true
+
+          if (pgOk && sheetsOk) {
+            success = true
+          }
         }
       } catch (err: any) {
         console.error(`[Outbox Sync] Failed to sync item ${item.id}:`, err.message)
+        failedItemIds.add(`${item.id}:${item.action}`)
+        failureCount++
         await outbox.recordAttemptFailure(item.id, item.action, err.message)
         
-        if (err.message?.startsWith('Conflict detected:')) {
-          pendingItems = await outbox.getPendingItems()
-          continue
-        }
-        
-        // Dead-letter: if item has failed too many times, skip it and move on
-        const MAX_RETRIES = 5
-        if (item.attempts + 1 >= MAX_RETRIES) {
-          console.warn(`[Outbox Sync] Item ${item.id} exceeded ${MAX_RETRIES} retries — moved to dead-letter. Skipping.`)
-          pendingItems = await outbox.getPendingItems()
-          continue
-        }
-        
-        // For transient network errors, halt queue to avoid hammering
-        const isNetworkError = err instanceof TypeError || err.message?.includes('fetch') || err.message?.includes('network') || err.message?.includes('Failed to fetch')
-        if (isNetworkError) {
-          console.warn('[Outbox Sync] Network error detected — halting queue to avoid hammering.')
+        // If device is confirmed offline, stop queue to avoid excessive CPU cycles
+        if (typeof navigator !== 'undefined' && !navigator.onLine) {
+          console.warn('[Outbox Sync] Device is offline — halting current sync run.')
           break
         }
-        
-        // For other server errors, halt queue as well (original behavior)
-        break
+
+        // NON-BLOCKING: Do NOT break the loop on server errors.
+        // Continue to the next item so other bookings can sync freely!
+        continue
       }
       
       if (success) {
         await outbox.markAsSynced(item.id, item.action)
+        processedCount++
         
         // Update in-memory store order sync status immediately without network reload
         try {
@@ -245,8 +284,6 @@ export async function triggerSync(): Promise<void> {
           uploadImageInBackground(item.id, item.payload, mode, token).catch(() => {})
         }
       }
-      
-      pendingItems = await outbox.getPendingItems()
     }
   } catch (e: any) {
     console.error('[Outbox Sync] Sync runner error:', e.message)
@@ -264,6 +301,8 @@ export async function triggerSync(): Promise<void> {
       console.warn('[Outbox Sync] Failed to update offline queue count in store:', err)
     }
   }
+
+  return { processed: processedCount, failures: failureCount }
 }
 
 async function uploadImageInBackground(id: string, payload: any, mode: string, token?: string) {

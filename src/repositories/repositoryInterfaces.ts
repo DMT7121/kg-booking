@@ -31,8 +31,8 @@ export interface HistoryResponse {
 export interface OrderRepository {
   getHistory(onBgUpdate?: (data: any[]) => void): Promise<HistoryResponse | any[]>
   getOrderById(id: string): Promise<Order | null>
-  saveOrder(data: Record<string, any>, token?: string): Promise<ApiResult>
-  saveOrdersBatch(payloads: Record<string, any>[]): Promise<ApiResult>
+  saveOrder(data: Record<string, any>, tokenOrOptions?: string | { silent?: boolean }): Promise<ApiResult>
+  saveOrdersBatch(payloads: Record<string, any>[], options?: { silent?: boolean }): Promise<ApiResult>
   deleteOrder(id: string, password?: string, token?: string): Promise<ApiResult>
   syncBookingCalendar?(id: string, token?: string): Promise<ApiResult>
 }

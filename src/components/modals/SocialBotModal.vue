@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, watch, onMounted } from 'vue'
+import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { useUIStore } from '@/stores/useUIStore'
 import { fetchRealFBConversations, fetchRealFBThreadMessages, fetchRealFBUserProfile, fetchRealFBBatchUserProfiles, sendRealFBMessage, type RealFBConversation, type RealFBMessage } from '@/services/facebookApi'
 
@@ -73,6 +73,15 @@ function copyCustomerName(name: string) {
   })
 }
 
+function copyLastMessage(msg: string) {
+  if (!msg) return
+  navigator.clipboard.writeText(msg).then(() => {
+    ui.showToast(`📋 Đã copy tin nhắn nhận diện: "${msg.slice(0, 35)}..."`, 'success')
+  }).catch(() => {
+    ui.showAlert('Tin nhắn nhận diện', msg)
+  })
+}
+
 async function fetchCustomerProfiles(convs: RealFBConversation[]) {
   if (!fbToken.value || !convs) return
   const pageId = '199752947097328'
@@ -140,15 +149,14 @@ const conversations = computed(() => {
 
       if (isFromPage) {
         const textLower = (m.message || '').toLowerCase()
-        if (m.message.includes('[Lễ tân]') || m.id.startsWith('staff-')) {
+        if (m.id.startsWith('staff-') || m.from?.name?.includes('Lễ Tân') || m.message.includes('[Lễ tân]')) {
           senderType = 'staff'
-          displaySenderName = '👤 Lễ Tân (Nhắn Tay Webapp)'
+          displaySenderName = m.from?.name || '👤 Lễ Tân (Fanpage)'
         } else if (
+          m.id.startsWith('ai-') || 
           textLower.includes('dạ chào') || 
           textLower.includes('dạ king\'s grill') || 
-          textLower.includes('https://kg-booking') || 
-          m.id.startsWith('wh-') || 
-          m.id.startsWith('ai-')
+          textLower.includes('https://kg-booking')
         ) {
           senderType = 'bot'
           displaySenderName = '🤖 KING\'S GRILL (AI Bot)'
@@ -214,9 +222,18 @@ watch(selectedConvId, async (newId) => {
     if (fbToken.value && !newId.startsWith('wh-thread-')) {
       const threadMsgs = await fetchRealFBThreadMessages(newId, fbToken.value)
       if (threadMsgs && threadMsgs.length > 0) {
+        // Merge with existing webhook messages so real-time webhook logs aren't lost
+        const existingConv = rawConversations.value.find(c => c.id === newId)
+        const webhookMsgs = (existingConv?.messages?.data || []).filter(m => m.id.startsWith('wh-') || m.id.startsWith('staff-') || m.id.startsWith('ai-'))
+        const mergedMsgs = [...threadMsgs]
+        for (const wm of webhookMsgs) {
+          if (!mergedMsgs.some(m => m.message === wm.message)) {
+            mergedMsgs.push(wm)
+          }
+        }
         activeThreadMessages.value = {
           ...activeThreadMessages.value,
-          [newId]: threadMsgs
+          [newId]: mergedMsgs
         }
       }
     }
@@ -224,7 +241,6 @@ watch(selectedConvId, async (newId) => {
 })
 
 async function loadRealConversations() {
-  if (!fbToken.value) return
   if (rawConversations.value.length === 0) {
     loadingConversations.value = true
   }
@@ -234,7 +250,7 @@ async function loadRealConversations() {
     
     // Execute Supabase Webhook Audit Logs & Facebook Graph API Conversations IN PARALLEL!
     const [webhookRes, fbRes] = await Promise.all([
-      fetch(`${supabaseUrl}/rest/v1/audit_logs?action=in.(facebook_message_received,facebook_message_sent)&order=created_at.desc&limit=50`, {
+      fetch(`${supabaseUrl}/rest/v1/audit_logs?action=in.(facebook_message_received,facebook_message_sent)&order=created_at.desc&limit=100`, {
         headers: { "apikey": anonKey, "Authorization": `Bearer ${anonKey}` }
       }).then(r => r.ok ? r.json() : []).catch(() => []),
       fetchRealFBConversations(fbToken.value)
@@ -242,38 +258,64 @@ async function loadRealConversations() {
 
     const webhookLogs: any[] = webhookRes || []
     const res: RealFBConversation[] = fbRes || []
+    const pageId = '199752947097328'
     
-    // Merge Supabase Webhook items (Both Customer & AI Bot messages) if any exist
+    // Merge Supabase Webhook items (Both Customer & AI Bot & Staff messages) if any exist
     if (webhookLogs && webhookLogs.length > 0) {
       webhookLogs.forEach((log: any) => {
         const psid = log.target_id
-        const isBot = log.action === 'facebook_message_sent'
-        const senderName = isBot ? "KING's GRILL" : (log.before_json?.customer_name || `Khách FB (${psid})`)
-        const senderId = isBot ? '199752947097328' : psid
+        if (!psid) return
+
+        const isFromRestaurant = log.action === 'facebook_message_sent'
+        const isBot = isFromRestaurant && log.actor_role === 'ai_bot'
+        const isStaff = isFromRestaurant && (log.actor_role === 'staff' || log.actor_role === 'staff_fanpage')
+        
+        let senderName = log.before_json?.customer_name || `Khách FB (${psid.slice(-4)})`
+        let senderId = psid
+        let msgId = `wh-${log.id}`
+
+        if (isBot) {
+          senderName = "🤖 KING'S GRILL (AI Bot)"
+          senderId = pageId
+          msgId = `ai-${log.id}`
+        } else if (isStaff) {
+          senderName = log.actor_role === 'staff' ? "👤 Lễ Tân (Nhắn Tay Webapp)" : "👤 Lễ Tân (Fanpage Inbox)"
+          senderId = pageId
+          msgId = `staff-${log.id}`
+        } else if (isFromRestaurant) {
+          senderName = "👤 Lễ Tân (Fanpage)"
+          senderId = pageId
+          msgId = `staff-${log.id}`
+        }
+
         const text = log.after_json?.text || ''
         const time = log.created_at
 
         // Find if conversation thread exists
-        const existing = res.find(c => c.senders?.data?.some(s => s.id === psid))
+        const existing = res.find(c => c.id === `wh-thread-${psid}` || c.senders?.data?.some(s => s.id === psid) || (c as any).participants?.data?.some((p: any) => p.id === psid))
         if (existing) {
           existing.messages = existing.messages || { data: [] }
           if (!existing.messages.data.some(m => m.message === text)) {
             existing.messages.data.unshift({
-              id: `wh-${log.id}`,
+              id: msgId,
               message: text,
               created_time: time,
               from: { name: senderName, id: senderId }
             })
+            if (!existing.updated_time || new Date(time).getTime() > new Date(existing.updated_time).getTime()) {
+              existing.updated_time = time
+            }
           }
         } else {
+          const customerName = log.before_json?.customer_name || `Khách FB (${psid.slice(-4)})`
           res.unshift({
             id: `wh-thread-${psid}`,
             updated_time: time,
             unread_count: 1,
-            senders: { data: [{ name: senderName, id: psid }] },
+            senders: { data: [{ name: customerName, id: psid }] },
             messages: {
               data: [{
-                id: `wh-${log.id}`,
+                id: msgId,
                 message: text,
                 created_time: time,
                 from: { name: senderName, id: senderId }
@@ -300,10 +342,18 @@ async function loadRealConversations() {
       }
       
       // Fetch detailed thread for top conversation asynchronously in background
-      if (!res[0].id.startsWith('wh-thread-')) {
+      if (!res[0].id.startsWith('wh-thread-') && fbToken.value) {
         fetchRealFBThreadMessages(res[0].id, fbToken.value).then(topThreadMsgs => {
           if (topThreadMsgs && topThreadMsgs.length > 0) {
-            activeThreadMessages.value[res[0].id] = topThreadMsgs
+            const existingConv = res[0]
+            const webhookMsgs = (existingConv?.messages?.data || []).filter(m => m.id.startsWith('wh-') || m.id.startsWith('staff-') || m.id.startsWith('ai-'))
+            const mergedMsgs = [...topThreadMsgs]
+            for (const wm of webhookMsgs) {
+              if (!mergedMsgs.some(m => m.message === wm.message)) {
+                mergedMsgs.push(wm)
+              }
+            }
+            activeThreadMessages.value[res[0].id] = mergedMsgs
           }
         })
       }
@@ -335,10 +385,24 @@ async function syncBotActiveStatusFromDB() {
   }
 }
 
+let autoRefreshTimer: any = null
+
 watch(() => ui.showSocialBotModal, (isOpen) => {
   if (isOpen) {
     syncBotActiveStatusFromDB()
     loadRealConversations()
+    if (!autoRefreshTimer) {
+      autoRefreshTimer = setInterval(() => {
+        if (ui.showSocialBotModal && !loadingConversations.value) {
+          loadRealConversations()
+        }
+      }, 10000)
+    }
+  } else {
+    if (autoRefreshTimer) {
+      clearInterval(autoRefreshTimer)
+      autoRefreshTimer = null
+    }
   }
 })
 
@@ -346,6 +410,13 @@ onMounted(() => {
   syncBotActiveStatusFromDB()
   if (ui.showSocialBotModal) {
     loadRealConversations()
+  }
+})
+
+onUnmounted(() => {
+  if (autoRefreshTimer) {
+    clearInterval(autoRefreshTimer)
+    autoRefreshTimer = null
   }
 })
 
@@ -606,15 +677,15 @@ function saveBotConfig() {
                     <span class="hidden sm:inline">Tìm FB</span>
                   </a>
 
-                  <!-- Open Messenger -->
+                  <!-- Open Meta Business Suite Inbox -->
                   <a 
-                    :href="`https://www.facebook.com/messages/t/${selectedConv.psid}`" 
+                    href="https://business.facebook.com/latest/inbox/messenger?asset_id=199752947097328&mailbox_id=199752947097328" 
                     target="_blank"
-                    class="min-h-[40px] px-2.5 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-xl text-[10px] font-bold flex items-center gap-1 border border-indigo-200 active:scale-95"
-                    title="Mở Messenger FB"
+                    class="min-h-[40px] px-2.5 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-[10px] font-bold flex items-center gap-1 border border-blue-700 active:scale-95 shadow-xs"
+                    title="Mở Hộp thư Meta Business Suite Fanpage King's Grill"
                   >
-                    <i class="fa-brands fa-facebook-messenger text-[10px] text-indigo-600"></i>
-                    <span class="hidden sm:inline">Chat FB</span>
+                    <i class="fa-solid fa-inbox text-[10px]"></i>
+                    <span class="hidden sm:inline">Meta Inbox</span>
                   </a>
 
                   <!-- Handover Toggle Switch -->
@@ -625,6 +696,38 @@ function saveBotConfig() {
                     <i :class="selectedConv.isHandover ? 'fa-solid fa-user-check' : 'fa-solid fa-robot'"></i>
                     <span>{{ selectedConv.isHandover ? 'Đang nhắn tay' : 'Nhắn tay' }}</span>
                   </button>
+                </div>
+              </div>
+
+              <!-- QUICK META BUSINESS SUITE RECOGNITION BAR -->
+              <div class="bg-indigo-950 text-indigo-100 px-3 py-2 flex flex-wrap sm:flex-nowrap items-center justify-between text-xs shrink-0 border-b border-indigo-900/60 shadow-inner gap-2">
+                <div class="flex items-center gap-2 min-w-0">
+                  <span class="px-1.5 py-0.5 rounded bg-indigo-500/30 text-indigo-300 font-mono text-[9px] font-black uppercase tracking-wider border border-indigo-400/30 shrink-0">
+                    <i class="fa-brands fa-facebook"></i> Đối chiếu Meta Suite
+                  </span>
+                  <div class="truncate text-[11px]">
+                    <span class="text-slate-300">Tin nhắn nhận diện: </span>
+                    <span class="font-bold text-amber-300">"{{ selectedConv.lastMessage }}"</span>
+                    <span class="text-indigo-300 font-medium ml-1">({{ selectedConv.timestamp }})</span>
+                  </div>
+                </div>
+                <div class="flex items-center gap-1.5 shrink-0 ml-auto sm:ml-0">
+                  <button 
+                    @click="copyLastMessage(selectedConv.lastMessage)"
+                    class="min-h-[28px] px-2.5 py-0.5 bg-indigo-800 hover:bg-indigo-700 text-white rounded-lg text-[10px] font-bold flex items-center gap-1 active:scale-95 transition-all border border-indigo-700"
+                    title="Copy dòng tin nhắn này để dán vào ô tìm kiếm trên Meta Business Suite"
+                  >
+                    <i class="fa-solid fa-copy text-[9px]"></i>
+                    <span>Copy tin nhắn</span>
+                  </button>
+                  <a 
+                    href="https://business.facebook.com/latest/inbox/messenger?asset_id=199752947097328&mailbox_id=199752947097328"
+                    target="_blank"
+                    class="min-h-[28px] px-2.5 py-0.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white rounded-lg text-[10px] font-black uppercase tracking-wider flex items-center gap-1 shadow-sm active:scale-95 transition-all"
+                  >
+                    <i class="fa-solid fa-arrow-up-right-from-square text-[9px]"></i>
+                    <span>Mở Meta Inbox</span>
+                  </a>
                 </div>
               </div>
 

@@ -223,6 +223,59 @@ describe('AI Gateway Cloudflare Worker Tests', () => {
     expect(mockEnv.SHEETS_QUEUE.send).toHaveBeenCalled()
   })
 
+  it('should forward /api and /api/ directly to GAS when SHEETS_QUEUE is not bound', async () => {
+    const staffJwt = generateValidJwt('staff')
+    const envNoQueue = { ...mockEnv, SHEETS_QUEUE: undefined }
+    fetchMock.mockResolvedValueOnce({
+      status: 200,
+      text: () => Promise.resolve(JSON.stringify({ ok: true, message: 'Saved direct' }))
+    })
+
+    const req = new Request('http://localhost/api/', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${staffJwt}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ action: 'saveOrder', id: 'order-direct-1' })
+    })
+
+    const res = await worker.fetch(req, envNoQueue as any, {} as any)
+    expect(res.status).toBe(200)
+    const json = await res.json() as any
+    expect(json.ok).toBe(true)
+    expect(json.message).toBe('Saved direct')
+    expect(fetchMock).toHaveBeenCalledWith(mockEnv.GAS_URL, expect.objectContaining({
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      redirect: 'follow'
+    }))
+  })
+
+  it('should safely handle non-JSON responses from GAS without crashing JSON parser', async () => {
+    const staffJwt = generateValidJwt('staff')
+    const envNoQueue = { ...mockEnv, SHEETS_QUEUE: undefined }
+    fetchMock.mockResolvedValueOnce({
+      status: 500,
+      text: () => Promise.resolve('<html>Error 500 Internal Server Error</html>')
+    })
+
+    const req = new Request('http://localhost/api', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${staffJwt}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ action: 'saveOrder', id: 'order-fail' })
+    })
+
+    const res = await worker.fetch(req, envNoQueue as any, {} as any)
+    expect(res.status).toBe(500)
+    const json = await res.json() as any
+    expect(json.ok).toBe(false)
+    expect(json.error).toContain('Error 500')
+  })
+
   it('should process Sheets sync queue batch and fetch GAS endpoint', async () => {
     const mockBatch = {
       messages: [
@@ -255,6 +308,60 @@ describe('AI Gateway Cloudflare Worker Tests', () => {
     const json = await res.json() as any
     expect(json.data[0].id).toBe('conv-1')
     expect(fetchMock).toHaveBeenCalledWith(expect.stringContaining('access_token=secret-page-token-123'))
+  })
+
+  it('should process Facebook webhook echo messages (staff replies) and record to audit_logs', async () => {
+    const customEnv = {
+      ...mockEnv,
+      FB_PAGE_ACCESS_TOKEN: 'secret-page-token-123'
+    }
+
+    const echoPayload = {
+      object: 'page',
+      entry: [
+        {
+          messaging: [
+            {
+              sender: { id: '199752947097328' },
+              recipient: { id: 'customer-psid-789' },
+              timestamp: Date.now(),
+              message: {
+                is_echo: true,
+                mid: 'mid.echo123',
+                text: 'Dạ nhà hàng nhận thông tin đặt bàn rồi ạ!'
+              }
+            }
+          ]
+        }
+      ]
+    }
+
+    const waitPromises: Promise<any>[] = []
+    const mockCtx = {
+      waitUntil: (p: Promise<any>) => waitPromises.push(p)
+    }
+
+    const req = new Request('http://localhost/api/webhook/facebook', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(echoPayload)
+    })
+
+    const res = await worker.fetch(req, customEnv as any, mockCtx as any)
+    expect(res.status).toBe(200)
+    expect(await res.text()).toBe('EVENT_RECEIVED')
+
+    // Await background execution in waitUntil
+    await Promise.all(waitPromises)
+
+    // Verify audit_logs POST call was made with actor_role staff_fanpage and action facebook_message_sent
+    expect(fetchMock).toHaveBeenCalledWith(
+      expect.stringContaining('/rest/v1/audit_logs'),
+      expect.objectContaining({
+        method: 'POST',
+        body: expect.stringContaining('"actor_role":"staff_fanpage"')
+      })
+    )
   })
 })
 

@@ -5,7 +5,7 @@ import type {
   CorrectionRepository 
 } from '@/repositories/repositoryInterfaces'
 import { GasOrderRepository, GasMenuRepository, GasSettingsRepository, GasCorrectionRepository } from '../gas/gasRepositories'
-import { PostgresOrderRepository, PostgresMenuRepository, PostgresSettingsRepository, PostgresCorrectionRepository } from '../postgres/postgresRepository'
+import { PostgresOrderRepository, PostgresMenuRepository, PostgresSettingsRepository, PostgresCorrectionRepository, stringToUuid } from '../postgres/postgresRepository'
 import * as outbox from '@/infrastructure/outbox/outbox'
 import { triggerSync as triggerOutboxSync } from '@/infrastructure/outbox/outboxSync'
 import { getBackendMode } from '@/utils/backendMode'
@@ -26,6 +26,46 @@ function getAdminToken(): string {
   }
 }
 
+export function mergeHistoryRecords(pgList: any[], gasList: any[]): any[] {
+  const map = new Map<string, any>()
+
+  // 1. First add all Google Sheets items (canonical business records with human-readable IDs like KG-...)
+  for (const gasItem of (gasList || [])) {
+    if (!gasItem || !gasItem.id) continue
+    const uuid = stringToUuid(gasItem.id)
+    map.set(uuid, gasItem)
+  }
+
+  // 2. Merge PostgreSQL items
+  for (const pgItem of (pgList || [])) {
+    if (!pgItem || !pgItem.id) continue
+    const uuid = pgItem.id
+    if (!map.has(uuid)) {
+      map.set(uuid, pgItem)
+    } else {
+      // Record exists in both -> merge, keeping newer version/timestamp, but retain human-readable ID
+      const existing = map.get(uuid)
+      const pgVer = Number(pgItem.version) || 1
+      const exVer = Number(existing.version) || 1
+      const pgTime = new Date(pgItem.timestamp || pgItem.created_at || 0).getTime()
+      const exTime = new Date(existing.timestamp || existing.meta?.updatedAt || 0).getTime()
+
+      if (pgVer > exVer || (pgVer === exVer && pgTime > exTime)) {
+        const finalId = (existing.id && !existing.id.includes('-0000-') && !existing.id.endsWith('000000')) ? existing.id : pgItem.id
+        map.set(uuid, { ...existing, ...pgItem, id: finalId })
+      }
+    }
+  }
+
+  const result = Array.from(map.values())
+  result.sort((a, b) => {
+    const tA = new Date(a.timestamp || a.created_at || a.meta?.updatedAt || 0).getTime()
+    const tB = new Date(b.timestamp || b.created_at || b.meta?.updatedAt || 0).getTime()
+    return tB - tA
+  })
+  return result
+}
+
 export class DualWriteOrderRepository implements OrderRepository {
   private gas = new GasOrderRepository()
   private pg = new PostgresOrderRepository()
@@ -39,16 +79,33 @@ export class DualWriteOrderRepository implements OrderRepository {
       return this.pg.getHistory(onBgUpdate)
     }
     
-    // Dual Write Mode: Ưu tiên đọc từ PostgreSQL (Supabase) để đạt tốc độ cao (<100ms)
+    // Dual Write Mode:
+    // 1. Ưu tiên đọc từ PostgreSQL (Supabase) để đạt tốc độ cao (<100ms)
+    let pgResult: any = null
     try {
-      const pgResult = await this.pg.getHistory(onBgUpdate)
-      if (pgResult && pgResult.ok && Array.isArray(pgResult.data) && pgResult.data.length > 0) {
-        return pgResult
-      }
+      pgResult = await this.pg.getHistory()
     } catch (e: any) {
       console.warn('[DualWrite] PG read failed, falling back to GAS:', e.message)
     }
 
+    // 2. Nếu Postgres có dữ liệu và có callback onBgUpdate
+    if (pgResult && pgResult.ok && Array.isArray(pgResult.data) && pgResult.data.length > 0) {
+      if (onBgUpdate) {
+        // Tải ngầm từ Google Sheets để gộp dữ liệu hoàn chỉnh, không bỏ sót bất kỳ đơn thực tế nào
+        const handleGasData = (gasResult: any) => {
+          if (gasResult && gasResult.ok && Array.isArray(gasResult.data)) {
+            const merged = mergeHistoryRecords(pgResult.data, gasResult.data)
+            onBgUpdate({ ok: true, data: merged })
+          }
+        }
+        this.gas.getHistory(handleGasData).then(handleGasData).catch(err => {
+          console.warn('[DualWrite] Background GAS history sync error:', err.message)
+        })
+      }
+      return pgResult
+    }
+
+    // 3. Fallback sang Google Sheets nếu Postgres thất bại hoặc rỗng
     try {
       const gasResult = await this.gas.getHistory(onBgUpdate)
       if (gasResult && gasResult.ok && Array.isArray(gasResult.data)) {
@@ -112,7 +169,7 @@ export class DualWriteOrderRepository implements OrderRepository {
 
     // Dual Write mode: Lưu đồng thời vào Google Sheets và PostgreSQL (Promise.allSettled) để đạt tốc độ tối đa
     const [gasResult, pgResult] = await Promise.allSettled([
-      this.gas.saveOrder(data),
+      this.gas.saveOrder(data, { silent: true }),
       this.pg.saveOrder(data, token)
     ])
 
@@ -135,7 +192,7 @@ export class DualWriteOrderRepository implements OrderRepository {
 
     if (gasOk || pgOk) {
       // Lưu thành công 1 nguồn, nguồn còn lại lỗi -> Đưa vào Outbox để retry bù trừ ngầm
-      await outbox.addToOutbox(orderId, 'upsert', data)
+      await outbox.addToOutbox(orderId, 'upsert', data, { syncedToPg: pgOk, syncedToSheets: gasOk })
       notifyStoreOutboxUpdate()
       triggerOutboxSync().catch(() => {})
       const failedTarget = !gasOk ? 'Google Sheets' : 'PostgreSQL'
@@ -150,7 +207,7 @@ export class DualWriteOrderRepository implements OrderRepository {
 
     // CẢ 2 NGUỒN ĐỀU THẤT BẠI (Mất mạng / Offline / Lỗi server đồng thời)
     // BẮT BUỘC ĐƯA VÀO OUTBOX MÃ HÓA CỤC BỘ ĐỂ KHÔNG MẤT DỮ LIỆU
-    await outbox.addToOutbox(orderId, 'upsert', data)
+    await outbox.addToOutbox(orderId, 'upsert', data, { syncedToPg: false, syncedToSheets: false })
     notifyStoreOutboxUpdate()
     return {
       ok: true,
@@ -220,14 +277,14 @@ export class DualWriteOrderRepository implements OrderRepository {
 
     if (pgOk || gasOk) {
       // Xóa thành công 1 bên, đưa tác vụ xóa bên còn lại vào Outbox
-      await outbox.addToOutbox(id, 'delete', { id, password, token: resolvedToken })
+      await outbox.addToOutbox(id, 'delete', { id, password, token: resolvedToken }, { syncedToPg: pgOk, syncedToSheets: gasOk })
       notifyStoreOutboxUpdate()
       triggerOutboxSync().catch(() => {})
       return { ok: true, id, status: 'partially_synced', message: 'Partially deleted, queued for remaining target' }
     }
 
     // Cả 2 bên đều thất bại (Offline)
-    await outbox.addToOutbox(id, 'delete', { id, password, token: resolvedToken })
+    await outbox.addToOutbox(id, 'delete', { id, password, token: resolvedToken }, { syncedToPg: false, syncedToSheets: false })
     notifyStoreOutboxUpdate()
     return { ok: true, id, status: 'pending', message: 'Queued for offline deletion' }
   }

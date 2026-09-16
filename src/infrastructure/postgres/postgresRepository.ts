@@ -59,18 +59,27 @@ function toPgDate(ddmmyyyy: string): string {
 
   const parts = str.split('/')
   if (parts.length === 3) {
-    const d = parts[0].padStart(2, '0')
-    const m = parts[1].padStart(2, '0')
-    const y = parts[2].length === 2 ? `20${parts[2]}` : parts[2]
-    return `${y}-${m}-${d}`
+    const dNum = parseInt(parts[0], 10)
+    const mNum = parseInt(parts[1], 10)
+    let yNum = parseInt(parts[2], 10)
+    if (yNum < 100) yNum += 2000
+    if (dNum >= 1 && dNum <= 31 && mNum >= 1 && mNum <= 12 && yNum >= 2000 && yNum <= 2100) {
+      const d = String(dNum).padStart(2, '0')
+      const m = String(mNum).padStart(2, '0')
+      return `${yNum}-${m}-${d}`
+    }
   }
   if (parts.length === 2) {
-    const d = parts[0].padStart(2, '0')
-    const m = parts[1].padStart(2, '0')
-    const y = new Date().getFullYear()
-    return `${y}-${m}-${d}`
+    const dNum = parseInt(parts[0], 10)
+    const mNum = parseInt(parts[1], 10)
+    const yNum = new Date().getFullYear()
+    if (dNum >= 1 && dNum <= 31 && mNum >= 1 && mNum <= 12) {
+      const d = String(dNum).padStart(2, '0')
+      const m = String(mNum).padStart(2, '0')
+      return `${yNum}-${m}-${d}`
+    }
   }
-  return str
+  return new Date().toISOString().split('T')[0]
 }
 
 function fromPgDate(yyyymmdd: string): string {
@@ -82,10 +91,74 @@ function fromPgDate(yyyymmdd: string): string {
   return yyyymmdd
 }
 
+export function toPgTime(timeStr: string): string {
+  if (!timeStr || typeof timeStr !== 'string') return '18:00:00'
+  const str = timeStr.trim().toLowerCase()
+  
+  const m1 = str.match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?/)
+  if (m1) {
+    const h = parseInt(m1[1], 10)
+    const m = parseInt(m1[2], 10)
+    const s = m1[3] ? parseInt(m1[3], 10) : 0
+    if (h >= 0 && h < 24 && m >= 0 && m < 60 && s >= 0 && s < 60) {
+      return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`
+    }
+  }
+
+  const m2 = str.match(/(\d{1,2})h(\d{2})?/i)
+  if (m2) {
+    const h = parseInt(m2[1], 10)
+    const m = m2[2] ? parseInt(m2[2], 10) : 0
+    if (h >= 0 && h < 24 && m >= 0 && m < 60) {
+      return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:00`
+    }
+  }
+
+  const m3 = str.match(/^(\d{1,2})$/)
+  if (m3) {
+    const h = parseInt(m3[1], 10)
+    if (h >= 0 && h < 24) {
+      return `${String(h).padStart(2, '0')}:00:00`
+    }
+  }
+
+  const m4 = str.match(/(\d{1,2})[:h](\d{2})/)
+  if (m4) {
+    const h = parseInt(m4[1], 10)
+    const m = parseInt(m4[2], 10)
+    if (h >= 0 && h < 24 && m >= 0 && m < 60) {
+      return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:00`
+    }
+  }
+
+  return '18:00:00'
+}
+
+function isValidJwt(token?: string): boolean {
+  return typeof token === 'string' && token.split('.').length === 3
+}
+
 export class PostgresOrderRepository implements OrderRepository {
   async getHistory(onBgUpdate?: (data: any) => void): Promise<any> {
     try {
-      const rows = await pgFetch('/bookings?select=*&order=booking_date.desc,start_time.desc')
+      const rows: any[] = []
+      let offset = 0
+      const limit = 1000
+      let hasMore = true
+      
+      while (hasMore) {
+        const batch = await pgFetch(`/bookings?select=*&order=booking_date.desc,start_time.desc&offset=${offset}&limit=${limit}`)
+        if (Array.isArray(batch) && batch.length > 0) {
+          rows.push(...batch)
+          offset += batch.length
+          if (batch.length < limit) {
+            hasMore = false
+          }
+        } else {
+          hasMore = false
+        }
+      }
+
       const data = rows.map((row: any) => ({
         id: row.id,
         version: row.version,
@@ -149,8 +222,9 @@ export class PostgresOrderRepository implements OrderRepository {
       customer_phone: orderData.customer?.phone || orderData.phone || '',
       normalized_phone: cleanPhoneNumber(orderData.customer?.phone || orderData.phone || ''),
       booking_date: toPgDate(orderData.customer?.date || orderData.booking_date || ''),
-      start_time: orderData.customer?.time || orderData.booking_time || '18:00',
+      start_time: toPgTime(orderData.customer?.time || orderData.booking_time || '18:00'),
       guest_count: parseInt(orderData.customer?.pax || orderData.guest_count || '1') || 1,
+      table_id: orderData.customer?.tables || orderData.customer?.table_number || orderData.table_number || orderData.tables || null,
       status: orderData.customer?.type || orderData.status || 'Ăn thường',
       note: orderData.customer?.note || orderData.note || '',
       ordered_items: orderData.items || orderData.menuItems || [],
@@ -161,14 +235,14 @@ export class PostgresOrderRepository implements OrderRepository {
       bill_url: orderData.billUrl || '',
       staff: orderData.staff || { name: 'Admin', phone: '' },
       version: Number(orderData.version) || 1,
-      idempotency_key: orderData.idempotencyKey || `idemp-${orderId}-${Number(orderData.version) || 1}`
+      idempotency_key: orderData.idempotencyKey || null
     }
 
     try {
       const headers: Record<string, string> = {
         'Prefer': 'resolution=merge-duplicates, return=representation'
       }
-      if (token) {
+      if (isValidJwt(token)) {
         headers['Authorization'] = `Bearer ${token}`
       }
       const response = await pgFetch(`/bookings?on_conflict=id`, {
@@ -202,7 +276,7 @@ export class PostgresOrderRepository implements OrderRepository {
     try {
       const uuid = stringToUuid(id)
       const headers: Record<string, string> = {}
-      if (token) {
+      if (isValidJwt(token)) {
         headers['Authorization'] = `Bearer ${token}`
       }
       await pgFetch(`/bookings?id=eq.${encodeURIComponent(uuid)}`, {

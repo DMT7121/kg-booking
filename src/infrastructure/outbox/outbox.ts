@@ -31,6 +31,9 @@ export interface OutboxItem {
   attempts: number
   lastError: string | null
   idempotencyKey: string
+  syncedToPg?: boolean
+  syncedToSheets?: boolean
+  lastAttemptAt?: number
 }
 
 export interface DecryptedOutboxItem {
@@ -42,6 +45,14 @@ export interface DecryptedOutboxItem {
   attempts: number
   lastError: string | null
   idempotencyKey: string
+  syncedToPg?: boolean
+  syncedToSheets?: boolean
+  lastAttemptAt?: number
+}
+
+export interface PartialSyncStatus {
+  syncedToPg?: boolean
+  syncedToSheets?: boolean
 }
 
 async function getOrCreateOutboxKey(): Promise<CryptoKey> {
@@ -86,7 +97,12 @@ async function saveOutboxRawItems(items: OutboxItem[]): Promise<void> {
   await idbSet(OUTBOX_ITEMS_STORE, items)
 }
 
-export async function addToOutbox(id: string, action: 'upsert' | 'delete', payload: any): Promise<string> {
+export async function addToOutbox(
+  id: string, 
+  action: 'upsert' | 'delete', 
+  payload: any,
+  partialStatus?: PartialSyncStatus
+): Promise<string> {
   // Clone payload to avoid modifying the caller's reference
   const clonedPayload = JSON.parse(JSON.stringify(payload))
 
@@ -116,11 +132,14 @@ export async function addToOutbox(id: string, action: 'upsert' | 'delete', paylo
     action,
     ciphertext,
     iv,
-    createdAt: Date.now(),
+    createdAt: existingIdx >= 0 ? items[existingIdx].createdAt : Date.now(),
     synced: false,
-    attempts: 0,
+    attempts: existingIdx >= 0 ? items[existingIdx].attempts : 0,
     lastError: null,
-    idempotencyKey
+    idempotencyKey,
+    syncedToPg: partialStatus?.syncedToPg ?? (existingIdx >= 0 ? items[existingIdx].syncedToPg : false),
+    syncedToSheets: partialStatus?.syncedToSheets ?? (existingIdx >= 0 ? items[existingIdx].syncedToSheets : false),
+    lastAttemptAt: Date.now()
   }
 
   if (existingIdx >= 0) {
@@ -133,9 +152,28 @@ export async function addToOutbox(id: string, action: 'upsert' | 'delete', paylo
   return idempotencyKey
 }
 
-export async function getPendingItems(): Promise<DecryptedOutboxItem[]> {
+export async function updateTargetSyncStatus(
+  id: string,
+  action: 'upsert' | 'delete',
+  status: PartialSyncStatus
+): Promise<void> {
+  const items = await getOutboxRawItems()
+  const idx = items.findIndex(item => item.id === id && item.action === action && !item.synced)
+  if (idx >= 0) {
+    if (status.syncedToPg !== undefined) items[idx].syncedToPg = status.syncedToPg
+    if (status.syncedToSheets !== undefined) items[idx].syncedToSheets = status.syncedToSheets
+    await saveOutboxRawItems(items)
+  }
+}
+
+export async function getPendingItems(includeDeadLetter = false): Promise<DecryptedOutboxItem[]> {
   const rawItems = await getOutboxRawItems()
-  const pending = rawItems.filter(item => !item.synced && !item.lastError?.startsWith('Conflict detected') && item.attempts < 5)
+  const pending = rawItems.filter(item => {
+    if (item.synced) return false
+    if (item.lastError?.startsWith('Conflict detected')) return false
+    if (!includeDeadLetter && item.attempts >= 5) return false
+    return true
+  })
   
   const decrypted: DecryptedOutboxItem[] = []
   if (pending.length === 0) return decrypted
@@ -153,10 +191,57 @@ export async function getPendingItems(): Promise<DecryptedOutboxItem[]> {
         synced: item.synced,
         attempts: item.attempts,
         lastError: item.lastError,
-        idempotencyKey: item.idempotencyKey
+        idempotencyKey: item.idempotencyKey,
+        syncedToPg: item.syncedToPg,
+        syncedToSheets: item.syncedToSheets,
+        lastAttemptAt: item.lastAttemptAt
       })
     } catch (e: any) {
       console.error(`[Outbox] Failed to decrypt item ${item.id}:`, e.message)
+    }
+  }
+  return decrypted
+}
+
+export async function getAllOutboxItemsDecrypted(): Promise<DecryptedOutboxItem[]> {
+  const rawItems = await getOutboxRawItems()
+  const unSynced = rawItems.filter(item => !item.synced)
+  if (unSynced.length === 0) return []
+
+  const decrypted: DecryptedOutboxItem[] = []
+  const key = await getOrCreateOutboxKey()
+
+  for (const item of unSynced) {
+    try {
+      const rawJson = await decryptData(item.ciphertext, item.iv, key)
+      decrypted.push({
+        id: item.id,
+        action: item.action,
+        payload: JSON.parse(rawJson),
+        createdAt: item.createdAt,
+        synced: item.synced,
+        attempts: item.attempts,
+        lastError: item.lastError,
+        idempotencyKey: item.idempotencyKey,
+        syncedToPg: item.syncedToPg,
+        syncedToSheets: item.syncedToSheets,
+        lastAttemptAt: item.lastAttemptAt
+      })
+    } catch (e: any) {
+      console.error(`[Outbox] Failed to decrypt item ${item.id}:`, e.message)
+      decrypted.push({
+        id: item.id,
+        action: item.action,
+        payload: null,
+        createdAt: item.createdAt,
+        synced: item.synced,
+        attempts: item.attempts,
+        lastError: item.lastError || 'Decryption failure',
+        idempotencyKey: item.idempotencyKey,
+        syncedToPg: item.syncedToPg,
+        syncedToSheets: item.syncedToSheets,
+        lastAttemptAt: item.lastAttemptAt
+      })
     }
   }
   return decrypted
@@ -167,6 +252,8 @@ export async function markAsSynced(id: string, action: 'upsert' | 'delete'): Pro
   const idx = items.findIndex(item => item.id === id && item.action === action && !item.synced)
   if (idx >= 0) {
     items[idx].synced = true
+    items[idx].syncedToPg = true
+    items[idx].syncedToSheets = true
     items[idx].lastError = null
     await saveOutboxRawItems(items)
   }
@@ -178,8 +265,28 @@ export async function recordAttemptFailure(id: string, action: 'upsert' | 'delet
   if (idx >= 0) {
     items[idx].attempts += 1
     items[idx].lastError = errorMsg
+    items[idx].lastAttemptAt = Date.now()
     await saveOutboxRawItems(items)
   }
+}
+
+export async function retryOutboxItem(id: string, action: 'upsert' | 'delete'): Promise<void> {
+  const items = await getOutboxRawItems()
+  const idx = items.findIndex(item => item.id === id && item.action === action)
+  if (idx >= 0) {
+    items[idx].attempts = 0
+    items[idx].lastError = null
+    items[idx].synced = false
+    items[idx].lastAttemptAt = 0
+    await saveOutboxRawItems(items)
+  }
+}
+
+export async function removeOutboxItem(id: string, action: 'upsert' | 'delete'): Promise<void> {
+  const items = await getOutboxRawItems()
+  const filtered = items.filter(item => !(item.id === id && item.action === action))
+  await saveOutboxRawItems(filtered)
+  await deleteImageFromBuffer(id).catch(() => {})
 }
 
 export async function cleanupOutboxHistory(retentionDays = 7): Promise<number> {
