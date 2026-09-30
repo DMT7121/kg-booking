@@ -28,6 +28,23 @@ export const useConfigStore = defineStore('config', () => {
     ...JSON.parse(localStorage.getItem(CACHE_KEYS.BRANDING) || '{}')
   })
 
+  // --- Bill Template & Render Preferences ---
+  const billPreferences = reactive({
+    template: (localStorage.getItem('kg_bill_template') as 'modern' | 'luxury' | 'ticket') || 'modern',
+    quality: (localStorage.getItem('kg_bill_quality') as 'standard' | 'hd' | 'ultra') || 'hd',
+    hidePrice: localStorage.getItem('kg_bill_hide_price') === 'true'
+  })
+
+  watch(() => billPreferences.template, (val) => {
+    localStorage.setItem('kg_bill_template', val)
+  })
+  watch(() => billPreferences.quality, (val) => {
+    localStorage.setItem('kg_bill_quality', val)
+  })
+  watch(() => billPreferences.hidePrice, (val) => {
+    localStorage.setItem('kg_bill_hide_price', String(val))
+  })
+
   // Apply theme on load & live preview
   watch(() => branding.theme, (newTheme) => {
     if (newTheme && newTheme !== 'blue') {
@@ -380,6 +397,7 @@ export const useConfigStore = defineStore('config', () => {
 
   return {
     branding,
+    billPreferences,
     keysStatus, gatewayProviderStatus, defaults, visibleKeys, tempKeys, borrowPass,
     isVaultInitialized, isVaultUnlocked, vaultUnlockMode,
     initializeVault, unlockVault, lockVault, refreshVaultState,

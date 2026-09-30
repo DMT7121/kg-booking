@@ -2,6 +2,7 @@ import { ref, nextTick } from 'vue'
 import { useFormStore } from '@/stores/useFormStore'
 import { useAppStore } from '@/stores/useAppStore'
 import { useUIStore } from '@/stores/useUIStore'
+import { useConfigStore } from '@/stores/useConfigStore'
 import { stripAccents, resizeImage, loadLibrary, isIOS, isAndroid, isDesktop, generateBookingId } from '@/utils'
 import { fetchWithRetry, updateOrderImages } from '@/services/api'
 import { smartUploadImage } from '@/services/r2'
@@ -31,6 +32,7 @@ function _createBillRender() {
   const formStore = useFormStore()
   const appStore = useAppStore()
   const uiStore = useUIStore()
+  const configStore = useConfigStore()
   const { checkAndLogAiCorrections } = useAI()
 
   const billRef = ref<HTMLElement | null>(null)
@@ -197,12 +199,33 @@ function _createBillRender() {
           // Wait for rendering pipeline
           await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)))
 
-          // Render fixed high-quality scale directly (Retina 3x - 2400px siêu nét)
+          // Render based on user chosen quality (standard: 1.5x, hd: 2.0x, ultra: 3.0x)
+          const qualitySetting = configStore.billPreferences?.quality || 'hd'
+          let renderScale = 2.0
+          let qualityNumber = 0.92
+
+          if (qualitySetting === 'standard') {
+            renderScale = 1.5
+            qualityNumber = 0.88
+          } else if (qualitySetting === 'ultra') {
+            renderScale = 3.0
+            qualityNumber = 0.96
+          }
+
+          // Mobile safety guard: cap scale if needed to prevent Safari canvas out-of-memory
+          if (isIOS && renderScale > 2.0) {
+            renderScale = 2.0
+          }
+
           try {
             const h2c = await getHtml2Canvas()
             canvas = await h2c(elementToRender, {
-              scale: 3, useCORS: true, logging: false,
-              backgroundColor: '#ffffff', width: 800, windowWidth: 800,
+              scale: renderScale,
+              useCORS: true,
+              logging: false,
+              backgroundColor: '#ffffff',
+              width: 800,
+              windowWidth: 800,
               imageTimeout: 15000,
               ignoreElements: (el: Element) => el.classList.contains('no-print') || (el as HTMLElement).style?.display === 'none'
             })
@@ -217,7 +240,7 @@ function _createBillRender() {
 
           if (!canvas) throw new Error('Render ảnh thất bại. Vui lòng chuyển sang tab Bill rồi thử lại.')
 
-          highResBase64 = canvas.toDataURL('image/jpeg', 0.95)
+          highResBase64 = canvas.toDataURL('image/jpeg', qualityNumber)
 
           if (highResBase64.length < 500) throw new Error('Render ảnh thất bại (File quá nhỏ). Vui lòng thử lại.')
         } catch (renderErr: any) {

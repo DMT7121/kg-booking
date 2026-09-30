@@ -197,109 +197,203 @@ function openZaloChat() {
     ui.showToast('Không có số điện thoại khách hàng!', 'warning')
   }
 }
+
+import BillTemplateModern from '@/components/bills/templates/BillTemplateModern.vue'
+import BillTemplateLuxury from '@/components/bills/templates/BillTemplateLuxury.vue'
+import BillTemplateTicket from '@/components/bills/templates/BillTemplateTicket.vue'
+
+const showQualityMenu = ref(false)
+const qualities = [
+  { id: 'standard', name: 'Tiêu chuẩn', scale: '1.5x', tag: '~350KB', desc: 'Gửi nhanh Zalo/3G', icon: 'fa-bolt' },
+  { id: 'hd', name: 'Sắc nét HD', scale: '2.0x', tag: '~800KB', desc: 'Chuẩn Retina / 2K', icon: 'fa-star' },
+  { id: 'ultra', name: 'Siêu nét Ultra', scale: '3.0x', tag: '~1.8MB', desc: 'Lưu trữ & In ấn 4K', icon: 'fa-gem' }
+] as const
+
+const templates = [
+  { id: 'modern', name: 'Tối giản', icon: 'fa-newspaper', desc: 'Editorial' },
+  { id: 'luxury', name: 'Hoàng gia', icon: 'fa-crown', desc: 'Royal VIP' },
+  { id: 'ticket', name: 'Vé sự kiện', icon: 'fa-ticket', desc: 'Boarding Pass' }
+] as const
+
+function selectQuality(qId: 'standard' | 'hd' | 'ultra') {
+  configStore.billPreferences.quality = qId
+  showQualityMenu.value = false
+  ui.showToast(`Đã chọn chất lượng ảnh: ${qualities.find(q => q.id === qId)?.name}`, 'info')
+}
+
+function selectTemplate(tId: 'modern' | 'luxury' | 'ticket') {
+  configStore.billPreferences.template = tId
+  nextTick(() => {
+    updatePreviewScale()
+  })
+}
+
+function toggleHidePrice() {
+  configStore.billPreferences.hidePrice = !configStore.billPreferences.hidePrice
+  if (configStore.billPreferences.hidePrice) {
+    ui.showToast('Đã bật chế độ thiệp mời (Ẩn giá tiền)', 'info')
+  } else {
+    ui.showToast('Đã hiển thị đầy đủ giá tiền', 'info')
+  }
+}
 </script>
 
 <template>
   <div ref="previewContainerRef" :class="[
     'flex flex-col relative w-full h-full select-none transition-all duration-300',
-    isFullscreen ? 'fixed inset-0 z-[200] bg-slate-900/95 backdrop-blur-md h-[100dvh] overflow-hidden' : 'bg-slate-50 dark:bg-slate-950'
+    isFullscreen ? 'fixed inset-0 z-50 bg-slate-950' : 'bg-slate-100/50 dark:bg-slate-900/50'
   ]">
-    
     <!-- ZOOM / ACTION TOOLBAR -->
     <!-- DESKTOP TOOLBAR (md:flex, hidden on mobile) -->
     <div :class="[
-      'hidden md:flex px-4 py-2.5 border-b items-center justify-between gap-3 shrink-0 z-20 shadow-sm transition-colors duration-250 w-full',
+      'hidden md:flex px-4 py-2.5 border-b items-center justify-between gap-2.5 shrink-0 z-20 shadow-sm transition-colors duration-250 w-full',
       isFullscreen ? 'bg-surface-canvas border-border-default text-white' : 'bg-white dark:bg-surface-2 border-slate-200 dark:border-border-subtle text-slate-700 dark:text-slate-200'
     ]">
-      <!-- Left: Navigation / Page Info -->
-      <div class="flex items-center gap-2">
-        <button @click="ui.tab = 'create'" class="w-8 h-8 rounded-xl bg-slate-100 dark:bg-surface-3 flex items-center justify-center hover:bg-slate-200 dark:hover:bg-surface-4 transition-colors text-slate-700 dark:text-slate-200" title="Quay lại">
+      <!-- Left: Navigation / Page Info & Status -->
+      <div class="flex items-center gap-2 shrink-0">
+        <button @click="ui.tab = 'create'" class="w-8 h-8 rounded-xl bg-slate-100 dark:bg-surface-3 flex items-center justify-center hover:bg-slate-200 dark:hover:bg-surface-4 transition-colors text-slate-700 dark:text-slate-200 cursor-pointer" title="Quay lại">
           <i class="fa-solid fa-arrow-left"></i>
         </button>
-        <h3 class="font-black text-slate-800 dark:text-slate-100 text-xs">Xem trước phiếu đặt bàn</h3>
         <span :class="[
           'px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider shadow-sm',
           formStore.deposit.isPaid 
             ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20' 
             : 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20'
         ]">
-          {{ formStore.deposit.isPaid ? 'Đã đặt cọc' : 'Yêu cầu cọc' }}
+          {{ formStore.deposit.isPaid ? 'Đã cọc' : 'Yêu cầu cọc' }}
         </span>
       </div>
 
-      <!-- Center: Zoom Controls -->
-      <div class="flex items-center bg-slate-100 dark:bg-slate-800 p-0.5 rounded-full border border-slate-200/50 dark:border-slate-700/50">
-        <!-- Zoom Out -->
-        <button @click="adjustZoom(-0.1)" class="w-7 h-7 rounded-full flex items-center justify-center hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors text-slate-600 dark:text-slate-300" title="Thu nhỏ">
-          <i class="fa-solid fa-minus text-xs"></i>
-        </button>
+      <!-- Center: 3 Template Presets & Guest Mode Toggle -->
+      <div class="flex items-center gap-2">
+        <!-- 3 Template Presets Segmented Bar -->
+        <div class="flex items-center bg-slate-100 dark:bg-slate-800 p-1 rounded-2xl border border-slate-200/60 dark:border-slate-700/60 gap-1 shadow-2xs">
+          <button 
+            v-for="tpl in templates" 
+            :key="tpl.id"
+            @click="selectTemplate(tpl.id)"
+            :class="[
+              'px-2.5 py-1 rounded-xl text-[11px] font-black transition-all flex items-center gap-1.5 cursor-pointer',
+              configStore.billPreferences.template === tpl.id 
+                ? 'bg-white dark:bg-slate-900 text-blue-900 dark:text-blue-400 shadow-xs border border-slate-200/80 dark:border-slate-700' 
+                : 'text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200'
+            ]"
+            :title="`Chuyển sang mẫu phiếu ${tpl.name} (${tpl.desc})`"
+          >
+            <i class="fa-solid" :class="tpl.icon"></i>
+            <span>{{ tpl.name }}</span>
+          </button>
+        </div>
 
-        <!-- 100% -->
-        <button @click="setZoomMode('manual', 1.0)" class="px-2 py-0.5 rounded text-[10px] font-black hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200">
-          100%
-        </button>
-
-        <!-- Current Percentage -->
-        <span class="text-[10px] font-black w-10 text-center select-none text-slate-500 dark:text-slate-400">
-          {{ Math.round(zoomScale * 100) }}%
-        </span>
-
-        <!-- Zoom In -->
-        <button @click="adjustZoom(0.1)" class="w-7 h-7 rounded-full flex items-center justify-center hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors text-slate-600 dark:text-slate-300" title="Phóng to">
-          <i class="fa-solid fa-plus text-xs"></i>
-        </button>
-
-        <div class="w-[1px] h-4 bg-slate-300 dark:bg-slate-700 mx-1"></div>
-
-        <!-- Fit Width -->
-        <button @click="setZoomMode('fit-width')" :class="[
-          'px-2.5 py-1 rounded-full text-[10px] font-black transition-all',
-          zoomMode === 'fit-width' ? 'bg-blue-600 text-white shadow-sm' : 'hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-500 dark:text-slate-400'
-        ]" title="Vừa chiều ngang">
-          Vừa màn hình
+        <!-- Hide Price Toggle (Chế độ thiệp mời) -->
+        <button 
+          @click="toggleHidePrice"
+          :class="[
+            'px-2.5 py-1.5 rounded-xl text-[11px] font-black transition-all flex items-center gap-1.5 border cursor-pointer active:scale-95 shadow-2xs',
+            configStore.billPreferences.hidePrice 
+              ? 'bg-amber-100 dark:bg-amber-950/60 text-amber-900 dark:text-amber-300 border-amber-300' 
+              : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200/60 dark:border-slate-700/60 hover:bg-slate-200'
+          ]"
+          :title="configStore.billPreferences.hidePrice ? 'Đang bật chế độ thiệp mời (Bấm để hiện giá)' : 'Bấm để ẩn giá gửi khách (Chế độ thiệp mời)'"
+        >
+          <i class="fa-solid" :class="configStore.billPreferences.hidePrice ? 'fa-eye-slash text-amber-600' : 'fa-eye text-slate-400'"></i>
+          <span>{{ configStore.billPreferences.hidePrice ? 'Đang ẩn giá' : 'Hiện giá' }}</span>
         </button>
       </div>
 
-      <!-- Right Actions -->
-      <div class="flex items-center gap-1.5">
+      <!-- Right Actions: Zoom + Cọc + Export with Quality Selector -->
+      <div class="flex items-center gap-1.5 shrink-0">
+        <!-- Zoom Controls -->
+        <div class="flex items-center bg-slate-100 dark:bg-slate-800 p-0.5 rounded-full border border-slate-200/50 dark:border-slate-700/50">
+          <button @click="adjustZoom(-0.1)" class="w-6 h-6 rounded-full flex items-center justify-center hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors text-slate-600 dark:text-slate-300 cursor-pointer" title="Thu nhỏ">
+            <i class="fa-solid fa-minus text-[10px]"></i>
+          </button>
+          <button @click="setZoomMode('fit-width')" class="px-2 py-0.5 rounded text-[10px] font-black hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 cursor-pointer" title="Vừa màn hình">
+            {{ Math.round(zoomScale * 100) }}%
+          </button>
+          <button @click="adjustZoom(0.1)" class="w-6 h-6 rounded-full flex items-center justify-center hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors text-slate-600 dark:text-slate-300 cursor-pointer" title="Phóng to">
+            <i class="fa-solid fa-plus text-[10px]"></i>
+          </button>
+        </div>
+
         <!-- Confirm Deposit -->
         <button @click="toggleDepositState" :class="[
-          'px-3 py-1.5 rounded-xl font-black text-[10px] uppercase flex items-center gap-1 shadow-sm transition-all active:scale-95 border',
+          'px-2.5 py-1.5 rounded-xl font-black text-[10px] uppercase flex items-center gap-1 shadow-sm transition-all active:scale-95 border cursor-pointer',
           formStore.deposit.isPaid 
             ? 'bg-red-50 dark:bg-red-950/40 hover:bg-red-100 dark:hover:bg-red-900/50 text-red-700 dark:text-red-300 border-red-200 dark:border-red-800/60' 
             : 'bg-emerald-50 dark:bg-emerald-950/40 hover:bg-emerald-100 dark:hover:bg-emerald-900/50 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800/60'
         ]">
           <i class="fa-solid" :class="formStore.deposit.isPaid ? 'fa-xmark' : 'fa-check'"></i>
-          <span>{{ formStore.deposit.isPaid ? 'Hủy cọc' : 'Xác nhận cọc' }}</span>
-        </button>
-
-        <!-- Copy Message -->
-        <button @click="copyBookingConfirmation" class="bg-slate-50 dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 px-3 py-1.5 rounded-xl font-black text-[10px] uppercase flex items-center gap-1 border border-slate-200 dark:border-slate-700 transition-all active:scale-95 shadow-sm">
-          <i class="fa-solid fa-copy"></i> <span>Tin nhắn</span>
+          <span>{{ formStore.deposit.isPaid ? 'Hủy cọc' : 'Đã cọc' }}</span>
         </button>
 
         <!-- Copy Link -->
-        <button @click="shareCurrentBill" class="bg-slate-50 dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 px-3 py-1.5 rounded-xl font-black text-[10px] uppercase flex items-center gap-1 border border-slate-200 dark:border-slate-700 transition-all active:scale-95 shadow-sm">
-          <i class="fa-solid fa-link"></i> <span>Copy link</span>
+        <button @click="shareCurrentBill" class="bg-slate-50 dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 px-2.5 py-1.5 rounded-xl font-black text-[10px] uppercase flex items-center gap-1 border border-slate-200 dark:border-slate-700 transition-all active:scale-95 shadow-sm cursor-pointer" title="Copy link bill">
+          <i class="fa-solid fa-link text-blue-600 dark:text-blue-400"></i> <span>Link</span>
         </button>
 
-        <!-- Copy Image Link -->
-        <button v-if="formStore.billUrl" @click="copyBillImageUrl" class="bg-indigo-50 dark:bg-indigo-950/40 hover:bg-indigo-100 dark:hover:bg-indigo-900/50 text-indigo-700 dark:text-indigo-300 px-3 py-1.5 rounded-xl font-black text-[10px] uppercase flex items-center gap-1 border border-indigo-200 dark:border-indigo-800/60 transition-all active:scale-95 shadow-sm">
-          <i class="fa-solid fa-image"></i> <span>Copy Link Ảnh</span>
-        </button>
+        <!-- DOWNLOAD PNG WITH QUALITY SELECTOR -->
+        <div class="relative flex items-center">
+          <button 
+            @click="triggerSave('image')" 
+            class="bg-indigo-600 hover:bg-indigo-700 text-white pl-3 pr-2 py-1.5 rounded-l-xl font-black text-[10px] uppercase flex items-center gap-1 shadow-md transition-all active:scale-95 cursor-pointer"
+            title="Tải ảnh phiếu đặt bàn"
+          >
+            <i class="fa-solid fa-image"></i>
+            <span>Tải Ảnh ({{ qualities.find(q => q.id === configStore.billPreferences.quality)?.scale || '2x' }})</span>
+          </button>
+          <button 
+            @click="showQualityMenu = !showQualityMenu" 
+            class="bg-indigo-700 hover:bg-indigo-800 text-white px-2 py-1.5 rounded-r-xl border-l border-indigo-500 font-bold text-[10px] transition-all cursor-pointer"
+            title="Tùy chọn độ phân giải ảnh"
+          >
+            <i class="fa-solid fa-chevron-down text-[9px]"></i>
+          </button>
 
-        <!-- Download PNG -->
-        <button @click="triggerSave('image')" class="bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-1.5 rounded-xl font-black text-[10px] uppercase flex items-center gap-1 shadow-md transition-all active:scale-95">
-          <i class="fa-solid fa-image"></i> <span>PNG</span>
-        </button>
+          <!-- Backdrop for closing dropdown on click outside -->
+          <div v-if="showQualityMenu" class="fixed inset-0 z-40" @click="showQualityMenu = false"></div>
+
+          <!-- Quality Dropdown Popover -->
+          <div 
+            v-if="showQualityMenu" 
+            class="absolute right-0 top-full mt-2 w-64 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl z-50 p-2 text-left space-y-1 animate-in fade-in slide-in-from-top-2 duration-150"
+          >
+            <div class="px-2 py-1 text-[10px] font-black uppercase tracking-wider text-slate-400 border-b border-slate-100 dark:border-slate-800">
+              Độ phân giải & Chất lượng ảnh:
+            </div>
+            <button 
+              v-for="q in qualities" 
+              :key="q.id"
+              @click="selectQuality(q.id)"
+              :class="[
+                'w-full p-2 rounded-xl text-left flex items-start gap-2.5 transition-all cursor-pointer',
+                configStore.billPreferences.quality === q.id 
+                  ? 'bg-indigo-50 dark:bg-indigo-950/60 text-indigo-900 dark:text-indigo-300 font-bold' 
+                  : 'hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300'
+              ]"
+            >
+              <div class="w-6 h-6 rounded-lg bg-indigo-100 dark:bg-indigo-900/60 text-indigo-600 dark:text-indigo-400 flex items-center justify-center shrink-0 mt-0.5">
+                <i class="fa-solid text-xs" :class="q.icon"></i>
+              </div>
+              <div class="min-w-0 flex-1">
+                <div class="flex items-center justify-between text-xs">
+                  <span class="font-extrabold">{{ q.name }}</span>
+                  <span class="text-[10px] font-mono opacity-70">{{ q.tag }}</span>
+                </div>
+                <div class="text-[10px] text-slate-400 mt-0.5 leading-snug">{{ q.desc }}</div>
+              </div>
+              <i v-if="configStore.billPreferences.quality === q.id" class="fa-solid fa-check text-indigo-600 text-xs self-center"></i>
+            </button>
+          </div>
+        </div>
 
         <!-- Download PDF -->
-        <button @click="triggerSave('pdf')" class="bg-rose-600 hover:bg-rose-700 text-white px-3 py-1.5 rounded-xl font-black text-[10px] uppercase flex items-center gap-1 shadow-md transition-all active:scale-95">
+        <button @click="triggerSave('pdf')" class="bg-rose-600 hover:bg-rose-700 text-white px-2.5 py-1.5 rounded-xl font-black text-[10px] uppercase flex items-center gap-1 shadow-md transition-all active:scale-95 cursor-pointer" title="Tải file PDF">
           <i class="fa-solid fa-file-pdf"></i> <span>PDF</span>
         </button>
 
         <!-- Fullscreen Button -->
-        <button @click="isFullscreen = !isFullscreen; updatePreviewScale()" class="w-8 h-8 rounded-xl flex items-center justify-center bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 transition-all text-slate-600 dark:text-slate-300" :title="isFullscreen ? 'Thoát toàn màn hình' : 'Xem toàn màn hình'">
+        <button @click="isFullscreen = !isFullscreen; updatePreviewScale()" class="w-8 h-8 rounded-xl flex items-center justify-center bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 transition-all text-slate-600 dark:text-slate-300 cursor-pointer" :title="isFullscreen ? 'Thoát toàn màn hình' : 'Xem toàn màn hình'">
           <i class="fa-solid" :class="isFullscreen ? 'fa-compress text-blue-600' : 'fa-expand'"></i>
         </button>
       </div>
@@ -310,15 +404,14 @@ function openZaloChat() {
       'flex md:hidden flex-col border-b shrink-0 z-[120] shadow-sm transition-colors duration-250 w-full relative',
       isFullscreen ? 'bg-surface-canvas border-border-default text-white' : 'bg-white dark:bg-surface-2 border-slate-200 dark:border-border-subtle text-slate-700 dark:text-slate-200'
     ]">
-      <!-- Row 1: Back, Title, Status, More button (All min 44-48px hit areas) -->
+      <!-- Row 1: Back, Status, Fit Width, More button -->
       <div class="px-3 py-2 flex items-center justify-between gap-2 border-b border-slate-100/60 dark:border-border-subtle">
         <div class="flex items-center gap-2">
-          <button @click="ui.tab = 'create'" class="w-10 h-10 rounded-xl bg-slate-100 dark:bg-surface-3 flex items-center justify-center hover:bg-slate-200 dark:hover:bg-surface-4 transition-colors text-slate-700 dark:text-slate-200 active:scale-95" aria-label="Quay lại tạo đơn">
-            <i class="fa-solid fa-arrow-left text-sm"></i>
+          <button @click="ui.tab = 'create'" class="w-9 h-9 rounded-xl bg-slate-100 dark:bg-surface-3 flex items-center justify-center hover:bg-slate-200 dark:hover:bg-surface-4 transition-colors text-slate-700 dark:text-slate-200 active:scale-95" aria-label="Quay lại tạo đơn">
+            <i class="fa-solid fa-arrow-left text-xs"></i>
           </button>
-          <span class="font-black text-slate-800 dark:text-slate-100 text-xs uppercase tracking-wider">Phiếu đặt</span>
           <span :class="[
-            'px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider shadow-xs',
+            'px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider shadow-xs',
             formStore.deposit.isPaid 
               ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border border-emerald-500/25' 
               : 'bg-amber-500/15 text-amber-700 dark:text-amber-300 border border-amber-500/25'
@@ -327,17 +420,42 @@ function openZaloChat() {
           </span>
         </div>
         
-        <!-- More Actions Dropdown Toggle (min 44px) -->
         <div class="relative flex items-center gap-1.5">
-          <button @click="setZoomMode('fit-width')" class="px-2.5 py-2 rounded-xl text-[10px] font-black text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-surface-3 hover:bg-slate-200 dark:hover:bg-surface-4 transition-all active:scale-95 min-h-[40px] flex items-center gap-1" title="Vừa chiều ngang">
+          <button @click="setZoomMode('fit-width')" class="px-2.5 py-1.5 rounded-xl text-[10px] font-black text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-surface-3 hover:bg-slate-200 dark:hover:bg-surface-4 transition-all active:scale-95 min-h-[36px] flex items-center gap-1 cursor-pointer" title="Vừa chiều ngang">
             <i class="fa-solid fa-arrows-left-right text-xs"></i> Vừa ngang
           </button>
-          <button @click="showMoreMenu = !showMoreMenu" class="w-10 h-10 rounded-xl bg-slate-100 dark:bg-surface-3 hover:bg-slate-200 dark:hover:bg-surface-4 text-slate-700 dark:text-slate-200 flex items-center justify-center transition-all active:scale-95" aria-label="Menu thêm">
+          <button @click="showMoreMenu = !showMoreMenu" class="w-9 h-9 rounded-xl bg-slate-100 dark:bg-surface-3 hover:bg-slate-200 dark:hover:bg-surface-4 text-slate-700 dark:text-slate-200 flex items-center justify-center transition-all active:scale-95 cursor-pointer" aria-label="Menu thêm">
             <i class="fa-solid fa-ellipsis-vertical text-sm"></i>
           </button>
           
+          <!-- Backdrop for closing dropdown on click outside -->
+          <div v-if="showMoreMenu" class="fixed inset-0 z-40" @click="showMoreMenu = false"></div>
+
           <!-- Dropdown Menu -->
-          <div v-show="showMoreMenu" class="absolute right-0 top-full mt-2 w-52 bg-white dark:bg-surface-4 border border-slate-200 dark:border-border-default rounded-2xl shadow-2xl z-50 py-2 animate-in fade-in slide-in-from-top-2 duration-150 text-slate-700 dark:text-slate-200">
+          <div v-show="showMoreMenu" class="absolute right-0 top-full mt-2 w-60 bg-white dark:bg-surface-4 border border-slate-200 dark:border-border-default rounded-2xl shadow-2xl z-50 py-2 animate-in fade-in slide-in-from-top-2 duration-150 text-slate-700 dark:text-slate-200">
+            <!-- Mobile Quality Selector -->
+            <div class="px-3 py-2 border-b border-slate-100 dark:border-slate-800">
+              <div class="text-[10px] font-black uppercase text-slate-400 mb-1.5 flex items-center justify-between">
+                <span>Chất lượng ảnh xuất:</span>
+                <span class="font-mono text-indigo-600 dark:text-indigo-400">{{ qualities.find(q => q.id === configStore.billPreferences.quality)?.scale }}</span>
+              </div>
+              <div class="grid grid-cols-3 gap-1">
+                <button
+                  v-for="q in qualities"
+                  :key="q.id"
+                  @click="selectQuality(q.id); showMoreMenu = false"
+                  :class="[
+                    'py-1 text-[10px] font-black rounded-lg border text-center transition-all cursor-pointer',
+                    configStore.billPreferences.quality === q.id
+                      ? 'bg-indigo-600 text-white border-indigo-600 shadow-2xs font-extrabold'
+                      : 'bg-slate-50 dark:bg-slate-800/80 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700'
+                  ]"
+                >
+                  {{ q.scale }}
+                </button>
+              </div>
+            </div>
+
             <button @click="copyBookingConfirmation(); showMoreMenu = false" class="w-full px-4 py-3 text-left text-xs font-black uppercase tracking-wider hover:bg-slate-50 dark:hover:bg-slate-800 active:bg-slate-100 flex items-center gap-2.5 min-h-[44px]">
               <i class="fa-solid fa-copy text-slate-400 w-4 text-center text-sm"></i> Copy tin nhắn
             </button>
@@ -351,7 +469,6 @@ function openZaloChat() {
               <i class="fa-solid fa-comment-dots text-slate-400 w-4 text-center text-sm"></i> Nhắn Zalo
             </button>
             <div class="h-[1px] bg-slate-100 dark:bg-slate-800 my-1"></div>
-            <!-- Segregated Destructive Deposit Action in More Menu -->
             <button @click="toggleDepositState(); showMoreMenu = false" class="w-full px-4 py-3 text-left text-xs font-black uppercase tracking-wider flex items-center gap-2.5 min-h-[44px]" :class="formStore.deposit.isPaid ? 'text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/30' : 'text-emerald-600 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/30'">
               <i class="fa-solid w-4 text-center text-sm" :class="formStore.deposit.isPaid ? 'fa-arrow-rotate-left' : 'fa-circle-check'"></i>
               {{ formStore.deposit.isPaid ? 'Hủy trạng thái cọc' : 'Xác nhận cọc' }}
@@ -365,25 +482,57 @@ function openZaloChat() {
         </div>
       </div>
 
-      <!-- Row 2: Clean Export Actions (PNG, PDF, Share) — min 44-48px height, destructive action segregated! -->
+      <!-- Row 2: Template Presets Segmented Bar (Mobile) -->
+      <div class="px-3 py-1.5 flex items-center justify-between gap-1.5 border-b border-slate-100/60 dark:border-slate-800/60 bg-slate-50/70 dark:bg-slate-900/60">
+        <div class="flex items-center gap-1 bg-slate-200/60 dark:bg-slate-800 p-0.5 rounded-xl flex-1">
+          <button 
+            v-for="tpl in templates" 
+            :key="tpl.id"
+            @click="selectTemplate(tpl.id)"
+            :class="[
+              'flex-1 py-1 text-[10px] font-black rounded-lg transition-all text-center truncate cursor-pointer',
+              configStore.billPreferences.template === tpl.id 
+                ? 'bg-white dark:bg-slate-900 text-blue-900 dark:text-blue-400 shadow-2xs font-extrabold' 
+                : 'text-slate-500 dark:text-slate-400'
+            ]"
+          >
+            {{ tpl.name }}
+          </button>
+        </div>
+
+        <button 
+          @click="toggleHidePrice"
+          :class="[
+            'px-2 py-1 rounded-xl text-[10px] font-black transition-all flex items-center gap-1 border cursor-pointer shrink-0',
+            configStore.billPreferences.hidePrice 
+              ? 'bg-amber-100 dark:bg-amber-950/60 text-amber-900 dark:text-amber-300 border-amber-300' 
+              : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700'
+          ]"
+        >
+          <i class="fa-solid" :class="configStore.billPreferences.hidePrice ? 'fa-eye-slash text-amber-600' : 'fa-eye text-slate-400'"></i>
+          <span>{{ configStore.billPreferences.hidePrice ? 'Ẩn giá' : 'Hiện giá' }}</span>
+        </button>
+      </div>
+
+      <!-- Row 3: Clean Export Actions (PNG, PDF, Share) with Quality Tag -->
       <div class="px-3 py-2 flex items-center justify-between gap-2 border-b border-slate-100/50 dark:border-slate-800/50 bg-slate-50/50 dark:bg-slate-900/60">
         <!-- PNG -->
-        <button @click="triggerSave('image')" class="flex-1 min-h-[44px] bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-black text-xs uppercase tracking-wider flex items-center justify-center gap-1.5 shadow-sm active:scale-95 transition-all">
-          <i class="fa-solid fa-image text-xs"></i> <span>Tải PNG</span>
+        <button @click="triggerSave('image')" class="flex-1 min-h-[44px] bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-black text-xs uppercase tracking-wider flex items-center justify-center gap-1.5 shadow-sm active:scale-95 transition-all cursor-pointer">
+          <i class="fa-solid fa-image text-xs"></i> <span>Tải PNG ({{ qualities.find(q => q.id === configStore.billPreferences.quality)?.scale || '2x' }})</span>
         </button>
 
         <!-- PDF -->
-        <button @click="triggerSave('pdf')" class="flex-1 min-h-[44px] bg-rose-600 hover:bg-rose-700 text-white rounded-xl font-black text-xs uppercase tracking-wider flex items-center justify-center gap-1.5 shadow-sm active:scale-95 transition-all">
+        <button @click="triggerSave('pdf')" class="flex-1 min-h-[44px] bg-rose-600 hover:bg-rose-700 text-white rounded-xl font-black text-xs uppercase tracking-wider flex items-center justify-center gap-1.5 shadow-sm active:scale-95 transition-all cursor-pointer">
           <i class="fa-solid fa-file-pdf text-xs"></i> <span>Tải PDF</span>
         </button>
 
         <!-- Share Link -->
-        <button @click="shareCurrentBill" class="min-h-[44px] px-3.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 rounded-xl font-black text-xs uppercase tracking-wider flex items-center justify-center gap-1.5 shadow-xs active:scale-95 transition-all">
+        <button @click="shareCurrentBill" class="min-h-[44px] px-3.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 rounded-xl font-black text-xs uppercase tracking-wider flex items-center justify-center gap-1.5 shadow-xs active:scale-95 transition-all cursor-pointer">
           <i class="fa-solid fa-share-nodes text-xs text-blue-600 dark:text-blue-400"></i> <span>Gửi link</span>
         </button>
       </div>
 
-      <!-- Row 3: Compact Zoom Controls -->
+      <!-- Row 4: Compact Zoom Controls -->
       <div class="px-3 py-1.5 flex items-center justify-center gap-4 bg-slate-50/70 dark:bg-slate-900/80 border-t border-slate-100/40 dark:border-slate-800/40">
         <button @click="adjustZoom(-0.1)" class="w-8 h-8 rounded-full flex items-center justify-center hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-650 dark:text-slate-300 transition-colors active:scale-90" aria-label="Thu nhỏ">
           <i class="fa-solid fa-minus text-xs"></i>
@@ -410,239 +559,50 @@ function openZaloChat() {
         <!-- Scaled wrapper -->
         <div class="w-full max-w-[800px] relative transition-all duration-250 ease-out" :style="wrapperScaleStyles">
 
-          <div id="bill-render" :style="mobileScaleStyles" class="bill-preview-container w-[800px] p-10 md:p-14 bg-white rounded-none md:rounded-3xl relative mx-auto shadow-xl select-text border border-slate-200/50" @mousemove="handleMouseMove" @mouseleave="resetParallax" @dblclick="handleDoubleClick">
+          <!-- #bill-render CONTAINER (Dynamically Renders Chosen Template) -->
+          <div 
+            id="bill-render" 
+            :style="mobileScaleStyles" 
+            class="bill-preview-container w-[800px] relative mx-auto select-text shadow-xl rounded-none md:rounded-3xl overflow-hidden bg-white border border-slate-200/50" 
+            @mousemove="handleMouseMove" 
+            @mouseleave="resetParallax" 
+            @dblclick="handleDoubleClick"
+          >
+            <!-- 1. Modern Minimalist / Clean Editorial Template -->
+            <BillTemplateModern 
+              v-if="configStore.billPreferences.template === 'modern'"
+              :formStore="formStore"
+              :configStore="configStore"
+              :appStore="appStore"
+              :qrImageUrl="qrImageUrl"
+              :depositTransferContent="depositTransferContent"
+              :stampParallax="stampParallax"
+              :hidePrice="configStore.billPreferences.hidePrice"
+            />
 
-            <!-- HEADER -->
-            <div class="text-center mb-6 mt-0">
-              <div class="flex justify-center mb-2">
-                <img :src="configStore.branding.logo || '/favicon.svg'" class="h-[200px] object-contain print-no-shadow" alt="Logo" loading="lazy">
-              </div>
-              <h1 class="font-black tracking-widest text-blue-900 uppercase text-3xl mb-1" style="font-family: 'Be Vietnam Pro', sans-serif;">KING'S GRILL</h1>
-              <p class="text-slate-500 text-xs font-semibold mb-2" style="font-family: 'Inter', sans-serif;">ĐC: Số 34, Đường Hoàng Văn Thụ, Phường Thủ Dầu Một, Thành phố Hồ Chí Minh</p>
-              <h2 class="font-bold tracking-widest text-slate-500 uppercase text-xl" style="font-family: 'Inter', sans-serif;">PHIẾU ĐẶT BÀN</h2>
-              <div class="w-24 h-1 mx-auto mt-4 rounded-full bg-yellow-400"></div>
-            </div>
+            <!-- 2. Royal Luxury / Fine Dining Template -->
+            <BillTemplateLuxury 
+              v-else-if="configStore.billPreferences.template === 'luxury'"
+              :formStore="formStore"
+              :configStore="configStore"
+              :appStore="appStore"
+              :qrImageUrl="qrImageUrl"
+              :depositTransferContent="depositTransferContent"
+              :stampParallax="stampParallax"
+              :hidePrice="configStore.billPreferences.hidePrice"
+            />
 
-            <!-- INFO & STAMP SECTION -->
-            <div class="relative mb-10">
-              <!-- Customer Info Grid -->
-              <div class="grid gap-y-3.5 text-[16px] w-full lg:w-[70%]" style="grid-template-columns: 140px 1fr;">
-                <div class="flex items-center gap-3 text-slate-500 font-bold uppercase text-[12px] tracking-wider"><i class="fa-solid fa-user-tie w-4 text-center text-[13px]"></i> Khách hàng</div>
-                <div class="font-black text-blue-950 text-[16px]">{{ formStore.customer.name || '---' }}</div>
-                
-                <div class="flex items-center gap-3 text-slate-500 font-bold uppercase text-[12px] tracking-wider"><i class="fa-solid fa-phone w-4 text-center text-[13px]"></i> SĐT / Zalo</div>
-                <div class="font-black text-blue-950 text-[16px]">{{ formStore.customer.phone || '---' }}</div>
-                
-                <div class="flex items-center gap-3 text-slate-500 font-bold uppercase text-[12px] tracking-wider"><i class="fa-regular fa-calendar-days w-4 text-center text-[13px]"></i> Thời gian</div>
-                <div class="font-black text-blue-950 text-[16px]">{{ getDayOfWeek(formStore.customer.date) ? getDayOfWeek(formStore.customer.date) + ', ' : '' }}{{ formStore.customer.date || 'dd/mm/yyyy' }} • {{ formStore.customer.time || '--:--' }}</div>
-                
-                <div class="flex items-center gap-3 text-slate-500 font-bold uppercase text-[12px] tracking-wider"><i class="fa-solid fa-users w-4 text-center text-[13px]"></i> Số khách</div>
-                <div class="font-black text-blue-950 text-[16px]">{{ formStore.customer.pax || '0' }} người</div>
-                
-                <div class="flex items-center gap-3 text-slate-500 font-bold uppercase text-[12px] tracking-wider"><i class="fa-solid fa-border-all w-4 text-center text-[13px]"></i> Bàn</div>
-                <div class="font-black text-blue-950 text-[16px]">{{ formStore.customer.tables || '---' }}</div>
-                
-                <div class="flex items-center gap-3 text-slate-500 font-bold uppercase text-[12px] tracking-wider"><i class="fa-solid fa-utensils w-4 text-center text-[13px]"></i> Loại tiệc</div>
-                <div class="font-black text-blue-950 text-[16px]">{{ formStore.customer.type || '---' }}</div>
-              </div>
-
-              <!-- Stamp -->
-              <div class="absolute -top-12 right-0 z-20 pointer-events-none" :style="{ transform: `rotate(-4deg) translate(${stampParallax.x}px, ${stampParallax.y}px)` }">
-                <div class="relative w-[220px] flex flex-col items-center justify-center">
-                  <img :src="formStore.deposit.isPaid ? '/images/stamps/paid.png' : '/images/stamps/pending.png'" class="w-full object-contain filter drop-shadow-sm" style="image-rendering: -webkit-optimize-contrast; image-rendering: crisp-edges;" alt="Stamp" />
-                  <div v-if="formStore.deposit.isPaid" class="mt-2 px-3 py-1 bg-white/95 border border-red-200/90 rounded-full shadow-xs text-center text-[#961825] font-black tracking-widest whitespace-nowrap font-tabular" style="font-family: 'Cal Sans', sans-serif; font-size: 13px;">
-                    {{ formatDepositTime(formStore.deposit.time) }}
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <!-- GHI CHÚ TIỆC / LƯU Ý PHỤC VỤ -->
-            <div v-if="formStore.customer.note && formStore.customer.note.trim()" class="mb-8 p-4 bg-amber-50/60 border border-amber-200/80 rounded-2xl text-left">
-              <div class="flex items-center gap-2 text-amber-950 font-black uppercase text-[11px] tracking-wider mb-2">
-                <i class="fa-solid fa-triangle-exclamation text-amber-600 text-sm animate-pulse"></i>
-                LƯU Ý PHỤC VỤ / GHI CHÚ TIỆC
-              </div>
-              <p class="text-amber-900 text-[14px] font-bold leading-relaxed whitespace-pre-line">{{ formStore.customer.note }}</p>
-            </div>
-
-            <!-- MENU TABLE -->
-            <div class="overflow-x-auto w-full mb-8">
-              <table class="w-full border-collapse">
-                <thead>
-                  <tr class="bg-blue-950 text-white">
-                    <th class="py-3 px-4 text-left font-bold text-[13px] rounded-tl-xl w-12">#</th>
-                    <th class="py-3 px-4 text-left font-bold text-[13px]">TÊN MÓN</th>
-                    <th class="py-3 px-4 text-center font-bold text-[13px] w-16">SL</th>
-                    <th class="py-3 px-4 text-right font-bold text-[13px] w-28">ĐƠN GIÁ</th>
-                    <th class="py-3 px-4 text-right font-bold text-[13px] rounded-tr-xl w-32">THÀNH TIỀN</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr v-if="!formStore.filteredBillItems.length">
-                    <td colspan="5" class="py-8 text-center text-slate-400 font-semibold bg-slate-50 border-b border-slate-200">
-                      <i class="fa-regular fa-bell mb-2 text-xl block text-slate-300"></i>
-                      Chưa có món đặt trước (Món ăn gọi trực tiếp tại nhà hàng)
-                      <div class="mt-3 text-[11px] text-amber-700 font-black bg-amber-50 px-4 py-2 rounded-xl border border-amber-100 inline-block leading-relaxed max-w-[95%]">
-                        <i class="fa-solid fa-circle-info mr-1 text-amber-500"></i>
-                        Cọc giữ bàn mặc định: {{ formatVND(formStore.deposit.amount) }} <br>
-                        <span class="text-[9px] font-bold text-slate-400">
-                          (Áp dụng cho bàn chưa đặt món trước {{ (parseInt(formStore.customer.pax) || 0) >= 20 ? 'từ 20 khách trở lên' : 'dưới 20 khách' }})
-                        </span>
-                      </div>
-                    </td>
-                  </tr>
-                  <tr v-for="(item, i) in formStore.filteredBillItems" :key="i" class="border-b border-slate-100">
-                    <td class="py-4 px-4 font-bold text-slate-400">{{ i + 1 }}</td>
-                    <td class="py-4 px-4 text-left">
-                      <div class="font-black text-slate-800 text-[15px] uppercase tracking-wide whitespace-normal break-words overflow-wrap-anywhere">{{ item.name || 'Chưa đặt tên' }}</div>
-                      <div v-if="item.note" class="text-[12px] text-rose-600 font-bold mt-1.5 whitespace-pre-line leading-relaxed text-left border-l-2 border-rose-200 pl-2">
-                        {{ item.note }}
-                      </div>
-                    </td>
-                    <td class="py-4 px-4 text-center font-black text-slate-800">{{ item.qty }}</td>
-                    <td class="py-4 px-4 text-right font-bold text-slate-600">{{ formatVND(item.price) }}</td>
-                    <td class="py-4 px-4 text-right font-black text-blue-900">{{ formatVND(item.price * item.qty) }}</td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-
-
-
-            <!-- TOTALS -->
-            <div class="space-y-4 mb-10 w-full md:w-1/2 ml-auto">
-              <div class="flex justify-between items-center text-lg">
-                <span class="font-bold text-slate-500 uppercase">TẠM TÍNH</span>
-                <span class="font-black text-slate-800">{{ formatVND(formStore.calculatedTotals.sub) }}</span>
-              </div>
-              
-              <template v-if="formStore.taxEnabled">
-                 <div v-if="formStore.calculatedTotals.vat8 > 0" class="flex justify-between items-center text-md text-slate-500">
-                   <span class="font-bold uppercase">VAT (8%)</span>
-                   <span class="font-bold">{{ formatVND(formStore.calculatedTotals.vat8) }}</span>
-                 </div>
-                 <div v-if="formStore.calculatedTotals.vat10 > 0" class="flex justify-between items-center text-md text-slate-500">
-                   <span class="font-bold uppercase">VAT (10%)</span>
-                   <span class="font-bold">{{ formatVND(formStore.calculatedTotals.vat10) }}</span>
-                 </div>
-              </template>
-
-              <div class="flex justify-between items-center pt-4 border-t-2 border-dashed border-slate-200">
-                <span class="text-2xl font-black text-blue-900 uppercase">TỔNG CỘNG</span>
-                <span class="text-3xl font-black text-blue-900">{{ formatVND(formStore.calculatedTotals.final) }}</span>
-              </div>
-              <div class="flex justify-between items-center pt-2">
-                <span class="text-lg font-bold flex items-center gap-2" :class="formStore.deposit.isPaid ? 'text-green-600' : 'text-red-500'">
-                  <i class="fa-solid" :class="formStore.deposit.isPaid ? 'fa-check' : 'fa-hourglass-half'"></i> 
-                  {{ formStore.deposit.isPaid ? 'ĐÃ ĐẶT CỌC' : 'YÊU CẦU ĐẶT CỌC' }}
-                </span>
-                <span class="text-2xl font-black font-tabular" :class="formStore.deposit.isPaid ? 'text-green-600' : 'text-red-500'">
-                  {{ formatVND(formStore.deposit.amount) }}
-                </span>
-              </div>
-
-              <!-- DEPOSIT INSTALLMENT BREAKDOWN (Clean, compact, no clutter) -->
-              <div v-if="formStore.deposit.isPaid && formStore.deposit.history && formStore.deposit.history.length > 1" class="bg-emerald-50/70 border border-emerald-200/80 rounded-2xl p-3 space-y-1.5 text-xs text-left shadow-xs">
-                <div class="font-black text-[10px] uppercase tracking-wider text-emerald-800 flex items-center gap-1.5 pb-1 border-b border-emerald-200/60">
-                  <i class="fa-solid fa-clock-rotate-left text-[11px] text-emerald-600"></i> Chi tiết các đợt cọc:
-                </div>
-                <div v-for="(h, idx) in formStore.deposit.history" :key="idx" class="flex justify-between items-center font-tabular text-[11px]">
-                  <span class="text-slate-600">
-                    {{ h.time }} <span class="font-black text-emerald-700">[{{ formatShortVND(h.delta) }}]</span> <span class="font-bold text-slate-400">(Lần {{ idx + 1 }})</span>
-                  </span>
-                  <span class="font-bold text-slate-700">{{ formatVND(h.amount) }}</span>
-                </div>
-                <div class="pt-1.5 border-t border-emerald-200/60 flex justify-between items-center font-black text-[12px] text-emerald-800">
-                  <span>Tổng cọc: [{{ formatShortVND(formStore.deposit.amount) }}]</span>
-                  <span class="font-tabular">{{ formatVND(formStore.deposit.amount) }}</span>
-                </div>
-              </div>
-              <div v-if="formStore.calculatedTotals.final - formStore.deposit.amount > 0" class="flex justify-between items-center pt-4 border-t-2 border-slate-200">
-                <span class="text-xl font-black text-slate-800 uppercase">CÒN LẠI</span>
-                <span class="text-2xl font-black text-rose-600">{{ formatVND(formStore.calculatedTotals.final - formStore.deposit.amount) }}</span>
-              </div>
-            </div>
-
-            <!-- QR BANK TRANSFER (Full Bill only) -->
-            <div v-if="appStore.currentBank && !formStore.deposit.isPaid" class="bg-slate-50 border-2 border-slate-100 rounded-3xl p-6 mb-8 w-full">
-              <h3 class="font-black text-sm text-slate-800 uppercase tracking-widest mb-6 text-center">THÔNG TIN CHUYỂN KHOẢN</h3>
-              
-              <div class="flex gap-4 md:gap-8 items-center justify-center flex-wrap md:flex-nowrap">
-                <!-- QR Code -->
-                <div class="flex-shrink-0">
-                  <img :src="qrImageUrl" class="w-60 h-60 object-contain rounded-2xl shadow-md border border-slate-200" alt="QR Code" loading="lazy">
-                </div>
-                
-                <!-- Bank Details -->
-                <div class="space-y-4 flex-grow w-full max-w-sm">
-                  <div class="flex justify-between items-center border-b border-slate-200 pb-2">
-                    <span class="text-sm font-bold text-slate-500 uppercase">Ngân hàng</span>
-                    <span class="font-black text-slate-800 text-right">{{ appStore.currentBank.name }}</span>
-                  </div>
-                  <div class="flex justify-between items-center border-b border-slate-200 pb-2">
-                    <span class="text-sm font-bold text-slate-500 uppercase">Số tài khoản</span>
-                    <span class="font-black text-blue-600 text-lg tracking-wider text-right">{{ appStore.currentBank.number }}</span>
-                  </div>
-                  <div class="flex justify-between items-center border-b border-slate-200 pb-2">
-                    <span class="text-sm font-bold text-slate-500 uppercase">Chủ tài khoản</span>
-                    <span class="font-black text-slate-800 text-right">{{ appStore.currentBank.owner }}</span>
-                  </div>
-                  <div class="flex justify-between items-center pt-1">
-                    <span class="text-sm font-bold text-slate-500 uppercase">Nội dung CK</span>
-                    <span class="font-black text-blue-600 text-right">{{ depositTransferContent }}</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-            
-            <!-- UNIFIED POLICY & NOTES CONTAINER -->
-            <div v-if="!formStore.deposit.isPaid || formStore.filteredBillItems.length > 0" class="bg-blue-50/30 border border-blue-100 rounded-3xl p-6 mb-8 text-left space-y-5 relative overflow-hidden">
-              <div class="absolute top-0 left-0 w-1.5 h-full bg-blue-500"></div>
-              
-              <div class="flex items-center gap-2 text-blue-950 font-black uppercase text-[11px] tracking-wider border-b border-blue-100/50 pb-2.5">
-                <i class="fa-solid fa-circle-exclamation text-blue-600 text-sm"></i>
-                Lưu ý quan trọng dành cho khách hàng
-              </div>
-
-              <!-- Subsection 1: Deposit Policy (shown only if not paid) -->
-              <div v-if="!formStore.deposit.isPaid" class="space-y-2">
-                <div class="text-[10px] font-black text-blue-900 uppercase tracking-widest flex items-center gap-1.5">
-                  <i class="fa-solid fa-vault text-[10px]"></i> 1. Quy định về đặt cọc
-                </div>
-                <div class="text-blue-950 text-[13px] font-bold leading-relaxed space-y-1.5 pl-4">
-                  <p>• Mức cọc tối thiểu là <span class="text-blue-900 font-black underline decoration-blue-500 decoration-2 underline-offset-4">500.000đ/bàn</span>. Với phiếu đặt có thức ăn, mức cọc bằng <span class="text-blue-900 font-black underline decoration-blue-500 decoration-2 underline-offset-4">1/3 tổng tiền thức ăn đặt trước</span>.</p>
-                  <p>• Hình thức trả cọc: Tiền cọc sẽ được <span class="text-emerald-700 font-black underline decoration-2 underline-offset-2">trừ vào bill khi thanh toán</span> hoặc <span class="text-emerald-700 font-black underline decoration-2 underline-offset-2">hoàn lại bằng tiền mặt</span>.</p>
-                  <p>• Yêu cầu đặt cọc: Quý khách vui lòng <span class="text-rose-700 font-black underline decoration-rose-500 decoration-2 underline-offset-4">đặt cọc đúng theo số tiền ghi trên phiếu</span>.</p>
-                </div>
-              </div>
-
-              <!-- Divider line if both are present -->
-              <div v-if="!formStore.deposit.isPaid && formStore.filteredBillItems.length > 0" class="h-[1px] bg-blue-100/50 my-3"></div>
-
-              <!-- Subsection 2: Pre-order Notes (shown only if has pre-ordered items) -->
-              <div v-if="formStore.filteredBillItems.length > 0" class="space-y-2">
-                <div class="text-[10px] font-black text-amber-800 uppercase tracking-widest flex items-center gap-1.5">
-                  <i class="fa-solid fa-utensils text-[10px]"></i> 2. Lưu ý cho món ăn đặt trước
-                </div>
-                <div class="text-slate-800 text-[13px] font-bold leading-relaxed space-y-1.5 pl-4">
-                  <p>• <strong>Giá món chênh lệch:</strong> Giá một số món có thể được cập nhật mới và chênh lệch so với thực đơn online. Nếu cần kiểm tra, quý khách có thể yêu cầu nhân viên cập nhật và phản hồi lại.</p>
-                  <p>• <strong>Giá chưa bao gồm thuế:</strong> Giá trên thực đơn chưa bao gồm VAT. Thuế suất áp dụng: <span class="text-amber-800 font-black underline decoration-amber-500 decoration-2 underline-offset-4">8%</span> đối với món ăn, đồ uống pha chế; <span class="text-amber-800 font-black underline decoration-amber-500 decoration-2 underline-offset-4">10%</span> đối với bia, rượu và đồ uống có ga đóng lon.</p>
-                  <p>• <strong>Thời gian lên thức ăn:</strong> Với món đặt trước, nhà hàng sẽ ưu tiên chuẩn bị nguyên liệu và sơ chế trước. Khi quý khách yêu cầu lên món, nhà hàng sẽ xác nhận lại một lần trước khi chế biến. Thời gian lên món dự kiến sẽ từ <span class="text-rose-600 font-black">10–30 phút</span>, theo tình hình thực tế tại thời điểm tổ chức.</p>
-                </div>
-              </div>
-            </div>
-
-            <!-- FOOTER -->
-            <div class="pt-8 text-center mt-12 border-t border-slate-100">
-              <div class="mb-4 text-slate-600 font-bold text-[13px] uppercase tracking-wider flex items-center justify-center gap-2">
-                <i class="fa-solid fa-headset text-blue-600 text-sm"></i>
-                <span>Nhân viên hỗ trợ: {{ formStore.staff.name || '---' }}</span>
-                <span v-if="formStore.staff.phone" class="text-blue-600 font-black ml-1">({{ formStore.staff.phone }})</span>
-              </div>
-              <p class="text-slate-500 font-bold mb-2">❤ Cảm ơn quý khách đã tin tưởng lựa chọn King's Grill!</p>
-              <p class="text-slate-400 font-medium italic">Hẹn gặp lại!</p>
-            </div>
+            <!-- 3. Smart Ticket / Boarding Pass Template -->
+            <BillTemplateTicket 
+              v-else
+              :formStore="formStore"
+              :configStore="configStore"
+              :appStore="appStore"
+              :qrImageUrl="qrImageUrl"
+              :depositTransferContent="depositTransferContent"
+              :stampParallax="stampParallax"
+              :hidePrice="configStore.billPreferences.hidePrice"
+            />
           </div>
         </div>
       </div>
