@@ -244,74 +244,74 @@ function applySmartRecommendation() {
     </div>
 
     <!-- Row 3: Date & Time -->
-    <div class="flex gap-4 w-full">
-      <!-- Ngày (60%) -->
-      <div class="w-[60%] space-y-1.5 flex flex-col">
+    <div class="flex gap-2.5 sm:gap-4 w-full">
+      <!-- Ngày (52% sm:56%) -->
+      <div class="w-[52%] sm:w-[56%] space-y-1.5 flex flex-col min-w-0">
         <label for="cust-date" class="text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-wider ml-1 flex items-center">
           Ngày <span class="text-red-500 ml-0.5">*</span>
           <span v-if="formStore.aiMetadata?.confidences?.date?.needs_review" class="text-amber-600 dark:text-amber-400 text-[9px] font-bold bg-amber-100/60 dark:bg-amber-950/60 px-1.5 py-0.5 rounded ml-2 animate-pulse"><i class="fa-solid fa-triangle-exclamation"></i> Cần kiểm tra</span>
         </label>
         <div class="relative">
           <i class="fa-regular fa-calendar absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500"></i>
-          <input id="cust-date" v-model="formStore.customer.date" autocomplete="off" inputmode="numeric" enterkeyhint="next" @focus="handleInputFocus" @blur="(e) => { handleInputBlur(); formatDate(); }" class="w-full border rounded-xl pl-9 pr-2 py-3 text-[16px] font-semibold text-slate-800 dark:text-slate-100 bg-white dark:bg-[#0B1220] focus:border-blue-500 dark:focus:border-[#78A6FF] focus:ring-4 focus:ring-blue-50 dark:focus:ring-[#2F67E8]/20 outline-none transition-all placeholder-slate-400 dark:placeholder-slate-500" :class="formStore.aiMetadata?.confidences?.date?.needs_review ? 'border-amber-400 bg-amber-50/10 focus:border-amber-500 focus:ring-amber-100' : 'border-slate-200 dark:border-[#293954]'" placeholder="dd/mm/yyyy">
+          <input id="cust-date" v-model="formStore.customer.date" autocomplete="off" inputmode="numeric" enterkeyhint="next" @focus="handleInputFocus" @blur="(e) => { handleInputBlur(); formatDate(); }" class="w-full border rounded-xl pl-8 sm:pl-9 pr-2 py-2.5 sm:py-3 text-[15px] sm:text-[16px] font-semibold text-slate-800 dark:text-slate-100 bg-white dark:bg-[#0B1220] focus:border-blue-500 dark:focus:border-[#78A6FF] focus:ring-4 focus:ring-blue-50 dark:focus:ring-[#2F67E8]/20 outline-none transition-all placeholder-slate-400 dark:placeholder-slate-500" :class="formStore.aiMetadata?.confidences?.date?.needs_review ? 'border-amber-400 bg-amber-50/10 focus:border-amber-500 focus:ring-amber-100' : 'border-slate-200 dark:border-[#293954]'" placeholder="dd/mm/yyyy">
         </div>
         <!-- Quick Chips for Date -->
         <div class="flex gap-1.5 mt-1.5 flex-nowrap overflow-x-auto no-scrollbar">
-          <button @click.prevent="formStore.customer.date = getTodayStr()" class="px-2.5 py-1 min-h-[30px] text-[10px] font-black uppercase tracking-wider rounded-lg bg-slate-100 dark:bg-[#182338] border border-slate-200 dark:border-[#293954] text-slate-600 dark:text-[#94A3B8] hover:bg-blue-50 dark:hover:bg-[#1E2C44] hover:text-blue-600 dark:hover:text-[#62A5FF] hover:border-blue-200 dark:hover:border-[#3B547C] active:scale-95 transition-all whitespace-nowrap shrink-0 cursor-pointer">Hôm nay</button>
-          <button @click.prevent="formStore.customer.date = getTomorrowStr()" class="px-2.5 py-1 min-h-[30px] text-[10px] font-black uppercase tracking-wider rounded-lg bg-slate-100 dark:bg-[#182338] border border-slate-200 dark:border-[#293954] text-slate-600 dark:text-[#94A3B8] hover:bg-blue-50 dark:hover:bg-[#1E2C44] hover:text-blue-600 dark:hover:text-[#62A5FF] hover:border-blue-200 dark:hover:border-[#3B547C] active:scale-95 transition-all whitespace-nowrap shrink-0 cursor-pointer">Mai</button>
+          <button @click.prevent="formStore.customer.date = getTodayStr()" class="px-2 sm:px-2.5 py-1 min-h-[30px] text-[10px] font-black uppercase tracking-wider rounded-lg bg-slate-100 dark:bg-[#182338] border border-slate-200 dark:border-[#293954] text-slate-600 dark:text-[#94A3B8] hover:bg-blue-50 dark:hover:bg-[#1E2C44] hover:text-blue-600 dark:hover:text-[#62A5FF] hover:border-blue-200 dark:hover:border-[#3B547C] active:scale-95 transition-all whitespace-nowrap shrink-0 cursor-pointer">Hôm nay</button>
+          <button @click.prevent="formStore.customer.date = getTomorrowStr()" class="px-2 sm:px-2.5 py-1 min-h-[30px] text-[10px] font-black uppercase tracking-wider rounded-lg bg-slate-100 dark:bg-[#182338] border border-slate-200 dark:border-[#293954] text-slate-600 dark:text-[#94A3B8] hover:bg-blue-50 dark:hover:bg-[#1E2C44] hover:text-blue-600 dark:hover:text-[#62A5FF] hover:border-blue-200 dark:hover:border-[#3B547C] active:scale-95 transition-all whitespace-nowrap shrink-0 cursor-pointer">Mai</button>
         </div>
       </div>
-      <!-- Giờ (40%) -->
-      <div class="w-[40%] space-y-1.5 flex flex-col">
+      <!-- Giờ (48% sm:44%) -->
+      <div class="w-[48%] sm:w-[44%] space-y-1.5 flex flex-col min-w-0">
         <label for="cust-time" class="text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-wider ml-1 flex items-center">
           Giờ <span class="text-red-500 ml-0.5">*</span>
           <span v-if="formStore.aiMetadata?.confidences?.time?.needs_review" class="text-amber-600 dark:text-amber-400 text-[9px] font-bold bg-amber-100/60 dark:bg-amber-950/60 px-1.5 py-0.5 rounded ml-2 animate-pulse"><i class="fa-solid fa-triangle-exclamation"></i> Cần kiểm tra</span>
         </label>
         <div class="relative">
           <i class="fa-regular fa-clock absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500"></i>
-          <input id="cust-time" v-model="formStore.customer.time" autocomplete="off" inputmode="numeric" enterkeyhint="next" @focus="handleInputFocus" @blur="handleInputBlur" class="w-full border rounded-xl pl-9 pr-2 py-3 text-[16px] font-semibold text-slate-800 dark:text-slate-100 bg-white dark:bg-[#0B1220] focus:border-blue-500 dark:focus:border-[#78A6FF] focus:ring-4 focus:ring-blue-50 dark:focus:ring-[#2F67E8]/20 outline-none transition-all placeholder-slate-400 dark:placeholder-slate-500" :class="formStore.aiMetadata?.confidences?.time?.needs_review ? 'border-amber-400 bg-amber-50/10 focus:border-amber-500 focus:ring-amber-100' : 'border-slate-200 dark:border-[#293954]'" placeholder="18:30">
+          <input id="cust-time" v-model="formStore.customer.time" autocomplete="off" inputmode="numeric" enterkeyhint="next" @focus="handleInputFocus" @blur="handleInputBlur" class="w-full border rounded-xl pl-8 sm:pl-9 pr-2 py-2.5 sm:py-3 text-[15px] sm:text-[16px] font-semibold text-slate-800 dark:text-slate-100 bg-white dark:bg-[#0B1220] focus:border-blue-500 dark:focus:border-[#78A6FF] focus:ring-4 focus:ring-blue-50 dark:focus:ring-[#2F67E8]/20 outline-none transition-all placeholder-slate-400 dark:placeholder-slate-500" :class="formStore.aiMetadata?.confidences?.time?.needs_review ? 'border-amber-400 bg-amber-50/10 focus:border-amber-500 focus:ring-amber-100' : 'border-slate-200 dark:border-[#293954]'" placeholder="18:30">
         </div>
         <!-- Quick Chips for Time -->
         <div class="flex gap-1 mt-1.5 flex-nowrap overflow-x-auto no-scrollbar">
-          <button @click.prevent="formStore.customer.time = '11:30'" class="px-2 py-1 min-h-[30px] text-[10px] font-black uppercase tracking-wider rounded-lg bg-slate-100 dark:bg-[#182338] border border-slate-200 dark:border-[#293954] text-slate-600 dark:text-[#94A3B8] hover:bg-blue-50 dark:hover:bg-[#1E2C44] hover:text-blue-600 dark:hover:text-[#62A5FF] active:scale-95 transition-all shrink-0 cursor-pointer">11:30</button>
-          <button @click.prevent="formStore.customer.time = '18:00'" class="px-2 py-1 min-h-[30px] text-[10px] font-black uppercase tracking-wider rounded-lg bg-slate-100 dark:bg-[#182338] border border-slate-200 dark:border-[#293954] text-slate-600 dark:text-[#94A3B8] hover:bg-blue-50 dark:hover:bg-[#1E2C44] hover:text-blue-600 dark:hover:text-[#62A5FF] active:scale-95 transition-all shrink-0 cursor-pointer">18:00</button>
-          <button @click.prevent="formStore.customer.time = '19:00'" class="px-2 py-1 min-h-[30px] text-[10px] font-black uppercase tracking-wider rounded-lg bg-slate-100 dark:bg-[#182338] border border-slate-200 dark:border-[#293954] text-slate-600 dark:text-[#94A3B8] hover:bg-blue-50 dark:hover:bg-[#1E2C44] hover:text-blue-600 dark:hover:text-[#62A5FF] active:scale-95 transition-all shrink-0 cursor-pointer">19:00</button>
+          <button @click.prevent="formStore.customer.time = '11:30'" class="px-1.5 sm:px-2 py-1 min-h-[30px] text-[9.5px] sm:text-[10px] font-black uppercase tracking-wider rounded-lg bg-slate-100 dark:bg-[#182338] border border-slate-200 dark:border-[#293954] text-slate-600 dark:text-[#94A3B8] hover:bg-blue-50 dark:hover:bg-[#1E2C44] hover:text-blue-600 dark:hover:text-[#62A5FF] active:scale-95 transition-all shrink-0 cursor-pointer">11:30</button>
+          <button @click.prevent="formStore.customer.time = '18:00'" class="px-1.5 sm:px-2 py-1 min-h-[30px] text-[9.5px] sm:text-[10px] font-black uppercase tracking-wider rounded-lg bg-slate-100 dark:bg-[#182338] border border-slate-200 dark:border-[#293954] text-slate-600 dark:text-[#94A3B8] hover:bg-blue-50 dark:hover:bg-[#1E2C44] hover:text-blue-600 dark:hover:text-[#62A5FF] active:scale-95 transition-all shrink-0 cursor-pointer">18:00</button>
+          <button @click.prevent="formStore.customer.time = '19:00'" class="px-1.5 sm:px-2 py-1 min-h-[30px] text-[9.5px] sm:text-[10px] font-black uppercase tracking-wider rounded-lg bg-slate-100 dark:bg-[#182338] border border-slate-200 dark:border-[#293954] text-slate-600 dark:text-[#94A3B8] hover:bg-blue-50 dark:hover:bg-[#1E2C44] hover:text-blue-600 dark:hover:text-[#62A5FF] active:scale-95 transition-all shrink-0 cursor-pointer">19:00</button>
         </div>
       </div>
     </div>
 
     <!-- Row 4: Pax & Tables -->
-    <div class="flex gap-4 w-full">
-      <!-- Số khách (45%) -->
-      <div class="w-[45%] space-y-1.5 flex flex-col">
+    <div class="flex gap-2.5 sm:gap-4 w-full">
+      <!-- Số khách (40% sm:45%) -->
+      <div class="w-[40%] sm:w-[45%] space-y-1.5 flex flex-col min-w-0">
         <label for="cust-pax" class="text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-wider ml-1 flex items-center">
           Khách <span class="text-red-500 ml-0.5">*</span>
           <span v-if="formStore.aiMetadata?.confidences?.pax?.needs_review" class="text-amber-600 dark:text-amber-400 text-[9px] font-bold bg-amber-100/60 dark:bg-amber-950/60 px-1.5 py-0.5 rounded ml-2 animate-pulse"><i class="fa-solid fa-triangle-exclamation"></i> Cần kiểm tra</span>
         </label>
         <div class="relative">
           <i class="fa-solid fa-user-group absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500"></i>
-          <input id="cust-pax" v-model="formStore.customer.pax" inputmode="numeric" enterkeyhint="next" @focus="handleInputFocus" @blur="handleInputBlur" class="w-full border rounded-xl pl-9 pr-2 py-3 text-[16px] font-semibold text-slate-800 dark:text-slate-100 bg-white dark:bg-[#0B1220] focus:border-blue-500 dark:focus:border-[#78A6FF] focus:ring-4 focus:ring-blue-50 dark:focus:ring-[#2F67E8]/20 outline-none transition-all placeholder-slate-400 dark:placeholder-slate-500" :class="formStore.aiMetadata?.confidences?.pax?.needs_review ? 'border-amber-400 bg-amber-50/10 focus:border-amber-500 focus:ring-amber-100' : 'border-slate-200 dark:border-[#293954]'" placeholder="SL">
+          <input id="cust-pax" v-model="formStore.customer.pax" inputmode="numeric" enterkeyhint="next" @focus="handleInputFocus" @blur="handleInputBlur" class="w-full border rounded-xl pl-8 sm:pl-9 pr-2 py-2.5 sm:py-3 text-[15px] sm:text-[16px] font-semibold text-slate-800 dark:text-slate-100 bg-white dark:bg-[#0B1220] focus:border-blue-500 dark:focus:border-[#78A6FF] focus:ring-4 focus:ring-blue-50 dark:focus:ring-[#2F67E8]/20 outline-none transition-all placeholder-slate-400 dark:placeholder-slate-500" :class="formStore.aiMetadata?.confidences?.pax?.needs_review ? 'border-amber-400 bg-amber-50/10 focus:border-amber-500 focus:ring-amber-100' : 'border-slate-200 dark:border-[#293954]'" placeholder="SL">
         </div>
         <!-- Quick Chips for Pax -->
         <div class="flex gap-1.5 mt-1.5 flex-nowrap overflow-x-auto no-scrollbar">
-          <button @click.prevent="formStore.customer.pax = '2'" class="px-2.5 py-1 min-h-[30px] text-[10px] font-black uppercase tracking-wider rounded-lg bg-slate-100 dark:bg-[#182338] border border-slate-200 dark:border-[#293954] text-slate-600 dark:text-[#94A3B8] hover:bg-blue-50 dark:hover:bg-[#1E2C44] hover:text-blue-600 dark:hover:text-[#62A5FF] active:scale-95 transition-all shrink-0 cursor-pointer">2</button>
-          <button @click.prevent="formStore.customer.pax = '4'" class="px-2.5 py-1 min-h-[30px] text-[10px] font-black uppercase tracking-wider rounded-lg bg-slate-100 dark:bg-[#182338] border border-slate-200 dark:border-[#293954] text-slate-600 dark:text-[#94A3B8] hover:bg-blue-50 dark:hover:bg-[#1E2C44] hover:text-blue-600 dark:hover:text-[#62A5FF] active:scale-95 transition-all shrink-0 cursor-pointer">4</button>
-          <button @click.prevent="formStore.customer.pax = '10'" class="px-2.5 py-1 min-h-[30px] text-[10px] font-black uppercase tracking-wider rounded-lg bg-slate-100 dark:bg-[#182338] border border-slate-200 dark:border-[#293954] text-slate-600 dark:text-[#94A3B8] hover:bg-blue-50 dark:hover:bg-[#1E2C44] hover:text-blue-600 dark:hover:text-[#62A5FF] active:scale-95 transition-all shrink-0 cursor-pointer">10</button>
+          <button @click.prevent="formStore.customer.pax = '2'" class="px-2 sm:px-2.5 py-1 min-h-[30px] text-[10px] font-black uppercase tracking-wider rounded-lg bg-slate-100 dark:bg-[#182338] border border-slate-200 dark:border-[#293954] text-slate-600 dark:text-[#94A3B8] hover:bg-blue-50 dark:hover:bg-[#1E2C44] hover:text-blue-600 dark:hover:text-[#62A5FF] active:scale-95 transition-all shrink-0 cursor-pointer">2</button>
+          <button @click.prevent="formStore.customer.pax = '4'" class="px-2 sm:px-2.5 py-1 min-h-[30px] text-[10px] font-black uppercase tracking-wider rounded-lg bg-slate-100 dark:bg-[#182338] border border-slate-200 dark:border-[#293954] text-slate-600 dark:text-[#94A3B8] hover:bg-blue-50 dark:hover:bg-[#1E2C44] hover:text-blue-600 dark:hover:text-[#62A5FF] active:scale-95 transition-all shrink-0 cursor-pointer">4</button>
+          <button @click.prevent="formStore.customer.pax = '10'" class="px-2 sm:px-2.5 py-1 min-h-[30px] text-[10px] font-black uppercase tracking-wider rounded-lg bg-slate-100 dark:bg-[#182338] border border-slate-200 dark:border-[#293954] text-slate-600 dark:text-[#94A3B8] hover:bg-blue-50 dark:hover:bg-[#1E2C44] hover:text-blue-600 dark:hover:text-[#62A5FF] active:scale-95 transition-all shrink-0 cursor-pointer">10</button>
         </div>
       </div>
-      <!-- Khu / Bàn (55%) -->
-      <div class="w-[55%] space-y-1.5">
+      <!-- Khu / Bàn (60% sm:55%) -->
+      <div class="w-[60%] sm:w-[55%] space-y-1.5 min-w-0">
         <label for="cust-tables" class="text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-wider ml-1 flex items-center">
           Khu / Bàn <span class="text-red-500 ml-0.5">*</span>
           <span v-if="formStore.aiMetadata?.confidences?.tables?.needs_review" class="text-amber-600 dark:text-amber-400 text-[9px] font-bold bg-amber-100/60 dark:bg-amber-950/60 px-1.5 py-0.5 rounded ml-2 animate-pulse"><i class="fa-solid fa-triangle-exclamation"></i> Cần kiểm tra</span>
         </label>
         <div class="relative flex items-center gap-1.5">
-          <div class="relative flex-1">
+          <div class="relative flex-1 min-w-0">
             <i class="fa-solid fa-map-location-dot absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500"></i>
-            <input id="cust-tables" v-model="formStore.customer.tables" autocomplete="off" enterkeyhint="next" @focus="handleInputFocus" @blur="handleInputBlur" class="w-full border rounded-xl pl-9 pr-2 py-3 text-[16px] font-semibold text-slate-800 dark:text-slate-100 bg-white dark:bg-[#0B1220] focus:border-blue-500 dark:focus:border-[#78A6FF] focus:ring-4 focus:ring-blue-50 dark:focus:ring-[#2F67E8]/20 outline-none transition-all placeholder-slate-400 dark:placeholder-slate-500" :class="formStore.aiMetadata?.confidences?.tables?.needs_review ? 'border-amber-400 bg-amber-50/10 focus:border-amber-500 focus:ring-amber-100' : 'border-slate-200 dark:border-[#293954]'" placeholder="VD: A1, B2...">
+            <input id="cust-tables" v-model="formStore.customer.tables" autocomplete="off" enterkeyhint="next" @focus="handleInputFocus" @blur="handleInputBlur" class="w-full border rounded-xl pl-8 sm:pl-9 pr-2 py-2.5 sm:py-3 text-[15px] sm:text-[16px] font-semibold text-slate-800 dark:text-slate-100 bg-white dark:bg-[#0B1220] focus:border-blue-500 dark:focus:border-[#78A6FF] focus:ring-4 focus:ring-blue-50 dark:focus:ring-[#2F67E8]/20 outline-none transition-all placeholder-slate-400 dark:placeholder-slate-500" :class="formStore.aiMetadata?.confidences?.tables?.needs_review ? 'border-amber-400 bg-amber-50/10 focus:border-amber-500 focus:ring-amber-100' : 'border-slate-200 dark:border-[#293954]'" placeholder="VD: A1, B2...">
           </div>
-          <button @click.prevent="ui.showFloorPlan = true" class="touch-target-48 w-11 h-11 bg-blue-50 dark:bg-[#182338] text-blue-600 dark:text-[#62A5FF] hover:bg-blue-100 dark:hover:bg-[#1E2C44] rounded-xl border border-blue-100 dark:border-[#293954] flex items-center justify-center transition-colors active:scale-95 shrink-0 cursor-pointer" title="Mở sơ đồ bàn" aria-label="Mở sơ đồ bàn">
-            <i class="fa-solid fa-border-all text-lg"></i>
+          <button @click.prevent="ui.showFloorPlan = true" class="touch-target-48 w-10 sm:w-11 h-10 sm:h-11 bg-blue-50 dark:bg-[#182338] text-blue-600 dark:text-[#62A5FF] hover:bg-blue-100 dark:hover:bg-[#1E2C44] rounded-xl border border-blue-100 dark:border-[#293954] flex items-center justify-center transition-colors active:scale-95 shrink-0 cursor-pointer" title="Mở sơ đồ bàn" aria-label="Mở sơ đồ bàn">
+            <i class="fa-solid fa-border-all text-base sm:text-lg"></i>
           </button>
         </div>
         <!-- Smart Table Allocation Recommendation Chip -->

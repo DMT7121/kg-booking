@@ -468,7 +468,7 @@ function openZaloChat() {
 
             <!-- MENU TABLE -->
             <div class="overflow-x-auto w-full mb-8">
-              <table class="w-full border-collapse min-w-[500px]">
+              <table class="w-full border-collapse">
                 <thead>
                   <tr class="bg-blue-950 text-white">
                     <th class="py-3 px-4 text-left font-bold text-[13px] rounded-tl-xl w-12">#</th>

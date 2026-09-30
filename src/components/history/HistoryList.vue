@@ -211,8 +211,10 @@ function isOrderCared(id: string) {
             <input v-model="localSearch" type="text" class="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 font-bold text-slate-700 dark:text-slate-200 text-[13px] focus:border-blue-600 dark:focus:border-blue-400 outline-none transition-all placeholder-slate-400 dark:placeholder-slate-500" placeholder="Tìm tên, SĐT, mã phiếu...">
             <i class="fa-solid fa-magnifying-glass absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400"></i>
           </div>
-          <button @click="ui.isBatchMode = !ui.isBatchMode" class="px-3.5 sm:px-4 py-2.5 rounded-xl border font-bold text-xs sm:text-[13px] flex items-center gap-1.5 sm:gap-2 active:scale-95 transition-all whitespace-nowrap shadow-sm cursor-pointer" :class="ui.isBatchMode ? 'border-red-200 dark:border-red-800/60 bg-red-50 dark:bg-red-950/40 text-red-600 dark:text-red-400' : 'border-blue-200 dark:border-blue-800/60 bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400'">
-            <i class="fa-solid" :class="ui.isBatchMode ? 'fa-trash' : 'fa-filter'"></i> {{ ui.isBatchMode ? 'Xóa Nhiều' : 'Bộ lọc' }}
+          <button @click="ui.isBatchMode = !ui.isBatchMode" class="px-3 sm:px-4 py-2.5 rounded-xl border font-bold text-xs sm:text-[13px] flex items-center gap-1.5 sm:gap-2 active:scale-95 transition-all whitespace-nowrap shadow-sm cursor-pointer shrink-0" :class="ui.isBatchMode ? 'border-red-200 dark:border-red-800/60 bg-red-50 dark:bg-red-950/40 text-red-600 dark:text-red-400' : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800'" :title="ui.isBatchMode ? 'Hủy chế độ chọn nhiều' : 'Bật chế độ chọn nhiều để xóa hàng loạt'" :aria-label="ui.isBatchMode ? 'Hủy chọn' : 'Chọn nhiều'">
+            <i class="fa-solid text-sm" :class="ui.isBatchMode ? 'fa-xmark text-red-500' : 'fa-list-check text-blue-600 dark:text-blue-400'"></i>
+            <span class="hidden sm:inline">{{ ui.isBatchMode ? 'Hủy chọn' : 'Chọn nhiều' }}</span>
+            <span class="sm:hidden">{{ ui.isBatchMode ? 'Hủy' : 'Chọn' }}</span>
           </button>
         </div>
         
