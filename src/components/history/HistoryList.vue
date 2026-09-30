@@ -332,7 +332,7 @@ function isOrderCared(id: string) {
             </div>
             <div class="flex flex-col items-end gap-1 shrink-0">
               <span class="text-[10px] font-bold text-slate-500 dark:text-slate-400 font-tabular">{{ group.latest.parsedCustomer?.date }} • {{ group.latest.parsedCustomer?.time }}</span>
-              <button class="text-slate-300 dark:text-slate-600 hover:text-blue-900 dark:hover:text-blue-400 p-1 min-h-[32px] min-w-[32px] flex items-center justify-center"><i class="fa-solid fa-ellipsis-vertical"></i></button>
+              <button class="text-slate-300 dark:text-slate-600 hover:text-blue-900 dark:hover:text-blue-400 p-1 min-h-[32px] min-w-[32px] flex items-center justify-center cursor-pointer" title="Tùy chọn khác" aria-label="Tùy chọn khác"><i class="fa-solid fa-ellipsis-vertical"></i></button>
             </div>
           </div>
 
@@ -382,23 +382,23 @@ function isOrderCared(id: string) {
 
           <!-- Actions Bottom Bar (Harmonized subtle icons + labels, >=40px touch targets) -->
           <div class="grid grid-cols-5 gap-1 items-center" @click.stop>
-            <button @click="ui.activeOrderForCare = group.latest; ui.showCustomerCareModal = true" class="min-h-[40px] px-1 rounded-xl hover:bg-slate-100 dark:hover:bg-surface-3 flex flex-col sm:flex-row items-center justify-center gap-0.5 sm:gap-1 text-[10px] sm:text-xs font-bold text-slate-600 dark:text-slate-300 hover:text-rose-500 dark:hover:text-rose-400 transition-colors active:scale-95">
+            <button @click="ui.activeOrderForCare = group.latest; ui.showCustomerCareModal = true" class="min-h-[40px] px-1 rounded-xl hover:bg-slate-100 dark:hover:bg-surface-3 flex flex-col sm:flex-row items-center justify-center gap-0.5 sm:gap-1 text-[10px] sm:text-xs font-bold text-slate-600 dark:text-slate-300 hover:text-rose-500 dark:hover:text-rose-400 transition-colors active:scale-95" title="Chăm sóc khách hàng" aria-label="Chăm sóc khách hàng">
               <i class="fa-solid fa-heart text-[11px]"></i>
               <span>CSKH</span>
             </button>
-            <button @click="handleEditOrder(group.latest)" class="min-h-[40px] px-1 rounded-xl hover:bg-slate-100 dark:hover:bg-surface-3 flex flex-col sm:flex-row items-center justify-center gap-0.5 sm:gap-1 text-[10px] sm:text-xs font-bold text-slate-600 dark:text-slate-300 hover:text-blue-500 dark:hover:text-blue-400 transition-colors active:scale-95">
+            <button @click="handleEditOrder(group.latest)" class="min-h-[40px] px-1 rounded-xl hover:bg-slate-100 dark:hover:bg-surface-3 flex flex-col sm:flex-row items-center justify-center gap-0.5 sm:gap-1 text-[10px] sm:text-xs font-bold text-slate-600 dark:text-slate-300 hover:text-blue-500 dark:hover:text-blue-400 transition-colors active:scale-95" title="Sửa thông tin phiếu" aria-label="Sửa thông tin phiếu">
               <i class="fa-solid fa-pen text-[11px]"></i>
               <span>Sửa</span>
             </button>
-            <button @click="shareBillLink(group.latest.id, group.latest.parsedCustomer?.name)" class="min-h-[40px] px-1 rounded-xl hover:bg-slate-100 dark:hover:bg-surface-3 flex flex-col sm:flex-row items-center justify-center gap-0.5 sm:gap-1 text-[10px] sm:text-xs font-bold text-slate-600 dark:text-slate-300 hover:text-blue-400 dark:hover:text-blue-300 transition-colors active:scale-95">
+            <button @click="shareBillLink(group.latest.id, group.latest.parsedCustomer?.name)" class="min-h-[40px] px-1 rounded-xl hover:bg-slate-100 dark:hover:bg-surface-3 flex flex-col sm:flex-row items-center justify-center gap-0.5 sm:gap-1 text-[10px] sm:text-xs font-bold text-slate-600 dark:text-slate-300 hover:text-blue-400 dark:hover:text-blue-300 transition-colors active:scale-95" title="Sao chép link phiếu đặt bàn" aria-label="Sao chép link phiếu đặt bàn">
               <i class="fa-solid fa-link text-[11px]"></i>
               <span>Link</span>
             </button>
-            <button @click="ui.selectedBooking = group.latest; ui.showBookingDetailModal = true" class="min-h-[40px] px-1 rounded-xl hover:bg-slate-100 dark:hover:bg-surface-3 flex flex-col sm:flex-row items-center justify-center gap-0.5 sm:gap-1 text-[10px] sm:text-xs font-bold text-slate-600 dark:text-slate-300 hover:text-indigo-400 dark:hover:text-indigo-300 transition-colors active:scale-95">
+            <button @click="ui.selectedBooking = group.latest; ui.showBookingDetailModal = true" class="min-h-[40px] px-1 rounded-xl hover:bg-slate-100 dark:hover:bg-surface-3 flex flex-col sm:flex-row items-center justify-center gap-0.5 sm:gap-1 text-[10px] sm:text-xs font-bold text-slate-600 dark:text-slate-300 hover:text-indigo-400 dark:hover:text-indigo-300 transition-colors active:scale-95" title="Xem chi tiết phiếu đặt" aria-label="Xem chi tiết phiếu đặt">
               <i class="fa-solid fa-eye text-[11px]"></i>
               <span>Xem</span>
             </button>
-            <button @click="deleteHistoricOrder(group.latest.id)" class="min-h-[40px] px-1 rounded-xl hover:bg-slate-100 dark:hover:bg-surface-3 flex flex-col sm:flex-row items-center justify-center gap-0.5 sm:gap-1 text-[10px] sm:text-xs font-bold text-slate-400 hover:text-red-600 dark:hover:text-red-400 transition-colors active:scale-95">
+            <button @click="deleteHistoricOrder(group.latest.id)" class="min-h-[40px] px-1 rounded-xl hover:bg-slate-100 dark:hover:bg-surface-3 flex flex-col sm:flex-row items-center justify-center gap-0.5 sm:gap-1 text-[10px] sm:text-xs font-bold text-slate-400 hover:text-red-600 dark:hover:text-red-400 transition-colors active:scale-95" title="Xóa phiếu đặt bàn" aria-label="Xóa phiếu đặt bàn">
               <i class="fa-solid fa-trash-can text-[11px]"></i>
               <span>Xóa</span>
             </button>
@@ -422,7 +422,7 @@ function isOrderCared(id: string) {
                   Tổng: {{ formatVND(group.latest.totalAmount) }}
                 </span>
               </div>
-              <div v-if="!group.latest.menuItems || group.latest.menuItems.length === 0" class="text-[11px] text-slate-400 italic py-1 text-center bg-white dark:bg-surface-2 rounded-xl p-2 border border-slate-150 dark:border-border-subtle">
+              <div v-if="!group.latest.menuItems || group.latest.menuItems.length === 0" class="text-[11px] text-slate-400 italic py-1 text-center bg-white dark:bg-surface-2 rounded-xl p-2 border border-slate-200 dark:border-border-subtle">
                 Chưa đặt món trước (Khách gọi trực tiếp tại nhà hàng)
               </div>
               <div v-else class="space-y-1.5 max-h-[180px] overflow-y-auto pr-1 custom-scrollbar">

@@ -166,13 +166,13 @@ const activeTab = ref('general') // 'general' | 'ai' | 'offline' | 'faq'
             <div class="bg-white rounded-3xl p-5 border border-slate-100 shadow-sm space-y-3">
               <h4 class="font-black text-slate-800 text-sm border-b border-slate-100 pb-2"><i class="fa-solid fa-sliders text-purple-500 mr-1.5"></i> Chế độ xem duyệt kết quả AI</h4>
               <div class="grid grid-cols-1 md:grid-cols-2 gap-3 pt-1">
-                <div class="border border-slate-150 rounded-2xl p-4 bg-slate-50/50 flex flex-col justify-between">
+                <div class="border border-slate-200 rounded-2xl p-4 bg-slate-50/50 flex flex-col justify-between">
                   <div>
                     <div class="font-bold text-slate-800 text-[12px] flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-emerald-500"></span> Chế độ Direct (Điền thẳng)</div>
                     <p class="text-slate-550 mt-1 leading-relaxed text-[11px] font-semibold">Hệ thống ghi nhận kết quả và điền đè ngay lập tức các trường dữ liệu trên form. Nhanh gọn cho các yêu cầu tiệc đơn giản.</p>
                   </div>
                 </div>
-                <div class="border border-slate-150 rounded-2xl p-4 bg-slate-50/50 flex flex-col justify-between">
+                <div class="border border-slate-200 rounded-2xl p-4 bg-slate-50/50 flex flex-col justify-between">
                   <div>
                     <div class="font-bold text-slate-800 text-[12px] flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-blue-500"></span> Chế độ Review (Kiểm duyệt)</div>
                     <p class="text-slate-550 mt-1 leading-relaxed text-[11px] font-semibold">Hiển thị bảng so sánh chi tiết giữa thông tin AI phân tích được và form hiện tại. Bạn có quyền tick chọn chỉ đồng ý cập nhật các trường mong muốn.</p>

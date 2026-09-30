@@ -759,8 +759,8 @@ const ambientTheme = computed(() => {
       <!-- Left Sidebar (Menu) -->
       <div class="w-full md:w-80 bg-slate-50 dark:bg-slate-900 flex flex-col h-full shrink-0 shadow-[4px_0_24px_rgba(0,0,0,0.02)] z-20 overflow-y-auto custom-scrollbar md:border-r md:border-slate-200 dark:md:border-slate-800" :class="{'hidden md:flex': ui.activeSettingModal, 'flex': !ui.activeSettingModal}">
         <!-- Top Header -->
-        <div class="bg-white dark:bg-slate-900 px-4 py-3.5 flex items-center justify-between sticky top-0 z-10 shadow-sm border-b border-slate-150 dark:border-slate-800">
-          <button @click="ui.showSettingsHub = false; ui.closeConfig()" class="w-9 h-9 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center justify-center text-slate-800 dark:text-slate-200 text-lg active:scale-95 transition-all">
+        <div class="bg-white dark:bg-slate-900 px-4 py-3.5 flex items-center justify-between sticky top-0 z-10 shadow-sm border-b border-slate-200 dark:border-slate-800">
+          <button @click="ui.showSettingsHub = false; ui.closeConfig()" class="w-9 h-9 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center justify-center text-slate-800 dark:text-slate-200 text-lg active:scale-95 transition-all cursor-pointer" title="Quay lại" aria-label="Quay lại giao diện chính">
             <i class="fa-solid fa-arrow-left"></i>
           </button>
           <div class="text-center flex-1">

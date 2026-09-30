@@ -266,7 +266,7 @@ function onSelectSuggestion(s: any, index: number) {
               <span class="w-6 h-6 rounded-lg bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 text-[11px] font-black flex items-center justify-center border border-blue-200/60 dark:border-blue-800/60 font-tabular shadow-2xs">
                 #{{ index + 1 }}
               </span>
-              <div class="flex flex-col gap-0.5 bg-slate-50 dark:bg-slate-800 rounded-lg p-0.5 text-slate-400 dark:text-slate-500 border border-slate-150 dark:border-slate-700 shrink-0">
+              <div class="flex flex-col gap-0.5 bg-slate-50 dark:bg-slate-800 rounded-lg p-0.5 text-slate-400 dark:text-slate-500 border border-slate-200 dark:border-slate-700 shrink-0">
                 <button @click="swapItem(index, index - 1)" :disabled="index === 0" aria-label="Di chuyển món lên" class="w-6 h-4 flex items-center justify-center hover:text-blue-600 dark:hover:text-blue-400 disabled:opacity-20 active:scale-90 transition-transform cursor-pointer">
                   <i class="fa-solid fa-chevron-up text-[9px]"></i>
                 </button>
@@ -308,17 +308,20 @@ function onSelectSuggestion(s: any, index: number) {
 
               <!-- Suggestion Dropdown: Generous full width, non-truncated -->
               <div v-if="ui.focusIdx === index" class="absolute top-full left-0 right-0 bg-white dark:bg-surface-4 border border-slate-200 dark:border-border-default rounded-2xl shadow-2xl max-h-[340px] overflow-hidden z-50 mt-1.5 flex flex-col">
-                <!-- Category Tabs inside Dropdown -->
-                <div class="flex gap-1.5 p-2 bg-slate-50 dark:bg-surface-canvas border-b border-slate-100 dark:border-border-subtle overflow-x-auto no-scrollbar shrink-0">
-                  <button
-                    v-for="cat in CATEGORIES"
-                    :key="cat.name"
-                    @mousedown.prevent="selectedCategory = cat.name"
-                    class="px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-wider transition-all cursor-pointer min-h-[32px] whitespace-nowrap"
-                    :class="selectedCategory === cat.name ? 'bg-blue-600 text-white shadow-sm' : 'bg-white dark:bg-surface-3 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-border-subtle hover:bg-slate-100 dark:hover:bg-surface-4'"
-                  >
-                    {{ cat.name }}
-                  </button>
+                <!-- Category Tabs inside Dropdown with Right Fade Indicator -->
+                <div class="relative shrink-0 border-b border-slate-100 dark:border-border-subtle bg-slate-50 dark:bg-surface-canvas">
+                  <div class="flex gap-1.5 p-2 overflow-x-auto no-scrollbar pr-7">
+                    <button
+                      v-for="cat in CATEGORIES"
+                      :key="cat.name"
+                      @mousedown.prevent="selectedCategory = cat.name"
+                      class="px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-wider transition-all cursor-pointer min-h-[32px] whitespace-nowrap"
+                      :class="selectedCategory === cat.name ? 'bg-blue-600 text-white shadow-sm' : 'bg-white dark:bg-surface-3 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-border-subtle hover:bg-slate-100 dark:hover:bg-surface-4'"
+                    >
+                      {{ cat.name }}
+                    </button>
+                  </div>
+                  <div class="absolute right-0 top-0 bottom-0 w-6 bg-gradient-to-l from-slate-50 dark:from-surface-canvas to-transparent pointer-events-none"></div>
                 </div>
                 
                 <!-- Suggestions List: Full dish names, no clipping -->
@@ -455,7 +458,7 @@ function onSelectSuggestion(s: any, index: number) {
           </div>
 
           <!-- Expanded Note Editor (on demand or when note exists) -->
-          <div v-if="expandedItems[index] || (item.note && expandedItems[index] !== false)" class="w-full pt-1.5 border-t border-dashed border-slate-150 dark:border-slate-800">
+          <div v-if="expandedItems[index] || (item.note && expandedItems[index] !== false)" class="w-full pt-1.5 border-t border-dashed border-slate-200 dark:border-slate-800">
             <div class="relative">
               <textarea 
                 v-model="item.note" 
@@ -470,12 +473,14 @@ function onSelectSuggestion(s: any, index: number) {
                 <button 
                   v-if="item.note && item.note.split('\n').length > 2" 
                   @click.prevent="expandedNotes[index] = !expandedNotes[index]" 
-                  class="px-2 py-1 bg-white dark:bg-slate-800 border border-rose-200 dark:border-rose-800 text-rose-600 dark:text-rose-400 text-[9px] font-black rounded-lg uppercase tracking-wider active:scale-95 transition-all shadow-sm"
+                  :aria-label="expandedNotes[index] ? 'Thu gọn ghi chú' : 'Xem thêm ghi chú'"
+                  class="px-2 py-1 bg-white dark:bg-slate-800 border border-rose-200 dark:border-rose-800 text-rose-600 dark:text-rose-400 text-[9px] font-black rounded-lg uppercase tracking-wider active:scale-95 transition-all shadow-sm cursor-pointer"
                 >
                   {{ expandedNotes[index] ? 'Thu gọn' : 'Xem thêm' }}
                 </button>
                 <button 
                   @click.prevent="expandedItems[index] = false" 
+                  aria-label="Đóng ô ghi chú"
                   class="px-2 py-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 text-[9px] font-black rounded-lg uppercase tracking-wider active:scale-95 transition-all shadow-sm cursor-pointer"
                 >
                   Đóng

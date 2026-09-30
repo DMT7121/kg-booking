@@ -55,7 +55,7 @@ function getLogIcon(type: string) {
 <template>
   <div class="space-y-4 box-border w-full max-w-full">
     <!-- Header Controls -->
-    <div class="flex flex-wrap items-center justify-between gap-3 p-4 bg-white dark:bg-slate-900 rounded-2xl border border-slate-150 dark:border-slate-800 shadow-sm box-border w-full">
+    <div class="flex flex-wrap items-center justify-between gap-3 p-4 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm box-border w-full">
       <div class="flex items-center gap-2.5 min-w-0">
         <div class="w-10 h-10 rounded-xl bg-indigo-50 dark:bg-indigo-950/60 flex items-center justify-center text-indigo-600 dark:text-indigo-400 shrink-0">
           <i class="fa-solid fa-terminal text-lg"></i>
@@ -103,7 +103,7 @@ function getLogIcon(type: string) {
     </div>
 
     <!-- Log List -->
-    <div class="bg-white dark:bg-slate-900 border border-slate-150 dark:border-slate-800 rounded-2xl shadow-sm p-4 min-h-[250px] max-h-[550px] overflow-y-auto w-full box-border custom-scrollbar">
+    <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm p-4 min-h-[250px] max-h-[550px] overflow-y-auto w-full box-border custom-scrollbar">
       <div v-if="logStore.latestSessionLogs.length === 0" class="flex flex-col items-center justify-center py-16 text-center text-slate-400 dark:text-slate-500">
         <i class="fa-solid fa-terminal text-4xl mb-3 opacity-40 animate-pulse"></i>
         <h3 class="text-xs font-black uppercase tracking-wider text-slate-700 dark:text-slate-300">Chưa có nhật ký xử lý</h3>

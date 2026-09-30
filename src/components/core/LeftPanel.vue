@@ -487,7 +487,7 @@ function goToTomorrowTimeline() {
                         </div>
                         
                         <div class="grid grid-cols-2 gap-2 text-xs pt-1">
-                          <div v-for="item in checklistItems" :key="item.name" class="flex items-center gap-2 p-2 rounded-xl border transition-all" :class="item.done ? 'bg-emerald-50/40 dark:bg-emerald-950/30 border-emerald-200/60 dark:border-emerald-800/40 text-emerald-700 dark:text-emerald-300 font-bold' : 'bg-slate-50/45 dark:bg-slate-850/40 border-slate-150 dark:border-slate-800 text-slate-400 dark:text-slate-500 font-semibold'">
+                          <div v-for="item in checklistItems" :key="item.name" class="flex items-center gap-2 p-2 rounded-xl border transition-all" :class="item.done ? 'bg-emerald-50/40 dark:bg-emerald-950/30 border-emerald-200/60 dark:border-emerald-800/40 text-emerald-700 dark:text-emerald-300 font-bold' : 'bg-slate-50/45 dark:bg-slate-850/40 border-slate-200 dark:border-slate-800 text-slate-400 dark:text-slate-500 font-semibold'">
                             <i class="fa-solid" :class="item.done ? 'fa-circle-check text-emerald-500 dark:text-emerald-400' : 'fa-circle text-slate-300 dark:text-slate-600'"></i>
                             <span>{{ item.name }}</span>
                           </div>

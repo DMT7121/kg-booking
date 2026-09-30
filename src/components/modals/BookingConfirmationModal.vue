@@ -541,7 +541,7 @@ onUnmounted(() => {
               </div>
 
               <!-- Row 2: Số khách with Comfortable Stepper & Quick Pills -->
-              <div class="p-2 rounded-xl bg-slate-50/60 dark:bg-slate-900/50 border border-slate-150 dark:border-slate-800/80 space-y-1.5">
+              <div class="p-2 rounded-xl bg-slate-50/60 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-800/80 space-y-1.5">
                 <div class="flex items-center justify-between">
                   <div class="flex items-center gap-1.5 text-xs font-bold text-slate-700 dark:text-slate-200">
                     <i class="fa-solid fa-users text-amber-500 text-xs"></i>

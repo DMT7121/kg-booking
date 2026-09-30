@@ -533,7 +533,7 @@ onUnmounted(() => {
       <!-- Section: Customer & Booking Grid (Blocks 1, 2, 3) -->
       <div class="space-y-3.5 w-full box-border">
         <!-- Khối 1: Người đặt bàn / Liên hệ -->
-        <div class="bg-slate-50/50 dark:bg-slate-950/40 border border-slate-150 dark:border-slate-800 rounded-2xl p-4 space-y-3 w-full box-border">
+        <div class="bg-slate-50/50 dark:bg-slate-950/40 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 space-y-3 w-full box-border">
           <div class="text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest flex items-center gap-1.5 border-b border-slate-200 dark:border-slate-800 pb-1.5">
             <i class="fa-solid fa-address-book text-slate-400"></i> 1. NGƯỜI ĐẶT BÀN / LIÊN HỆ
           </div>
@@ -578,7 +578,7 @@ onUnmounted(() => {
         </div>
 
         <!-- Khối 2: Thông tin tiệc -->
-        <div class="bg-slate-50/50 dark:bg-slate-950/40 border border-slate-150 dark:border-slate-800 rounded-2xl p-4 space-y-3 w-full box-border">
+        <div class="bg-slate-50/50 dark:bg-slate-950/40 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 space-y-3 w-full box-border">
           <div class="text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest flex items-center gap-1.5 border-b border-slate-200 dark:border-slate-800 pb-1.5">
             <i class="fa-solid fa-cake-candles text-slate-400"></i> 2. THÔNG TIN TIỆC
           </div>
@@ -635,7 +635,7 @@ onUnmounted(() => {
         </div>
 
         <!-- Khối 3: Thông tin lịch & đặt cọc -->
-        <div class="bg-slate-50/50 dark:bg-slate-950/40 border border-slate-150 dark:border-slate-800 rounded-2xl p-4 space-y-3 w-full box-border">
+        <div class="bg-slate-50/50 dark:bg-slate-950/40 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 space-y-3 w-full box-border">
           <div class="text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest flex items-center gap-1.5 border-b border-slate-200 dark:border-slate-800 pb-1.5">
             <i class="fa-solid fa-calendar-days text-slate-400"></i> 3. THÔNG TIN LỊCH & ĐẶT CỌC
           </div>
