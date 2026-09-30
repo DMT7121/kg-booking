@@ -15,6 +15,22 @@ const showPortalMinigames = ref(false)
 const saving = ref(false)
 const showGuide = ref(false)
 
+const cfTelegramWebhook = ref('https://kg-ai-gateway.dmt-kgwork.workers.dev/api/webhook/telegram')
+const cfZaloWebhook = ref('https://kg-ai-gateway.dmt-kgwork.workers.dev/api/webhook/zalo')
+
+function copyToClipboard(text: string, msg: string) {
+  navigator.clipboard.writeText(text).then(() => {
+    ui.showToast(msg, 'success')
+  }).catch(() => {
+    ui.showAlert('Sao chép', text)
+  })
+}
+
+function useCloudflareTelegramUrl() {
+  webhookUrl.value = cfTelegramWebhook.value
+  ui.showToast('⚡ Đã điền Webhook Cloudflare AI Gateway!', 'info')
+}
+
 // Backup/Restore
 const backups = ref<any[]>([])
 const backupReason = ref('')
@@ -254,6 +270,68 @@ function formatTime(isoStr: string) {
             <div class="flex gap-3"><span class="bg-blue-600 text-white rounded-full w-5 h-5 flex items-center justify-center text-[9px] font-black flex-shrink-0 shadow-sm">2</span><span class="mt-0.5">Thêm Bot vào Group nhận thông báo</span></div>
             <div class="flex gap-3"><span class="bg-blue-600 text-white rounded-full w-5 h-5 flex items-center justify-center text-[9px] font-black flex-shrink-0 shadow-sm">3</span><span class="mt-0.5">Truy cập <code class="bg-white border border-blue-200 px-1.5 py-0.5 rounded text-[10px] shadow-sm">api.telegram.org/bot{TOKEN}/getUpdates</code> → tìm <code class="bg-white border border-blue-200 px-1.5 py-0.5 rounded text-[10px] shadow-sm">chat.id</code></span></div>
             <div class="flex gap-3"><span class="bg-blue-600 text-white rounded-full w-5 h-5 flex items-center justify-center text-[9px] font-black flex-shrink-0 shadow-sm">4</span><span class="mt-0.5">Dán URL bên dưới dạng: <code class="bg-white border border-blue-200 px-1.5 py-0.5 rounded text-[10px] break-all shadow-sm">https://api.telegram.org/bot{TOKEN}/sendMessage</code></span></div>
+          </div>
+
+          <!-- Cloudflare AI Gateway High-Speed Bot Card -->
+          <div class="bg-gradient-to-br from-blue-900 to-indigo-950 text-white rounded-3xl p-5 shadow-lg relative overflow-hidden">
+            <div class="absolute -right-6 -bottom-6 w-32 h-32 bg-blue-500/10 rounded-full blur-2xl pointer-events-none"></div>
+            
+            <div class="flex items-center justify-between mb-3">
+              <div class="flex items-center gap-2">
+                <span class="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                <span class="text-xs font-black uppercase tracking-wider text-blue-200">Cloudflare Edge Gateway (&lt;200ms)</span>
+              </div>
+              <span class="bg-blue-500/20 text-blue-300 text-[10px] font-black px-2.5 py-0.5 rounded-full border border-blue-400/20">Khuyên dùng</span>
+            </div>
+
+            <p class="text-xs text-blue-100/90 font-medium mb-4 leading-relaxed">
+              Bóc tách tin nhắn siêu tốc bằng Fast-Path Regex, hỗ trợ <b>Telegram Mini App</b> mở trực tiếp form đặt bàn và sinh mã <b>VietQR</b> tự động.
+            </p>
+
+            <div class="space-y-3">
+              <!-- Telegram Gateway Endpoint -->
+              <div class="bg-black/30 backdrop-blur-md rounded-2xl p-3 border border-white/10">
+                <div class="flex items-center justify-between text-[11px] font-bold text-blue-200 mb-1.5">
+                  <span><i class="fa-brands fa-telegram text-sky-400 mr-1.5"></i>Endpoint Telegram Webhook:</span>
+                  <div class="flex gap-2">
+                    <button @click="copyToClipboard(cfTelegramWebhook, 'Đã copy URL Telegram Webhook!')" class="text-[10px] bg-white/10 hover:bg-white/20 text-white px-2 py-0.5 rounded-lg transition-colors font-bold">
+                      <i class="fa-regular fa-copy mr-1"></i>Copy
+                    </button>
+                    <button @click="useCloudflareTelegramUrl" class="text-[10px] bg-blue-500 hover:bg-blue-400 text-white px-2.5 py-0.5 rounded-lg transition-colors font-black">
+                      <i class="fa-solid fa-arrow-down mr-1"></i>Điền nhanh
+                    </button>
+                  </div>
+                </div>
+                <code class="text-[10px] font-mono text-emerald-300 break-all block">{{ cfTelegramWebhook }}</code>
+              </div>
+
+              <!-- Zalo OA Gateway Endpoint -->
+              <div class="bg-black/30 backdrop-blur-md rounded-2xl p-3 border border-white/10">
+                <div class="flex items-center justify-between text-[11px] font-bold text-blue-200 mb-1.5">
+                  <span><i class="fa-solid fa-comment-dots text-blue-400 mr-1.5"></i>Endpoint Zalo OA Webhook:</span>
+                  <button @click="copyToClipboard(cfZaloWebhook, 'Đã copy URL Zalo Webhook!')" class="text-[10px] bg-white/10 hover:bg-white/20 text-white px-2 py-0.5 rounded-lg transition-colors font-bold">
+                    <i class="fa-regular fa-copy mr-1"></i>Copy
+                  </button>
+                </div>
+                <code class="text-[10px] font-mono text-emerald-300 break-all block">{{ cfZaloWebhook }}</code>
+              </div>
+            </div>
+
+            <!-- Bot Feature Badges -->
+            <div class="grid grid-cols-3 gap-2 mt-4 pt-3 border-t border-white/10 text-center">
+              <div class="bg-white/5 rounded-xl py-1.5 px-2">
+                <div class="text-[10px] font-black text-amber-300">⚡ &lt; 200ms</div>
+                <div class="text-[8px] text-blue-200">Độ trễ phản hồi</div>
+              </div>
+              <div class="bg-white/5 rounded-xl py-1.5 px-2">
+                <div class="text-[10px] font-black text-sky-300">📱 Mini App</div>
+                <div class="text-[8px] text-blue-200">Mở app 2D trong chat</div>
+              </div>
+              <div class="bg-white/5 rounded-xl py-1.5 px-2">
+                <div class="text-[10px] font-black text-emerald-300">💳 VietQR</div>
+                <div class="text-[8px] text-blue-200">Tự tạo mã cọc</div>
+              </div>
+            </div>
           </div>
 
           <div class="bg-white rounded-3xl p-5 border border-slate-100 shadow-sm space-y-4">

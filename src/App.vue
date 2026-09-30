@@ -35,6 +35,13 @@ function checkRoute() {
   } catch {}
 
   if (isCustomerPath) {
+    const targetUrl = ((import.meta.env.VITE_CUSTOMER_BOOKING_URL as string) || 'https://datban-kingsgrill.pages.dev').trim()
+    // Nếu người dùng truy cập link cũ trên production (kg-booking.pages.dev), tự động chuyển hướng mượt sang webapp khách hàng độc lập
+    if (typeof window !== 'undefined' && window.location.hostname.includes('kg-booking.pages.dev') && targetUrl) {
+      window.location.replace(targetUrl)
+      return
+    }
+
     try {
       sessionStorage.setItem('kg_guest_mode', '1')
     } catch {}

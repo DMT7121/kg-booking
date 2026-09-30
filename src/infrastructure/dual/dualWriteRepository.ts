@@ -167,20 +167,112 @@ export class DualWriteOrderRepository implements OrderRepository {
       }
     }
 
-    // Dual Write mode: Lưu đồng thời vào Google Sheets và PostgreSQL (Promise.allSettled) để đạt tốc độ tối đa
-    const [gasResult, pgResult] = await Promise.allSettled([
-      this.gas.saveOrder(data, { silent: true }),
-      this.pg.saveOrder(data, token)
+    // Dual Write mode: Lưu đồng thời vào Google Sheets và PostgreSQL
+    const gasPromise = this.gas.saveOrder(data, { silent: true })
+    const pgPromise = this.pg.saveOrder(data, token)
+
+    // Chờ tối đa 350ms để cả 2 cùng hoàn tất (trong môi trường test hoặc mạng siêu nhanh)
+    // Nếu quá 350ms mà Postgres đã xong (thường chỉ mất 50-100ms), trả ngay kết quả cho UI
+    // để nhân viên không phải chờ Google Apps Script chậm chạp (mất 2-5s)
+    const fastGraceTimeout = new Promise<void>((r) => setTimeout(r, 350))
+    const settledPromise = Promise.allSettled([gasPromise, pgPromise])
+
+    const winner = await Promise.race([
+      settledPromise.then(() => 'both_settled'),
+      fastGraceTimeout.then(() => 'timeout')
     ])
 
+    if (winner === 'both_settled') {
+      const [gasResult, pgResult] = await settledPromise
+      const gasRes = gasResult.status === 'fulfilled' ? gasResult.value : { ok: false }
+      const pgRes = pgResult.status === 'fulfilled' ? pgResult.value : { ok: false }
+
+      const gasOk = !!(gasRes && gasRes.ok)
+      const pgOk = !!(pgRes && pgRes.ok)
+
+      if (gasOk && pgOk) {
+        // Cả 2 nguồn đều thành công
+        return {
+          ok: true,
+          id: orderId,
+          status: 'synced',
+          message: 'Order Saved to GAS & PostgreSQL',
+          calendarSync: gasRes.calendarSync
+        }
+      }
+
+      if (gasOk || pgOk) {
+        // Lưu thành công 1 nguồn, nguồn còn lại lỗi -> Đưa vào Outbox để retry bù trừ ngầm
+        await outbox.addToOutbox(orderId, 'upsert', data, { syncedToPg: pgOk, syncedToSheets: gasOk })
+        notifyStoreOutboxUpdate()
+        triggerOutboxSync().catch(() => {})
+        const failedTarget = !gasOk ? 'Google Sheets' : 'PostgreSQL'
+        return {
+          ok: true,
+          id: orderId,
+          status: 'partially_synced',
+          message: `Order saved to ${gasOk ? 'Google Sheets' : 'PostgreSQL'}, queued for ${failedTarget}`,
+          calendarSync: gasRes?.calendarSync
+        }
+      }
+
+      // CẢ 2 NGUỒN ĐỀU THẤT BẠI (Mất mạng / Offline / Lỗi server đồng thời)
+      await outbox.addToOutbox(orderId, 'upsert', data, { syncedToPg: false, syncedToSheets: false })
+      notifyStoreOutboxUpdate()
+      return {
+        ok: true,
+        id: orderId,
+        status: 'pending',
+        message: 'Saved to local outbox (Offline mode - will sync when online)'
+      }
+    }
+
+    // Nếu sau 350ms mà GAS chưa xong: Kiểm tra trạng thái của PostgreSQL
+    let pgSettled = false
+    let pgRes: any = null
+    try {
+      pgRes = await Promise.race([pgPromise, Promise.resolve('not_yet')])
+      if (pgRes !== 'not_yet') {
+        pgSettled = true
+      }
+    } catch {
+      pgSettled = true
+    }
+
+    if (pgSettled && pgRes && pgRes.ok) {
+      // FAST-PATH: Postgres đã ghi thành công (<100ms)! Trả ngay kết quả cho UI và để GAS tiếp tục chạy ngầm
+      gasPromise.then(async (gasRes) => {
+        if (!gasRes || !gasRes.ok) {
+          console.warn('[DualWrite FastPath] GAS sync failed in background, queuing to outbox')
+          await outbox.addToOutbox(orderId, 'upsert', data, { syncedToPg: true, syncedToSheets: false })
+          notifyStoreOutboxUpdate()
+          triggerOutboxSync().catch(() => {})
+        }
+      }).catch(async (err) => {
+        console.warn('[DualWrite FastPath] GAS error in background:', err.message)
+        await outbox.addToOutbox(orderId, 'upsert', data, { syncedToPg: true, syncedToSheets: false })
+        notifyStoreOutboxUpdate()
+        triggerOutboxSync().catch(() => {})
+      })
+
+      return {
+        ok: true,
+        id: orderId,
+        status: 'synced',
+        message: 'Order Saved to PostgreSQL (Google Sheets syncing in background)',
+        calendarSync: undefined
+      }
+    }
+
+    // Nếu Postgres chưa xong hoặc thất bại: chờ cả 2 hoàn tất đầy đủ
+    const [gasResult, pgResult] = await settledPromise
     const gasRes = gasResult.status === 'fulfilled' ? gasResult.value : { ok: false }
-    const pgRes = pgResult.status === 'fulfilled' ? pgResult.value : { ok: false }
+    const finalPgRes = pgResult.status === 'fulfilled' ? pgResult.value : { ok: false }
 
     const gasOk = !!(gasRes && gasRes.ok)
-    const pgOk = !!(pgRes && pgRes.ok)
+    const pgOk = !!(finalPgRes && finalPgRes.ok)
 
     if (gasOk && pgOk) {
-      // Cả 2 nguồn đều thành công
       return {
         ok: true,
         id: orderId,
@@ -191,7 +283,6 @@ export class DualWriteOrderRepository implements OrderRepository {
     }
 
     if (gasOk || pgOk) {
-      // Lưu thành công 1 nguồn, nguồn còn lại lỗi -> Đưa vào Outbox để retry bù trừ ngầm
       await outbox.addToOutbox(orderId, 'upsert', data, { syncedToPg: pgOk, syncedToSheets: gasOk })
       notifyStoreOutboxUpdate()
       triggerOutboxSync().catch(() => {})
@@ -205,8 +296,6 @@ export class DualWriteOrderRepository implements OrderRepository {
       }
     }
 
-    // CẢ 2 NGUỒN ĐỀU THẤT BẠI (Mất mạng / Offline / Lỗi server đồng thời)
-    // BẮT BUỘC ĐƯA VÀO OUTBOX MÃ HÓA CỤC BỘ ĐỂ KHÔNG MẤT DỮ LIỆU
     await outbox.addToOutbox(orderId, 'upsert', data, { syncedToPg: false, syncedToSheets: false })
     notifyStoreOutboxUpdate()
     return {
@@ -307,22 +396,22 @@ export class DualWriteMenuRepository implements MenuRepository {
     if (mode === 'gas') return this.gas.getMenu(sheetName, onBgUpdate)
     if (mode === 'postgres') return this.pg.getMenu(sheetName, onBgUpdate)
 
+    // 1. Ưu tiên đọc từ PostgreSQL (Supabase) để đạt tốc độ tức thì (<100ms)
     try {
-      const gasRes = await this.gas.getMenu(sheetName, onBgUpdate)
-      if (gasRes && gasRes.ok && Array.isArray(gasRes.data) && gasRes.data.length > 0) {
-        return gasRes
+      const pgRes = await this.pg.getMenu(sheetName, onBgUpdate)
+      if (pgRes && pgRes.ok && Array.isArray(pgRes.data) && pgRes.data.length > 0) {
+        // Nếu có callback revalidate, đồng bộ ngầm từ Google Sheets để không bao giờ bị lệch dữ liệu
+        if (onBgUpdate) {
+          this.gas.getMenu(sheetName, onBgUpdate).catch(() => {})
+        }
+        return pgRes
       }
     } catch (e: any) {
-      console.warn('[DualWrite] GAS getMenu failed, trying PG:', e.message)
+      console.warn('[DualWrite] PG getMenu failed, trying GAS:', e.message)
     }
 
-    try {
-      const res = await this.pg.getMenu(sheetName, onBgUpdate)
-      if (res.ok && Array.isArray(res.data) && res.data.length > 0) return res
-      throw new Error(res.message || 'PG menu empty')
-    } catch {
-      return this.gas.getMenu(sheetName, onBgUpdate)
-    }
+    // 2. Fallback sang Google Sheets nếu Postgres chưa có hoặc lỗi
+    return this.gas.getMenu(sheetName, onBgUpdate)
   }
 
   async getMenuSheets(): Promise<any> {
@@ -330,22 +419,18 @@ export class DualWriteMenuRepository implements MenuRepository {
     if (mode === 'gas') return this.gas.getMenuSheets()
     if (mode === 'postgres') return this.pg.getMenuSheets()
 
+    // 1. Ưu tiên đọc danh sách sheet từ PostgreSQL (<100ms)
     try {
-      const gasRes = await this.gas.getMenuSheets()
-      if (gasRes && gasRes.ok && Array.isArray(gasRes.sheets) && gasRes.sheets.length > 0) {
-        return gasRes
+      const pgRes = await this.pg.getMenuSheets()
+      if (pgRes && pgRes.ok && Array.isArray(pgRes.sheets) && pgRes.sheets.length > 0) {
+        return pgRes
       }
     } catch (e: any) {
-      console.warn('[DualWrite] GAS getMenuSheets failed, trying PG:', e.message)
+      console.warn('[DualWrite] PG getMenuSheets failed, trying GAS:', e.message)
     }
 
-    try {
-      const res = await this.pg.getMenuSheets()
-      if (res.ok && Array.isArray(res.sheets) && res.sheets.length > 0) return res
-      throw new Error(res.message || 'PG sheets empty')
-    } catch {
-      return this.gas.getMenuSheets()
-    }
+    // 2. Fallback sang Google Sheets nếu Postgres chưa có hoặc lỗi
+    return this.gas.getMenuSheets()
   }
 
   async createMenu(name: string, rawText: string, password?: string, token?: string): Promise<any> {

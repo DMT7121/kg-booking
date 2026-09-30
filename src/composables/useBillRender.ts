@@ -8,7 +8,13 @@ import { smartUploadImage } from '@/services/r2'
 import { useAI } from '@/composables/useAI'
 import { cacheBillImage, addToOfflineQueue } from '@/services/cache'
 import { addToOutbox } from '@/infrastructure/outbox/outbox'
-import html2canvas from 'html2canvas'
+let _html2canvasPromise: Promise<any> | null = null
+async function getHtml2Canvas(): Promise<any> {
+  if (!_html2canvasPromise) {
+    _html2canvasPromise = import('html2canvas').then(m => m.default || m)
+  }
+  return _html2canvasPromise
+}
 
 /**
  * Bill rendering composable (SINGLETON)
@@ -193,7 +199,8 @@ function _createBillRender() {
 
           // Render fixed high-quality scale directly (Retina 3x - 2400px siêu nét)
           try {
-            canvas = await html2canvas(elementToRender, {
+            const h2c = await getHtml2Canvas()
+            canvas = await h2c(elementToRender, {
               scale: 3, useCORS: true, logging: false,
               backgroundColor: '#ffffff', width: 800, windowWidth: 800,
               imageTimeout: 15000,
@@ -374,7 +381,8 @@ function _createBillRender() {
                   } catch (e) {}
 
                   // Render fixed high-quality scale 3 (2400px siêu nét)
-                  const canvas = await html2canvas(clone, {
+                  const h2c = await getHtml2Canvas()
+                  const canvas = await h2c(clone, {
                     scale: 3, useCORS: true, logging: false,
                     backgroundColor: '#ffffff', width: 800, windowWidth: 800,
                     imageTimeout: 15000,

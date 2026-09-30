@@ -892,15 +892,15 @@ onUnmounted(() => {
 
                     <!-- Price Input with Formatted Thousands -->
                     <div class="flex items-center gap-1 bg-white dark:bg-slate-800 rounded-lg px-2 h-7 border border-slate-200 dark:border-slate-700 shrink-0">
-                      <span class="text-[10px] text-slate-400 font-bold">GIÁ:</span>
+                      <span class="text-[10px] text-slate-400 font-bold shrink-0">GIÁ:</span>
                       <input
                         type="text"
                         :value="formatPrice(item.price)"
                         @input="handleItemPriceInput(idx, $event)"
                         placeholder="0"
-                        class="w-16 bg-transparent border-none p-0 text-xs font-bold font-mono text-blue-600 dark:text-blue-400 focus:outline-none text-right"
+                        class="w-20 bg-transparent border-none p-0 text-xs font-bold font-mono text-blue-600 dark:text-blue-400 focus:outline-none text-right"
                       />
-                      <span class="text-[10px] font-bold text-slate-400">đ</span>
+                      <span class="text-[10px] font-bold text-slate-400 shrink-0">đ</span>
                     </div>
 
                     <!-- Calculated Subtotal Badge -->

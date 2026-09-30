@@ -15,6 +15,14 @@ export interface Env {
   SHEETS_QUEUE?: any; // Cloudflare Queue binding
   FB_PAGE_ACCESS_TOKEN?: string;
   FB_VERIFY_TOKEN?: string;
+  TELEGRAM_BOT_TOKEN?: string;
+  TELEGRAM_CHAT_ID?: string;
+  TELEGRAM_TOPIC_ID?: string;
+  ZALO_OA_ACCESS_TOKEN?: string;
+  ZALO_OA_SECRET_KEY?: string;
+  DEFAULT_BANK_BIN?: string;
+  DEFAULT_BANK_ACC?: string;
+  DEFAULT_BANK_OWNER?: string;
 }
 
 // In-Memory Rate Limiter
@@ -348,6 +356,223 @@ async function saveFacebookBookingToDB(senderPsid: string, text: string, env: En
   }
 }
 
+// In-Memory Telegram Temporary Order Store (10-minute TTL)
+const telegramTempOrders = new Map<string, { payload: any; expiresAt: number }>();
+
+function cleanExpiredTelegramTempOrders() {
+  const now = Date.now();
+  for (const [k, v] of telegramTempOrders.entries()) {
+    if (now > v.expiresAt) {
+      telegramTempOrders.delete(k);
+    }
+  }
+}
+
+export interface FastParsedBooking {
+  customer: {
+    name: string;
+    phone: string;
+    date: string;
+    time: string;
+    pax: string;
+    tables: string;
+    type: string;
+    note: string;
+  };
+  items: Array<{ name: string; qty: number; price: number }>;
+  deposit: {
+    isPaid: boolean;
+    amount: number;
+    note: string;
+  };
+  total: number;
+  confidence: number;
+}
+
+export function fastParseBookingText(text: string): FastParsedBooking {
+  const clean = (text || '').trim();
+  
+  // 1. Phone extraction
+  const phoneMatch = clean.match(/(?:0|\+84)[3|5|7|8|9]\d{8}|0\d{9,10}/);
+  const phone = phoneMatch ? phoneMatch[0].replace('+84', '0') : '';
+
+  // 2. Name extraction
+  let name = '';
+  const nameMatch = clean.match(/(?:anh|chị|em|bác|chú|khách|cô)\s+([a-zA-ZÀ-ỹ\s]+?)(?=\s+\d|\s+ngày|\s+lúc|\s+bàn|\s+đi|\s+cọc|\s+ăn|$)/i);
+  if (nameMatch) {
+    name = nameMatch[0].trim();
+  } else {
+    const preMatch = clean.match(/^([a-zA-ZÀ-ỹ\s]{2,20})(?=\s+\d)/);
+    if (preMatch && !preMatch[1].toLowerCase().includes('hôm') && !preMatch[1].toLowerCase().includes('ngày')) {
+      name = preMatch[1].trim();
+    }
+  }
+  if (!name) name = 'Khách đặt qua Bot';
+
+  // 3. Date extraction
+  const now = new Date();
+  const vnOffset = 7 * 60; // Vietnam UTC+7
+  const utc = now.getTime() + (now.getTimezoneOffset() * 60000);
+  const vnNow = new Date(utc + (vnOffset * 60000));
+  
+  let targetDate = new Date(vnNow);
+  const lower = clean.toLowerCase();
+  
+  if (lower.includes('hôm nay') || lower.includes('toi nay') || lower.includes('trưa nay')) {
+    // today
+  } else if (lower.includes('ngày mai') || lower.includes('mai')) {
+    targetDate.setDate(targetDate.getDate() + 1);
+  } else if (lower.includes('ngày mốt') || lower.includes('ngày kia')) {
+    targetDate.setDate(targetDate.getDate() + 2);
+  } else {
+    const dateMatch = clean.match(/(\d{1,2})[\/\-](\d{1,2})(?:[\/\-](\d{4}))?/);
+    if (dateMatch) {
+      const day = parseInt(dateMatch[1], 10);
+      const month = parseInt(dateMatch[2], 10) - 1;
+      const year = dateMatch[3] ? parseInt(dateMatch[3], 10) : vnNow.getFullYear();
+      targetDate = new Date(year, month, day);
+    }
+  }
+  const dateStr = `${String(targetDate.getDate()).padStart(2, '0')}/${String(targetDate.getMonth() + 1).padStart(2, '0')}/${targetDate.getFullYear()}`;
+
+  // 4. Time extraction
+  let timeStr = '18:30';
+  const timeMatch = clean.match(/(?:lúc\s+)?(\d{1,2})[h:p](\d{2})?/i);
+  if (timeMatch) {
+    const h = parseInt(timeMatch[1], 10);
+    const m = timeMatch[2] ? parseInt(timeMatch[2], 10) : 0;
+    timeStr = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+  }
+
+  // 5. Pax extraction
+  let paxStr = '2';
+  const paxMatch = clean.match(/(\d+)\s*(?:khách|người|pax|vé|chỗ|bạn|ng)/i);
+  if (paxMatch) {
+    paxStr = paxMatch[1];
+  }
+
+  // 6. Table extraction
+  let tableStr = '';
+  const tableMatch = clean.match(/(?:bàn|ban|b\.)\s*([a-zA-Z0-9_-]+)/i);
+  if (tableMatch) {
+    tableStr = tableMatch[1].toUpperCase();
+  }
+
+  // 7. Deposit extraction
+  let depositAmount = 0;
+  let isPaid = false;
+  let depositNote = '';
+  const depMatch = clean.match(/(?:cọc|ck|chuyển cọc|đặt cọc)\s*([\d\.,]+)\s*(k|tr|triệu|m|đ|vnd)?/i);
+  if (depMatch) {
+    let rawNum = parseFloat(depMatch[1].replace(/,/g, '.'));
+    const unit = (depMatch[2] || '').toLowerCase();
+    if (unit === 'k') rawNum *= 1000;
+    else if (unit === 'tr' || unit === 'triệu' || unit === 'm') rawNum *= 1000000;
+    else if (rawNum < 1000 && rawNum > 0) rawNum *= 1000;
+    depositAmount = Math.round(rawNum);
+    depositNote = 'Cọc qua Bot';
+    if (lower.includes('đã cọc') || lower.includes('đã ck') || lower.includes('da nhan coc')) {
+      isPaid = true;
+    }
+  }
+
+  // 8. Dishes extraction
+  const items: Array<{ name: string; qty: number; price: number }> = [];
+  const dishMatch = clean.match(/(?:ăn|món|menu|gọi|dat)\s*:?\s*(.+?)(?=\s*,\s*cọc|\s*cọc|\s*bàn|\s*lúc|$)/i);
+  if (dishMatch) {
+    const rawDishes = dishMatch[1].split(/[,;\n]/);
+    for (const d of rawDishes) {
+      const trimmed = d.trim();
+      if (!trimmed) continue;
+      const qtyMatch = trimmed.match(/(.+?)\s*(?:x|\*|\:)?\s*(\d+)$/i) || trimmed.match(/^(\d+)\s*(?:x|\*|\:)?\s*(.+)/i);
+      if (qtyMatch) {
+        const dishName = isNaN(Number(qtyMatch[1])) ? qtyMatch[1].trim() : qtyMatch[2].trim();
+        const qty = parseInt(isNaN(Number(qtyMatch[1])) ? qtyMatch[2] : qtyMatch[1], 10);
+        items.push({ name: dishName, qty: qty || 1, price: 0 });
+      } else {
+        items.push({ name: trimmed, qty: 1, price: 0 });
+      }
+    }
+  }
+
+  const confidence = (phone ? 0.4 : 0) + (name ? 0.2 : 0) + (timeMatch ? 0.2 : 0) + (paxMatch ? 0.2 : 0);
+
+  return {
+    customer: {
+      name,
+      phone,
+      date: dateStr,
+      time: timeStr,
+      pax: paxStr,
+      tables: tableStr || 'Chưa xếp',
+      type: 'Đặt qua Bot',
+      note: clean
+    },
+    items,
+    deposit: {
+      isPaid,
+      amount: depositAmount,
+      note: depositNote
+    },
+    total: items.reduce((acc, it) => acc + (it.price * it.qty), 0),
+    confidence
+  };
+}
+
+export function buildVietQRUrl(bankId: string = '970415', accountNo: string = '102874136666', amount: number = 0, content: string = '', accountName: string = "KINGS GRILL"): string {
+  const cleanBank = encodeURIComponent(bankId.replace(/\D/g, '') || '970415');
+  const cleanAcc = encodeURIComponent(accountNo.replace(/\s/g, '') || '102874136666');
+  const cleanName = encodeURIComponent(accountName || "KINGS GRILL");
+  const cleanContent = encodeURIComponent(content || "DATBAN");
+  return `https://img.vietqr.io/image/${cleanBank}-${cleanAcc}-compact2.png?amount=${amount}&addInfo=${cleanContent}&accountName=${cleanName}`;
+}
+
+export function formatTelegramBoxMessage(c: any, items: any[], deposit: any, total: number, orderId?: string, isConfirmed: boolean = false): string {
+  const fmt = (n: number) => n ? n.toString().replace(/\B(?=(\d{3})+(?!\d))/g, '.') + 'đ' : '0đ';
+  const depStatus = deposit?.isPaid 
+    ? `🟢 <b>ĐÃ CỌC</b> (${fmt(deposit?.amount || 0)})` 
+    : (deposit?.amount > 0 ? `⏳ <b>CHỜ CỌC</b> (${fmt(deposit?.amount || 0)})` : `⚪ <i>Không yêu cầu cọc</i>`);
+  
+  const depNoteLine = deposit?.note ? `\n💳 <b>Chi tiết cọc:</b> ${deposit.note}` : '';
+  const itemStr = (items && items.length > 0) 
+    ? items.map(i => `• ${i.name} (x${i.qty})`).join('\n')
+    : '<i>Chưa chọn món (chọn tại bàn)</i>';
+
+  const header = isConfirmed 
+    ? '✅ <b>LÊN PHIẾU ĐẶT BÀN THÀNH CÔNG</b>' 
+    : '🤖 <b>XÁC NHẬN ĐƠN ĐẶT BÀN MỚI</b>';
+
+  let msg = `${header}\n` +
+    `┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓\n` +
+    `  👑 <b>NHÀ HÀNG KING'S GRILL</b>\n` +
+    `┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛\n` +
+    `👤 <b>Khách hàng:</b> ${c.name || 'N/A'}\n` +
+    `📱 <b>Số điện thoại:</b> <code>${c.phone || 'N/A'}</code>\n` +
+    `📅 <b>Thời gian:</b> <b>${c.time || '?'}</b> | ${c.date || '?'}\n` +
+    `👥 <b>Số lượng:</b> <b>${c.pax || '?'}</b> khách | 🪑 <b>Bàn:</b> <b>${c.tables || 'Chưa xếp'}</b>\n` +
+    `───────────────────────────────\n` +
+    `🍽️ <b>Món ăn dự kiến:</b>\n${itemStr}\n` +
+    `💰 <b>Tổng tạm tính:</b> ${fmt(total)}\n` +
+    `💳 <b>Trạng thái:</b> ${depStatus}${depNoteLine}\n` +
+    `───────────────────────────────\n` +
+    `💬 <b>Ghi chú:</b> <i>${c.note || 'Không có'}</i>\n`;
+
+  if (orderId) {
+    msg += `🆔 <b>Mã đặt bàn:</b> <code>${orderId}</code>\n`;
+  }
+
+  return msg;
+}
+
+export async function callTelegramApi(botToken: string, method: string, payload: any) {
+  const url = `https://api.telegram.org/bot${botToken}/${method}`;
+  return await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload)
+  });
+}
+
 export default {
 
   async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
@@ -648,6 +873,393 @@ export default {
           console.error("[FB Webhook] Error processing payload:", e);
         }
         return new Response("Not Found", { status: 404 });
+      }
+
+      // --- TELEGRAM WEBHOOK ENDPOINTS ---
+      if ((path === "/api/webhook/telegram" || path === "/webhook/telegram") && request.method === "POST") {
+        try {
+          const body = await request.json() as any;
+          const tokenParam = url.searchParams.get("token");
+          const botToken = tokenParam || env.TELEGRAM_BOT_TOKEN || "";
+
+          // 1. Handle Callback Query (Inline Keyboard Clicks)
+          if (body.callback_query) {
+            const cbQuery = body.callback_query;
+            const cbData = cbQuery.data || "";
+            const cbMsg = cbQuery.message;
+            const chatId = cbMsg?.chat?.id;
+            const messageId = cbMsg?.message_id;
+
+            if (cbData.startsWith("confirm_create:")) {
+              const tempId = cbData.replace("confirm_create:", "");
+              const tempRecord = telegramTempOrders.get(tempId);
+              const payload = tempRecord ? tempRecord.payload : null;
+
+              if (!payload) {
+                if (botToken) {
+                  await callTelegramApi(botToken, "answerCallbackQuery", {
+                    callback_query_id: cbQuery.id,
+                    text: "⚠️ Phiên làm việc đã hết hạn hoặc đã xác nhận rồi.",
+                    show_alert: true
+                  });
+                }
+                return new Response(JSON.stringify({ ok: false, message: "Expired" }), { status: 200, headers: corsHeaders });
+              }
+
+              telegramTempOrders.delete(tempId);
+
+              // 1.1 Save to Supabase Bookings Table
+              const supabaseUrl = "https://azfkzheypuvfcitckovf.supabase.co";
+              const anonKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImF6Zmt6aGV5cHV2ZmNpdGNrb3ZmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODUwNzc1MjEsImV4cCI6MjEwMDY1MzUyMX0.ltnY7GTzKGE7QiWTv8ZuDlfT_NWIR2sGfGudoVDw4NQ";
+
+              const dParts = (payload.customer?.date || "").split("/");
+              const isoDate = dParts.length === 3 ? `${dParts[2]}-${dParts[1]}-${dParts[0]}` : new Date().toISOString().split("T")[0];
+
+              ctx.waitUntil((async () => {
+                try {
+                  await fetch(`${supabaseUrl}/rest/v1/bookings`, {
+                    method: "POST",
+                    headers: {
+                      "apikey": anonKey,
+                      "Authorization": `Bearer ${anonKey}`,
+                      "Content-Type": "application/json",
+                      "Prefer": "return=minimal"
+                    },
+                    body: JSON.stringify({
+                      customer_name: payload.customer.name,
+                      customer_phone: payload.customer.phone,
+                      booking_date: isoDate,
+                      start_time: payload.customer.time,
+                      guest_count: parseInt(payload.customer.pax, 10) || 2,
+                      table_id: payload.customer.tables || "Chưa xếp",
+                      source: "telegram_bot",
+                      status: payload.deposit.isPaid ? "confirmed" : "pending",
+                      note: payload.customer.note,
+                      raw_message: payload.customer.note
+                    })
+                  });
+
+                  // 1.2 Sync to Google Sheets
+                  const gasUrl = env.GAS_URL || "https://script.google.com/macros/s/AKfycbxzjio4sat5fWoUncPgp8SfjoGqfGxW5vFoDgkHvBI3OKVWIaszsAaUt0LE2fCHtkCFsA/exec";
+                  await fetch(gasUrl, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                      action: "saveOrder",
+                      orderData: {
+                        id: payload.id,
+                        timestamp: new Date().toISOString(),
+                        customer: payload.customer,
+                        items: payload.items,
+                        deposit: payload.deposit,
+                        total: payload.total,
+                        staff: { name: "Telegram Bot", phone: "" }
+                      }
+                    })
+                  });
+                } catch (saveErr) {
+                  console.error("[Telegram Save Error]", saveErr);
+                }
+              })());
+
+              // 1.3 Mutate Telegram message in-place
+              const confirmMsg = formatTelegramBoxMessage(payload.customer, payload.items, payload.deposit, payload.total, payload.id, true);
+              const postButtons: any[][] = [
+                [
+                  { text: "🧾 Xem Phiếu Online", url: `https://kg-booking.pages.dev/#/bill/${payload.id}` },
+                  { text: "📱 Mở App Đặt Bàn", web_app: { url: "https://datban-kingsgrill.pages.dev" } }
+                ]
+              ];
+
+              if (!payload.deposit.isPaid && payload.deposit.amount > 0) {
+                const qrUrl = buildVietQRUrl(
+                  env.DEFAULT_BANK_BIN || "970415",
+                  env.DEFAULT_BANK_ACC || "102874136666",
+                  payload.deposit.amount,
+                  `DATBAN ${payload.id.slice(-6)}`,
+                  env.DEFAULT_BANK_OWNER || "KINGS GRILL"
+                );
+                postButtons.push([
+                  { text: "💵 Đã Nhận Cọc", callback_data: `mark_paid:${payload.id}` },
+                  { text: "💳 Mã VietQR Cọc", url: qrUrl }
+                ]);
+              }
+
+              if (botToken) {
+                await callTelegramApi(botToken, "editMessageText", {
+                  chat_id: chatId,
+                  message_id: messageId,
+                  text: confirmMsg,
+                  parse_mode: "HTML",
+                  reply_markup: { inline_keyboard: postButtons }
+                });
+
+                await callTelegramApi(botToken, "answerCallbackQuery", {
+                  callback_query_id: cbQuery.id,
+                  text: "✅ Lên phiếu đặt bàn thành công!"
+                });
+              }
+
+              return new Response(JSON.stringify({ ok: true, message: "Order confirmed" }), { status: 200, headers: corsHeaders });
+            }
+
+            if (cbData.startsWith("cancel_create:")) {
+              const tempId = cbData.replace("cancel_create:", "");
+              telegramTempOrders.delete(tempId);
+
+              if (botToken) {
+                await callTelegramApi(botToken, "editMessageText", {
+                  chat_id: chatId,
+                  message_id: messageId,
+                  text: "❌ <b>ĐÃ HỦY YÊU CẦU ĐẶT BÀN.</b>",
+                  parse_mode: "HTML",
+                  reply_markup: { inline_keyboard: [] }
+                });
+
+                await callTelegramApi(botToken, "answerCallbackQuery", {
+                  callback_query_id: cbQuery.id,
+                  text: "Đã hủy yêu cầu."
+                });
+              }
+
+              return new Response(JSON.stringify({ ok: true, message: "Order cancelled" }), { status: 200, headers: corsHeaders });
+            }
+
+            if (cbData.startsWith("mark_paid:")) {
+              const orderId = cbData.replace("mark_paid:", "");
+
+              // Update message in-place
+              if (botToken && cbMsg?.text) {
+                const currentText = cbMsg.text;
+                const updatedText = currentText.replace(/⏳\s*CHỜ CỌC.*?\n/i, "🟢 <b>ĐÃ CỌC (Chuyển khoản)</b>\n");
+                
+                await callTelegramApi(botToken, "editMessageText", {
+                  chat_id: chatId,
+                  message_id: messageId,
+                  text: updatedText,
+                  parse_mode: "HTML",
+                  reply_markup: {
+                    inline_keyboard: [
+                      [
+                        { text: "🧾 Xem Phiếu Online", url: `https://kg-booking.pages.dev/#/bill/${orderId}` },
+                        { text: "📱 Mở App Đặt Bàn", web_app: { url: "https://datban-kingsgrill.pages.dev" } }
+                      ]
+                    ]
+                  }
+                });
+
+                await callTelegramApi(botToken, "answerCallbackQuery", {
+                  callback_query_id: cbQuery.id,
+                  text: "✅ Đã ghi nhận cọc thành công!"
+                });
+              }
+
+              return new Response(JSON.stringify({ ok: true, message: "Deposit marked paid" }), { status: 200, headers: corsHeaders });
+            }
+          }
+
+          // 2. Handle Text Message
+          if (body.message && body.message.text) {
+            const msg = body.message;
+            const text = msg.text.trim();
+            const chatId = msg.chat.id;
+            const threadId = msg.message_thread_id;
+
+            // Command handlers
+            if (text.startsWith("/status")) {
+              const statusMsg = `🤖 <b>TRẠNG THÁI CLOUDFLARE AI GATEWAY BOT</b>\n` +
+                `━━━━━━━━━━━━━━━━━━━\n` +
+                `🟢 <b>Hạ tầng:</b> Cloudflare Edge Workers (<200ms)\n` +
+                `⚡ <b>Chế độ phân tích:</b> Fast-Path Regex + AI Fallback\n` +
+                `📱 <b>Telegram Mini App:</b> Sẵn sàng\n` +
+                `💳 <b>Tự động sinh VietQR:</b> Sẵn sàng\n` +
+                `📍 <b>Chat ID:</b> <code>${chatId}</code>\n` +
+                `📦 <b>Phiên bản:</b> <code>v2.5.0-APEX</code>`;
+              
+              if (botToken) {
+                await callTelegramApi(botToken, "sendMessage", {
+                  chat_id: chatId,
+                  message_thread_id: threadId,
+                  text: statusMsg,
+                  parse_mode: "HTML"
+                });
+              }
+              return new Response(JSON.stringify({ ok: true, message: "Status responded" }), { status: 200, headers: corsHeaders });
+            }
+
+            if (text.startsWith("/huongdan") || text.startsWith("/help")) {
+              const helpMsg = `📖 <b>HƯỚNG DẪN BOT ĐẶT BÀN KING'S GRILL</b>\n` +
+                `━━━━━━━━━━━━━━━━━━━\n` +
+                `🤖 <b>1. LÊN PHIẾU ĐẶT BÀN MỚI</b>\n` +
+                `Gửi trực tiếp tin nhắn đặt bàn vào nhóm:\n` +
+                `<i>Anh Trí 0901234567 ngày mai 18:30 đi 4 khách bàn A1 ăn Lẩu thái 1, cọc 500k</i>\n\n` +
+                `📱 <b>2. DÙNG TELEGRAM MINI APP</b>\n` +
+                `Bấm nút <b>[📱 Mở App Đặt Bàn]</b> ngay dưới tin nhắn để mở giao diện đặt bàn trực quan 2D.\n\n` +
+                `💳 <b>3. QUÉT MÃ VIETQR</b>\n` +
+                `Bot tự động đính kèm nút VietQR đúng số tiền cọc cho khách chuyển khoản chuẩn xác.`;
+
+              if (botToken) {
+                await callTelegramApi(botToken, "sendMessage", {
+                  chat_id: chatId,
+                  message_thread_id: threadId,
+                  text: helpMsg,
+                  parse_mode: "HTML",
+                  reply_markup: {
+                    inline_keyboard: [
+                      [{ text: "📱 Mở App Đặt Bàn", web_app: { url: "https://datban-kingsgrill.pages.dev" } }]
+                    ]
+                  }
+                });
+              }
+              return new Response(JSON.stringify({ ok: true, message: "Help responded" }), { status: 200, headers: corsHeaders });
+            }
+
+            // Normal booking message
+            cleanExpiredTelegramTempOrders();
+            const parsed = fastParseBookingText(text);
+
+            const tempId = `TG_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+            const bookingId = `TG_${Date.now()}`;
+
+            const payload = {
+              id: bookingId,
+              customer: parsed.customer,
+              items: parsed.items,
+              deposit: parsed.deposit,
+              total: parsed.total,
+              rawText: text
+            };
+
+            telegramTempOrders.set(tempId, {
+              payload,
+              expiresAt: Date.now() + 10 * 60 * 1000 // 10 minutes
+            });
+
+            const confirmationMsg = formatTelegramBoxMessage(parsed.customer, parsed.items, parsed.deposit, parsed.total, undefined, false);
+
+            const buttons: any[][] = [
+              [
+                { text: "✅ Xác nhận tạo", callback_data: `confirm_create:${tempId}` },
+                { text: "❌ Hủy bỏ", callback_data: `cancel_create:${tempId}` }
+              ],
+              [
+                { text: "📱 Mở App Đặt Bàn", web_app: { url: "https://datban-kingsgrill.pages.dev" } }
+              ]
+            ];
+
+            if (parsed.deposit.amount > 0 && !parsed.deposit.isPaid) {
+              const qrUrl = buildVietQRUrl(
+                env.DEFAULT_BANK_BIN || "970415",
+                env.DEFAULT_BANK_ACC || "102874136666",
+                parsed.deposit.amount,
+                `DATBAN ${bookingId.slice(-6)}`,
+                env.DEFAULT_BANK_OWNER || "KINGS GRILL"
+              );
+              buttons.push([
+                { text: "💳 Chuyển Cọc VietQR", url: qrUrl }
+              ]);
+            }
+
+            if (botToken) {
+              await callTelegramApi(botToken, "sendMessage", {
+                chat_id: chatId,
+                message_thread_id: threadId,
+                text: confirmationMsg,
+                parse_mode: "HTML",
+                reply_markup: { inline_keyboard: buttons }
+              });
+            }
+
+            return new Response(JSON.stringify({ ok: true, message: "Confirmation sent", bookingId }), { status: 200, headers: corsHeaders });
+          }
+
+          return new Response(JSON.stringify({ ok: true, message: "Ignored update" }), { status: 200, headers: corsHeaders });
+        } catch (e: any) {
+          console.error("[Telegram Webhook Error]", e);
+          return new Response(JSON.stringify({ ok: false, error: e.message }), { status: 500, headers: corsHeaders });
+        }
+      }
+
+      // --- ZALO OA WEBHOOK ENDPOINTS ---
+      if ((path === "/api/webhook/zalo" || path === "/webhook/zalo") && request.method === "GET") {
+        const challenge = url.searchParams.get("challenge") || "OK";
+        return new Response(challenge, {
+          status: 200,
+          headers: { ...corsHeaders, "Content-Type": "text/plain" }
+        });
+      }
+
+      if ((path === "/api/webhook/zalo" || path === "/webhook/zalo") && request.method === "POST") {
+        try {
+          const body = await request.json() as any;
+          const eventName = body.event_name || "";
+          const senderId = body.sender?.id || body.user_id_by_app || body.fromuid || "";
+          const messageText = body.message?.text || "";
+
+          if (eventName === "user_send_text" && messageText) {
+            const parsed = fastParseBookingText(messageText);
+
+            ctx.waitUntil((async () => {
+              const supabaseUrl = "https://azfkzheypuvfcitckovf.supabase.co";
+              const anonKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImF6Zmt6aGV5cHV2ZmNpdGNrb3ZmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODUwNzc1MjEsImV4cCI6MjEwMDY1MzUyMX0.ltnY7GTzKGE7QiWTv8ZuDlfT_NWIR2sGfGudoVDw4NQ";
+
+              const dParts = (parsed.customer.date || "").split("/");
+              const isoDate = dParts.length === 3 ? `${dParts[2]}-${dParts[1]}-${dParts[0]}` : new Date().toISOString().split("T")[0];
+
+              // Save to Supabase Bookings
+              await fetch(`${supabaseUrl}/rest/v1/bookings`, {
+                method: "POST",
+                headers: {
+                  "apikey": anonKey,
+                  "Authorization": `Bearer ${anonKey}`,
+                  "Content-Type": "application/json",
+                  "Prefer": "return=minimal"
+                },
+                body: JSON.stringify({
+                  customer_name: parsed.customer.name,
+                  customer_phone: parsed.customer.phone || "0900000000",
+                  booking_date: isoDate,
+                  start_time: parsed.customer.time,
+                  guest_count: parseInt(parsed.customer.pax, 10) || 2,
+                  table_id: parsed.customer.tables || "Chưa xếp",
+                  source: "zalo_oa",
+                  status: "pending",
+                  note: `Zalo OA (${senderId}): "${messageText}"`,
+                  raw_message: messageText
+                })
+              });
+
+              // Forward Alert to Telegram Group if configured
+              const tgBotToken = env.TELEGRAM_BOT_TOKEN;
+              const tgChatId = env.TELEGRAM_CHAT_ID;
+              if (tgBotToken && tgChatId) {
+                const zaloAlert = `📢 <b>YÊU CẦU ĐẶT BÀN MỚI TỪ ZALO OA</b>\n` +
+                  `━━━━━━━━━━━━━━━━━━━\n` +
+                  `👤 <b>Khách hàng:</b> ${parsed.customer.name}\n` +
+                  `📱 <b>Số điện thoại:</b> <code>${parsed.customer.phone || 'Chưa cung cấp'}</code>\n` +
+                  `📅 <b>Thời gian:</b> <b>${parsed.customer.time}</b> | ${parsed.customer.date}\n` +
+                  `👥 <b>Số lượng:</b> ${parsed.customer.pax} khách\n` +
+                  `💬 <b>Tin nhắn:</b> <i>"${messageText}"</i>\n\n` +
+                  `👉 <a href="https://datban-kingsgrill.pages.dev">MỞ APP QUẢN LÝ ĐẶT BÀN</a>`;
+
+                await callTelegramApi(tgBotToken, "sendMessage", {
+                  chat_id: tgChatId,
+                  message_thread_id: env.TELEGRAM_TOPIC_ID,
+                  text: zaloAlert,
+                  parse_mode: "HTML"
+                });
+              }
+            })());
+          }
+
+          return new Response(JSON.stringify({ error: 0, message: "Success" }), {
+            status: 200,
+            headers: { ...corsHeaders, "Content-Type": "application/json" }
+          });
+        } catch (e: any) {
+          console.error("[Zalo Webhook Error]", e);
+          return new Response(JSON.stringify({ error: -1, message: e.message }), { status: 500, headers: corsHeaders });
+        }
       }
 
 

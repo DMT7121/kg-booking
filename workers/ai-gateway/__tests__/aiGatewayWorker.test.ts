@@ -363,5 +363,191 @@ describe('AI Gateway Cloudflare Worker Tests', () => {
       })
     )
   })
+
+  it('should handle Telegram Webhook incoming booking message with TMA button and VietQR', async () => {
+    const customEnv = {
+      ...mockEnv,
+      TELEGRAM_BOT_TOKEN: 'test-tg-token',
+      DEFAULT_BANK_BIN: '970415',
+      DEFAULT_BANK_ACC: '102874136666'
+    }
+
+    const waitPromises: Promise<any>[] = []
+    const mockCtx = {
+      waitUntil: (p: Promise<any>) => waitPromises.push(p)
+    }
+
+    const tgPayload = {
+      update_id: 10001,
+      message: {
+        message_id: 55,
+        chat: { id: -100123456789 },
+        text: 'Anh Trí 0901234567 ngày mai 18:30 đi 4 khách bàn A1 cọc 500k ăn Lẩu thái 1, cơm chiên 1'
+      }
+    }
+
+    const req = new Request('http://localhost/api/webhook/telegram', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(tgPayload)
+    })
+
+    const res = await worker.fetch(req, customEnv as any, mockCtx as any)
+    expect(res.status).toBe(200)
+    const json = await res.json() as any
+    expect(json.ok).toBe(true)
+    expect(json.message).toBe('Confirmation sent')
+
+    // Verify Telegram API sendMessage was called with TMA web_app button and VietQR
+    expect(fetchMock).toHaveBeenCalledWith(
+      'https://api.telegram.org/bottest-tg-token/sendMessage',
+      expect.objectContaining({
+        method: 'POST',
+        body: expect.stringContaining('datban-kingsgrill.pages.dev')
+      })
+    )
+    expect(fetchMock).toHaveBeenCalledWith(
+      'https://api.telegram.org/bottest-tg-token/sendMessage',
+      expect.objectContaining({
+        method: 'POST',
+        body: expect.stringContaining('img.vietqr.io')
+      })
+    )
+  })
+
+  it('should handle Telegram Webhook callback_query confirm_create and mutate message', async () => {
+    const customEnv = {
+      ...mockEnv,
+      TELEGRAM_BOT_TOKEN: 'test-tg-token'
+    }
+
+    const waitPromises: Promise<any>[] = []
+    const mockCtx = {
+      waitUntil: (p: Promise<any>) => waitPromises.push(p)
+    }
+
+    // First send booking to populate temp store
+    const initialReq = new Request('http://localhost/api/webhook/telegram', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        message: {
+          message_id: 60,
+          chat: { id: -100123456789 },
+          text: 'Chị Hoa 0909888777 lúc 19h 2 khách bàn B2 cọc 200k'
+        }
+      })
+    })
+    await worker.fetch(initialReq, customEnv as any, mockCtx as any)
+
+    // Find the tempId from fetch mock call
+    const sendCall = fetchMock.mock.calls.find(c => c[0].includes('api.telegram.org/bottest-tg-token/sendMessage'))
+    expect(sendCall).toBeDefined()
+    const sendPayload = JSON.parse(sendCall[1].body)
+    const confirmButton = sendPayload.reply_markup.inline_keyboard[0][0]
+    const tempId = confirmButton.callback_data.replace('confirm_create:', '')
+
+    // Now test callback query
+    const cbReq = new Request('http://localhost/api/webhook/telegram', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        callback_query: {
+          id: 'cb-12345',
+          data: `confirm_create:${tempId}`,
+          message: {
+            message_id: 61,
+            chat: { id: -100123456789 }
+          }
+        }
+      })
+    })
+
+    const cbRes = await worker.fetch(cbReq, customEnv as any, mockCtx as any)
+    expect(cbRes.status).toBe(200)
+    const cbJson = await cbRes.json() as any
+    expect(cbJson.ok).toBe(true)
+    expect(cbJson.message).toBe('Order confirmed')
+
+    await Promise.all(waitPromises)
+
+    // Check editMessageText was called
+    expect(fetchMock).toHaveBeenCalledWith(
+      'https://api.telegram.org/bottest-tg-token/editMessageText',
+      expect.objectContaining({
+        method: 'POST',
+        body: expect.stringContaining('THÀNH CÔNG')
+      })
+    )
+
+    // Check answerCallbackQuery was called
+    expect(fetchMock).toHaveBeenCalledWith(
+      'https://api.telegram.org/bottest-tg-token/answerCallbackQuery',
+      expect.objectContaining({
+        method: 'POST'
+      })
+    )
+  })
+
+  it('should handle Zalo Webhook GET challenge verification and POST message event', async () => {
+    const customEnv = {
+      ...mockEnv,
+      TELEGRAM_BOT_TOKEN: 'test-tg-token',
+      TELEGRAM_CHAT_ID: '-10099999'
+    }
+
+    const waitPromises: Promise<any>[] = []
+    const mockCtx = {
+      waitUntil: (p: Promise<any>) => waitPromises.push(p)
+    }
+
+    // 1. Test GET verification
+    const getReq = new Request('http://localhost/api/webhook/zalo?challenge=my_zalo_challenge_123', {
+      method: 'GET'
+    })
+    const getRes = await worker.fetch(getReq, customEnv as any, mockCtx as any)
+    expect(getRes.status).toBe(200)
+    expect(await getRes.text()).toBe('my_zalo_challenge_123')
+
+    // 2. Test POST message
+    const postReq = new Request('http://localhost/api/webhook/zalo', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        event_name: 'user_send_text',
+        sender: { id: 'zalo-user-999' },
+        message: {
+          text: 'Anh Tuấn 0912345678 tối nay 19:00 6 người bàn VIP1'
+        }
+      })
+    })
+
+    const postRes = await worker.fetch(postReq, customEnv as any, mockCtx as any)
+    expect(postRes.status).toBe(200)
+    const postJson = await postRes.json() as any
+    expect(postJson.error).toBe(0)
+    expect(postJson.message).toBe('Success')
+
+    await Promise.all(waitPromises)
+
+    // Verify booking inserted into Supabase
+    expect(fetchMock).toHaveBeenCalledWith(
+      expect.stringContaining('/rest/v1/bookings'),
+      expect.objectContaining({
+        method: 'POST',
+        body: expect.stringContaining('zalo_oa')
+      })
+    )
+
+    // Verify notification forwarded to Telegram
+    expect(fetchMock).toHaveBeenCalledWith(
+      'https://api.telegram.org/bottest-tg-token/sendMessage',
+      expect.objectContaining({
+        method: 'POST',
+        body: expect.stringContaining('ZALO OA')
+      })
+    )
+  })
 })
+
 

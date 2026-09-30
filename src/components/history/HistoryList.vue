@@ -58,6 +58,45 @@ function toggleExpand(key: string) {
   expandedKey.value = expandedKey.value === key ? null : key
 }
 
+// --- High-Performance Pagination & Infinite Scroll ---
+const PAGE_SIZE = 30
+const displayLimit = ref(PAGE_SIZE)
+
+watch([() => ui.historySearch, () => ui.historyFilters], () => {
+  displayLimit.value = PAGE_SIZE
+}, { deep: true })
+
+const filteredEntries = computed(() => {
+  return Object.entries(appStore.filteredHistory)
+})
+
+const visibleHistoryEntries = computed(() => {
+  return filteredEntries.value.slice(0, displayLimit.value)
+})
+
+const totalFilteredCount = computed(() => {
+  return filteredEntries.value.length
+})
+
+const hasMoreOrders = computed(() => {
+  return displayLimit.value < totalFilteredCount.value
+})
+
+function loadMoreOrders() {
+  displayLimit.value += PAGE_SIZE
+}
+
+function handleListScroll(e: Event) {
+  const el = e.target as HTMLElement
+  if (!el) return
+  // Tự động nạp thêm khi cuộn gần chạm đáy (còn 200px)
+  if (el.scrollHeight - el.scrollTop - el.clientHeight < 200) {
+    if (hasMoreOrders.value) {
+      loadMoreOrders()
+    }
+  }
+}
+
 // --- Pull-to-Refresh ---
 const scrollContainer = ref<HTMLElement | null>(null)
 const { pullDistance, isRefreshing, onPullStart, onPullMove, onPullEnd } = usePullToRefresh(
@@ -236,13 +275,14 @@ function isOrderCared(id: string) {
         @touchstart="(e: TouchEvent) => scrollContainer && onPullStart(e, scrollContainer)"
         @touchmove="onPullMove"
         @touchend="onPullEnd"
+        @scroll="handleListScroll"
       >
-        <div v-if="Object.keys(appStore.filteredHistory).length === 0" class="text-center py-20 text-slate-400 dark:text-slate-500">
+        <div v-if="totalFilteredCount === 0" class="text-center py-20 text-slate-400 dark:text-slate-500">
           <i class="fa-solid fa-folder-open text-6xl mb-4 text-slate-300 dark:text-slate-600"></i>
           <p class="font-black text-sm uppercase tracking-widest">Chưa có lịch sử</p>
         </div>
 
-        <div v-for="(group, key) in appStore.filteredHistory" :key="key"
+        <div v-for="([key, group]) in visibleHistoryEntries" :key="key"
           class="bg-white dark:bg-surface-2 rounded-2xl shadow-[0_2px_12px_rgba(0,0,0,0.04)] dark:shadow-none border border-slate-200/80 dark:border-border-subtle p-3 sm:p-3.5 transition-all duration-200 relative group overflow-hidden"
           :class="[
             ui.isBatchMode && ui.selectedIds.includes(String(key)) ? 'ring-2 ring-red-500 bg-red-50 dark:bg-red-950/20' : '',
@@ -381,7 +421,17 @@ function isOrderCared(id: string) {
               </div>
             </div>
           </div>
+        </div>
 
+        <!-- Load More Sentinel / Button -->
+        <div v-if="hasMoreOrders" class="pt-2 pb-6 text-center">
+          <button 
+            @click="loadMoreOrders"
+            class="px-5 py-2.5 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 font-bold text-xs shadow-sm hover:bg-slate-50 dark:hover:bg-slate-750 active:scale-95 transition-all cursor-pointer"
+          >
+            <i class="fa-solid fa-angles-down mr-1.5 text-blue-500"></i>
+            Xem thêm phiếu cũ hơn (Đang hiện {{ visibleHistoryEntries.length }}/{{ totalFilteredCount }})
+          </button>
         </div>
       </div>
     </div>

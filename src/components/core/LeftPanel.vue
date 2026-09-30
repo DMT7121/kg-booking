@@ -114,11 +114,14 @@ function shareCurrentBill() {
 // --- Share Link Đặt bàn Online cho khách ---
 function copyCustomerBookingLink() {
   haptic('light')
-  const url = `${window.location.origin}${window.location.pathname}#/dat-ban`
+  const defaultCustomerUrl = 'https://datban-kingsgrill.pages.dev'
+  const configuredUrl = ((import.meta.env.VITE_CUSTOMER_BOOKING_URL as string) || '').trim()
+  const url = configuredUrl || defaultCustomerUrl
+
   navigator.clipboard.writeText(url).then(() => {
-    ui.showToast('📋 Đã sao chép link Đặt bàn Online gửi cho khách!', 'success')
+    ui.showToast(`📋 Đã copy link đặt bàn: ${url}`, 'success')
   }).catch(() => {
-    prompt('Link đặt bàn cho khách:', url)
+    prompt('Link đặt bàn gửi cho khách:', url)
   })
 }
 

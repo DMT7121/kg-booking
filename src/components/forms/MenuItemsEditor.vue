@@ -349,8 +349,8 @@ function onSelectSuggestion(s: any, index: number) {
           <!-- Row 2: Stepper, Price & Subtotal (Unified single line, fits 360px+) -->
           <div class="flex items-center justify-between gap-1.5 sm:gap-2 pt-2 border-t border-slate-100 dark:border-slate-800 flex-wrap sm:flex-nowrap">
             <!-- Left Group: Stepper + Price -->
-            <div class="flex items-center gap-1.5 sm:gap-2 shrink-0">
-              <!-- Stepper with >=36px hit targets (16px font on mobile prevents iOS zoom) -->
+            <div class="flex items-center gap-1.5 sm:gap-2 flex-1 min-w-0 sm:flex-initial">
+              <!-- Stepper with >=36px hit targets (15px font, spin buttons removed, no cramped text) -->
               <div class="flex items-center bg-slate-50 dark:bg-slate-800/70 rounded-xl border border-slate-200 dark:border-slate-700 p-0.5 shadow-inner shrink-0">
                 <button 
                   @click.prevent="if (item.qty > 1) item.qty--; else formStore.items.splice(index, 1)" 
@@ -367,7 +367,7 @@ function onSelectSuggestion(s: any, index: number) {
                   v-model="item.qty" 
                   @focus="handleInputFocus" 
                   @blur="handleInputBlur" 
-                  class="w-7 sm:w-10 text-center font-black border-none bg-transparent text-[16px] sm:text-sm outline-none text-slate-800 dark:text-slate-100 placeholder-slate-400 font-tabular" 
+                  class="w-[34px] sm:w-10 min-w-[34px] px-0.5 text-center font-black border-none bg-transparent text-[15px] sm:text-sm outline-none text-slate-800 dark:text-slate-100 placeholder-slate-400 font-tabular [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" 
                   placeholder="SL"
                 >
                 
@@ -403,9 +403,9 @@ function onSelectSuggestion(s: any, index: number) {
                 </div>
               </div>
 
-              <!-- Price Input with currency label (16px font on mobile) -->
-              <div class="flex items-center gap-1 bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 rounded-xl px-2 sm:px-2.5 py-1.5 shrink-0">
-                <span class="text-[9px] sm:text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase">Giá:</span>
+              <!-- Price Input with currency label (Adaptive width, zero clipping on mobile) -->
+              <div class="flex items-center gap-1 bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 rounded-xl px-2 sm:px-2.5 py-1.5 flex-1 min-w-[105px] max-w-[160px] sm:max-w-none sm:flex-initial">
+                <span class="text-[9px] sm:text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase shrink-0">Giá:</span>
                 <input 
                   type="text" 
                   inputmode="numeric"
@@ -413,15 +413,15 @@ function onSelectSuggestion(s: any, index: number) {
                   @input="updateItemPrice(index, ($event.target as HTMLInputElement).value)" 
                   @focus="handleInputFocus" 
                   @blur="handleInputBlur" 
-                  class="w-16 sm:w-24 text-right font-black text-blue-700 dark:text-blue-300 bg-transparent text-[16px] sm:text-sm outline-none placeholder-slate-400 font-tabular" 
+                  class="w-full min-w-[72px] sm:w-24 text-right font-black text-blue-700 dark:text-blue-300 bg-transparent text-[15px] sm:text-sm outline-none placeholder-slate-400 font-tabular p-0" 
                   placeholder="0"
                 >
-                <span class="text-[9px] sm:text-[10px] font-bold text-slate-400">đ</span>
+                <span class="text-[9px] sm:text-[10px] font-bold text-slate-400 shrink-0">đ</span>
               </div>
             </div>
 
             <!-- Subtotal: Compact Badge on the Right -->
-            <div class="flex items-center gap-1 px-2 sm:px-2.5 py-1.5 bg-emerald-50 dark:bg-emerald-950/40 rounded-xl border border-emerald-200/60 dark:border-emerald-800/40 text-[11px] sm:text-xs font-black text-emerald-700 dark:text-emerald-300 font-tabular shrink-0" title="Thành tiền món này">
+            <div class="flex items-center gap-1 px-2 sm:px-2.5 py-1.5 bg-emerald-50 dark:bg-emerald-950/40 rounded-xl border border-emerald-200/60 dark:border-emerald-800/40 text-[11px] sm:text-xs font-black text-emerald-700 dark:text-emerald-300 font-tabular shrink-0 ml-auto" title="Thành tiền món này">
               <span class="hidden sm:inline text-[9px] font-bold text-emerald-600 dark:text-emerald-400 uppercase">Thành tiền:</span>
               <span class="sm:hidden text-[10px] font-bold text-emerald-600 dark:text-emerald-400">=</span>
               <span class="whitespace-nowrap">{{ formatVND((item.price || 0) * (item.qty || 1)) }}</span>

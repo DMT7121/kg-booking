@@ -47,47 +47,73 @@ const MENU_SEARCH_STOP_WORDS = new Set([
   'thu', 'hai', 'ba', 'tu', 'sau', 'bay', 'nhat'
 ])
 
+let _cachedMiniSearch: MiniSearch | null = null
+let _cachedFingerprint = ''
+
+function computeMenuFingerprint(menus: any[]): string {
+  let count = 0
+  let firstItem = ''
+  let lastItem = ''
+  for (const m of (menus || [])) {
+    const items = m.items || []
+    count += items.length
+    if (!firstItem && items[0]) firstItem = items[0].name || ''
+    if (items.length) lastItem = items[items.length - 1].name || ''
+  }
+  return `${menus.length}_${count}_${firstItem}_${lastItem}`
+}
+
 export function retrieveMenuCandidates(input: MenuCandidateRetrievalInput): MenuCandidate[] {
   const { text, menus, limit = 15 } = input
   const normalizedText = normalizeString(text)
-  if (!normalizedText) return []
+  if (!normalizedText || !menus || menus.length === 0) return []
 
-  // Initialize MiniSearch Index
-  const miniSearch = new MiniSearch({
-    fields: ['name', 'cleanName', 'acronym', 'aliases'],
-    storeFields: ['menuId', 'menuName', 'itemId', 'itemName', 'aliases'],
-    searchOptions: {
-      boost: { name: 2.5, cleanName: 1.5, aliases: 2, acronym: 0.8 },
-      fuzzy: 0.15,
-      prefix: true
+  // Reuse cached MiniSearch if menu has not changed
+  const fingerprint = computeMenuFingerprint(menus)
+  let miniSearch = _cachedMiniSearch
+
+  if (!miniSearch || _cachedFingerprint !== fingerprint) {
+    miniSearch = new MiniSearch({
+      fields: ['name', 'cleanName', 'acronym', 'aliases'],
+      storeFields: ['menuId', 'menuName', 'itemId', 'itemName', 'aliases'],
+      searchOptions: {
+        boost: { name: 2.5, cleanName: 1.5, aliases: 2, acronym: 0.8 },
+        fuzzy: 0.15,
+        prefix: true
+      }
+    })
+
+    const documents: any[] = []
+    let docId = 1
+
+    for (const menu of menus) {
+      for (const item of (menu.items || [])) {
+        const cleanName = normalizeString(item.name)
+        const acronym = generateAcronym(item.name)
+        const aliasesStr = (item.aliases || []).map(normalizeString).join(' ')
+
+        documents.push({
+          id: docId++,
+          menuId: menu.menuId,
+          menuName: menu.menuName,
+          itemId: item.id || `item-${docId}`,
+          itemName: item.name,
+          cleanName,
+          acronym,
+          aliases: aliasesStr
+        })
+      }
     }
-  })
 
-  const documents: any[] = []
-  let docId = 1
-
-  for (const menu of menus) {
-    for (const item of menu.items) {
-      const cleanName = normalizeString(item.name)
-      const acronym = generateAcronym(item.name)
-      const aliasesStr = (item.aliases || []).map(normalizeString).join(' ')
-
-      documents.push({
-        id: docId++,
-        menuId: menu.menuId,
-        menuName: menu.menuName,
-        itemId: item.id || `item-${docId}`,
-        itemName: item.name,
-        cleanName,
-        acronym,
-        aliases: aliasesStr
-      })
+    if (documents.length > 0) {
+      miniSearch.addAll(documents)
     }
+
+    _cachedMiniSearch = miniSearch
+    _cachedFingerprint = fingerprint
   }
 
-  if (documents.length === 0) return []
-
-  miniSearch.addAll(documents)
+  if (!miniSearch || (miniSearch as any).documentCount === 0) return []
 
   // Filter text tokens to remove general booking noise before searching
   const textTokens = normalizedText

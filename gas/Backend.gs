@@ -1932,7 +1932,25 @@ function sendNotification_(orderData, orderId, billUrl) {
 
   if (webhookUrl.includes('api.telegram.org')) {
     try {
-      const payload = { chat_id: chatId, text: msg, parse_mode: 'HTML' };
+      const notificationButtons = [
+        [
+          { text: "🧾 Xem Phiếu Online", url: shareUrl },
+          { text: "📱 Mở App Đặt Bàn", web_app: { url: "https://datban-kingsgrill.pages.dev" } }
+        ]
+      ];
+      if (!dep.isPaid && dep.amount > 0) {
+        const qrUrl = "https://img.vietqr.io/image/970415-102874136666-compact2.png?amount=" + dep.amount + "&addInfo=DATBAN%20" + encodeURIComponent(orderId.slice(-6)) + "&accountName=KINGS%20GRILL";
+        notificationButtons.push([
+          { text: "💳 Mã VietQR Cọc", url: qrUrl }
+        ]);
+      }
+
+      const payload = { 
+        chat_id: chatId, 
+        text: msg, 
+        parse_mode: 'HTML',
+        reply_markup: { inline_keyboard: notificationButtons }
+      };
       if (cfg['telegramTopicId']) {
         const threadIdNum = Number(cfg['telegramTopicId']);
         if (!isNaN(threadIdNum) && threadIdNum > 1) {
@@ -2848,7 +2866,21 @@ function handleTelegramWebhook(update) {
         '🆔 <b>Mã đặt bàn:</b> <code>' + payload.id + '</code>\n' +
         '👉 <a href="https://kg-booking.pages.dev/#/bill/' + payload.id + '">XEM PHIẾU ĐẶT ONLINE</a>';
       
-      editTelegramMessageText_(botToken, chatId, messageId, successCaption, null);
+      const postSuccessButtons = [
+        [
+          { text: "🧾 Xem Phiếu Online", url: "https://kg-booking.pages.dev/#/bill/" + payload.id },
+          { text: "📱 Mở App Đặt Bàn", web_app: { url: "https://datban-kingsgrill.pages.dev" } }
+        ]
+      ];
+      if (!payload.deposit.isPaid && payload.deposit.amount > 0) {
+        const qrUrl = "https://img.vietqr.io/image/970415-102874136666-compact2.png?amount=" + payload.deposit.amount + "&addInfo=DATBAN%20" + encodeURIComponent(payload.id.slice(-6)) + "&accountName=KINGS%20GRILL";
+        postSuccessButtons.push([
+          { text: "💵 Đã Nhận Cọc", callback_data: "mark_paid:" + payload.id },
+          { text: "💳 Mã VietQR Cọc", url: qrUrl }
+        ]);
+      }
+
+      editTelegramMessageText_(botToken, chatId, messageId, successCaption, { inline_keyboard: postSuccessButtons });
       answerCallbackQuery_(botToken, callbackQuery.id, "Đã lên phiếu thành công!");
       return HtmlService.createHtmlOutput("Callback processed - order created");
     }
@@ -2859,6 +2891,28 @@ function handleTelegramWebhook(update) {
       editTelegramMessageText_(botToken, chatId, messageId, "❌ <b>ĐÃ HỦY YÊU CẦU ĐẶT BÀN.</b>", null);
       answerCallbackQuery_(botToken, callbackQuery.id, "Đã hủy yêu cầu.");
       return HtmlService.createHtmlOutput("Callback processed - canceled");
+    }
+
+    if (callbackData.indexOf("mark_paid:") === 0) {
+      const bookingId = callbackData.substring("mark_paid:".length);
+      const existing = getOrderById_(bookingId);
+      if (existing) {
+        existing.deposit = existing.deposit || {};
+        existing.deposit.isPaid = true;
+        saveOrder(existing);
+        answerCallbackQuery_(botToken, callbackQuery.id, "✅ Đã ghi nhận cọc thành công!");
+        
+        const updatedButtons = [
+          [
+            { text: "🧾 Xem Phiếu Online", url: "https://kg-booking.pages.dev/#/bill/" + bookingId },
+            { text: "📱 Mở App Đặt Bàn", web_app: { url: "https://datban-kingsgrill.pages.dev" } }
+          ]
+        ];
+        editTelegramMessageText_(botToken, chatId, messageId, "🟢 <b>ĐÃ GHI NHẬN CỌC THÀNH CÔNG (Chuyển khoản)</b>\nMã đặt bàn: <code>" + bookingId + "</code>\nKhách: <b>" + escapeHtml(existing.customer.name) + "</b> | Bàn: <b>" + escapeHtml(existing.customer.tables) + "</b>", { inline_keyboard: updatedButtons });
+      } else {
+        answerCallbackQuery_(botToken, callbackQuery.id, "Không tìm thấy đơn.");
+      }
+      return HtmlService.createHtmlOutput("Callback processed - mark paid");
     }
   } catch (err) {
     logError_("Callback Error: " + err.message + "\nStack: " + err.stack);
@@ -3192,8 +3246,17 @@ function handleTelegramWebhook(update) {
         [
           { text: "✅ Xác nhận tạo", callback_data: "confirm_create:" + tempId },
           { text: "❌ Hủy bỏ", callback_data: "cancel_create:" + tempId }
+        ],
+        [
+          { text: "📱 Mở App Đặt Bàn", web_app: { url: "https://datban-kingsgrill.pages.dev" } }
         ]
       ];
+      if (!isPaid && depositAmount > 0) {
+        const qrUrl = "https://img.vietqr.io/image/970415-102874136666-compact2.png?amount=" + depositAmount + "&addInfo=DATBAN%20" + encodeURIComponent(bookingId.slice(-6)) + "&accountName=KINGS%20GRILL";
+        buttons.push([
+          { text: "💳 Chuyển Cọc VietQR", url: qrUrl }
+        ]);
+      }
       
       // A. Send confirmation message with inline buttons
       replyTelegramWithButtons_(botToken, chatId, threadId, confirmationText, buttons);
