@@ -213,7 +213,12 @@ const qrLink = computed(() => {
 
       <!-- TICKET FOOTER -->
       <div class="bg-slate-50 px-8 py-3 border-t border-slate-200 flex items-center justify-between text-[10px] text-slate-400 font-mono">
-        <div>KING'S GRILL RESTAURANT • HOTLINE 090 123 4567</div>
+        <div v-if="formStore?.staff?.phone">
+          KING'S GRILL • NV HỖ TRỢ: {{ formStore.staff.name || '---' }} ({{ formStore.staff.phone }})
+        </div>
+        <div v-else>
+          KING'S GRILL RESTAURANT • HÂN HẠNH PHỤC VỤ
+        </div>
         <div>WWW.KINGSGRILL.VN</div>
       </div>
 

@@ -30,7 +30,7 @@ export const useConfigStore = defineStore('config', () => {
 
   // --- Bill Template & Render Preferences ---
   const billPreferences = reactive({
-    template: (localStorage.getItem('kg_bill_template') as 'modern' | 'luxury' | 'ticket') || 'modern',
+    template: (localStorage.getItem('kg_bill_template') as 'classic' | 'modern' | 'luxury' | 'ticket') || 'classic',
     quality: (localStorage.getItem('kg_bill_quality') as 'standard' | 'hd' | 'ultra') || 'hd',
     hidePrice: localStorage.getItem('kg_bill_hide_price') === 'true'
   })

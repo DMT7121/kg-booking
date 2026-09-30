@@ -42,7 +42,8 @@ const qrLink = computed(() => {
           </p>
           <div class="text-[10px] font-bold text-amber-700 mt-1 flex items-center gap-1.5">
             <span class="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
-            <span>Hotline: 090 123 4567 • Mở cửa: 10:00 - 23:00</span>
+            <span v-if="formStore?.staff?.phone">Hotline: {{ formStore.staff.phone }} • Mở cửa: 10:00 - 23:00</span>
+            <span v-else>Mở cửa: 10:00 - 23:00</span>
           </div>
         </div>
       </div>

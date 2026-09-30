@@ -198,6 +198,7 @@ function openZaloChat() {
   }
 }
 
+import BillTemplateClassic from '@/components/bills/templates/BillTemplateClassic.vue'
 import BillTemplateModern from '@/components/bills/templates/BillTemplateModern.vue'
 import BillTemplateLuxury from '@/components/bills/templates/BillTemplateLuxury.vue'
 import BillTemplateTicket from '@/components/bills/templates/BillTemplateTicket.vue'
@@ -210,9 +211,10 @@ const qualities = [
 ] as const
 
 const templates = [
-  { id: 'modern', name: 'Tối giản', icon: 'fa-newspaper', desc: 'Editorial' },
-  { id: 'luxury', name: 'Hoàng gia', icon: 'fa-crown', desc: 'Royal VIP' },
-  { id: 'ticket', name: 'Vé sự kiện', icon: 'fa-ticket', desc: 'Boarding Pass' }
+  { id: 'classic', name: 'Truyền thống', shortName: 'Truyền thống', icon: 'fa-file-invoice', desc: 'Mẫu gốc King\'s Grill' },
+  { id: 'modern', name: 'Tối giản', shortName: 'Tối giản', icon: 'fa-newspaper', desc: 'Editorial hiện đại' },
+  { id: 'luxury', name: 'Sang trọng', shortName: 'Sang trọng', icon: 'fa-gem', desc: 'Fine Dining cao cấp' },
+  { id: 'ticket', name: 'Vé sự kiện', shortName: 'Vé tiệc', icon: 'fa-ticket', desc: 'Boarding Pass siêu gọn' }
 ] as const
 
 function selectQuality(qId: 'standard' | 'hd' | 'ultra') {
@@ -221,7 +223,7 @@ function selectQuality(qId: 'standard' | 'hd' | 'ultra') {
   ui.showToast(`Đã chọn chất lượng ảnh: ${qualities.find(q => q.id === qId)?.name}`, 'info')
 }
 
-function selectTemplate(tId: 'modern' | 'luxury' | 'ticket') {
+function selectTemplate(tId: 'classic' | 'modern' | 'luxury' | 'ticket') {
   configStore.billPreferences.template = tId
   nextTick(() => {
     updatePreviewScale()
@@ -490,13 +492,13 @@ function toggleHidePrice() {
             :key="tpl.id"
             @click="selectTemplate(tpl.id)"
             :class="[
-              'flex-1 py-1 text-[10px] font-black rounded-lg transition-all text-center truncate cursor-pointer',
+              'flex-1 py-1 text-[9.5px] font-black rounded-lg transition-all text-center truncate cursor-pointer',
               configStore.billPreferences.template === tpl.id 
                 ? 'bg-white dark:bg-slate-900 text-blue-900 dark:text-blue-400 shadow-2xs font-extrabold' 
                 : 'text-slate-500 dark:text-slate-400'
             ]"
           >
-            {{ tpl.name }}
+            {{ tpl.shortName }}
           </button>
         </div>
 
@@ -568,9 +570,21 @@ function toggleHidePrice() {
             @mouseleave="resetParallax" 
             @dblclick="handleDoubleClick"
           >
+            <!-- 0. Classic / Original Template -->
+            <BillTemplateClassic 
+              v-if="configStore.billPreferences.template === 'classic'"
+              :formStore="formStore"
+              :configStore="configStore"
+              :appStore="appStore"
+              :qrImageUrl="qrImageUrl"
+              :depositTransferContent="depositTransferContent"
+              :stampParallax="stampParallax"
+              :hidePrice="configStore.billPreferences.hidePrice"
+            />
+
             <!-- 1. Modern Minimalist / Clean Editorial Template -->
             <BillTemplateModern 
-              v-if="configStore.billPreferences.template === 'modern'"
+              v-else-if="configStore.billPreferences.template === 'modern'"
               :formStore="formStore"
               :configStore="configStore"
               :appStore="appStore"

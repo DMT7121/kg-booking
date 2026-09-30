@@ -51,24 +51,16 @@ const qrLink = computed(() => {
           </div>
         </div>
 
-        <div class="text-[10px] font-black uppercase tracking-[0.25em] text-[#C5A059] mb-1">
-          ✦ HAUTE CUISINE & GRILL ✦
-        </div>
-
         <h1 class="text-3xl font-black tracking-widest text-[#0B192C] uppercase" style="font-family: 'Be Vietnam Pro', serif;">
           KING'S GRILL
         </h1>
         
         <p class="text-xs text-slate-500 font-medium mt-1">
-          34 Hoàng Văn Thụ, Phường Thủ Dầu Một, TP. Hồ Chí Minh • Hotline: 090 123 4567
+          34 Hoàng Văn Thụ, Phường Thủ Dầu Một, TP. Hồ Chí Minh
         </p>
 
-        <div class="inline-block mt-3 px-5 py-1 rounded-full bg-[#FAF9F5] border border-[#C5A059]/50 text-[11px] font-black tracking-widest text-[#9A7B38] uppercase shadow-2xs">
-          PHIẾU XÁC NHẬN ĐẶT TIỆC HOÀNG GIA
-        </div>
-
-        <div class="text-[10px] font-mono text-slate-400 font-bold mt-1">
-          MÃ ĐƠN: #{{ formStore?.id ? formStore.id.slice(-8).toUpperCase() : 'KG-ROYAL' }}
+        <div class="text-[10px] font-mono text-slate-400 font-bold mt-2">
+          MÃ ĐƠN: #{{ formStore?.id ? formStore.id.slice(-8).toUpperCase() : 'KG-VIP' }}
         </div>
       </div>
 
@@ -300,6 +292,7 @@ const qrLink = computed(() => {
         <div class="text-left">
           <div class="font-bold">
             Đại diện nhà hàng phục vụ: <span class="font-black text-[#0B192C]">{{ formStore?.staff?.name || 'Bộ phận Quản lý Khách hàng' }}</span>
+            <span v-if="formStore?.staff?.phone" class="font-mono font-bold text-[#9A7B38] ml-1">({{ formStore.staff.phone }})</span>
           </div>
           <div class="text-[11px] text-slate-400 italic mt-0.5">
             Sự hài lòng của Quý khách là vinh dự và thước đo chất lượng của King's Grill.
