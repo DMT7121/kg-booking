@@ -537,9 +537,9 @@ function goToTomorrowTimeline() {
                   <button 
                     @click="showActionSheet = !showActionSheet" 
                     title="Mở menu thao tác nhanh"
-                    class="h-10 px-2.5 sm:px-3.5 bg-slate-900 hover:bg-slate-800 dark:bg-slate-800 dark:hover:bg-slate-700 text-white rounded-xl font-bold text-xs uppercase shadow-sm transition-all active:scale-95 border border-amber-400/60 dark:border-amber-400/60 flex items-center gap-1.5 shrink-0 quick-action-pulse cursor-pointer"
+                    class="h-10 px-2.5 sm:px-3.5 bg-slate-900 hover:bg-slate-800 dark:bg-slate-800 dark:hover:bg-slate-700 text-white rounded-xl font-bold text-xs uppercase shadow-sm transition-all active:scale-95 border border-amber-400/60 dark:border-amber-400/60 flex items-center gap-1.5 shrink-0 quick-action-btn cursor-pointer"
                   >
-                    <i class="fa-solid fa-bolt-lightning text-amber-400 text-xs bolt-pulse"></i>
+                    <i class="fa-solid fa-bolt-lightning text-amber-400 text-xs bolt-icon"></i>
                     <span class="hidden sm:inline">Thao tác</span>
                   </button>
 
@@ -895,41 +895,24 @@ function goToTomorrowTimeline() {
   opacity: 0;
 }
 
-/* Hiệu ứng nhấp nháy / thở viền cao cấp cho Nút Thao tác nhanh */
-.quick-action-pulse {
-  animation: qa-glow-pulse 2.4s infinite ease-in-out;
+/* Nút Thao tác nhanh: Viền vàng hổ phách tinh tế, hover glow nhẹ nhàng không gây mất tập trung */
+.quick-action-btn {
+  border-color: rgba(245, 158, 11, 0.5);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
 }
-@keyframes qa-glow-pulse {
-  0%, 100% {
-    box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.45), 0 2px 8px rgba(0, 0, 0, 0.2);
-    border-color: rgba(245, 158, 11, 0.5);
-  }
-  50% {
-    box-shadow: 0 0 0 4px rgba(245, 158, 11, 0.2), 0 0 14px rgba(245, 158, 11, 0.4);
-    border-color: rgba(245, 158, 11, 0.95);
-  }
+.quick-action-btn:hover {
+  border-color: rgba(245, 158, 11, 0.9);
+  box-shadow: 0 0 12px rgba(245, 158, 11, 0.25);
 }
 
-.bolt-pulse {
+.bolt-icon {
   display: inline-block;
-  animation: bolt-flicker 1.8s infinite ease-in-out;
+  color: #fbbf24;
+  transition: transform 0.2s ease, filter 0.2s ease;
 }
-@keyframes bolt-flicker {
-  0%, 100% {
-    transform: scale(1);
-    filter: drop-shadow(0 0 2px rgba(251, 191, 36, 0.5));
-    opacity: 0.9;
-  }
-  50% {
-    transform: scale(1.25);
-    filter: drop-shadow(0 0 6px rgba(251, 191, 36, 1));
-    opacity: 1;
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .quick-action-pulse, .bolt-pulse {
-    animation: none !important;
-  }
+.quick-action-btn:hover .bolt-icon {
+  transform: scale(1.15);
+  filter: drop-shadow(0 0 4px rgba(251, 191, 36, 0.8));
 }
 </style>

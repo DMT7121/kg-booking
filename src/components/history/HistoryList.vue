@@ -207,9 +207,12 @@ function isOrderCared(id: string) {
       <!-- Search & Filters -->
       <div class="p-3 sm:p-4 bg-slate-50 dark:bg-slate-950 space-y-2.5 sm:space-y-3 z-10 shrink-0 border-b border-slate-200/40 dark:border-slate-800/80">
         <div class="flex gap-2">
-          <div class="relative flex-grow">
-            <input v-model="localSearch" type="text" class="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 font-bold text-slate-700 dark:text-slate-200 text-[13px] focus:border-blue-600 dark:focus:border-blue-400 outline-none transition-all placeholder-slate-400 dark:placeholder-slate-500" placeholder="Tìm tên, SĐT, mã phiếu...">
-            <i class="fa-solid fa-magnifying-glass absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400"></i>
+          <div class="relative flex-grow min-w-0">
+            <input v-model="localSearch" type="text" class="w-full pl-10 pr-9 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 font-bold text-slate-700 dark:text-slate-200 text-[13px] focus:border-blue-600 dark:focus:border-blue-400 outline-none transition-all placeholder-slate-400 dark:placeholder-slate-500" placeholder="Tìm tên, SĐT, mã phiếu...">
+            <i class="fa-solid fa-magnifying-glass absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"></i>
+            <button v-if="localSearch" @click="localSearch = ''" class="absolute right-2.5 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full flex items-center justify-center text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors" title="Xóa tìm kiếm" aria-label="Xóa tìm kiếm">
+              <i class="fa-solid fa-xmark text-xs"></i>
+            </button>
           </div>
           <button @click="ui.isBatchMode = !ui.isBatchMode" class="px-3 sm:px-4 py-2.5 rounded-xl border font-bold text-xs sm:text-[13px] flex items-center gap-1.5 sm:gap-2 active:scale-95 transition-all whitespace-nowrap shadow-sm cursor-pointer shrink-0" :class="ui.isBatchMode ? 'border-red-200 dark:border-red-800/60 bg-red-50 dark:bg-red-950/40 text-red-600 dark:text-red-400' : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800'" :title="ui.isBatchMode ? 'Hủy chế độ chọn nhiều' : 'Bật chế độ chọn nhiều để xóa hàng loạt'" :aria-label="ui.isBatchMode ? 'Hủy chọn' : 'Chọn nhiều'">
             <i class="fa-solid text-sm" :class="ui.isBatchMode ? 'fa-xmark text-red-500' : 'fa-list-check text-blue-600 dark:text-blue-400'"></i>
@@ -219,21 +222,32 @@ function isOrderCared(id: string) {
         </div>
         
         <!-- Filter Dropdowns -->
-        <div class="flex gap-2 overflow-x-auto custom-scrollbar pb-1 no-scrollbar">
-          <select v-model="ui.historyFilters.time" class="min-h-[38px] px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 text-xs font-bold shrink-0 outline-none appearance-none pr-8">
-            <option value="all">Tất cả thời gian</option>
-            <option value="today">Hôm nay</option>
-          </select>
-          <select v-model="ui.historyFilters.status" class="min-h-[38px] px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 text-xs font-bold shrink-0 outline-none appearance-none pr-8">
-            <option value="all">Tất cả trạng thái</option>
-            <option value="synced">Đã đồng bộ</option>
-            <option value="syncing">Đang chờ</option>
-          </select>
-          <select v-model="ui.historyFilters.deposit" class="min-h-[38px] px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 text-xs font-bold shrink-0 outline-none appearance-none pr-8">
-            <option value="all">Tất cả cọc</option>
-            <option value="paid">Đã cọc</option>
-            <option value="unpaid">Chưa cọc</option>
-          </select>
+        <div class="flex gap-2 overflow-x-auto custom-scrollbar pb-1 no-scrollbar items-center">
+          <div class="relative shrink-0">
+            <select v-model="ui.historyFilters.time" class="min-h-[36px] pl-3 pr-7 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 text-xs font-bold outline-none appearance-none cursor-pointer focus:border-blue-500 dark:focus:border-blue-400 transition-colors shadow-xs">
+              <option value="all">Tất cả thời gian</option>
+              <option value="today">Hôm nay</option>
+            </select>
+            <i class="fa-solid fa-chevron-down absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] text-slate-400 dark:text-slate-500 pointer-events-none"></i>
+          </div>
+
+          <div class="relative shrink-0">
+            <select v-model="ui.historyFilters.status" class="min-h-[36px] pl-3 pr-7 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 text-xs font-bold outline-none appearance-none cursor-pointer focus:border-blue-500 dark:focus:border-blue-400 transition-colors shadow-xs">
+              <option value="all">Tất cả trạng thái</option>
+              <option value="synced">Đã đồng bộ</option>
+              <option value="syncing">Đang chờ</option>
+            </select>
+            <i class="fa-solid fa-chevron-down absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] text-slate-400 dark:text-slate-500 pointer-events-none"></i>
+          </div>
+
+          <div class="relative shrink-0">
+            <select v-model="ui.historyFilters.deposit" class="min-h-[36px] pl-3 pr-7 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 text-xs font-bold outline-none appearance-none cursor-pointer focus:border-blue-500 dark:focus:border-blue-400 transition-colors shadow-xs">
+              <option value="all">Tất cả cọc</option>
+              <option value="paid">Đã cọc</option>
+              <option value="unpaid">Chưa cọc</option>
+            </select>
+            <i class="fa-solid fa-chevron-down absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] text-slate-400 dark:text-slate-500 pointer-events-none"></i>
+          </div>
         </div>
         
         <!-- Compact Summary Chip Bar -->
