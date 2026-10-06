@@ -1248,6 +1248,146 @@ function clearCalendarEntryById(ss, bookingId) {
   }
 }
 
+/**
+ * Chuẩn hóa tên sheet lịch đặt bàn luôn ở dạng "📅DD/MM/YYYY" (VD: "📅07/10/2026", "📅11/10/2026")
+ */
+function formatCalendarSheetName_(rawDate) {
+  if (!rawDate) {
+    var now = new Date();
+    var d = ("0" + now.getDate()).slice(-2);
+    var m = ("0" + (now.getMonth() + 1)).slice(-2);
+    var y = now.getFullYear();
+    return "📅" + d + "/" + m + "/" + y;
+  }
+  var str = String(rawDate).trim();
+  str = str.replace(/^[📅\s]+/, '').trim();
+  var iso = str.match(/^(\d{4})[-\/](\d{1,2})[-\/](\d{1,2})$/);
+  if (iso) {
+    var year = iso[1];
+    var month = ("0" + iso[2]).slice(-2);
+    var day = ("0" + iso[3]).slice(-2);
+    return "📅" + day + "/" + month + "/" + year;
+  }
+  var dmy = str.match(/^(\d{1,2})[-\/](\d{1,2})[-\/](\d{4})$/);
+  if (dmy) {
+    var day = ("0" + dmy[1]).slice(-2);
+    var month = ("0" + dmy[2]).slice(-2);
+    var year = dmy[3];
+    return "📅" + day + "/" + month + "/" + year;
+  }
+  var dm = str.match(/^(\d{1,2})[-\/](\d{1,2})$/);
+  if (dm) {
+    var day = ("0" + dm[1]).slice(-2);
+    var month = ("0" + dm[2]).slice(-2);
+    var year = new Date().getFullYear();
+    return "📅" + day + "/" + month + "/" + year;
+  }
+  return "📅" + str;
+}
+
+/**
+ * Lấy thứ trong tuần tiếng Việt
+ */
+function getVietnameseDayOfWeek_(dateStr) {
+  var d, m, y;
+  var str = String(dateStr).replace(/^[📅\s]+/, '').trim();
+  var iso = str.match(/^(\d{4})[-\/](\d{1,2})[-\/](\d{1,2})$/);
+  if (iso) {
+    y = parseInt(iso[1], 10);
+    m = parseInt(iso[2], 10) - 1;
+    d = parseInt(iso[3], 10);
+  } else {
+    var dmy = str.match(/^(\d{1,2})[-\/](\d{1,2})[-\/](\d{4})$/);
+    if (dmy) {
+      d = parseInt(dmy[1], 10);
+      m = parseInt(dmy[2], 10) - 1;
+      y = parseInt(dmy[3], 10);
+    }
+  }
+  if (!y) return '';
+  var dateObj = new Date(y, m, d);
+  var days = ['Chủ Nhật', 'Thứ Hai', 'Thứ Ba', 'Thứ Tư', 'Thứ Năm', 'Thứ Sáu', 'Thứ Bảy'];
+  return days[dateObj.getDay()] || '';
+}
+
+/**
+ * Tìm template sheet đặt bàn chuẩn
+ */
+function getCalendarTemplateSheet_(ss) {
+  var tpl = ss.getSheetByName(CONFIG.TEMPLATE_SHEET_NAME);
+  if (tpl) return tpl;
+  var list = ["[RS]📅 2025", "[RS]📅2025", "📅 GỐC", "📅GỐC", "Template", "Bản sao của [RS]📅 2025"];
+  for (var i = 0; i < list.length; i++) {
+    tpl = ss.getSheetByName(list[i]);
+    if (tpl) return tpl;
+  }
+  var sheets = ss.getSheets();
+  for (var j = 0; j < sheets.length; j++) {
+    if (sheets[j].getName().indexOf("[RS]") !== -1) return sheets[j];
+  }
+  for (var k = 0; k < sheets.length; k++) {
+    if (sheets[k].getName().indexOf("📅") === 0) return sheets[k];
+  }
+  return null;
+}
+
+/**
+ * Phân bổ bàn và vị trí ghi nhận trên sheet lịch:
+ * 1. Tên bàn mặc định luôn là "CHỜ SẮP" hoặc số bàn cụ thể nếu đã nhập (như A1, B2, E1).
+ * 2. Luôn ưu tiên ghi vào Khu A (startCol = 1) nếu còn chỗ; nếu Khu A hết chỗ mới chuyển sang các khu khác (B, C, D, E).
+ * 3. Khi đã nhập số bàn cụ thể (như A1, B2, E1): nạp về đúng khu trực và không hiện "CHỜ SẮP".
+ */
+function resolveTableAndZoneForCalendar_(sheet, requestedTable, bookingId) {
+  var raw = String(requestedTable || "").trim().toUpperCase();
+  var isExplicit = false;
+  var cleanTable = "CHỜ SẮP";
+  var preferredCol = 1; // Default Khu A
+
+  if (raw && !raw.includes("CHỜ SẮP") && !raw.startsWith("CHỜ") && raw !== "CHƯA XẾP") {
+    isExplicit = true;
+    cleanTable = raw.replace(/^BÀN\s*/i, "").trim();
+    var firstChar = cleanTable.charAt(0);
+    if (CONFIG.ZONE_MAPPING && CONFIG.ZONE_MAPPING[firstChar]) {
+      preferredCol = CONFIG.ZONE_MAPPING[firstChar];
+    } else if (cleanTable.includes("VIP") || firstChar === "E") {
+      preferredCol = 9; // Khu E
+    } else {
+      preferredCol = 1; // Default Khu A
+    }
+  } else {
+    isExplicit = false;
+    cleanTable = "CHỜ SẮP";
+    preferredCol = 1; // Luôn ưu tiên Khu A
+  }
+
+  // Thứ tự ưu tiên các khu: Khu A (1) -> Khu B (3) -> Khu C (5) -> Khu D (7) -> Khu E (9)
+  var zoneCols = [1, 3, 5, 7, 9];
+  var targetCol = preferredCol;
+  var targetRow = findAvailableCalendarSlot(sheet, targetCol, bookingId);
+
+  // Nếu khu ưu tiên hết chỗ, chuyển sang các khu khác còn chỗ
+  if (targetRow === -1) {
+    for (var z = 0; z < zoneCols.length; z++) {
+      var c = zoneCols[z];
+      if (c !== preferredCol) {
+        var r = findAvailableCalendarSlot(sheet, c, bookingId);
+        if (r !== -1) {
+          targetCol = c;
+          targetRow = r;
+          break;
+        }
+      }
+    }
+  }
+
+  return {
+    tableName: cleanTable,
+    targetCol: targetCol,
+    targetRow: targetRow,
+    isExplicit: isExplicit
+  };
+}
+
 function syncToCalendar(data, bookingId, billUrl, transferUrl) {
   const ss = SpreadsheetApp.openById(CONFIG.LINKED_CALENDAR_ID);
   initLocationSheets_(ss);
@@ -1255,37 +1395,64 @@ function syncToCalendar(data, bookingId, billUrl, transferUrl) {
   const dateStr = data.customer.date;
   if (!dateStr) return { status: "FAILED", message: "Thiếu ngày đặt bàn." };
   
-  const sheetName = '📅' + dateStr;
+  // 1. Tên sheet luôn ở dạng "📅DD/MM/YYYY" (VD: 📅11/10/2026)
+  const sheetName = formatCalendarSheetName_(data.customer.sheetName || dateStr);
   let sheet = ss.getSheetByName(sheetName);
+  
+  // Tự động đổi tên sheet legacy (như "2026-10-11") sang chuẩn "📅DD/MM/YYYY" nếu có
+  if (!sheet && dateStr) {
+    var legacySheet = ss.getSheetByName(String(dateStr).trim());
+    if (legacySheet) {
+      legacySheet.setName(sheetName);
+      sheet = legacySheet;
+    }
+  }
+  
+  // Nếu chưa có sheet, tự động sao chép từ template và đổi tên chuẩn
   if (!sheet) {
-    const tpl = ss.getSheetByName(CONFIG.TEMPLATE_SHEET_NAME);
+    const tpl = getCalendarTemplateSheet_(ss);
     if (!tpl) return { status: "FAILED", message: "Không tìm thấy sheet template " + CONFIG.TEMPLATE_SHEET_NAME };
     sheet = tpl.copyTo(ss).setName(sheetName);
     sheet.showSheet();
-    sheet.getRange("G1").setValue(dateStr);
+    
+    var dateCleanDisplay = sheetName.replace("📅", "");
+    sheet.getRange("G1").setValue(dateCleanDisplay);
+    var dow = getVietnameseDayOfWeek_(dateStr || dateCleanDisplay);
+    if (dow) {
+      try { sheet.getRange("E1").setValue(dow); } catch(e) {}
+    }
+    try {
+      ss.setActiveSheet(sheet);
+      ss.moveActiveSheet(1);
+    } catch(e) {}
   }
   
-  const tableStr = data.customer.tables || "";
-  const zoneChar = tableStr.charAt(0).toUpperCase();
-  let startCol = CONFIG.ZONE_MAPPING[zoneChar];
-  if (!startCol) startCol = 1; // Zone A fallback
+  // 2. Xác định vị trí bàn và khu vực theo nghiệp vụ:
+  // Luôn ghi vào Khu A nếu còn chỗ; nếu Khu A hết chỗ mới chuyển sang các khu khác.
+  // Tên bàn mặc định luôn là "CHỜ SẮP" hoặc số bàn cụ thể nếu đã nhập (không hiện "CHỜ SẮP").
+  const assignment = resolveTableAndZoneForCalendar_(sheet, data.customer.tableName || data.customer.tables, bookingId);
+  const startCol = assignment.targetCol;
+  const targetRow = assignment.targetRow;
+  const tableStr = assignment.tableName;
   const infoCol = startCol + 1;
+  
+  // Gán lại tên bàn sạch để ghi đúng vào ô bàn
+  data.customer.tables = tableStr;
   
   const currentHash = calculateBookingHash(data, bookingId);
   const existing = findExistingBookingLocation(ss, bookingId);
   
   // CASE 1: New booking
   if (!existing) {
-    const targetRow = findAvailableCalendarSlot(sheet, startCol, bookingId);
     if (targetRow === -1) {
-      logLocationHistory(ss, bookingId, "CREATE", "", dateStr, "", tableStr, "", "", "FAILED", "Không tìm thấy vị trí trống.");
-      return { status: "NO_SLOT", message: "Cột của bàn " + tableStr + " đã hết vị trí trống." };
+      logLocationHistory(ss, bookingId, "CREATE", "", dateStr, "", tableStr, "", "", "FAILED", "Không tìm thấy vị trí trống trên lịch.");
+      return { status: "NO_SLOT", message: "Lịch ngày " + sheetName + " đã hết toàn bộ vị trí trống." };
     }
     
     writeBookingBlock(sheet, targetRow, startCol, data, bookingId, billUrl);
     updateBookingLocationIndex(ss, bookingId, sheetName, dateStr, tableStr, targetRow, startCol, infoCol, currentHash, "ACTIVE", data, "Created");
-    logLocationHistory(ss, bookingId, "CREATE", "", dateStr, "", tableStr, "", `${sheetName}!R${targetRow}C${startCol}`, "SUCCESS", "Đồng bộ thành công");
-    return { status: "SUCCESS", message: "Đồng bộ lịch thành công.", cellRange: `${sheetName}!R${targetRow}C${startCol}` };
+    logLocationHistory(ss, bookingId, "CREATE", "", dateStr, "", tableStr, "", sheetName + "!R" + targetRow + "C" + startCol, "SUCCESS", "Đồng bộ thành công");
+    return { status: "SUCCESS", message: "Đồng bộ lịch thành công.", cellRange: sheetName + "!R" + targetRow + "C" + startCol };
   }
   
   // CASE 2: Date changed
@@ -1295,7 +1462,6 @@ function syncToCalendar(data, bookingId, billUrl, transferUrl) {
       writeMovedMarker(oldSheet, Number(existing.block_start_row), Number(existing.block_start_col), "Thay đổi -> " + dateStr, bookingId);
     }
     
-    const targetRow = findAvailableCalendarSlot(sheet, startCol, bookingId);
     if (targetRow === -1) {
       logLocationHistory(ss, bookingId, "MOVE_DATE", existing.event_date, dateStr, existing.table_number, tableStr, existing.cell_range, "", "FAILED", "Không có vị trí trống ở ngày mới.");
       return { status: "NO_SLOT", message: "Ngày mới không còn vị trí trống cho bàn " + tableStr };
@@ -1303,26 +1469,28 @@ function syncToCalendar(data, bookingId, billUrl, transferUrl) {
     
     writeBookingBlock(sheet, targetRow, startCol, data, bookingId, billUrl);
     updateBookingLocationIndex(ss, bookingId, sheetName, dateStr, tableStr, targetRow, startCol, infoCol, currentHash, "ACTIVE", data, "Moved Date");
-    logLocationHistory(ss, bookingId, "MOVE_DATE", existing.event_date, dateStr, existing.table_number, tableStr, existing.cell_range, `${sheetName}!R${targetRow}C${startCol}`, "SUCCESS", "Đổi ngày thành công");
-    return { status: "MOVED_DATE", message: "Đã chuyển đổi ngày tiệc.", cellRange: `${sheetName}!R${targetRow}C${startCol}` };
+    logLocationHistory(ss, bookingId, "MOVE_DATE", existing.event_date, dateStr, existing.table_number, tableStr, existing.cell_range, sheetName + "!R" + targetRow + "C" + startCol, "SUCCESS", "Đổi ngày thành công");
+    return { status: "MOVED_DATE", message: "Đã chuyển đổi ngày tiệc.", cellRange: sheetName + "!R" + targetRow + "C" + startCol };
   }
   
-  // CASE 3: Table changed (same date)
-  if (existing.table_number !== tableStr) {
-    if (validateLocationBelongsToBooking(sheet, Number(existing.block_start_row), Number(existing.block_start_col), Number(existing.block_end_row), Number(existing.block_end_col), bookingId)) {
-      writeMovedMarker(sheet, Number(existing.block_start_row), Number(existing.block_start_col), "Thay đổi -> Bàn " + tableStr, bookingId);
+  // CASE 3: Table changed (same date) or Location moved (e.g. from wrong Khu C to Khu A)
+  const oldRow = Number(existing.block_start_row);
+  const oldCol = Number(existing.block_start_col);
+  
+  if (existing.table_number !== tableStr || oldCol !== startCol) {
+    if (validateLocationBelongsToBooking(sheet, oldRow, oldCol, oldRow + 5, oldCol + 1, bookingId)) {
+      writeMovedMarker(sheet, oldRow, oldCol, "Thay đổi -> " + tableStr, bookingId);
     }
     
-    const targetRow = findAvailableCalendarSlot(sheet, startCol, bookingId);
     if (targetRow === -1) {
-      logLocationHistory(ss, bookingId, "MOVE_TABLE", dateStr, dateStr, existing.table_number, tableStr, existing.cell_range, "", "FAILED", "Không có vị trí trống ở bàn mới.");
-      return { status: "NO_SLOT", message: "Bàn mới không còn vị trí trống." };
+      logLocationHistory(ss, bookingId, "MOVE_TABLE", dateStr, dateStr, existing.table_number, tableStr, existing.cell_range, "", "FAILED", "Không có vị trí trống ở vị trí mới.");
+      return { status: "NO_SLOT", message: "Vị trí mới không còn vị trí trống." };
     }
     
     writeBookingBlock(sheet, targetRow, startCol, data, bookingId, billUrl);
     updateBookingLocationIndex(ss, bookingId, sheetName, dateStr, tableStr, targetRow, startCol, infoCol, currentHash, "ACTIVE", data, "Moved Table");
-    logLocationHistory(ss, bookingId, "MOVE_TABLE", dateStr, dateStr, existing.table_number, tableStr, existing.cell_range, `${sheetName}!R${targetRow}C${startCol}`, "SUCCESS", "Đổi bàn thành công");
-    return { status: "MOVED_TABLE", message: "Đã chuyển đổi bàn tiệc.", cellRange: `${sheetName}!R${targetRow}C${startCol}` };
+    logLocationHistory(ss, bookingId, "MOVE_TABLE", dateStr, dateStr, existing.table_number, tableStr, existing.cell_range, sheetName + "!R" + targetRow + "C" + startCol, "SUCCESS", "Đổi bàn thành công");
+    return { status: "MOVED_TABLE", message: "Đã chuyển đổi bàn tiệc.", cellRange: sheetName + "!R" + targetRow + "C" + startCol };
   }
   
   // CASE 4: Same date and same table
@@ -1341,15 +1509,14 @@ function syncToCalendar(data, bookingId, billUrl, transferUrl) {
     // Occupied or modified by user
     logLocationHistory(ss, bookingId, "UPDATE", dateStr, dateStr, tableStr, tableStr, existing.cell_range, "", "CONFLICT", "Vị trí cũ bị đè.");
     
-    const targetRow = findAvailableCalendarSlot(sheet, startCol, bookingId);
     if (targetRow === -1) {
       return { status: "CONFLICT", message: "Vị trí cũ bị ghi đè và không còn vị trí trống mới." };
     }
     
     writeBookingBlock(sheet, targetRow, startCol, data, bookingId, billUrl);
     updateBookingLocationIndex(ss, bookingId, sheetName, dateStr, tableStr, targetRow, startCol, infoCol, currentHash, "ACTIVE", data, "Recovered Conflict");
-    logLocationHistory(ss, bookingId, "RECOVER_LOCATION", dateStr, dateStr, tableStr, tableStr, existing.cell_range, `${sheetName}!R${targetRow}C${startCol}`, "SUCCESS", "Khôi phục vị trí xung đột");
-    return { status: "SUCCESS", message: "Đã đồng bộ lịch vào vị trí mới do vị trí cũ bị đè.", cellRange: `${sheetName}!R${targetRow}C${startCol}` };
+    logLocationHistory(ss, bookingId, "RECOVER_LOCATION", dateStr, dateStr, tableStr, tableStr, existing.cell_range, sheetName + "!R" + targetRow + "C" + startCol, "SUCCESS", "Khôi phục vị trí xung đột");
+    return { status: "SUCCESS", message: "Đã đồng bộ lịch vào vị trí mới do vị trí cũ bị đè.", cellRange: sheetName + "!R" + targetRow + "C" + startCol };
   }
   
   // Avoid writing if hash hasn't changed (performance optimization)
