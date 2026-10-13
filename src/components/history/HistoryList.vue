@@ -115,8 +115,8 @@ function shareBillLink(orderId: string, name: string) {
 }
 
 // --- Edit ---
-function handleEditOrder(order: any) {
-  editHistoricOrder(order)
+async function handleEditOrder(order: any) {
+  await editHistoricOrder(order)
 }
 
 // --- Delete ---

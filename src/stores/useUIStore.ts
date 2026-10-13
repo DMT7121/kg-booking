@@ -22,7 +22,7 @@ export interface ModalState {
 
 export const useUIStore = defineStore('ui', () => {
   // --- Tab & Panel ---
-  const tab = ref<'dashboard' | 'create' | 'timeline' | 'history' | 'preview' | 'analytics' | 'test' | 'logs'>('dashboard')
+  const tab = ref<'dashboard' | 'create' | 'timeline' | 'history' | 'preview' | 'analytics' | 'test' | 'logs'>('create')
   const connectionStatus = ref<'online' | 'degraded' | 'offline' | 'reconnecting' | 'syncing' | 'error'>('online')
   const isKeyboardOpen = ref(false)
   const isVoiceSupported = ref(false)
@@ -179,6 +179,32 @@ export const useUIStore = defineStore('ui', () => {
     })
   }
 
+  // --- Draft Protection Conflict Modal ---
+  const draftConflictModal = reactive({
+    show: false,
+    draftSummary: '',
+    historicName: '',
+    resolve: null as ((action: 'save' | 'discard' | 'cancel') => void) | null
+  })
+
+  function promptDraftConflict(draftSummary: string, historicName: string): Promise<'save' | 'discard' | 'cancel'> {
+    sound.playPop()
+    return new Promise((resolve) => {
+      draftConflictModal.show = true
+      draftConflictModal.draftSummary = draftSummary
+      draftConflictModal.historicName = historicName
+      draftConflictModal.resolve = resolve
+    })
+  }
+
+  function resolveDraftConflict(action: 'save' | 'discard' | 'cancel') {
+    if (draftConflictModal.resolve) {
+      draftConflictModal.resolve(action)
+      draftConflictModal.resolve = null
+    }
+    draftConflictModal.show = false
+  }
+
   // --- Settings Hub ---
   function openConfig(type: string) {
     if (!showSettingsHub.value) {
@@ -244,9 +270,9 @@ export const useUIStore = defineStore('ui', () => {
     pendingAction, menuTab, isUpdateMode, isDarkMode, showMenuUploadModal,
     historySearch, isBatchMode, selectedIds, historyFilters,
     focusIdx, listening, tempTable,
-    toasts, verifyModal, modal,
+    toasts, verifyModal, modal, draftConflictModal,
     showToast, removeToast,
-    resolveModal, showAlert, showConfirm, showPrompt,
+    resolveModal, showAlert, showConfirm, showPrompt, promptDraftConflict, resolveDraftConflict,
     openBookingConfirmation, resolveBookingConfirmation,
     openConfig, closeConfig, toggleBatchMode, toggleSelection, toggleDarkMode
   }

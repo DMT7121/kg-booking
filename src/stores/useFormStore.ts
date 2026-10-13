@@ -57,6 +57,22 @@ export interface AIMetadata {
   mode?: string
 }
 
+export interface NewBookingDraft {
+  id: string | null
+  customer: CustomerInfo
+  items: MenuItem[]
+  deposit: DepositInfo
+  staff: StaffInfo
+  rawInput: string
+  aiImage: string | null
+  oldBillFileId: string | null
+  aiMetadata: AIMetadata | null
+  taxEnabled: boolean
+  billMode: 'full' | 'kitchen' | 'bar'
+  savedAt: string
+  displaySummary: string
+}
+
 export const useFormStore = defineStore('form', () => {
   // --- Form State ---
   const id = ref<string | null>(null)
@@ -94,8 +110,20 @@ export const useFormStore = defineStore('form', () => {
   // --- Save Type ---
   const saveType = ref<string>('')
 
+  // --- Saved New Booking Draft (Đang xử lý tạo mới) ---
+  const savedNewBookingDraft = ref<NewBookingDraft | null>(null)
+
   // --- Persist Draft ---
   function loadDraft() {
+    try {
+      const savedNew = localStorage.getItem('kg_saved_new_booking_draft')
+      if (savedNew) {
+        savedNewBookingDraft.value = JSON.parse(savedNew)
+      }
+    } catch (e) {
+      console.warn('Failed to load kg_saved_new_booking_draft:', e)
+    }
+
     try {
       const draft = localStorage.getItem('kg_booking_draft')
       if (draft) {
@@ -238,11 +266,118 @@ export const useFormStore = defineStore('form', () => {
     }
   }
 
+  // --- Draft Protection & Historic Edit Detection ---
+  const isEditingHistoric = computed(() => !!originalState.value)
+
+  const hasOngoingNewInput = computed(() => {
+    // Only counts as new in-progress draft if NOT currently editing a historic order
+    if (originalState.value) return false
+    const hasCust = !!(customer.name?.trim() || customer.phone?.trim())
+    const hasItms = items.value.length > 0
+    const hasRaw = !!rawInput.value?.trim()
+    const hasDep = deposit.amount > 0 || !!deposit.note?.trim()
+    return hasCust || hasItms || hasRaw || hasDep
+  })
+
+  function getOngoingDraftSummary(): string {
+    const parts: string[] = []
+    if (customer.name?.trim()) parts.push(customer.name.trim())
+    if (customer.phone?.trim()) parts.push(customer.phone.trim())
+    if (customer.pax?.trim()) parts.push(`${customer.pax.trim()} khách`)
+    if (customer.time?.trim()) parts.push(customer.time.trim())
+    if (items.value.length > 0) parts.push(`${items.value.length} món`)
+    return parts.length > 0 ? parts.join(' • ') : 'Phiếu tạo mới dở dang'
+  }
+
+  function saveCurrentAsNewDraft(): boolean {
+    if (!hasOngoingNewInput.value) return false
+    const summary = getOngoingDraftSummary()
+    const draftData: NewBookingDraft = {
+      id: id.value,
+      customer: JSON.parse(JSON.stringify(customer)),
+      items: JSON.parse(JSON.stringify(items.value)),
+      deposit: JSON.parse(JSON.stringify(deposit)),
+      staff: JSON.parse(JSON.stringify(staff)),
+      rawInput: rawInput.value,
+      aiImage: aiImage.value,
+      oldBillFileId: oldBillFileId.value,
+      aiMetadata: aiMetadata.value ? JSON.parse(JSON.stringify(aiMetadata.value)) : null,
+      taxEnabled: taxEnabled.value,
+      billMode: billMode.value,
+      savedAt: new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }) + ' ' + new Date().toLocaleDateString('vi-VN'),
+      displaySummary: summary
+    }
+    savedNewBookingDraft.value = draftData
+    try {
+      localStorage.setItem('kg_saved_new_booking_draft', JSON.stringify(draftData))
+    } catch (e) {
+      console.warn('Failed to save kg_saved_new_booking_draft:', e)
+    }
+    return true
+  }
+
+  function restoreNewDraft(): boolean {
+    if (!savedNewBookingDraft.value) return false
+    const d = savedNewBookingDraft.value
+    id.value = d.id || generateBookingId()
+    version.value = 1
+    originalState.value = null // Mark explicitly as NEW booking
+    Object.assign(customer, d.customer)
+    items.value = JSON.parse(JSON.stringify(d.items || []))
+    Object.assign(deposit, d.deposit)
+    Object.assign(staff, d.staff)
+    rawInput.value = d.rawInput || ''
+    aiImage.value = d.aiImage || null
+    oldBillFileId.value = d.oldBillFileId || null
+    aiMetadata.value = d.aiMetadata || null
+    taxEnabled.value = d.taxEnabled || false
+    billMode.value = d.billMode || 'full'
+    discardNewDraft()
+
+    try {
+      const uiStore = useUIStore()
+      const match = (customer.tables || '').match(/^([A-E])(\d+)$/i)
+      if (match) {
+        uiStore.tempTable.zone = match[1].toUpperCase()
+        uiStore.tempTable.number = match[2]
+      }
+      uiStore.tab = 'create'
+      uiStore.showToast('✅ Đã khôi phục phiếu đang xử lý tạo mới!', 'success')
+    } catch (e) {
+      console.warn('Error syncing UI during draft restore:', e)
+    }
+
+    return true
+  }
+
+  function discardNewDraft() {
+    savedNewBookingDraft.value = null
+    try {
+      localStorage.removeItem('kg_saved_new_booking_draft')
+    } catch (e) {
+      console.warn('Failed to remove kg_saved_new_booking_draft:', e)
+    }
+  }
+
+  function cancelHistoricEdit() {
+    $reset()
+    if (savedNewBookingDraft.value) {
+      restoreNewDraft()
+    } else {
+      try {
+        const uiStore = useUIStore()
+        uiStore.showToast('Đã hủy sửa và làm mới phiếu!', 'info')
+      } catch (e) { /* ignore */ }
+    }
+  }
+
   return {
     id, version, originalState,
     customer, items, deposit, staff,
     rawInput, aiImage, oldBillFileId, aiMetadata, warnings, unresolvedItems, originalAiValues, parsedAiResult,
     taxEnabled, billMode, saveType, billUrl,
+    savedNewBookingDraft, isEditingHistoric, hasOngoingNewInput,
+    getOngoingDraftSummary, saveCurrentAsNewDraft, restoreNewDraft, discardNewDraft, cancelHistoricEdit,
     calculatedTotals, filteredBillItems, previewTitle,
     getDataSnapshot, $reset
   }

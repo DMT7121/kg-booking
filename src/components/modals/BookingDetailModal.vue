@@ -15,11 +15,11 @@ function close() {
   ui.selectedBooking = null
 }
 
-function handleEdit() {
+async function handleEdit() {
   if (!ui.selectedBooking) return
-  editHistoricOrder(ui.selectedBooking)
-  ui.tab = 'create'
+  const target = ui.selectedBooking
   close()
+  await editHistoricOrder(target)
 }
 
 async function handleDelete() {

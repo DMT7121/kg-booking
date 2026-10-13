@@ -552,13 +552,13 @@ function handleGlobalKeydown(e: KeyboardEvent) {
     }
   }
 
-  // Desktop quick tab switcher (Alt + 1..5)
+  // Desktop quick tab switcher (Alt + 1..5) - Đồng bộ thứ tự: Tạo - Phiếu - Tổng quan - Lịch - Lịch sử
   if (e.altKey && !e.ctrlKey && !e.metaKey) {
-    if (e.key === '1') { e.preventDefault(); ui.tab = 'dashboard' }
-    else if (e.key === '2') { e.preventDefault(); ui.tab = 'create' }
-    else if (e.key === '3') { e.preventDefault(); ui.tab = 'timeline' }
-    else if (e.key === '4') { e.preventDefault(); ui.tab = 'history' }
-    else if (e.key === '5') { e.preventDefault(); ui.tab = 'preview' }
+    if (e.key === '1') { e.preventDefault(); ui.tab = 'create' }
+    else if (e.key === '2') { e.preventDefault(); ui.tab = 'preview' }
+    else if (e.key === '3') { e.preventDefault(); ui.tab = 'dashboard' }
+    else if (e.key === '4') { e.preventDefault(); ui.tab = 'timeline' }
+    else if (e.key === '5') { e.preventDefault(); ui.tab = 'history' }
   }
 
   if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
@@ -697,6 +697,69 @@ const ambientTheme = computed(() => {
           <button @click="ui.resolveModal('confirm', true)" class="py-2.5 px-4 bg-rose-600 hover:bg-rose-700 active:scale-95 text-white rounded-xl font-bold uppercase tracking-wider text-xs shadow-md transition-all flex items-center justify-center gap-1.5">
             <span>{{ confirmActionVerb }}</span>
             <span class="text-[10px] opacity-60 font-mono hidden sm:inline">↵</span>
+          </button>
+        </div>
+      </div>
+    </div>
+    </transition>
+
+    <!-- Draft Protection Conflict Modal (Xử lý phiếu đang tạo mới khi sửa phiếu lịch sử) -->
+    <transition name="modal">
+    <div v-if="ui.draftConflictModal.show" 
+         class="fixed inset-0 bg-slate-950/70 z-[99999] flex justify-center items-center p-4 backdrop-blur-sm" 
+         role="dialog"
+         aria-modal="true"
+         @click.self="ui.resolveDraftConflict('cancel')">
+      <div class="bg-white dark:bg-slate-900 rounded-3xl shadow-2xl p-5 md:p-6 max-w-[440px] w-[95%] md:w-full flex flex-col relative overflow-hidden border border-slate-200/90 dark:border-slate-800/90 animate-scale-up">
+        <div class="flex items-start gap-3.5 mb-3.5">
+          <div class="w-11 h-11 bg-amber-500/15 text-amber-600 dark:text-amber-400 rounded-2xl flex items-center justify-center text-xl shadow-xs border border-amber-500/30 shrink-0">
+            <i class="fa-solid fa-bookmark"></i>
+          </div>
+          <div class="flex-1 min-w-0 pt-0.5">
+            <h3 class="text-sm font-black text-slate-900 dark:text-slate-100 uppercase tracking-tight">Xử lý phiếu đang tạo mới</h3>
+            <p class="text-xs text-slate-500 dark:text-slate-400 font-medium mt-0.5">Phát hiện dữ liệu đang nhập dở ở màn hình Tạo</p>
+          </div>
+          <button @click="ui.resolveDraftConflict('cancel')" aria-label="Đóng" class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors shrink-0 cursor-pointer">
+            <i class="fa-solid fa-xmark text-sm"></i>
+          </button>
+        </div>
+
+        <!-- Card chi tiết phiếu đang tạo dở -->
+        <div class="p-3 bg-amber-50/70 dark:bg-amber-950/30 border border-amber-200/80 dark:border-amber-800/50 rounded-2xl mb-4 text-xs">
+          <div class="font-black text-[10px] uppercase tracking-wider text-amber-700 dark:text-amber-300 flex items-center gap-1.5 mb-1">
+            <i class="fa-solid fa-file-pen"></i> Đang tạo dở:
+          </div>
+          <div class="font-bold text-slate-800 dark:text-slate-100 leading-snug break-words">
+            {{ ui.draftConflictModal.draftSummary }}
+          </div>
+          <div class="text-[11px] text-slate-500 dark:text-slate-400 mt-1.5 pt-1.5 border-t border-amber-200/50 dark:border-amber-800/30">
+            Chuẩn bị chuyển sang sửa: <span class="font-bold text-slate-700 dark:text-slate-200">{{ ui.draftConflictModal.historicName }}</span>
+          </div>
+        </div>
+
+        <!-- Action buttons -->
+        <div class="flex flex-col gap-2">
+          <button 
+            @click="ui.resolveDraftConflict('save')" 
+            class="w-full py-3 px-4 bg-blue-600 hover:bg-blue-700 active:scale-98 text-white rounded-xl font-black text-xs uppercase tracking-wider shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer"
+          >
+            <i class="fa-solid fa-bookmark text-sm"></i>
+            <span>Lưu tạm đơn mới & Chỉnh sửa</span>
+          </button>
+
+          <button 
+            @click="ui.resolveDraftConflict('discard')" 
+            class="w-full py-2.5 px-4 bg-slate-100 dark:bg-slate-800 hover:bg-rose-50 dark:hover:bg-rose-950/30 text-slate-700 dark:text-slate-300 hover:text-rose-600 dark:hover:text-rose-400 rounded-xl font-bold text-xs uppercase tracking-wider active:scale-98 transition-all border border-slate-200 dark:border-slate-700 flex items-center justify-center gap-2 cursor-pointer"
+          >
+            <i class="fa-solid fa-trash-can text-xs"></i>
+            <span>Hủy phiếu mới & Sửa phiếu này</span>
+          </button>
+
+          <button 
+            @click="ui.resolveDraftConflict('cancel')" 
+            class="w-full py-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 text-xs font-semibold cursor-pointer"
+          >
+            Quay lại (Không sửa)
           </button>
         </div>
       </div>

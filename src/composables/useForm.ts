@@ -221,7 +221,23 @@ function _createForm() {
 
 
   // --- Edit Historic Order ---
-  function editHistoricOrder(o: any) {
+  async function editHistoricOrder(o: any) {
+    if (formStore.hasOngoingNewInput) {
+      const draftSummary = formStore.getOngoingDraftSummary()
+      const historicName = o.parsedCustomer?.name ? `"${o.parsedCustomer.name}"` : 'phiếu lịch sử'
+      const action = await uiStore.promptDraftConflict(draftSummary, historicName)
+      if (action === 'cancel') {
+        return
+      }
+      if (action === 'save') {
+        formStore.saveCurrentAsNewDraft()
+        uiStore.showToast(`💾 Đã lưu tạm đơn mới vào "Đang xử lý tạo mới"!`, 'success', 3500)
+      } else if (action === 'discard') {
+        formStore.discardNewDraft()
+        uiStore.showToast('🗑️ Đã làm mới phiếu tạo dở để sửa phiếu này!', 'info')
+      }
+    }
+
     Object.assign(formStore.customer, o.parsedCustomer)
     formStore.items = JSON.parse(JSON.stringify(o.menuItems || []))
     formStore.deposit.amount = typeof o.depositAmount === 'number' ? o.depositAmount : (o.deposit && typeof o.deposit.amount === 'number' ? o.deposit.amount : 0)
