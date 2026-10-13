@@ -5,8 +5,9 @@ import { useAppStore } from '@/stores/useAppStore'
 import { useLogStore } from '@/stores/useLogStore'
 import { resizeImage, cleanPhoneNumber, formatDateStr, formatVND, stripAccents, formatSetNote } from '@/utils'
 import { processImageForOCR } from '@/utils/imageProcessor'
-import { AI_MODELS, ADVANCED_AI_PROMPT, IMAGE_OCR_PROMPT } from '@/utils/constants'
+import { AI_MODELS, ADVANCED_AI_PROMPT, IMAGE_OCR_PROMPT, SINGLE_PASS_VISION_PROMPT } from '@/utils/constants'
 import type { AIModel } from '@/utils/constants'
+import { parseUnifiedBooking, type CanonicalBookingPayload } from '@/domain/ai/unifiedParserEngine'
 import * as api from '@/services/api'
 import { getCachedMenu, getCachedMenuSheets } from '@/services/cache'
 import { 
@@ -639,6 +640,19 @@ export function useAI() {
         }
       }
 
+      // Fast-Track Deterministic Parsing (< 5ms)
+      const canonical = parseUnifiedBooking(promptText, {
+        menuCatalog: appStore.menuList,
+        currentDate: new Date()
+      })
+
+      if (!force && !formStore.aiImage && canonical.isComplete && canonical.overallConfidence >= 0.95 && (!canonical.menuItems || canonical.menuItems.length === 0)) {
+        logStore.addLog(`[Unified Deterministic] ⚡ Đạt chuẩn Fast-Track 100% (Độ tin cậy: ${canonical.overallConfidence}). Áp dụng ngay tức thì không cần AI!`, 'success')
+        applyCanonicalPayload(canonical, { showToast: true })
+        uiStore.loading.is = false
+        return
+      }
+
       let finalParsedResult: any = null
       let routingInfo: any = null
       let isBypassed = false
@@ -1153,6 +1167,134 @@ Output JSON: { "amount": Number, "content": "String", "bank": "String", "time": 
     }
   }
 
+  function parseInputDeterministically(text: string): CanonicalBookingPayload {
+    return parseUnifiedBooking(text, {
+      menuCatalog: appStore.menuList,
+      currentDate: new Date()
+    })
+  }
+
+  function applyCanonicalPayload(payload: CanonicalBookingPayload, options: { showToast?: boolean } = {}) {
+    const { showToast = true } = options
+    const formattedResult = {
+      customer: {
+        name: payload.customer.name.value,
+        phone: payload.customer.phone.value
+      },
+      booking: {
+        date: payload.booking.date.value,
+        time: payload.booking.time.value,
+        guest_count: payload.booking.guestCount.value,
+        need: payload.booking.need.value,
+        table_number: payload.booking.tableCode.value
+      },
+      party: {
+        owner_name: payload.party.ownerName.value,
+        decor_color: payload.party.decorColor.value,
+        display_board_text: payload.party.displayBoardText.value,
+        mirror_board_text: payload.party.mirrorBoardText.value,
+        special_request: payload.party.specialRequest.value,
+        seating_preference: payload.party.seatingPreference.value,
+        dietary_notes: payload.party.dietaryNotes.value
+      },
+      deposit: {
+        amount: payload.deposit.amount.value,
+        status: payload.deposit.status.value,
+        bank_ref: payload.deposit.bankRef.value
+      },
+      menu_items: payload.menuItems.map(i => ({
+        name: i.matchedName || i.rawName,
+        raw_name: i.rawName,
+        quantity: i.quantity,
+        unit_price: i.unitPrice,
+        note: i.note
+      })),
+      note: payload.note
+    }
+
+    fillBookingFormSafely(formattedResult, { mode: 'all' })
+
+    if (showToast) {
+      uiStore.showToast('⚡ Đã áp dụng bóc tách Deterministic tức thì (0ms)!', 'success', 3000)
+    }
+    logStore.addLog(`[Unified Deterministic] Đã áp dụng thông tin đặt bàn vào Form (Confidence: ${payload.overallConfidence}).`, 'success')
+  }
+
+  async function analyzeImageSinglePass(base64Img: string): Promise<any> {
+    logStore.startNewSession('AI Vision Single-Pass')
+    logStore.addLog('Bắt đầu phân tích hình ảnh trực tiếp (Single-Pass Vision)...')
+    uiStore.loading.is = true
+    uiStore.loading.msg = 'AI VISION ĐANG PHÂN TÍCH ẢNH...'
+    uiStore.loading.subMsg = 'Single-Pass Multimodal Extraction...'
+
+    try {
+      const optimizedImg = await processImageForOCR(base64Img, {
+        maxWidth: 1280,
+        maxHeight: 1280,
+        adaptiveContrast: true,
+        sharpen: true
+      })
+
+      const defaultId = configStore.defaults.vision
+      const candidates = AI_MODELS
+        .filter(m => m.type === 'vision')
+        .filter(m => m.provider === 'pollinations' || (configStore.keysStatus[m.provider]?.configured))
+
+      candidates.sort((a, b) => {
+        if (defaultId) {
+          if (a.id === defaultId) return -1
+          if (b.id === defaultId) return 1
+        }
+        return a.tier - b.tier
+      })
+
+      if (candidates.length === 0) {
+        logStore.addLog('Chưa cấu hình API Key Vision, chuyển sang trích xuất chữ OCR...', 'warning')
+        throw new Error('Chưa cấu hình API Key cho Vision.')
+      }
+
+      const startTime = performance.now()
+      let lastError: Error | null = null
+
+      for (const model of candidates) {
+        try {
+          uiStore.loading.subMsg = `Vision: ${model.name}...`
+          logStore.addLog(`Thử gọi Single-Pass Vision bằng model: [${model.name}]...`)
+
+          const rawResult = await callAIModel({
+            model,
+            sysPrompt: SINGLE_PASS_VISION_PROMPT,
+            userPrompt: 'Phân tích trực tiếp ảnh này và trích xuất cấu trúc thông tin đặt bàn hoàn chỉnh dưới định dạng JSON theo đúng schema.',
+            image: optimizedImg,
+            jsonMode: true,
+            localKeys: [],
+            apiGatewayUrl,
+            aiMode
+          }, (msg, level) => logStore.addLog(msg, level))
+
+          if (rawResult && rawResult.trim().length > 20) {
+            const parsed = repairAndNormalizeJSON(rawResult, 'chat_screenshot')
+            if (parsed && (parsed.customer || parsed.booking || parsed.party)) {
+              const latency = ((performance.now() - startTime) / 1000).toFixed(1)
+              uiStore.showToast(`<b>Vision ⚡</b> ${model.name} | ${latency}s`, 'success', 3000)
+              logStore.addLog(`Single-Pass Vision thành công với [${model.name}] (${latency}s)`, 'success')
+              return parsed
+            }
+          }
+          throw new Error('Kết quả JSON không hợp lệ')
+        } catch (e: any) {
+          console.warn(`[SinglePassVision] ${model.name} failed:`, e.message)
+          logStore.addLog(`Model [${model.name}] thất bại: ${e.message}`, 'warning')
+          lastError = e
+        }
+      }
+      throw lastError || new Error('Tất cả model Vision đều thất bại')
+    } finally {
+      uiStore.loading.is = false
+      logStore.addLog('=== KẾT THÚC SINGLE-PASS VISION ===', 'info')
+    }
+  }
+
   async function parseMenuAI(text: string): Promise<string> {
     uiStore.loading.is = true
     uiStore.loading.msg = 'AI ĐANG PHÂN TÍCH MENU...'
@@ -1273,6 +1415,9 @@ Salad bò - 120000
     processAI,
     verifyTransferImage,
     ocrExtractText,
+    analyzeImageSinglePass,
+    parseInputDeterministically,
+    applyCanonicalPayload,
     parseMenuAI,
     checkAndLogAiCorrections,
     fillBookingFormSafely,

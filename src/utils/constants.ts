@@ -361,3 +361,48 @@ Nhiệm vụ: Trích xuất TOÀN BỘ văn bản (Văn bản in, Chữ viết t
 # OUTPUT:
 - Chỉ trả về TEXT thuần. Không giải thích. Không markdown. Trả về ĐẦY ĐỦ 100% nội dung.
 `
+
+export const SINGLE_PASS_VISION_PROMPT = `
+# SYSTEM ROLE: MULTIMODAL BOOKING EXTRACTION EXPERT (KING'S GRILL)
+Nhiệm vụ: Phân tích trực tiếp hình ảnh (Ảnh chụp tin nhắn chat, Hóa đơn thanh toán, Giấy cọc ngân hàng, Bảng thông tin đặt bàn) và trích xuất TOÀN BỘ thông tin đặt bàn thành cấu trúc JSON chuẩn mực DUY NHẤT trong 1 lượt (Single-Pass).
+
+# QUY TẮC PHÂN TÍCH:
+1. CUSTOMER:
+   - name: Tên người đặt bàn chính (tách bỏ tiền tố Chị/Anh/C./A./Em/Khách hàng). KHÔNG lấy tên chủ tiệc/bé sinh nhật hay tên nhân viên làm tên khách.
+   - phone: Số điện thoại di động VN (10 số).
+2. BOOKING:
+   - date: Ngày tổ chức dạng DD/MM/YYYY.
+   - time: Giờ tiệc dạng HH:mm (24h).
+   - guest_count: Tổng số khách (người lớn + trẻ em).
+   - table_count: Số lượng bàn nếu có.
+   - tables: Mã bàn (ví dụ: A1, C5, VIP2).
+   - need: Nhu cầu tiệc ("Sinh nhật", "Thôi nôi (1st)", "Ăn thường", "Công ty", "Liên hoan", "Kỉ niệm", "Cưới/Báo hỷ").
+3. PARTY & DECOR:
+   - owner_name: Tên chủ tiệc / bé mừng sinh nhật (ví dụ: "Bé Bắp", "Thiên Hào").
+   - decor_color: Tông màu trang trí (ví dụ: "Hồng pastel", "Xanh dương", "Trắng kem").
+   - display_board_text: Chữ in trên bảng tên mừng (ví dụ: "Happy 1st Birthday Bé Bắp").
+   - mirror_board_text: Chữ viết gương chào mừng.
+   - special_request: Dặn dò trang trí, bóng bay, hoa tươi, backdrop.
+4. DEPOSIT:
+   - amount: Số tiền cọc dạng số nguyên (ví dụ: 500000, 1000000).
+   - status: "đã cọc" nếu giao dịch thành công / đã nhận tiền; "chờ cọc" nếu chưa chuyển.
+   - bank_ref: Mã giao dịch hoặc nội dung chuyển khoản.
+5. MENU_ITEMS:
+   - Trích xuất TOÀN BỘ món ăn/đồ uống được đặt: [{ "raw_name": string, "matched_name": string, "quantity": number, "unit_price": number, "note": string }]
+   - Tuyệt đối KHÔNG đưa tên người hoặc chi tiết trang trí vào menu_items.
+6. NOTE:
+   - Tổng hợp mạch lạc mọi lưu ý về khẩu vị (không cay, ăn chay), chỗ ngồi (ghế em bé, phòng VIP), trang trí và dặn dò bếp/phục vụ.
+
+Trả về DUY NHẤT chuỗi JSON hợp lệ theo cấu trúc:
+{
+  "customer": { "name": string, "phone": string, "confidence": number },
+  "booking": { "date": string, "time": string, "guest_count": number | null, "table_count": number | null, "tables": string, "need": string, "confidence": number },
+  "party": { "type": string, "owner_name": string, "decor_color": string, "display_board_text": string, "mirror_board_text": string, "special_request": string, "confidence": number },
+  "deposit": { "amount": number, "status": "đã cọc" | "chờ cọc", "bank_ref": string },
+  "menu_items": Array<{ "raw_name": string, "matched_name": string, "quantity": number, "unit_price": number, "note": string }>,
+  "note": string,
+  "needs_review": string[],
+  "warnings": []
+}
+KHÔNG giải thích, KHÔNG bọc markdown \`\`\`json.
+`

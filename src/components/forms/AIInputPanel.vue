@@ -7,11 +7,19 @@ import { useAI } from '@/composables/useAI'
 import { useForm } from '@/composables/useForm'
 import { abortActiveAIRequest } from '@/services/api'
 import { formatVND } from '@/utils'
+import type { CanonicalBookingPayload } from '@/domain/ai/unifiedParserEngine'
 
 const ui = useUIStore()
 const formStore = useFormStore()
 const configStore = useConfigStore()
-const { processAI, ocrExtractText, fillBookingFormSafely } = useAI()
+const { 
+  processAI, 
+  ocrExtractText, 
+  analyzeImageSinglePass, 
+  parseInputDeterministically, 
+  applyCanonicalPayload, 
+  fillBookingFormSafely 
+} = useAI()
 const { handleInputFocus, handleInputBlur, toggleVoiceMode } = useForm()
 const aiFileIn = ref<HTMLInputElement>()
 const isDragging = ref(false)
@@ -20,6 +28,25 @@ const isProcessing = ref(false)
 const isEditing = ref(false)
 const isOcrProcessing = ref(false)
 const isPanelCollapsed = ref(false)
+
+const liveCanonical = ref<CanonicalBookingPayload | null>(null)
+let liveParseTimer: any = null
+
+watch(() => formStore.rawInput, (newVal) => {
+  if (liveParseTimer) clearTimeout(liveParseTimer)
+  if (!newVal || newVal.trim().length < 5) {
+    liveCanonical.value = null
+    return
+  }
+  liveParseTimer = setTimeout(() => {
+    liveCanonical.value = parseInputDeterministically(newVal)
+  }, 120)
+}, { immediate: true })
+
+function applyLiveCanonical() {
+  if (!liveCanonical.value) return
+  applyCanonicalPayload(liveCanonical.value, { showToast: true })
+}
 
 watch(() => formStore.customer.name, (val) => {
   if (val && formStore.aiMetadata) {
@@ -164,15 +191,33 @@ async function processImage(f: File) {
     const base64 = ev.target?.result as string
     formStore.aiImage = base64 // Show thumbnail temporarily
     try {
-      const text = await ocrExtractText(base64)
-      if (text) {
-        formStore.rawInput = (formStore.rawInput ? formStore.rawInput + '\n\n' : '') + text
-        formStore.aiImage = null // Clear image so processAI focuses purely on text
-        ui.showToast('📝 Đã nhận diện chữ viết thành công từ ảnh!', 'success')
-        triggerAutoAnalyzeIfEnabled(800)
+      // 1. Single-Pass Vision Direct Analysis first (1-turn extraction)
+      let singlePassDone = false
+      try {
+        const directResult = await analyzeImageSinglePass(base64)
+        if (directResult && (directResult.customer || directResult.booking || directResult.party)) {
+          formStore.parsedAiResult = directResult
+          fillBookingFormSafely(directResult, { mode: 'all' })
+          formStore.aiImage = null
+          ui.showToast('⚡ Đã trích xuất đặt bàn trực tiếp từ ảnh trong 1 lượt!', 'success')
+          singlePassDone = true
+        }
+      } catch (visionErr: any) {
+        console.warn('[SinglePassVision] Falling back to standard OCR:', visionErr?.message)
+      }
+
+      // 2. Fallback to OCR text extraction if single-pass was unavailable or failed
+      if (!singlePassDone) {
+        const text = await ocrExtractText(base64)
+        if (text) {
+          formStore.rawInput = (formStore.rawInput ? formStore.rawInput + '\n\n' : '') + text
+          formStore.aiImage = null // Clear image so processAI focuses purely on text
+          ui.showToast('📝 Đã nhận diện chữ viết thành công từ ảnh!', 'success')
+          triggerAutoAnalyzeIfEnabled(800)
+        }
       }
     } catch (err: any) {
-      ui.showToast('Lỗi OCR: ' + err.message, 'error')
+      ui.showToast('Lỗi xử lý hình ảnh: ' + err.message, 'error')
     } finally {
       isOcrProcessing.value = false
     }
@@ -455,10 +500,78 @@ onUnmounted(() => {
           <img :src="formStore.aiImage" class="h-10 w-10 object-cover rounded-lg shadow-sm border border-border-default">
           <div class="flex-grow min-w-0">
             <div class="text-[10px] font-bold text-text-primary uppercase tracking-wider truncate">Đã nhận diện hình ảnh</div>
-            <div class="text-[9px] text-text-tertiary">Vision OCR Ready</div>
+            <div class="text-[9px] text-text-tertiary">Vision Ready (Single-Pass & OCR)</div>
           </div>
           <button @click="formStore.aiImage = null" class="text-text-tertiary hover:text-apex-danger mr-1 transition-colors min-h-[36px] min-w-[36px] flex items-center justify-center"><i class="fa-solid fa-trash-can text-xs"></i></button>
         </div>
+
+        <!-- Live Canonical Preview Card (Deterministic Fast-Track) -->
+        <transition name="fade">
+          <div v-if="liveCanonical && (liveCanonical.customer.name.value || liveCanonical.customer.phone.value || liveCanonical.booking.date.value || liveCanonical.booking.guestCount.value || liveCanonical.menuItems.length > 0)" 
+               class="p-3 bg-surface-2 dark:bg-surface-3 rounded-xl border border-border-default dark:border-border-subtle shadow-xs space-y-2.5">
+            <div class="flex items-center justify-between">
+              <div class="flex items-center gap-1.5 text-xs font-bold text-text-primary">
+                <i class="fa-solid fa-bolt text-amber-500"></i>
+                <span>Bóc Tách Trực Quan (Deterministic Preview)</span>
+              </div>
+              <span :class="[
+                'px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider border',
+                liveCanonical.isComplete 
+                  ? 'bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800'
+                  : 'bg-amber-50 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-800'
+              ]">
+                {{ liveCanonical.isComplete ? '⚡ Đủ 100% Thông Tin' : `Độ tin cậy: ${Math.round(liveCanonical.overallConfidence * 100)}%` }}
+              </span>
+            </div>
+
+            <!-- Slots Grid -->
+            <div class="grid grid-cols-2 sm:grid-cols-4 gap-1.5 text-[11px]">
+              <div class="p-1.5 rounded-lg bg-surface-input border border-border-subtle">
+                <div class="text-[9px] text-text-tertiary uppercase font-bold">Khách hàng</div>
+                <div class="font-bold text-text-primary truncate">{{ liveCanonical.customer.name.value || '—' }}</div>
+              </div>
+              <div class="p-1.5 rounded-lg bg-surface-input border border-border-subtle">
+                <div class="text-[9px] text-text-tertiary uppercase font-bold">SĐT</div>
+                <div class="font-bold text-text-primary truncate">{{ liveCanonical.customer.phone.value || '—' }}</div>
+              </div>
+              <div class="p-1.5 rounded-lg bg-surface-input border border-border-subtle">
+                <div class="text-[9px] text-text-tertiary uppercase font-bold">Ngày / Giờ</div>
+                <div class="font-bold text-text-primary truncate">
+                  {{ liveCanonical.booking.time.value || '??:??' }} {{ liveCanonical.booking.date.value || '' }}
+                </div>
+              </div>
+              <div class="p-1.5 rounded-lg bg-surface-input border border-border-subtle">
+                <div class="text-[9px] text-text-tertiary uppercase font-bold">Số khách / Bàn</div>
+                <div class="font-bold text-text-primary truncate">
+                  {{ liveCanonical.booking.guestCount.value ? `${liveCanonical.booking.guestCount.value} pax` : '—' }}
+                  {{ liveCanonical.booking.tableCode.value ? `(${liveCanonical.booking.tableCode.value})` : '' }}
+                </div>
+              </div>
+            </div>
+
+            <!-- Dishes / Deposit tags -->
+            <div v-if="liveCanonical.menuItems.length > 0 || liveCanonical.deposit.amount.value > 0" class="flex flex-wrap gap-1.5 text-[10.5px]">
+              <span v-if="liveCanonical.deposit.amount.value > 0" class="px-2 py-0.5 rounded bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 font-bold">
+                💵 Cọc: {{ liveCanonical.deposit.amount.value.toLocaleString('vi-VN') }}đ ({{ liveCanonical.deposit.status.value }})
+              </span>
+              <span v-if="liveCanonical.menuItems.length > 0" class="px-2 py-0.5 rounded bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800 font-bold">
+                🍲 {{ liveCanonical.menuItems.length }} món ăn
+              </span>
+            </div>
+
+            <!-- Fast-track buttons -->
+            <div class="flex gap-2 pt-0.5">
+              <button 
+                @click.prevent="applyLiveCanonical" 
+                class="flex-1 py-1.5 px-3 bg-emerald-600 hover:bg-emerald-700 active:scale-98 text-white rounded-lg text-xs font-bold uppercase tracking-wider flex items-center justify-center gap-1.5 transition-all shadow-xs cursor-pointer min-h-[36px]"
+                title="Áp dụng ngay dữ liệu bóc tách vào Form trong 0ms, không tốn AI"
+              >
+                <i class="fa-solid fa-bolt"></i>
+                <span>ÁP DỤNG NGAY (0ms)</span>
+              </button>
+            </div>
+          </div>
+        </transition>
       </div>
 
       <button @click="handleAnalyze(false)" class="w-full mt-3 py-2.5 px-4 rounded-xl font-bold text-xs uppercase shadow-sm border flex justify-center items-center gap-2 active:scale-98 transition-all min-h-[44px] cursor-pointer"

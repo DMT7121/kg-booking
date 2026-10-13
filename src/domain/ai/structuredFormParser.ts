@@ -348,7 +348,7 @@ export function parseStructuredForm(text: string): StructuredFormParseResult {
     if (!isNaN(depNum) && depNum > 0) {
       // If entered e.g. 500k -> 500000
       let finalAmt = depNum
-      if (depNum < 1000 && /k\b/i.test(recognized.deposit)) {
+      if (depNum <= 5000 && /k\b/i.test(recognized.deposit)) {
         finalAmt = depNum * 1000
       }
       result.data.deposit.amount = finalAmt
