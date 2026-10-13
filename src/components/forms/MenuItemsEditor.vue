@@ -349,101 +349,103 @@ function onSelectSuggestion(s: any, index: number) {
             </div>
           </div>
 
-          <!-- Row 2: Stepper, Price & Subtotal (Unified single line, fits 360px+) -->
-          <div class="flex items-center justify-between gap-1.5 sm:gap-2 pt-2 border-t border-slate-100 dark:border-slate-800 flex-wrap sm:flex-nowrap">
-            <!-- Left Group: Stepper + Price -->
-            <div class="flex items-center gap-1.5 sm:gap-2 flex-1 min-w-0 sm:flex-initial">
-              <!-- Stepper with >=36px hit targets (15px font, spin buttons removed, no cramped text) -->
-              <div class="flex items-center bg-slate-50 dark:bg-slate-800/70 rounded-xl border border-slate-200 dark:border-slate-700 p-0.5 shadow-inner shrink-0">
-                <button 
-                  @click.prevent="if (item.qty > 1) item.qty--; else formStore.items.splice(index, 1)" 
-                  class="w-8 h-8 sm:w-10 sm:h-10 rounded-lg bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 flex items-center justify-center border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 font-bold active:scale-90 transition-transform cursor-pointer select-none shrink-0"
-                  title="Giảm số lượng"
-                  aria-label="Giảm số lượng"
-                >
-                  <i class="fa-solid fa-minus text-xs"></i>
-                </button>
-                
-                <input 
-                  type="number" 
-                  inputmode="numeric"
-                  v-model="item.qty" 
-                  @focus="handleInputFocus" 
-                  @blur="handleInputBlur" 
-                  class="w-[34px] sm:w-10 min-w-[34px] px-0.5 text-center font-black border-none bg-transparent text-[15px] sm:text-sm outline-none text-slate-800 dark:text-slate-100 placeholder-slate-400 font-tabular [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" 
-                  placeholder="SL"
-                >
-                
-                <button 
-                  @click.prevent="item.qty++" 
-                  class="w-8 h-8 sm:w-10 sm:h-10 rounded-lg bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 flex items-center justify-center border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 font-bold active:scale-90 transition-transform cursor-pointer select-none shrink-0"
-                  title="Tăng số lượng"
-                  aria-label="Tăng số lượng"
-                >
-                  <i class="fa-solid fa-plus text-xs"></i>
-                </button>
+          <!-- Row 2: Stepper & Price (Adaptive full-width, zero clipping on mobile) -->
+          <div class="flex items-center justify-between gap-2 pt-2 border-t border-slate-100 dark:border-slate-800">
+            <!-- Left Group: Stepper + Quick Steppers -->
+            <div class="flex items-center bg-slate-50 dark:bg-slate-800/70 rounded-xl border border-slate-200 dark:border-slate-700 p-0.5 shadow-inner shrink-0">
+              <button 
+                @click.prevent="if (item.qty > 1) item.qty--; else formStore.items.splice(index, 1)" 
+                class="w-8 h-8 sm:w-10 sm:h-10 rounded-lg bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 flex items-center justify-center border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 font-bold active:scale-90 transition-transform cursor-pointer select-none shrink-0"
+                title="Giảm số lượng"
+                aria-label="Giảm số lượng"
+              >
+                <i class="fa-solid fa-minus text-xs"></i>
+              </button>
+              
+              <input 
+                type="number" 
+                inputmode="numeric"
+                v-model="item.qty" 
+                @focus="handleInputFocus" 
+                @blur="handleInputBlur" 
+                class="w-[34px] sm:w-10 min-w-[34px] px-0.5 text-center font-black border-none bg-transparent text-[15px] sm:text-sm outline-none text-slate-800 dark:text-slate-100 placeholder-slate-400 font-tabular [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" 
+                placeholder="SL"
+              >
+              
+              <button 
+                @click.prevent="item.qty++" 
+                class="w-8 h-8 sm:w-10 sm:h-10 rounded-lg bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 flex items-center justify-center border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 font-bold active:scale-90 transition-transform cursor-pointer select-none shrink-0"
+                title="Tăng số lượng"
+                aria-label="Tăng số lượng"
+              >
+                <i class="fa-solid fa-plus text-xs"></i>
+              </button>
 
-                <!-- Quick Portion Steppers (+1, +2, +5) -->
-                <div class="hidden sm:flex items-center gap-0.5 ml-1 pl-1 border-l border-slate-200 dark:border-slate-700">
-                  <button 
-                    type="button"
-                    @click.prevent="item.qty = (Number(item.qty) || 0) + 1"
-                    class="px-1.5 py-0.5 text-[10px] font-bold text-slate-500 hover:text-blue-600 dark:text-slate-400 dark:hover:text-blue-400 rounded hover:bg-slate-100 dark:hover:bg-slate-700 active:scale-95 transition-all cursor-pointer"
-                    title="Thêm 1 phần"
-                  >+1</button>
-                  <button 
-                    type="button"
-                    @click.prevent="item.qty = (Number(item.qty) || 0) + 2"
-                    class="px-1.5 py-0.5 text-[10px] font-bold text-slate-500 hover:text-blue-600 dark:text-slate-400 dark:hover:text-blue-400 rounded hover:bg-slate-100 dark:hover:bg-slate-700 active:scale-95 transition-all cursor-pointer"
-                    title="Thêm 2 phần"
-                  >+2</button>
-                  <button 
-                    type="button"
-                    @click.prevent="item.qty = (Number(item.qty) || 0) + 5"
-                    class="px-1.5 py-0.5 text-[10px] font-bold text-slate-500 hover:text-blue-600 dark:text-slate-400 dark:hover:text-blue-400 rounded hover:bg-slate-100 dark:hover:bg-slate-700 active:scale-95 transition-all cursor-pointer"
-                    title="Thêm 5 phần"
-                  >+5</button>
-                </div>
-              </div>
-
-              <!-- Price Input with currency label (Adaptive width, zero clipping on mobile) -->
-              <div class="flex items-center gap-1 bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 rounded-xl px-2 sm:px-2.5 py-1.5 flex-1 min-w-[105px] max-w-[160px] sm:max-w-none sm:flex-initial">
-                <span class="text-[9px] sm:text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase shrink-0">Giá:</span>
-                <input 
-                  type="text" 
-                  inputmode="numeric"
-                  :value="formatPriceWithDots(item.price)" 
-                  @input="updateItemPrice(index, ($event.target as HTMLInputElement).value)" 
-                  @focus="handleInputFocus" 
-                  @blur="handleInputBlur" 
-                  class="w-full min-w-[72px] sm:w-24 text-right font-black text-blue-700 dark:text-blue-300 bg-transparent text-[15px] sm:text-sm outline-none placeholder-slate-400 font-tabular p-0" 
-                  placeholder="0"
-                >
-                <span class="text-[9px] sm:text-[10px] font-bold text-slate-400 shrink-0">đ</span>
+              <!-- Quick Portion Steppers (+1, +2, +5) on Desktop -->
+              <div class="hidden sm:flex items-center gap-0.5 ml-1 pl-1 border-l border-slate-200 dark:border-slate-700">
+                <button 
+                  type="button"
+                  @click.prevent="item.qty = (Number(item.qty) || 0) + 1"
+                  class="px-1.5 py-0.5 text-[10px] font-bold text-slate-500 hover:text-blue-600 dark:text-slate-400 dark:hover:text-blue-400 rounded hover:bg-slate-100 dark:hover:bg-slate-700 active:scale-95 transition-all cursor-pointer"
+                  title="Thêm 1 phần"
+                >+1</button>
+                <button 
+                  type="button"
+                  @click.prevent="item.qty = (Number(item.qty) || 0) + 2"
+                  class="px-1.5 py-0.5 text-[10px] font-bold text-slate-500 hover:text-blue-600 dark:text-slate-400 dark:hover:text-blue-400 rounded hover:bg-slate-100 dark:hover:bg-slate-700 active:scale-95 transition-all cursor-pointer"
+                  title="Thêm 2 phần"
+                >+2</button>
+                <button 
+                  type="button"
+                  @click.prevent="item.qty = (Number(item.qty) || 0) + 5"
+                  class="px-1.5 py-0.5 text-[10px] font-bold text-slate-500 hover:text-blue-600 dark:text-slate-400 dark:hover:text-blue-400 rounded hover:bg-slate-100 dark:hover:bg-slate-700 active:scale-95 transition-all cursor-pointer"
+                  title="Thêm 5 phần"
+                >+5</button>
               </div>
             </div>
 
-            <!-- Subtotal: Compact Badge on the Right -->
-            <div class="flex items-center gap-1 px-2 sm:px-2.5 py-1.5 bg-emerald-50 dark:bg-emerald-950/40 rounded-xl border border-emerald-200/60 dark:border-emerald-800/40 text-[11px] sm:text-xs font-black text-emerald-700 dark:text-emerald-300 font-tabular shrink-0 ml-auto" title="Thành tiền món này">
-              <span class="hidden sm:inline text-[9px] font-bold text-emerald-600 dark:text-emerald-400 uppercase">Thành tiền:</span>
-              <span class="sm:hidden text-[10px] font-bold text-emerald-600 dark:text-emerald-400">=</span>
+            <!-- Price Input with currency label (Full remaining width on mobile, zero clipping) -->
+            <div class="flex items-center gap-1.5 bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 rounded-xl px-2.5 sm:px-3 py-1.5 flex-1 min-w-0 sm:flex-initial sm:w-auto">
+              <span class="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase shrink-0">Giá:</span>
+              <input 
+                type="text" 
+                inputmode="numeric"
+                :value="formatPriceWithDots(item.price)" 
+                @input="updateItemPrice(index, ($event.target as HTMLInputElement).value)" 
+                @focus="handleInputFocus" 
+                @blur="handleInputBlur" 
+                class="w-full sm:w-24 text-right font-black text-blue-700 dark:text-blue-300 bg-transparent text-[15px] sm:text-sm outline-none placeholder-slate-400 font-tabular p-0" 
+                placeholder="0"
+              >
+              <span class="text-[10px] font-bold text-slate-400 shrink-0">đ</span>
+            </div>
+
+            <!-- Subtotal: Desktop Badge (hidden on mobile to ensure zero cramping) -->
+            <div class="hidden sm:flex items-center gap-1 px-2.5 py-1.5 bg-emerald-50 dark:bg-emerald-950/40 rounded-xl border border-emerald-200/60 dark:border-emerald-800/40 text-xs font-black text-emerald-700 dark:text-emerald-300 font-tabular shrink-0 ml-auto" title="Thành tiền món này">
+              <span class="text-[9px] font-bold text-emerald-600 dark:text-emerald-400 uppercase">Thành tiền:</span>
               <span class="whitespace-nowrap">{{ formatVND((item.price || 0) * (item.qty || 1)) }}</span>
             </div>
           </div>
 
-          <!-- Row 3: Note Action & Delete Button -->
+          <!-- Row 3: Note Action, Mobile Subtotal & Delete Button -->
           <div class="flex items-center justify-between gap-2 pt-1 border-t border-dashed border-slate-100 dark:border-slate-800">
             <!-- Note toggle / preview button -->
             <button 
               type="button" 
               @click="toggleItemExpand(index)" 
-              class="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all min-h-[38px] flex-1 max-w-[280px] sm:max-w-[340px] truncate cursor-pointer active:scale-95"
+              class="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all min-h-[38px] flex-1 min-w-0 max-w-[200px] sm:max-w-[340px] truncate cursor-pointer active:scale-95"
               :class="item.note ? 'bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800' : 'bg-slate-50 dark:bg-slate-800 text-slate-500 dark:text-slate-400 hover:text-slate-700 border border-slate-200 dark:border-slate-700'"
               aria-label="Ghi chú món ăn"
             >
               <i class="fa-solid fa-pen-to-square text-[11px] shrink-0 text-amber-500"></i>
               <span class="truncate">{{ item.note || '+ Thêm ghi chú' }}</span>
             </button>
+
+            <!-- Subtotal: Mobile Badge (Clean, prominent center position, zero overlap) -->
+            <div class="flex sm:hidden items-center gap-1 px-2.5 py-1.5 bg-emerald-50 dark:bg-emerald-950/40 rounded-xl border border-emerald-200/60 dark:border-emerald-800/40 text-[11px] font-black text-emerald-700 dark:text-emerald-300 font-tabular shrink-0 shadow-2xs" title="Thành tiền món này">
+              <span class="text-[10px] font-bold text-emerald-600 dark:text-emerald-400">=</span>
+              <span class="whitespace-nowrap">{{ formatVND((item.price || 0) * (item.qty || 1)) }}</span>
+            </div>
 
             <!-- Delete Button with guaranteed touch-target >=44x44px -->
             <button 

@@ -72,7 +72,22 @@ const showDropdown = ref(false)
 const showNavMore = ref(false)
 const showActionSheet = ref(false)
 const showMoreSheet = ref(false)
+const showMobileNavModal = ref(false)
 const isHeaderCompact = ref(false)
+
+const currentModuleMeta = computed(() => {
+  switch (ui.tab) {
+    case 'dashboard': return { label: 'Tổng quan', icon: 'fa-solid fa-gauge-high text-teal-400' }
+    case 'create': return { label: 'Tạo phiếu', icon: 'fa-solid fa-plus text-blue-400' }
+    case 'timeline': return { label: 'Lịch bàn', icon: 'fa-solid fa-calendar-days text-emerald-400' }
+    case 'preview': return { label: 'Xem phiếu', icon: 'fa-solid fa-eye text-cyan-400' }
+    case 'history': return { label: 'Lịch sử', icon: 'fa-solid fa-list-ul text-purple-400' }
+    case 'analytics': return { label: 'Báo cáo', icon: 'fa-solid fa-chart-pie text-indigo-400' }
+    case 'test': return { label: 'Kiểm thử', icon: 'fa-solid fa-flask text-rose-400' }
+    case 'logs': return { label: 'Logs', icon: 'fa-solid fa-terminal text-amber-400' }
+    default: return { label: 'Tạo phiếu', icon: 'fa-solid fa-plus text-blue-400' }
+  }
+})
 
 function onContainerScroll(e: Event) {
   const el = e.target as HTMLElement
@@ -237,6 +252,18 @@ function goToTomorrowTimeline() {
           </div>
         </div>
       </div>
+
+      <!-- MOBILE QUICK MODULE SWITCHER (Top Bar direct 1-tap launcher) -->
+      <button 
+        @click="showMobileNavModal = true" 
+        class="md:hidden flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-slate-800/90 hover:bg-slate-700/90 text-slate-200 border border-slate-700/60 active:scale-95 transition-all text-xs font-bold cursor-pointer shrink-0 shadow-xs ml-auto mr-1"
+        title="Mở nhanh thanh chuyển module"
+        aria-label="Mở nhanh thanh chuyển module"
+      >
+        <i :class="currentModuleMeta.icon" class="text-xs"></i>
+        <span class="max-w-[76px] truncate font-black text-[11px] uppercase tracking-tight">{{ currentModuleMeta.label }}</span>
+        <i class="fa-solid fa-chevron-down text-[9px] text-slate-400"></i>
+      </button>
 
       <!-- CENTER: NAVIGATION TABS (DESKTOP) - 3 Phân Hệ Workspace Vận Hành Chuyên Nghiệp -->
       <div class="hidden md:flex items-center gap-1.5 bg-slate-800/60 dark:bg-slate-900/60 p-1.5 rounded-2xl border border-slate-700/40 mx-2 flex-1 justify-center relative z-10 overflow-x-auto scrollbar-none flex-nowrap backdrop-blur-md">
@@ -522,53 +549,61 @@ function goToTomorrowTimeline() {
               </div>
 
               <!-- Sticky bottom bar -->
-              <div class="bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 p-3 sm:p-3.5 md:p-4 shrink-0 shadow-[0_-4px_16px_rgba(0,0,0,0.04)] dark:shadow-[0_-4px_16px_rgba(0,0,0,0.3)] flex items-center justify-between gap-2 sm:gap-3 z-10 safe-area-pb transition-colors duration-200">
+              <div class="bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-t border-slate-200/90 dark:border-slate-800/90 px-3 py-2.5 sm:px-4 sm:py-3 shrink-0 shadow-[0_-4px_16px_rgba(0,0,0,0.04)] dark:shadow-[0_-4px_16px_rgba(0,0,0,0.3)] flex items-center justify-between gap-2.5 sm:gap-3 z-10 transition-colors duration-200">
                 <!-- Left: Tổng tạm tính -->
-                <div class="min-w-0">
-                  <div class="text-[9px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">Tổng tạm tính</div>
-                  <div class="text-sm sm:text-base font-black text-slate-900 dark:text-slate-100 tracking-tight leading-none mt-0.5 sm:mt-1 font-tabular">
+                <div class="min-w-0 flex flex-col justify-center">
+                  <div class="text-[9px] font-extrabold uppercase tracking-wider text-slate-400 dark:text-slate-400 leading-none">Tổng tạm tính</div>
+                  <div class="text-[15px] sm:text-base font-black text-slate-900 dark:text-slate-100 tracking-tight leading-tight mt-1 font-tabular whitespace-nowrap">
                     {{ formatVND(formStore.calculatedTotals.final) }}
                   </div>
                 </div>
 
-                <!-- Right: Action Buttons -->
+                <!-- Right: Action Buttons Trio -->
                 <div class="flex items-center gap-1.5 sm:gap-2 shrink-0">
-                  <!-- Nút Thao tác nhanh (Universal for both Mobile and Desktop, no floating overlap!) -->
+                  <!-- Nút 1: Thao tác nhanh (Sleek Squircle) -->
                   <button 
                     @click="showActionSheet = !showActionSheet" 
                     title="Mở menu thao tác nhanh"
-                    class="h-10 px-2.5 sm:px-3.5 bg-slate-900 hover:bg-slate-800 dark:bg-slate-800 dark:hover:bg-slate-700 text-white rounded-xl font-bold text-xs uppercase shadow-sm transition-all active:scale-95 border border-amber-400/60 dark:border-amber-400/60 flex items-center gap-1.5 shrink-0 quick-action-btn cursor-pointer"
+                    aria-label="Mở menu thao tác nhanh"
+                    class="h-10 w-10 sm:w-auto px-2.5 sm:px-3.5 bg-slate-900 hover:bg-slate-800 dark:bg-slate-800 dark:hover:bg-slate-700 text-white rounded-xl font-bold text-xs uppercase shadow-sm transition-all active:scale-95 border border-amber-400/50 hover:border-amber-400 flex items-center justify-center gap-1.5 shrink-0 quick-action-btn cursor-pointer"
                   >
                     <i class="fa-solid fa-bolt-lightning text-amber-400 text-xs bolt-icon"></i>
-                    <span class="hidden sm:inline">Thao tác</span>
+                    <span class="hidden sm:inline font-extrabold text-[11px] tracking-wide">Thao tác</span>
                   </button>
 
+                  <!-- Nút 2: Tạo lịch mới (Secondary Clean Button) -->
                   <button 
                     v-if="formStore.id" 
                     @click="handleCreateNewForm" 
                     title="Tạo lịch mới (Xóa form hiện tại)"
-                    class="h-10 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-xl px-2.5 sm:px-3.5 font-bold text-xs uppercase flex items-center justify-center gap-1.5 transition-all active:scale-95 border border-slate-200 dark:border-slate-700 shrink-0"
+                    aria-label="Tạo lịch mới"
+                    class="h-10 px-2.5 sm:px-3.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-xl font-bold text-xs uppercase flex items-center justify-center gap-1.5 transition-all active:scale-95 border border-slate-200/80 dark:border-slate-700 shrink-0 shadow-2xs cursor-pointer"
                   >
-                    <i class="fa-solid fa-file-circle-plus text-slate-400"></i>
-                    <span class="hidden sm:inline">Tạo lịch mới</span>
-                    <span class="sm:hidden text-[11px]">Mới</span>
+                    <i class="fa-solid fa-file-circle-plus text-slate-400 dark:text-slate-400 text-xs"></i>
+                    <span class="hidden sm:inline font-extrabold text-[11px] tracking-wide">Lịch mới</span>
+                    <span class="sm:hidden font-extrabold text-[11px]">Mới</span>
                   </button>
 
+                  <!-- Nút 3: Cập nhật / Tạo đơn (Dominant Primary CTA) -->
                   <button 
                     v-if="formStore.id" 
                     @click="doSave('save')" 
-                    class="h-10 bg-blue-600 hover:bg-blue-700 text-white rounded-xl px-3 sm:px-4 font-bold text-xs uppercase shadow-sm flex items-center justify-center gap-1.5 transition-all active:scale-95 shrink-0"
+                    class="h-10 px-3.5 sm:px-4.5 bg-rose-600 hover:bg-rose-700 dark:bg-rose-600 dark:hover:bg-rose-700 text-white rounded-xl font-black text-xs uppercase tracking-wider shadow-md hover:shadow-lg flex items-center justify-center gap-1.5 transition-all active:scale-95 shrink-0 cursor-pointer"
+                    title="Cập nhật phiếu đặt bàn"
+                    aria-label="Cập nhật phiếu"
                   >
-                    <i class="fa-solid fa-cloud-arrow-up text-xs sm:text-sm text-blue-200"></i>
-                    <span>Cập Nhật</span>
+                    <i class="fa-solid fa-cloud-arrow-up text-xs text-rose-200"></i>
+                    <span class="font-black text-xs tracking-wider">Cập Nhật</span>
                   </button>
                   <button 
                     v-else-if="formStore.customer.name" 
                     @click="doSave('save')" 
-                    class="h-10 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl px-3.5 sm:px-5 font-bold text-xs uppercase shadow-sm flex items-center justify-center gap-1.5 transition-all active:scale-95 shrink-0"
+                    class="h-10 px-3.5 sm:px-5 bg-emerald-600 hover:bg-emerald-700 dark:bg-emerald-600 dark:hover:bg-emerald-700 text-white rounded-xl font-black text-xs uppercase tracking-wider shadow-md hover:shadow-lg flex items-center justify-center gap-1.5 transition-all active:scale-95 shrink-0 cursor-pointer"
+                    title="Tạo đơn đặt bàn mới"
+                    aria-label="Tạo đơn đặt bàn"
                   >
-                    <i class="fa-solid fa-check-double text-xs sm:text-sm text-emerald-200"></i>
-                    <span>Tạo Đơn</span>
+                    <i class="fa-solid fa-check-double text-xs text-emerald-200"></i>
+                    <span class="font-black text-xs tracking-wider">Tạo Đơn</span>
                   </button>
                 </div>
               </div>
@@ -816,8 +851,104 @@ function goToTomorrowTimeline() {
       </div>
     </transition>
 
-    <!-- MOBILE BOTTOM NAV (Luôn hiển thị cố định trên mọi thiết bị di động) -->
-    <nav class="flex md:hidden w-full bg-white/95 dark:bg-[#0D1422]/95 backdrop-blur-xl border-t border-slate-200/80 dark:border-slate-800/80 text-[10px] font-bold uppercase tracking-wider relative z-30 items-stretch shrink-0 pb-safe-bottom shadow-[0_-8px_30px_rgba(0,0,0,0.06)] dark:shadow-[0_-8px_30px_rgba(0,0,0,0.4)] select-none" aria-label="Điều hướng chính">
+    <!-- QUICK MODULE SWITCHER MODAL / SHEET (MOBILE ONLY - Lối tắt chuyển phân hệ tức thì) -->
+    <transition name="fade">
+      <div v-if="showMobileNavModal" class="fixed inset-0 z-[115] flex flex-col justify-end md:justify-center md:items-center p-0 md:p-4">
+        <div class="fixed inset-0 bg-slate-950/65 backdrop-blur-sm" @click="showMobileNavModal = false"></div>
+        <transition name="slide-up" appear>
+          <div v-if="showMobileNavModal" class="bg-white dark:bg-slate-900 border-t md:border border-slate-200/90 dark:border-slate-800 rounded-t-3xl md:rounded-2xl p-5 md:p-6 relative z-10 shadow-2xl pb-safe max-h-[85vh] md:max-w-md w-full overflow-y-auto">
+            <!-- Mobile drag indicator: 36x4px sleek pill -->
+            <div class="md:hidden w-9 h-1 bg-slate-300 dark:bg-slate-700 rounded-full mx-auto mb-3.5"></div>
+            
+            <div class="flex items-center justify-between mb-4 pb-3 border-b border-slate-100 dark:border-slate-800">
+              <div class="flex items-center gap-2.5">
+                <div class="w-8 h-8 rounded-lg bg-blue-50 dark:bg-blue-950/50 flex items-center justify-center text-blue-600 dark:text-blue-400 border border-blue-200/60 dark:border-blue-800/40 text-sm">
+                  <i class="fa-solid fa-compass"></i>
+                </div>
+                <div>
+                  <h3 class="font-black text-slate-900 dark:text-slate-100 text-sm uppercase tracking-wider">Chuyển Phân Hệ</h3>
+                  <p class="text-[10px] text-slate-500 dark:text-slate-400 font-medium">Chọn nhanh module làm việc tức thì</p>
+                </div>
+              </div>
+              <button @click="showMobileNavModal = false" aria-label="Đóng" class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
+                <i class="fa-solid fa-xmark text-sm"></i>
+              </button>
+            </div>
+
+            <!-- Grid 6 Main Modules -->
+            <div class="grid grid-cols-2 gap-2.5">
+              <button 
+                @click="ui.tab = 'dashboard'; showMobileNavModal = false" 
+                class="p-3.5 rounded-2xl flex flex-col items-center justify-center gap-2 border transition-all active:scale-95 text-center cursor-pointer min-h-[84px]"
+                :class="ui.tab === 'dashboard' ? 'bg-teal-500/15 border-teal-500/50 text-teal-600 dark:text-teal-400 font-black shadow-sm' : 'bg-slate-50 dark:bg-slate-800/60 border-slate-200/80 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700'"
+              >
+                <div class="w-10 h-10 rounded-xl bg-teal-500/20 text-teal-600 dark:text-teal-400 flex items-center justify-center text-lg">
+                  <i class="fa-solid fa-gauge-high"></i>
+                </div>
+                <span class="text-xs font-black uppercase tracking-tight">Tổng Quan</span>
+              </button>
+
+              <button 
+                @click="ui.tab = 'create'; showMobileNavModal = false" 
+                class="p-3.5 rounded-2xl flex flex-col items-center justify-center gap-2 border transition-all active:scale-95 text-center cursor-pointer min-h-[84px]"
+                :class="ui.tab === 'create' ? 'bg-blue-500/15 border-blue-500/50 text-blue-600 dark:text-blue-400 font-black shadow-sm' : 'bg-slate-50 dark:bg-slate-800/60 border-slate-200/80 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700'"
+              >
+                <div class="w-10 h-10 rounded-xl bg-blue-500/20 text-blue-600 dark:text-blue-400 flex items-center justify-center text-lg">
+                  <i class="fa-solid fa-plus"></i>
+                </div>
+                <span class="text-xs font-black uppercase tracking-tight">Tạo Phiếu</span>
+              </button>
+
+              <button 
+                @click="ui.tab = 'timeline'; appStore.loadHistory(false); showMobileNavModal = false" 
+                class="p-3.5 rounded-2xl flex flex-col items-center justify-center gap-2 border transition-all active:scale-95 text-center cursor-pointer min-h-[84px]"
+                :class="ui.tab === 'timeline' ? 'bg-emerald-500/15 border-emerald-500/50 text-emerald-600 dark:text-emerald-400 font-black shadow-sm' : 'bg-slate-50 dark:bg-slate-800/60 border-slate-200/80 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700'"
+              >
+                <div class="w-10 h-10 rounded-xl bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 flex items-center justify-center text-lg">
+                  <i class="fa-solid fa-calendar-days"></i>
+                </div>
+                <span class="text-xs font-black uppercase tracking-tight">Lịch Bàn</span>
+              </button>
+
+              <button 
+                @click="ui.tab = 'preview'; showMobileNavModal = false" 
+                class="p-3.5 rounded-2xl flex flex-col items-center justify-center gap-2 border transition-all active:scale-95 text-center cursor-pointer min-h-[84px]"
+                :class="ui.tab === 'preview' ? 'bg-cyan-500/15 border-cyan-500/50 text-cyan-600 dark:text-cyan-400 font-black shadow-sm' : 'bg-slate-50 dark:bg-slate-800/60 border-slate-200/80 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700'"
+              >
+                <div class="w-10 h-10 rounded-xl bg-cyan-500/20 text-cyan-600 dark:text-cyan-400 flex items-center justify-center text-lg">
+                  <i class="fa-solid fa-eye"></i>
+                </div>
+                <span class="text-xs font-black uppercase tracking-tight">Xem Phiếu</span>
+              </button>
+
+              <button 
+                @click="ui.showFloorPlan = true; showMobileNavModal = false" 
+                class="p-3.5 rounded-2xl flex flex-col items-center justify-center gap-2 border border-slate-200/80 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/60 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 transition-all active:scale-95 text-center cursor-pointer min-h-[84px]"
+              >
+                <div class="w-10 h-10 rounded-xl bg-amber-500/20 text-amber-600 dark:text-amber-400 flex items-center justify-center text-lg">
+                  <i class="fa-solid fa-map"></i>
+                </div>
+                <span class="text-xs font-black uppercase tracking-tight">Sơ Đồ Bàn</span>
+              </button>
+
+              <button 
+                @click="ui.tab = 'history'; appStore.loadHistory(false); showMobileNavModal = false" 
+                class="p-3.5 rounded-2xl flex flex-col items-center justify-center gap-2 border transition-all active:scale-95 text-center cursor-pointer min-h-[84px]"
+                :class="ui.tab === 'history' ? 'bg-purple-500/15 border-purple-500/50 text-purple-600 dark:text-purple-400 font-black shadow-sm' : 'bg-slate-50 dark:bg-slate-800/60 border-slate-200/80 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700'"
+              >
+                <div class="w-10 h-10 rounded-xl bg-purple-500/20 text-purple-600 dark:text-purple-400 flex items-center justify-center text-lg">
+                  <i class="fa-solid fa-list-ul"></i>
+                </div>
+                <span class="text-xs font-black uppercase tracking-tight">Lịch Sử</span>
+              </button>
+            </div>
+          </div>
+        </transition>
+      </div>
+    </transition>
+
+    <!-- MOBILE BOTTOM NAV (Luôn hiển thị cố định sticky trên mọi thiết bị di động) -->
+    <nav class="flex md:hidden w-full bg-white/95 dark:bg-[#0D1422]/95 backdrop-blur-xl border-t border-slate-200/80 dark:border-slate-800/80 text-[10px] font-bold uppercase tracking-wider sticky bottom-0 z-40 items-stretch shrink-0 pb-safe-bottom shadow-[0_-8px_30px_rgba(0,0,0,0.06)] dark:shadow-[0_-8px_30px_rgba(0,0,0,0.4)] select-none" aria-label="Điều hướng chính">
       <button 
         @click="ui.tab = 'dashboard'" 
         :class="['flex-grow flex-1 py-1.5 flex flex-col justify-center items-center gap-0.5 transition-all duration-200 select-none min-h-[52px] touch-target-48 active:scale-95', ui.tab === 'dashboard' ? 'text-blue-600 dark:text-[#62A5FF] font-black' : 'text-slate-500 dark:text-[#64748B] hover:text-slate-700 dark:hover:text-[#94A3B8]']"
@@ -874,7 +1005,7 @@ function goToTomorrowTimeline() {
 
 <style scoped>
 .pb-safe-bottom {
-  padding-bottom: env(safe-area-inset-bottom, 12px);
+  padding-bottom: max(env(safe-area-inset-bottom, 0px), 8px);
 }
 
 .slide-up-enter-active,
