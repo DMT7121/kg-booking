@@ -1,4 +1,4 @@
-import { AI_TIMEOUTS } from '@/utils/constants'
+import { AI_TIMEOUTS, AI_MODELS } from '@/utils/constants'
 import type { AIModel } from '@/utils/constants'
 import * as api from '@/services/api'
 import { handleModelFailure, isGatewayCircuitOpen, reportGatewaySuccess, reportGatewayFailure, cooldownModel } from './circuitBreaker'
@@ -91,10 +91,31 @@ export async function callAIModel(
   // 2. Fetch direct keys from local vault if localKeys is empty
   let effectiveLocalKeys = [...localKeys]
   if (effectiveLocalKeys.length === 0 && model.provider !== 'pollinations') {
+    if (!localKeyVault.isUnlocked()) {
+      try {
+        const unlocked = await localKeyVault.tryAutoUnlockFromSession()
+        if (!unlocked && localKeyVault.getUnlockMode() !== 'passphrase') {
+          await localKeyVault.unlock()
+        }
+      } catch {
+        // Ignore auto-unlock error and fallback to gateway
+      }
+    }
     if (localKeyVault.isUnlocked()) {
       effectiveLocalKeys = await localKeyVault.getKeysForProvider(model.provider)
+      // Also support legacy 'gemini' or 'gemini-exp' key buckets when provider is 'google'
+      if (effectiveLocalKeys.length === 0 && model.provider === 'google') {
+        const legacyGeminiKeys = await localKeyVault.getKeysForProvider('gemini')
+        const legacyExpKeys = await localKeyVault.getKeysForProvider('gemini-exp')
+        effectiveLocalKeys = [...legacyGeminiKeys, ...legacyExpKeys]
+      }
     }
   }
+
+  // Filter out empty or known dummy placeholder keys
+  effectiveLocalKeys = effectiveLocalKeys
+    .map(k => (k || '').trim())
+    .filter(k => k.length > 0 && k !== 'test-gemini-key-12345')
 
   const adapter = model.format === 'gemini' ? geminiAdapter : openaiAdapter
   const baseTimeout = getTimeoutForModel(model)
@@ -105,11 +126,10 @@ export async function callAIModel(
 
   // Stage: Direct provider call
   const directCallStage = async (): Promise<string | null> => {
-    const isBrowser = typeof window !== 'undefined'
-    const hasKeys = effectiveLocalKeys.length > 0 || (model.provider === 'pollinations' && !isBrowser)
+    const hasKeys = effectiveLocalKeys.length > 0 || model.provider === 'pollinations'
     if (!hasKeys) {
       if (logCallback) {
-        logCallback(`[Model: ${model.name}] Gọi Direct không khả dụng trên trình duyệt (sử dụng Gateway).`, 'warning')
+        logCallback(`[Model: ${model.name}] Chưa có API Key cục bộ cho ${model.provider} (chuyển sang Gateway).`, 'warning')
       }
       return null
     }
@@ -144,19 +164,77 @@ export async function callAIModel(
           key
         })
 
-        const res = await fetch(url, {
+        let res = await fetch(url, {
           method: 'POST',
           headers,
           body,
           signal: controller.signal
         })
 
+        // Helper to safely read error body whether res has .text() or .json()
+        const readErrorBody = async (r: any, st: number): Promise<string> => {
+          try {
+            if (typeof r.text === 'function') {
+              return await r.text()
+            }
+            if (typeof r.json === 'function') {
+              const data = await r.json()
+              return typeof data === 'string' ? data : JSON.stringify(data)
+            }
+          } catch {
+            // fallback
+          }
+          return `HTTP ${st}`
+        }
+
+        // If provider rejected structured schema / response_format with HTTP 400, immediately retry once without schema constraint on the same key
+        if (!res.ok && res.status === 400 && (responseSchema || jsonMode)) {
+          const initialErrText = await readErrorBody(res, res.status)
+          const initialClass = classifyError(res.status, initialErrText)
+          if (initialClass.action === 'retry_without_schema') {
+            if (logCallback) {
+              logCallback(`[Model: ${model.name}] Provider từ chối strict schema, tự động thử lại chế độ JSON linh hoạt (Key #${i + 1})...`, 'info')
+            }
+            const fallbackReq = adapter.formatRequest({
+              model,
+              sysPrompt,
+              userPrompt,
+              image,
+              jsonMode: false,
+              responseSchema: undefined,
+              maxOutputTokens,
+              temperature,
+              key
+            })
+            res = await fetch(fallbackReq.url, {
+              method: 'POST',
+              headers: fallbackReq.headers,
+              body: fallbackReq.body,
+              signal: controller.signal
+            })
+          } else {
+            // Reconstruct a synthetic response-like flow using initialClass
+            clearTimeout(timeoutId)
+            if (signal) signal.removeEventListener('abort', onAbort)
+            if (logCallback) {
+              logCallback(`[Model: ${model.name}] Lỗi Direct API (Key #${i + 1}): ${initialClass.reason} (${initialClass.action})`, 'warning')
+            }
+            if (initialClass.action === 'abort') throw new Error('Request aborted by user')
+            if (initialClass.action === 'cooldown_model') {
+              cooldownModel(modelId, initialClass.cooldownMs || 60000, initialClass.reason)
+              return null
+            }
+            if (initialClass.action === 'switch_transport') break
+            continue
+          }
+        }
+
         clearTimeout(timeoutId)
         if (signal) signal.removeEventListener('abort', onAbort)
 
         if (!res.ok) {
           const status = res.status
-          const errText = await res.text().catch(() => `HTTP ${status}`)
+          const errText = await readErrorBody(res, status)
           
           // Classify the error
           const classification = classifyError(status, errText)
@@ -167,9 +245,6 @@ export async function callAIModel(
           if (classification.action === 'abort') {
             throw new Error('Request aborted by user')
           }
-          if (classification.action === 'fatal_no_retry') {
-            throw new Error(`Fatal AI Error: ${errText.substring(0, 150)}`)
-          }
           if (classification.action === 'cooldown_model') {
             cooldownModel(modelId, classification.cooldownMs || 60000, classification.reason)
             return null // Skip to next stage (Gateway)
@@ -177,7 +252,7 @@ export async function callAIModel(
           if (classification.action === 'switch_transport') {
             break // Break key loop to switch to next stage (Gateway)
           }
-          // Retry next key for 'retry_next_key' or 'cooldown_key'
+          // Retry next key for 'retry_next_key', 'cooldown_key', 'retry_without_schema', or 'fatal_no_retry'
           continue
         }
 
@@ -355,4 +430,145 @@ export async function callAIModelStream(
 
   return fullText
 }
+
+export interface KeyTestResult {
+  ok: boolean
+  provider: string
+  modelName: string
+  latencyMs: number
+  activeKeyCount: number
+  totalKeyCount: number
+  message: string
+}
+
+export async function testProviderApiKey(
+  provider: string,
+  explicitKey?: string
+): Promise<KeyTestResult> {
+  const startTime = performance.now()
+  const normProvider = provider.toLowerCase() === 'gemini' || provider.toLowerCase() === 'gemini-exp'
+    ? 'google'
+    : provider.toLowerCase()
+
+  const candidateModel = AI_MODELS.find(m => m.provider === normProvider && m.type === 'text')
+    || AI_MODELS.find(m => m.provider === normProvider)
+
+  if (!candidateModel) {
+    return {
+      ok: false,
+      provider: normProvider,
+      modelName: 'N/A',
+      latencyMs: 0,
+      activeKeyCount: 0,
+      totalKeyCount: 0,
+      message: `Không tìm thấy model cấu hình cho nền tảng ${normProvider}`
+    }
+  }
+
+  let keysToTest: string[] = []
+  if (explicitKey && explicitKey.trim()) {
+    keysToTest = [explicitKey.trim()]
+  } else if (normProvider === 'pollinations') {
+    keysToTest = ['free']
+  } else {
+    if (!localKeyVault.isUnlocked()) {
+      try {
+        const unlocked = await localKeyVault.tryAutoUnlockFromSession()
+        if (!unlocked && localKeyVault.getUnlockMode() !== 'passphrase') {
+          await localKeyVault.unlock()
+        }
+      } catch {}
+    }
+    if (localKeyVault.isUnlocked()) {
+      keysToTest = await localKeyVault.getKeysForProvider(normProvider)
+      if (keysToTest.length === 0 && normProvider === 'google') {
+        const legacyGemini = await localKeyVault.getKeysForProvider('gemini')
+        const legacyExp = await localKeyVault.getKeysForProvider('gemini-exp')
+        keysToTest = [...legacyGemini, ...legacyExp]
+      }
+    }
+  }
+
+  keysToTest = keysToTest.map(k => (k || '').trim()).filter(k => k.length > 0 && k !== 'test-gemini-key-12345')
+
+  if (keysToTest.length === 0 && normProvider !== 'pollinations') {
+    return {
+      ok: false,
+      provider: normProvider,
+      modelName: candidateModel.name,
+      latencyMs: 0,
+      activeKeyCount: 0,
+      totalKeyCount: 0,
+      message: 'Chưa có API Key hợp lệ trong két sắt bảo mật (Vault).'
+    }
+  }
+
+  const adapter = candidateModel.format === 'gemini' ? geminiAdapter : openaiAdapter
+  let activeCount = 0
+  let lastErrorMsg = ''
+  let bestLatency = 0
+
+  // Test up to 3 keys per provider for speed
+  const sampleKeys = keysToTest.slice(0, 3)
+  for (const key of sampleKeys) {
+    const kStart = performance.now()
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), 8000)
+    try {
+      const { url, headers, body } = adapter.formatRequest({
+        model: candidateModel,
+        sysPrompt: 'You are a health check assistant. Respond with {"ok":true}',
+        userPrompt: 'Ping JSON health check',
+        image: null,
+        jsonMode: false,
+        maxOutputTokens: 32,
+        temperature: 0,
+        key
+      })
+      const res = await fetch(url, {
+        method: 'POST',
+        headers,
+        body,
+        signal: controller.signal
+      })
+      clearTimeout(timeoutId)
+      if (res.ok) {
+        activeCount++
+        const lat = Math.round(performance.now() - kStart)
+        if (bestLatency === 0 || lat < bestLatency) bestLatency = lat
+      } else {
+        const errTxt = await res.text().catch(() => `HTTP ${res.status}`)
+        const cls = classifyError(res.status, errTxt)
+        lastErrorMsg = `HTTP ${res.status}: ${cls.reason}`
+      }
+    } catch (e: any) {
+      clearTimeout(timeoutId)
+      lastErrorMsg = e.name === 'AbortError' ? 'Timeout (8s)' : (e.message || 'Lỗi mạng/CORS')
+    }
+  }
+
+  const totalLatency = bestLatency || Math.round(performance.now() - startTime)
+  if (activeCount > 0) {
+    return {
+      ok: true,
+      provider: normProvider,
+      modelName: candidateModel.name,
+      latencyMs: totalLatency,
+      activeKeyCount: activeCount,
+      totalKeyCount: keysToTest.length,
+      message: `Hoạt động tốt (${activeCount}/${sampleKeys.length} key phản hồi, ${totalLatency}ms)`
+    }
+  }
+
+  return {
+    ok: false,
+    provider: normProvider,
+    modelName: candidateModel.name,
+    latencyMs: totalLatency,
+    activeKeyCount: 0,
+    totalKeyCount: keysToTest.length,
+    message: lastErrorMsg || 'Tất cả API Key đều không phản hồi'
+  }
+}
+
 

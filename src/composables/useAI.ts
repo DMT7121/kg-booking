@@ -5,8 +5,9 @@ import { useAppStore } from '@/stores/useAppStore'
 import { useLogStore } from '@/stores/useLogStore'
 import { resizeImage, cleanPhoneNumber, formatDateStr, formatVND, stripAccents, formatSetNote } from '@/utils'
 import { processImageForOCR } from '@/utils/imageProcessor'
-import { AI_MODELS, ADVANCED_AI_PROMPT, IMAGE_OCR_PROMPT, SINGLE_PASS_VISION_PROMPT } from '@/utils/constants'
+import { AI_MODELS, PLATFORMS, ADVANCED_AI_PROMPT, IMAGE_OCR_PROMPT, SINGLE_PASS_VISION_PROMPT } from '@/utils/constants'
 import type { AIModel } from '@/utils/constants'
+import { isModelCooldown } from '@/services/ai/circuitBreaker'
 import { parseUnifiedBooking, type CanonicalBookingPayload } from '@/domain/ai/unifiedParserEngine'
 import * as api from '@/services/api'
 import { getCachedMenu, getCachedMenuSheets } from '@/services/cache'
@@ -373,10 +374,19 @@ export function useAI() {
     inputType = 'unknown',
     signal?: AbortSignal
   ) {
+    if (Object.keys(configStore.keysStatus).length === 0) {
+      await configStore.refreshVaultState()
+    }
+
     const keysStatusMapped: Record<string, { configured: boolean }> = {}
-    Object.keys(configStore.keysStatus).forEach(k => {
+    const allProviderKeys = new Set([
+      ...Object.keys(PLATFORMS),
+      ...Object.keys(configStore.keysStatus),
+      ...Object.keys(configStore.gatewayProviderStatus)
+    ])
+    allProviderKeys.forEach(k => {
       keysStatusMapped[k] = {
-        configured: !!configStore.keysStatus[k]?.configured || !!configStore.gatewayProviderStatus[k]?.configured
+        configured: k === 'pollinations' || !!configStore.keysStatus[k]?.configured || !!configStore.gatewayProviderStatus[k]?.configured
       }
     })
 
@@ -640,13 +650,23 @@ export function useAI() {
         }
       }
 
-      // Fast-Track Deterministic Parsing (< 5ms)
+      // Fast-Track Deterministic Parsing (< 5ms) — Only bypass LLM if no API keys/gateway are configured and input has no menu/decor/party nuances
       const canonical = parseUnifiedBooking(promptText, {
         menuCatalog: appStore.menuList,
         currentDate: new Date()
       })
 
-      if (!force && !formStore.aiImage && canonical.isComplete && canonical.overallConfidence >= 0.95 && (!canonical.menuItems || canonical.menuItems.length === 0)) {
+      const hasAnyConfiguredAI = configStore.totalKeysHasData || Object.values(configStore.gatewayProviderStatus).some(s => s?.configured)
+      if (
+        !force &&
+        !formStore.aiImage &&
+        !hasAnyConfiguredAI &&
+        canonical.isComplete &&
+        canonical.overallConfidence >= 0.95 &&
+        (!canonical.menuItems || canonical.menuItems.length === 0) &&
+        !classification.requiresMenuContext &&
+        !classification.requiresConversationContext
+      ) {
         logStore.addLog(`[Unified Deterministic] ⚡ Đạt chuẩn Fast-Track 100% (Độ tin cậy: ${canonical.overallConfidence}). Áp dụng ngay tức thì không cần AI!`, 'success')
         applyCanonicalPayload(canonical, { showToast: true })
         uiStore.loading.is = false
@@ -1106,13 +1126,20 @@ Output JSON: { "amount": Number, "content": "String", "bank": "String", "time": 
     uiStore.loading.subMsg = 'Vision Processing...'
 
     try {
+      if (Object.keys(configStore.keysStatus).length === 0) {
+        await configStore.refreshVaultState()
+      }
+
       const optimizedImg = await resizeImage(base64Img, 1600)
       const defaultId = configStore.defaults.vision
       const candidates = AI_MODELS
         .filter(m => m.type === 'vision')
-        .filter(m => m.provider === 'pollinations' || (configStore.keysStatus[m.provider]?.configured))
+        .filter(m => m.provider === 'pollinations' || (configStore.keysStatus[m.provider]?.configured) || (configStore.gatewayProviderStatus[m.provider]?.configured))
 
       candidates.sort((a, b) => {
+        const aCool = isModelCooldown(a.id) ? 1 : 0
+        const bCool = isModelCooldown(b.id) ? 1 : 0
+        if (aCool !== bCool) return aCool - bCool
         if (defaultId) {
           if (a.id === defaultId) return -1
           if (b.id === defaultId) return 1
@@ -1228,6 +1255,10 @@ Output JSON: { "amount": Number, "content": "String", "bank": "String", "time": 
     uiStore.loading.subMsg = 'Single-Pass Multimodal Extraction...'
 
     try {
+      if (Object.keys(configStore.keysStatus).length === 0) {
+        await configStore.refreshVaultState()
+      }
+
       const optimizedImg = await processImageForOCR(base64Img, {
         maxWidth: 1280,
         maxHeight: 1280,
@@ -1238,9 +1269,12 @@ Output JSON: { "amount": Number, "content": "String", "bank": "String", "time": 
       const defaultId = configStore.defaults.vision
       const candidates = AI_MODELS
         .filter(m => m.type === 'vision')
-        .filter(m => m.provider === 'pollinations' || (configStore.keysStatus[m.provider]?.configured))
+        .filter(m => m.provider === 'pollinations' || (configStore.keysStatus[m.provider]?.configured) || (configStore.gatewayProviderStatus[m.provider]?.configured))
 
       candidates.sort((a, b) => {
+        const aCool = isModelCooldown(a.id) ? 1 : 0
+        const bCool = isModelCooldown(b.id) ? 1 : 0
+        if (aCool !== bCool) return aCool - bCool
         if (defaultId) {
           if (a.id === defaultId) return -1
           if (b.id === defaultId) return 1
@@ -1273,13 +1307,151 @@ Output JSON: { "amount": Number, "content": "String", "bank": "String", "time": 
           }, (msg, level) => logStore.addLog(msg, level))
 
           if (rawResult && rawResult.trim().length > 20) {
-            const parsed = repairAndNormalizeJSON(rawResult, 'chat_screenshot')
-            if (parsed && (parsed.customer || parsed.booking || parsed.party)) {
-              const latency = ((performance.now() - startTime) / 1000).toFixed(1)
-              uiStore.showToast(`<b>Vision ⚡</b> ${model.name} | ${latency}s`, 'success', 3000)
-              logStore.addLog(`Single-Pass Vision thành công với [${model.name}] (${latency}s)`, 'success')
-              return parsed
+            const rawObj = safeParseJSON(rawResult)
+            if (!rawObj || typeof rawObj !== 'object') {
+              throw new Error('Model Vision không trả về JSON hợp lệ')
             }
+
+            const ocrRawText = typeof rawObj.ocr_raw_text === 'string' ? rawObj.ocr_raw_text.trim() : ''
+            let parsed = repairAndNormalizeJSON(rawObj, 'chat_screenshot')
+
+            const hasMeaningfulData = !!(
+              parsed?.customer?.name ||
+              parsed?.customer?.phone ||
+              parsed?.booking?.event_date ||
+              parsed?.booking?.event_time ||
+              parsed?.booking?.guest_count ||
+              parsed?.booking?.table_number ||
+              (Array.isArray(parsed?.menu_items) && parsed.menu_items.length > 0) ||
+              parsed?.deposit?.amount ||
+              parsed?.party?.owner_name ||
+              parsed?.party?.decor_color ||
+              parsed?.party?.display_board_text ||
+              parsed?.note
+            )
+
+            if (!hasMeaningfulData) {
+              throw new Error('Vision JSON không chứa trường thông tin đặt bàn nào có dữ liệu')
+            }
+
+            // Cross-validate & Rule Lock if ocr_raw_text is available
+            if (ocrRawText) {
+              const normOcr = preNormalizeInput(ocrRawText)
+              const ruleBased = extractByRules(normOcr)
+              const hardEnts = extractHardEntities(normOcr)
+              const { result: crossValidated } = crossValidateResults(parsed, ruleBased, hardEnts)
+              parsed = applyDeterministicRuleLock(crossValidated, hardEnts, ruleBased)
+            }
+
+            // Match Menu Items against restaurant catalog & auto-switch menu sheet if needed
+            if (Array.isArray(parsed.menu_items) && parsed.menu_items.length > 0) {
+              logStore.addLog(`[Vision] Đang đối khớp ${parsed.menu_items.length} món ăn từ ảnh với thực đơn nhà hàng...`)
+              parsed.menu_items = matchMenuItems(
+                parsed.menu_items,
+                parsed.booking?.guest_count,
+                appStore.menuList,
+                appStore.menuAliases,
+                appStore.menuDetails || {},
+                formStore.customer.pax ? parseInt(String(formStore.customer.pax)) : null,
+                (msg, level) => logStore.addLog(msg, level)
+              )
+              parsed.menu_items = deduplicateMatchedItems(
+                parsed.menu_items,
+                (msg, level) => logStore.addLog(msg, level as 'info' | 'warning' | 'error' | 'success')
+              )
+
+              try {
+                const loadedMenus = await loadAllMenusData()
+                const { bestSheet, score, isBorderline } = resolveBestMenuSheet(
+                  ocrRawText || parsed.note || '',
+                  parsed.menu_items,
+                  loadedMenus,
+                  appStore.activeSheet
+                )
+                if (bestSheet && bestSheet !== appStore.activeSheet && !isBorderline) {
+                  logStore.addLog(`[Vision] Tự động chuyển sang thực đơn phù hợp nhất: "${bestSheet}" (Điểm: ${score})`, 'success')
+                  await appStore.switchMenu(bestSheet)
+                  parsed.menu_items = matchMenuItems(
+                    parsed.menu_items.map((i: any) => ({
+                      name: i.raw_name || i.name,
+                      quantity: i.quantity || i.qty || 1,
+                      unit_price: i.unit_price || i.price || 0,
+                      note: i.note
+                    })),
+                    parsed.booking?.guest_count,
+                    appStore.menuList,
+                    appStore.menuAliases,
+                    appStore.menuDetails || {},
+                    formStore.customer.pax ? parseInt(String(formStore.customer.pax)) : null,
+                    (msg, level) => logStore.addLog(msg, level)
+                  )
+                }
+              } catch (sheetErr) {
+                console.warn('[Vision] Menu sheet routing skipped:', sheetErr)
+              }
+            }
+
+            const latency = ((performance.now() - startTime) / 1000).toFixed(1)
+            const routingInfo = {
+              pipeline: 'vision' as const,
+              tier_used: model.tier,
+              model_used: model.name,
+              fallback_count: 0,
+              repair_applied: false,
+              latency,
+              mode: 'vision-single-pass'
+            }
+
+            const validatedResult = validateParsedFields(parsed)
+            validatedResult.routing = routingInfo
+
+            try {
+              validatedResult.operationalDispatch = generateOperationalDispatch({
+                customer: validatedResult.customer,
+                booking: validatedResult.booking,
+                party: validatedResult.party,
+                items: validatedResult.menu_items,
+                deposit: validatedResult.deposit
+              })
+            } catch {}
+
+            // Populate rawInput with OCR text or reconstructed summary so staff can view/edit the source text
+            if (ocrRawText && !formStore.rawInput?.trim()) {
+              formStore.rawInput = ocrRawText
+            } else if (!formStore.rawInput?.trim()) {
+              const summaryLines: string[] = []
+              if (validatedResult.customer?.name || validatedResult.customer?.phone) {
+                summaryLines.push(`Khách hàng: ${[validatedResult.customer.name, validatedResult.customer.phone].filter(Boolean).join(' - ')}`)
+              }
+              if (validatedResult.booking?.event_date || validatedResult.booking?.event_time) {
+                summaryLines.push(`Thời gian: ${[validatedResult.booking.event_time, validatedResult.booking.event_date].filter(Boolean).join(' ngày ')}`)
+              }
+              if (validatedResult.booking?.guest_count) {
+                summaryLines.push(`Số khách: ${validatedResult.booking.guest_count} người`)
+              }
+              if (validatedResult.booking?.table_number) {
+                summaryLines.push(`Bàn: ${validatedResult.booking.table_number}`)
+              }
+              if (Array.isArray(validatedResult.menu_items) && validatedResult.menu_items.length > 0) {
+                summaryLines.push('Thực đơn:\n' + validatedResult.menu_items.map((m: any) => `- ${m.quantity || 1}x ${m.matched_name || m.raw_name}`).join('\n'))
+              }
+              if (validatedResult.note) {
+                summaryLines.push(`Ghi chú: ${validatedResult.note}`)
+              }
+              if (summaryLines.length > 0) {
+                formStore.rawInput = summaryLines.join('\n')
+              }
+            }
+
+            formStore.parsedAiResult = validatedResult
+            formStore.aiMetadata = {
+              ...routingInfo,
+              confidences: validatedResult.confidence
+            }
+
+            uiStore.showToast(`<b>Vision ⚡</b> ${model.name} | ${latency}s`, 'success', 3000)
+            logStore.addLog(`Single-Pass Vision thành công với [${model.name}] (${latency}s)`, 'success')
+            return validatedResult
           }
           throw new Error('Kết quả JSON không hợp lệ')
         } catch (e: any) {

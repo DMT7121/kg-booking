@@ -103,4 +103,82 @@ describe('aiProviderClient - Server Fallback Gateway Tests', () => {
     // Verify warning log for Worker failure
     expect(logCallback).toHaveBeenCalledWith(expect.stringContaining('AI Gateway thất bại:'), 'warning')
   })
+
+  it('should rotate to the next API key when Google Gemini returns HTTP 400 API_KEY_INVALID', async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce({
+        ok: false,
+        status: 400,
+        json: () => Promise.resolve({
+          error: {
+            code: 400,
+            message: 'API key not valid. Please pass a valid API key.',
+            status: 'INVALID_ARGUMENT'
+          }
+        })
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: () => Promise.resolve({
+          candidates: [{ content: { parts: [{ text: '{"customer":{"name":"Hùng"}}' }] } }]
+        })
+      })
+    global.fetch = fetchMock
+
+    const result = await callAIModel({
+      model: mockModel,
+      sysPrompt: 'Extract JSON',
+      userPrompt: 'Anh Hùng đặt bàn',
+      localKeys: ['invalid-key-1', 'valid-key-2'],
+      aiMode: 'direct'
+    })
+
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+    expect(result).toBe('{"customer":{"name":"Hùng"}}')
+  })
+
+  it('should retry the same key without schema when provider rejects response_format with HTTP 400', async () => {
+    const groqModel = {
+      id: 'llama-3.3-70b-versatile',
+      name: 'Llama 3.3 70B',
+      provider: 'groq',
+      type: 'text' as const,
+      tier: 1,
+      url: 'https://api.groq.com/openai/v1/chat/completions',
+      format: 'openai' as const
+    }
+
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce({
+        ok: false,
+        status: 400,
+        json: () => Promise.resolve({
+          error: {
+            message: 'response_format of type json_schema is not supported for this model'
+          }
+        })
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: () => Promise.resolve({
+          choices: [{ message: { content: '{"customer":{"name":"Lan"}}' } }]
+        })
+      })
+    global.fetch = fetchMock
+
+    const result = await callAIModel({
+      model: groqModel,
+      sysPrompt: 'Extract booking JSON',
+      userPrompt: 'Chị Lan 6 người',
+      localKeys: ['gsk_valid_key'],
+      jsonMode: true,
+      aiMode: 'direct'
+    })
+
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+    expect(result).toBe('{"customer":{"name":"Lan"}}')
+  })
 })
+

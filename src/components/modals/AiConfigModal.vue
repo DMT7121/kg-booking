@@ -5,6 +5,7 @@ import { useConfigStore } from '@/stores/useConfigStore'
 import { useAppStore } from '@/stores/useAppStore'
 import { PLATFORMS, AI_MODELS } from '@/utils/constants'
 import { getActiveCooldowns, clearAllCooldowns } from '@/services/ai/circuitBreaker'
+import { testProviderApiKey } from '@/services/ai/aiProviderClient'
 
 const ui = useUIStore()
 const configStore = useConfigStore()
@@ -13,6 +14,58 @@ const appStore = useAppStore()
 const newAliasText = ref('')
 const selectedAliasDish = ref('')
 const vaultPassword = ref('')
+
+const providerDiagnostics = ref<Record<string, {
+  loading: boolean
+  ok?: boolean
+  latencyMs?: number
+  modelUsed?: string
+  error?: string
+}>>({})
+const isTestingAll = ref(false)
+
+function getPlatformIconClass(icon: string) {
+  const brandIcons = ['fa-google', 'fa-meta', 'fa-github']
+  return brandIcons.includes(icon) ? ['fa-brands', icon] : ['fa-solid', icon]
+}
+
+async function handleTestProvider(pId: string) {
+  providerDiagnostics.value[pId] = { loading: true }
+  try {
+    const res = await testProviderApiKey(pId)
+    providerDiagnostics.value[pId] = {
+      loading: false,
+      ok: res.ok,
+      latencyMs: res.latencyMs,
+      modelUsed: res.modelName,
+      error: res.ok ? undefined : res.message
+    }
+    if (res.ok) {
+      ui.showToast(`${PLATFORMS[pId]?.name || pId}: ${res.message}`, 'success')
+    } else {
+      ui.showToast(`${PLATFORMS[pId]?.name || pId}: ${res.message}`, 'error')
+    }
+  } catch (e: any) {
+    providerDiagnostics.value[pId] = {
+      loading: false,
+      ok: false,
+      error: e?.message || 'Lỗi kiểm tra kết nối'
+    }
+  }
+}
+
+async function handleTestAllProviders() {
+  if (isTestingAll.value) return
+  isTestingAll.value = true
+  try {
+    const configuredProviders = Object.keys(PLATFORMS).filter(
+      pId => pId === 'pollinations' || configStore.getKeyCount(pId) > 0
+    )
+    await Promise.all(configuredProviders.map(pId => handleTestProvider(pId)))
+  } finally {
+    isTestingAll.value = false
+  }
+}
 
 function copyToClipboard(text: string) {
   navigator.clipboard.writeText(text)
@@ -66,6 +119,13 @@ async function handlePlatformOptions(pId: string) {
     ui.showToast('Pollinations là miễn phí, không cần key!', 'info')
     return
   }
+  if (!configStore.isVaultUnlocked && configStore.vaultUnlockMode === 'device') {
+    try {
+      await configStore.unlockVault()
+    } catch {
+      // ignore
+    }
+  }
   if (!configStore.isVaultUnlocked) {
     ui.showToast('Vui lòng mở khóa két sắt bảo mật trước!', 'warning')
     return
@@ -77,10 +137,18 @@ async function handlePlatformOptions(pId: string) {
   if (newKey) {
     configStore.tempKeys[pId] = newKey.trim()
     await configStore.saveApiKey(pId)
+    await handleTestProvider(pId)
   }
 }
 
 async function handleKeyClick(pId: string, idx: number) {
+  if (!configStore.isVaultUnlocked && configStore.vaultUnlockMode === 'device') {
+    try {
+      await configStore.unlockVault()
+    } catch {
+      // ignore
+    }
+  }
   if (!configStore.isVaultUnlocked) {
     ui.showToast('Vui lòng mở khóa két sắt để xóa key!', 'warning')
     return
@@ -91,6 +159,7 @@ async function handleKeyClick(pId: string, idx: number) {
   const confirmed = await ui.showConfirm('Xóa Key', 'Bạn có chắc chắn muốn XÓA API key này?')
   if (confirmed) {
     await configStore.deleteApiKey(pId, idx)
+    delete providerDiagnostics.value[pId]
   }
 }
 
@@ -401,7 +470,17 @@ function handleClearCooldowns() {
 
       <!-- Providers List -->
       <div class="space-y-3">
-        <h4 class="text-[11px] font-black text-slate-400 uppercase tracking-widest pl-2">Danh sách nhà cung cấp AI</h4>
+        <div class="flex items-center justify-between pl-2 pr-1">
+          <h4 class="text-[11px] font-black text-slate-400 uppercase tracking-widest">Danh sách nhà cung cấp AI</h4>
+          <button
+            @click="handleTestAllProviders"
+            :disabled="isTestingAll"
+            class="px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-800 border border-blue-200 rounded-xl font-black text-[10px] flex items-center gap-1.5 transition-all active:scale-95 disabled:opacity-50"
+          >
+            <i :class="['fa-solid', isTestingAll ? 'fa-spinner fa-spin' : 'fa-stethoscope']"></i>
+            <span>{{ isTestingAll ? 'Đang kiểm tra...' : 'Kiểm tra tất cả Keys' }}</span>
+          </button>
+        </div>
         
         <div class="bg-white rounded-3xl shadow-sm border border-slate-100 overflow-hidden divide-y divide-slate-100">
           
@@ -409,23 +488,54 @@ function handleClearCooldowns() {
             <div class="flex justify-between items-start mb-3">
               <div class="flex items-center gap-3">
                 <div :class="['w-9 h-9 rounded-xl flex items-center justify-center text-xl bg-white shadow-sm border border-slate-100 shrink-0', platform.color]">
-                  <i :class="['fa-brands', platform.icon]"></i>
+                  <i :class="getPlatformIconClass(platform.icon)"></i>
                 </div>
                 <div>
-                  <div class="flex items-center gap-2">
+                  <div class="flex flex-wrap items-center gap-2">
                     <span class="font-black text-[13px] text-slate-800">{{ platform.name }}</span>
-                    <span class="text-[9px] font-bold text-slate-400">{{ pId === 'pollinations' ? '1 key' : configStore.getKeyCount(pId) + ' keys' }}</span>
+                    <span class="text-[9px] font-bold text-slate-400">{{ pId === 'pollinations' ? '1 key' : configStore.getKeyCount(pId as string) + ' keys' }}</span>
                     <!-- Active badge condition -->
-                    <span v-if="configStore.defaults.text.startsWith(pId as string) || configStore.defaults.vision.startsWith(pId as string) || (pId === 'gemini' && configStore.getKeyCount(pId) > 0)" class="text-[9px] font-black text-emerald-600 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded">Đang dùng</span>
+                    <span v-if="configStore.defaults.text.startsWith(pId as string) || configStore.defaults.vision.startsWith(pId as string) || ((pId === 'gemini' || pId === 'groq') && configStore.getKeyCount(pId as string) > 0)" class="text-[9px] font-black text-emerald-600 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded">Đang dùng</span>
                     <!-- Free badge condition -->
                     <span v-if="pId === 'pollinations'" class="text-[9px] font-black text-emerald-600 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded">Miễn phí</span>
+                    <!-- Live Diagnostic Badge -->
+                    <span v-if="providerDiagnostics[pId as string]?.loading" class="text-[9px] font-black text-blue-600 bg-blue-50 border border-blue-200 px-1.5 py-0.5 rounded flex items-center gap-1">
+                      <i class="fa-solid fa-spinner fa-spin"></i> Đang test...
+                    </span>
+                    <span v-else-if="providerDiagnostics[pId as string]?.ok === true" class="text-[9px] font-black text-emerald-700 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded flex items-center gap-1">
+                      <i class="fa-solid fa-circle-check"></i> OK ({{ providerDiagnostics[pId as string]?.latencyMs }}ms)
+                    </span>
+                    <span v-else-if="providerDiagnostics[pId as string]?.ok === false" class="text-[9px] font-black text-rose-600 bg-rose-50 border border-rose-200 px-1.5 py-0.5 rounded flex items-center gap-1" :title="providerDiagnostics[pId as string]?.error">
+                      <i class="fa-solid fa-circle-xmark"></i> Lỗi kết nối
+                    </span>
+                  </div>
+                  <div v-if="providerDiagnostics[pId as string]?.ok === false && providerDiagnostics[pId as string]?.error" class="text-[10px] font-semibold text-rose-500 mt-1 leading-snug">
+                    {{ providerDiagnostics[pId as string]?.error }}
                   </div>
                 </div>
               </div>
               
-              <div class="flex items-center gap-3 mt-1">
-                <a :href="platform.getUrl" target="_blank" class="text-[11px] font-black text-blue-600 hover:text-blue-700 transition-colors flex items-center gap-1">Get Key <i class="fa-solid fa-arrow-up-right-from-square text-[9px]"></i></a>
-                <button class="text-slate-400 hover:text-blue-900 transition-colors p-1" @click="handlePlatformOptions(pId as string)"><i class="fa-solid fa-ellipsis-vertical"></i></button>
+              <div class="flex items-center gap-2 mt-1 shrink-0">
+                <button
+                  v-if="pId === 'pollinations' || configStore.getKeyCount(pId as string) > 0"
+                  @click="handleTestProvider(pId as string)"
+                  :disabled="providerDiagnostics[pId as string]?.loading"
+                  class="px-2.5 py-1 bg-slate-100 hover:bg-blue-50 text-slate-600 hover:text-blue-700 border border-slate-200 rounded-lg font-black text-[10px] transition-colors flex items-center gap-1 disabled:opacity-50"
+                  title="Kiểm tra kết nối API Key"
+                >
+                  <i :class="['fa-solid', providerDiagnostics[pId as string]?.loading ? 'fa-spinner fa-spin' : 'fa-plug-circle-check']"></i>
+                  <span>Test</span>
+                </button>
+                <a :href="platform.getUrl" target="_blank" rel="noopener noreferrer" class="text-[11px] font-black text-blue-600 hover:text-blue-700 transition-colors flex items-center gap-1 px-1">Get Key <i class="fa-solid fa-arrow-up-right-from-square text-[9px]"></i></a>
+                <button
+                  v-if="pId !== 'pollinations'"
+                  class="px-2.5 py-1 bg-blue-900 hover:bg-blue-800 text-white rounded-lg font-black text-[10px] transition-colors flex items-center gap-1 active:scale-95"
+                  @click="handlePlatformOptions(pId as string)"
+                  title="Thêm API Key mới"
+                >
+                  <i class="fa-solid fa-plus text-[9px]"></i>
+                  <span>Thêm</span>
+                </button>
               </div>
             </div>
 

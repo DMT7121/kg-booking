@@ -219,6 +219,9 @@ export const useConfigStore = defineStore('config', () => {
     if (!keyVal) return
 
     if (!localKeyVault.isUnlocked()) {
+      await localKeyVault.tryAutoUnlockFromSession()
+    }
+    if (!localKeyVault.isUnlocked()) {
       uiStore.showToast('Vui lòng mở khóa két sắt trước khi lưu key!', 'warning')
       return
     }
@@ -226,7 +229,7 @@ export const useConfigStore = defineStore('config', () => {
     try {
       await localKeyVault.addKey(pId, keyVal)
       tempKeys[pId] = ''
-      uiStore.showToast(`Đã lưu cục bộ API Key ${PLATFORMS[pId].name} vào két sắt!`, 'success')
+      uiStore.showToast(`Đã lưu cục bộ API Key ${PLATFORMS[pId]?.name || pId} vào két sắt!`, 'success')
       await refreshVaultState()
     } catch (e: any) {
       uiStore.showToast(`Không thể lưu key: ${e.message}`, 'error')
@@ -234,6 +237,9 @@ export const useConfigStore = defineStore('config', () => {
   }
 
   async function deleteApiKey(pId: string, idx: number) {
+    if (!localKeyVault.isUnlocked()) {
+      await localKeyVault.tryAutoUnlockFromSession()
+    }
     if (!localKeyVault.isUnlocked()) {
       uiStore.showToast('Vui lòng mở khóa két sắt để xóa key!', 'warning')
       return
@@ -253,6 +259,9 @@ export const useConfigStore = defineStore('config', () => {
     if (!actualPass) return uiStore.showToast('Nhập pass Admin hoặc Password Truy cập!', 'warning')
     
     if (!localKeyVault.isUnlocked()) {
+      await localKeyVault.tryAutoUnlockFromSession()
+    }
+    if (!localKeyVault.isUnlocked()) {
       return uiStore.showToast('Vui lòng mở khóa két sắt để nhập keys!', 'warning')
     }
 
@@ -261,7 +270,9 @@ export const useConfigStore = defineStore('config', () => {
       if (data.ok && Array.isArray(data.keys)) {
         let addedCount = 0
         for (const k of data.keys) {
-          let pId = k.provider === 'gemini' ? 'google' : k.provider
+          if (!k.key || k.key === 'test-gemini-key-12345') continue
+          const rawProv = String(k.provider || '').toLowerCase()
+          const pId = (rawProv === 'gemini' || rawProv === 'gemini-exp') ? 'google' : rawProv
           if (PLATFORMS[pId]) {
             const currentKeys = await localKeyVault.getKeysForProvider(pId)
             if (!currentKeys.includes(k.key)) {
@@ -288,8 +299,9 @@ export const useConfigStore = defineStore('config', () => {
         if (data.keysStatus) {
           Object.keys(gatewayProviderStatus).forEach(k => delete gatewayProviderStatus[k])
           Object.keys(data.keysStatus).forEach(provider => {
-            gatewayProviderStatus[provider] = {
-              configured: !!data.keysStatus[provider]?.configured
+            const normProv = (provider === 'gemini' || provider === 'gemini-exp') ? 'google' : provider
+            gatewayProviderStatus[normProv] = {
+              configured: !!(gatewayProviderStatus[normProv]?.configured || data.keysStatus[provider]?.configured)
             }
           })
         }
@@ -314,17 +326,29 @@ export const useConfigStore = defineStore('config', () => {
       await localKeyVault.tryAutoUnlockFromSession()
       
       if (localKeyVault.isUnlocked()) {
+        // Purge any legacy dummy test key if present in google vault
+        const googleKeys = await localKeyVault.getKeysForProvider('google')
+        const dummyIdx = googleKeys.indexOf('test-gemini-key-12345')
+        if (dummyIdx !== -1) {
+          await localKeyVault.removeKey('google', dummyIdx)
+          await refreshVaultState()
+        }
+
         const meta = await localKeyVault.getMetadata()
         const totalKeys = Object.values(meta).reduce((sum, p) => sum + (p?.count || 0), 0)
         
-        if (totalKeys === 0) {
+        if (totalKeys === 0 || !meta['deepseek']?.count) {
           console.log('[Vault] Auto-importing keys from server...')
           const data = await api.getSharedApiKeysWithoutPassword()
           if (data && data.ok && Array.isArray(data.keys)) {
             let addedCount = 0
             for (const k of data.keys) {
-              let pId = k.provider === 'gemini' ? 'google' : k.provider
+              if (!k.key || k.key === 'test-gemini-key-12345') continue
+              const rawProv = String(k.provider || '').toLowerCase()
+              const pId = (rawProv === 'gemini' || rawProv === 'gemini-exp') ? 'google' : rawProv
               if (PLATFORMS[pId]) {
+                // Only auto-import into empty providers when totalKeys > 0 so user deletions are respected
+                if (totalKeys > 0 && (meta[pId]?.count || 0) > 0) continue
                 const currentKeys = await localKeyVault.getKeysForProvider(pId)
                 if (!currentKeys.includes(k.key)) {
                   await localKeyVault.addKey(pId, k.key)

@@ -39,8 +39,8 @@ export const geminiAdapter: ProviderAdapter = {
       generationConfig
     }
 
-    // Special handling for thinking models (e.g. gemini-2.5-flash-thinking)
-    if (model.id.includes('thinking')) {
+    // Disable thinking token overhead for Gemini 2.5 Flash / Lite / Thinking models during structured extraction & OCR
+    if (model.id.includes('2.5') || model.id.includes('thinking')) {
       body.generationConfig.thinkingConfig = { thinkingBudget: 0 }
     }
 
@@ -54,7 +54,7 @@ export const geminiAdapter: ProviderAdapter = {
   parseResponse(responseJson): string {
     const parts = responseJson.candidates?.[0]?.content?.parts || []
     
-    // Find first text part that is not a thought part
+    // Find last text part that is not a thought part
     for (let p = parts.length - 1; p >= 0; p--) {
       if (parts[p].text && !parts[p].thought) {
         return parts[p].text
@@ -76,6 +76,9 @@ export function sanitizeGeminiSchema(schema: any): any {
 
   const clean: any = {}
   for (const [k, v] of Object.entries(schema)) {
+    if (k === 'additionalProperties' || k === '$schema' || k === 'default') {
+      continue
+    }
     if (k === 'type' && Array.isArray(v)) {
       const nonNull = v.find(t => t !== 'null') || 'string'
       clean.type = nonNull
@@ -88,3 +91,4 @@ export function sanitizeGeminiSchema(schema: any): any {
   }
   return clean
 }
+

@@ -50,8 +50,10 @@ export function validateAIResult(parsed: any): AIResultValidation {
 
   // Validate booking
   const booking = parsed.booking || {}
-  const date = typeof booking.date === 'string' ? booking.date.trim() : ''
-  const time = typeof booking.time === 'string' ? booking.time.trim() : ''
+  const rawDate = booking.date || booking.event_date || ''
+  const rawTime = booking.time || booking.event_time || ''
+  const date = typeof rawDate === 'string' ? rawDate.trim() : ''
+  const time = typeof rawTime === 'string' ? rawTime.trim() : ''
   const guestCount = typeof booking.guest_count === 'number' ? booking.guest_count : null
 
   // Date format check

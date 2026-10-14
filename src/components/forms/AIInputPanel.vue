@@ -191,13 +191,17 @@ async function processImage(f: File) {
     const base64 = ev.target?.result as string
     formStore.aiImage = base64 // Show thumbnail temporarily
     try {
-      // 1. Single-Pass Vision Direct Analysis first (1-turn extraction)
+      // 1. Single-Pass Vision Direct Analysis first (1-turn extraction + menu matching)
       let singlePassDone = false
       try {
         const directResult = await analyzeImageSinglePass(base64)
-        if (directResult && (directResult.customer || directResult.booking || directResult.party)) {
+        if (directResult) {
           formStore.parsedAiResult = directResult
-          fillBookingFormSafely(directResult, { mode: 'all' })
+          if (configStore.defaults.aiWorkflowMode !== 'review') {
+            fillBookingFormSafely(directResult, { mode: 'all' })
+          } else {
+            showAiReview.value = true
+          }
           formStore.aiImage = null
           ui.showToast('⚡ Đã trích xuất đặt bàn trực tiếp từ ảnh trong 1 lượt!', 'success')
           singlePassDone = true
@@ -206,14 +210,14 @@ async function processImage(f: File) {
         console.warn('[SinglePassVision] Falling back to standard OCR:', visionErr?.message)
       }
 
-      // 2. Fallback to OCR text extraction if single-pass was unavailable or failed
+      // 2. Fallback to OCR text extraction + automatic AI booking analysis if single-pass failed
       if (!singlePassDone) {
         const text = await ocrExtractText(base64)
         if (text) {
           formStore.rawInput = (formStore.rawInput ? formStore.rawInput + '\n\n' : '') + text
           formStore.aiImage = null // Clear image so processAI focuses purely on text
-          ui.showToast('📝 Đã nhận diện chữ viết thành công từ ảnh!', 'success')
-          triggerAutoAnalyzeIfEnabled(800)
+          ui.showToast('📝 Đã nhận diện chữ từ ảnh! Đang tự động phân tích đặt bàn...', 'success')
+          await handleAnalyze(true)
         }
       }
     } catch (err: any) {

@@ -7,6 +7,8 @@ export interface Env {
   CEREBRAS_API_KEY?: string;
   MISTRAL_API_KEY?: string;
   SAMBANOVA_API_KEY?: string;
+  DEEPSEEK_API_KEY?: string;
+  GITHUB_API_KEY?: string;
   GOOGLE_SPREADSHEET_ID: string;
   BUCKET?: any; // R2 Bucket binding
   SUPABASE_JWT_SECRET?: string; // Supabase JWT Secret
@@ -1619,12 +1621,14 @@ async function executeAIRequest(payload: any, env: Env): Promise<string> {
       });
     }
 
+    const isThinkingModel = model.includes('2.5') || model.includes('thinking');
     body = {
       contents: [{ parts }],
       generationConfig: {
         temperature: temperature ?? 0.1,
         ...(maxOutputTokens ? { maxOutputTokens } : {}),
-        ...(jsonMode ? { responseMimeType: 'application/json' } : {})
+        ...(jsonMode ? { responseMimeType: 'application/json' } : {}),
+        ...(isThinkingModel ? { thinkingConfig: { thinkingBudget: 0 } } : {})
       }
     };
     if (jsonMode && responseSchema) {
@@ -1637,6 +1641,15 @@ async function executeAIRequest(payload: any, env: Env): Promise<string> {
     } else if (provider === 'cerebras') {
       apiKey = env.CEREBRAS_API_KEY || '';
       targetUrl = 'https://api.cerebras.ai/v1/chat/completions';
+    } else if (provider === 'sambanova') {
+      apiKey = env.SAMBANOVA_API_KEY || '';
+      targetUrl = 'https://api.sambanova.ai/v1/chat/completions';
+    } else if (provider === 'deepseek') {
+      apiKey = env.DEEPSEEK_API_KEY || '';
+      targetUrl = 'https://api.deepseek.com/chat/completions';
+    } else if (provider === 'github') {
+      apiKey = env.GITHUB_API_KEY || '';
+      targetUrl = 'https://models.inference.ai.azure.com/chat/completions';
     } else if (provider === 'mistral') {
       apiKey = env.MISTRAL_API_KEY || '';
       targetUrl = 'https://api.mistral.ai/v1/chat/completions';
@@ -1662,18 +1675,25 @@ async function executeAIRequest(payload: any, env: Env): Promise<string> {
       ];
     }
 
+    let effectiveSysPrompt = sysPrompt || '';
+    if (jsonMode && !/json/i.test(effectiveSysPrompt) && !/json/i.test(userPrompt || '')) {
+      effectiveSysPrompt += '\nRespond in valid JSON format.';
+    }
+
     body = {
       model: model,
       messages: [
-        { role: 'system', content: sysPrompt },
+        { role: 'system', content: effectiveSysPrompt },
         { role: 'user', content: msgContent }
       ],
       temperature: temperature ?? 0.1,
       ...(maxOutputTokens ? { max_tokens: maxOutputTokens } : {})
     };
 
-    if (jsonMode) {
-      const noSchemaProviders = ['pollinations', 'huggingface'];
+    const isFreeOpenRouter = provider === 'openrouter' && model.includes(':free');
+    const isReasoningModel = model.includes('deepseek-r1') || model.includes('qwq');
+    if (jsonMode && !isFreeOpenRouter && !isReasoningModel) {
+      const noSchemaProviders = ['pollinations', 'huggingface', 'groq', 'deepseek', 'sambanova'];
       if (responseSchema && !noSchemaProviders.includes(provider.toLowerCase())) {
         body.response_format = {
           type: 'json_schema',

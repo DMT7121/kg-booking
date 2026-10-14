@@ -24,22 +24,30 @@ export const stripAccents = (s: string | any): string => {
 export const formatVND = (v: number): string =>
   new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(v)
 
-/** Safe JSON parse - extracts JSON object from text (handles markdown fences, escaped chars) */
+/** Safe JSON parse - extracts JSON object from text (handles markdown fences, <think> blocks, escaped chars) */
 export const parseJSON = <T = any>(t: string | object): T | null => {
   if (typeof t === 'object') return t as T
-  let s = t as string
+  if (!t) return null
+  let s = String(t)
+  // Strip <think>...</think> reasoning blocks
+  s = s.replace(/<think>[\s\S]*?<\/think>/gi, '').trim()
   // Strip markdown code fences: ```json ... ``` or ``` ... ```
-  s = s.replace(/```(?:json)?\s*/gi, '').replace(/```\s*/g, '')
-  // Fix escaped newlines that break JSON
+  s = s.replace(/```(?:json)?\s*/gi, '').replace(/```\s*/g, '').trim()
+  // Try direct parse first (preserves valid \n escapes in JSON string values)
+  try { return JSON.parse(s) } catch {}
+  // Extract outermost { ... } block and try direct parse
+  const rawMatch = s.match(/\{[\s\S]*\}/)
+  if (rawMatch) {
+    try { return JSON.parse(rawMatch[0]) } catch {}
+  }
+  // Fallback: Fix escaped/literal newlines that break malformed JSON
   s = s.replace(/\\n/g, ' ').replace(/\r?\n/g, ' ')
-  // Try direct parse first
   try { return JSON.parse(s.trim()) } catch {}
-  // Extract deepest { ... } block
   const m = s.match(/\{[\s\S]*\}/)
   if (m) {
     try { return JSON.parse(m[0]) } catch {}
     // Try fixing common issues: trailing commas, single quotes
-    let cleaned = m[0]
+    const cleaned = m[0]
       .replace(/,\s*([\]}])/g, '$1')  // trailing commas
       .replace(/'/g, '"')             // single quotes → double
     try { return JSON.parse(cleaned) } catch {}

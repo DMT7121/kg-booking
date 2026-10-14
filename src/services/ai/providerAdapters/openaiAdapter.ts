@@ -30,10 +30,16 @@ export const openaiAdapter: ProviderAdapter = {
       ]
     }
 
-    // Special instruction for free/simple models that do not natively support response_format
+    // Providers or models that do not reliably support response_format parameter
     const noResponseFormatProviders = ['pollinations', 'huggingface']
-    const systemPromptText = (jsonMode && noResponseFormatProviders.includes(model.provider))
-      ? sysPrompt + '\n\nCRITICAL: Respond ONLY with raw JSON. No markdown, no ```json blocks. Start with { end with }.'
+    const isFreeOrReasoningModel = model.id.includes(':free') || model.id.toLowerCase().includes('deepseek-r1')
+    const skipResponseFormatParam = noResponseFormatProviders.includes(model.provider) || isFreeOrReasoningModel
+
+    // Always ensure the word "JSON" is in the system prompt when jsonMode is enabled
+    // (Required by Groq, OpenAI, and DeepSeek when response_format.type === 'json_object')
+    const hasJsonKeyword = /json/i.test(sysPrompt) || (typeof userPrompt === 'string' && /json/i.test(userPrompt))
+    const systemPromptText = jsonMode && (skipResponseFormatParam || !hasJsonKeyword)
+      ? sysPrompt + '\n\nCRITICAL: Respond ONLY with raw valid JSON. No markdown, no ```json blocks. Start with { and end with }.'
       : sysPrompt
 
     const body: any = {
@@ -46,7 +52,7 @@ export const openaiAdapter: ProviderAdapter = {
       max_tokens: maxOutputTokens ?? 4096
     }
 
-    if (jsonMode && !noResponseFormatProviders.includes(model.provider)) {
+    if (jsonMode && !skipResponseFormatParam) {
       if (responseSchema) {
         body.response_format = {
           type: 'json_schema',
@@ -76,3 +82,4 @@ export const openaiAdapter: ProviderAdapter = {
     throw new Error('Không tìm thấy nội dung phản hồi từ OpenAI Provider')
   }
 }
+
