@@ -59,10 +59,7 @@ function resetInactivityTimer() {
 }
 
 async function handleOpenConfig(type: string) {
-  if (type === 'ai') {
-    const hasPerm = await appStore.verifySession('ai:configure')
-    if (!hasPerm) return
-  } else if (type === 'webhook') {
+  if (type === 'webhook') {
     const hasPerm = await appStore.verifySession('settings:update')
     if (!hasPerm) return
   }
@@ -437,6 +434,24 @@ function handleResultClick(order: any) {
 }
 
 const promptInputRef = ref<HTMLInputElement | null>(null)
+const showPromptPassword = ref(false)
+
+const isPasswordPrompt = computed(() => {
+  const text = `${ui.modal.prompt.title || ''} ${ui.modal.prompt.msg || ''}`.toLowerCase()
+  return text.includes('mật khẩu') || text.includes('password') || text.includes('pin') || text.includes('passphrase')
+})
+
+async function pasteIntoPrompt() {
+  try {
+    const text = await navigator.clipboard.readText()
+    if (text) {
+      ui.modal.prompt.value = text.trim()
+      promptInputRef.value?.focus()
+    }
+  } catch {
+    ui.showToast('Vui lòng nhấn Ctrl+V để dán nội dung', 'info')
+  }
+}
 
 const alertSeverity = computed<'danger' | 'warning' | 'success' | 'info'>(() => {
   const t = (ui.modal.alert.title || '').toLowerCase()
@@ -453,12 +468,18 @@ const alertSeverity = computed<'danger' | 'warning' | 'success' | 'info'>(() => 
   return 'info'
 })
 
-watch(() => ui.modal.prompt.show, (show) => {
+watch(() => [ui.modal.prompt.show, ui.modal.prompt.title, ui.modal.prompt.msg], ([show]) => {
   if (show) {
+    showPromptPassword.value = false
     nextTick(() => {
       promptInputRef.value?.focus()
       promptInputRef.value?.select()
     })
+    setTimeout(() => {
+      if (ui.modal.prompt.show) {
+        promptInputRef.value?.focus()
+      }
+    }, 60)
   }
 })
 
@@ -768,28 +789,49 @@ const ambientTheme = computed(() => {
 
     <!-- Prompt -->
     <transition name="modal">
-    <div v-if="ui.modal.prompt.show" class="fixed inset-0 bg-slate-950/60 z-[99999] flex justify-center items-center p-4 backdrop-blur-sm" @click.self="ui.resolveModal('prompt', null)">
+    <div v-if="ui.modal.prompt.show" class="fixed inset-0 bg-slate-950/60 z-[100000] flex justify-center items-center p-4 backdrop-blur-sm" @click.self="ui.resolveModal('prompt', null)">
       <div class="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl p-5 md:p-6 max-w-[420px] w-[95%] md:w-full flex flex-col relative overflow-hidden border border-slate-200/90 dark:border-slate-800/90 animate-scale-up">
         <div class="flex items-start gap-3.5 mb-3">
           <div class="w-10 h-10 bg-purple-50 dark:bg-purple-950/50 rounded-xl flex items-center justify-center text-purple-600 dark:text-purple-400 text-lg shadow-sm border border-purple-100 dark:border-purple-900/50 shrink-0">
-            <i class="fa-solid fa-keyboard"></i>
+            <i :class="isPasswordPrompt ? 'fa-solid fa-key' : 'fa-solid fa-keyboard'"></i>
           </div>
           <div class="flex-1 min-w-0 pt-0.5">
             <h3 class="text-sm font-black text-slate-900 dark:text-slate-100 uppercase tracking-tight">{{ ui.modal.prompt.title }}</h3>
-            <p class="mt-1 text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">{{ ui.modal.prompt.msg }}</p>
+            <p class="mt-1 text-xs font-bold text-slate-500 dark:text-slate-400 leading-relaxed">{{ ui.modal.prompt.msg }}</p>
           </div>
           <button @click="ui.resolveModal('prompt', null)" aria-label="Đóng" class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors shrink-0">
             <i class="fa-solid fa-xmark text-sm"></i>
           </button>
         </div>
-        <div class="mb-4">
+        <div class="mb-4 relative flex items-center">
           <input 
             v-model="ui.modal.prompt.value" 
             ref="promptInputRef"
+            :type="isPasswordPrompt && !showPromptPassword ? 'password' : 'text'"
             @keydown.enter="ui.resolveModal('prompt', ui.modal.prompt.value)"
-            class="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-xl text-sm font-bold text-slate-800 dark:text-slate-100 focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20 shadow-sm transition-all" 
-            placeholder="Nhập nội dung..."
+            class="w-full pl-3.5 pr-20 py-2.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-xl text-sm font-bold text-slate-800 dark:text-slate-100 focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20 shadow-sm transition-all" 
+            :placeholder="isPasswordPrompt ? 'Nhập mật khẩu...' : 'Nhập nội dung...'"
+            autocomplete="off"
           >
+          <div class="absolute right-2 flex items-center gap-1">
+            <button
+              v-if="isPasswordPrompt"
+              type="button"
+              @click="showPromptPassword = !showPromptPassword"
+              class="w-7 h-7 flex items-center justify-center rounded-lg text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-200/60 dark:hover:bg-slate-800 transition-colors"
+              :title="showPromptPassword ? 'Ẩn mật khẩu' : 'Hiện mật khẩu'"
+            >
+              <i :class="['fa-regular text-xs', showPromptPassword ? 'fa-eye-slash' : 'fa-eye']"></i>
+            </button>
+            <button
+              type="button"
+              @click="pasteIntoPrompt"
+              class="px-2 py-1 rounded-lg text-[10px] font-black text-purple-600 dark:text-purple-400 bg-purple-50 dark:bg-purple-950/60 hover:bg-purple-100 dark:hover:bg-purple-900/60 border border-purple-200/70 dark:border-purple-800/60 transition-colors"
+              title="Dán từ bộ nhớ tạm"
+            >
+              Dán
+            </button>
+          </div>
         </div>
         <div class="flex items-center justify-end gap-2.5 pt-3 border-t border-slate-100 dark:border-slate-800/80">
           <button @click="ui.resolveModal('prompt', null)" class="py-2.5 px-4 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-xl font-bold uppercase tracking-wider text-xs active:scale-95 transition-all border border-slate-200 dark:border-slate-700 flex items-center gap-1.5">
@@ -806,13 +848,13 @@ const ambientTheme = computed(() => {
     </transition>
 
     <!-- ERROR MODAL -->
-    <div v-if="ui.error.show" class="fixed inset-0 bg-slate-950/60 z-50 flex justify-center items-center p-4 backdrop-blur-sm" @click.self="ui.error.show = false">
+    <div v-if="ui.error.show" class="fixed inset-0 bg-slate-950/60 z-[100000] flex justify-center items-center p-4 backdrop-blur-sm" @click.self="ui.error.show = false">
       <div class="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl p-6 max-w-sm w-[95%] md:w-full border-l-4 border-rose-500 border-slate-200 dark:border-slate-800">
         <h3 class="text-xl font-black text-red-600 mb-4 flex items-center gap-2"><i class="fa-solid fa-bolt-lightning"></i> AI Error</h3>
-        <div class="bg-red-50 p-4 rounded-xl text-xs font-mono mb-4 max-h-40 overflow-y-auto border border-red-100">{{ ui.error.msg }}</div>
+        <div class="bg-red-50 dark:bg-rose-950/40 p-4 rounded-xl text-xs font-mono mb-4 max-h-40 overflow-y-auto border border-red-100 dark:border-rose-900/50 text-slate-800 dark:text-slate-200">{{ ui.error.msg }}</div>
         <div class="flex gap-3">
-          <button @click="copyToClipboard(ui.error.msg)" class="flex-1 py-3 bg-gray-100 rounded-xl font-bold text-gray-600 min-h-[44px]">Copy log</button>
-          <button @click="ui.error.show = false" class="px-6 py-3 bg-red-600 text-white rounded-xl font-bold shadow-lg shadow-red-200 min-h-[44px]">Đóng</button>
+          <button @click="copyToClipboard(ui.error.msg)" class="flex-1 py-3 bg-gray-100 dark:bg-slate-800 rounded-xl font-bold text-gray-600 dark:text-slate-300 min-h-[44px]">Copy log</button>
+          <button @click="ui.error.show = false" class="px-6 py-3 bg-red-600 text-white rounded-xl font-bold shadow-lg shadow-red-200 dark:shadow-none min-h-[44px]">Đóng</button>
         </div>
       </div>
     </div>

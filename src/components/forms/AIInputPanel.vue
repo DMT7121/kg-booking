@@ -428,6 +428,14 @@ onUnmounted(() => {
           <h3 class="font-bold text-text-primary text-xs uppercase tracking-wider">AI Core Pipeline v7.0</h3>
         </div>
         <div class="flex items-center gap-1.5">
+          <button
+            @click.prevent="ui.openConfig('ai')"
+            class="px-2 py-0.5 rounded-lg font-bold text-[9px] uppercase tracking-wider bg-surface-3 hover:bg-surface-hover text-text-secondary border border-border-subtle transition-all select-none cursor-pointer flex items-center gap-1"
+            title="Cấu hình Mô hình AI & Quản lý API Keys"
+          >
+            <i class="fa-solid fa-key text-[8px] text-apex-primary"></i>
+            <span>API Keys ({{ configStore.totalKeyCount }})</span>
+          </button>
           <button 
             @click="isPanelCollapsed = true"
             class="px-2 py-0.5 rounded-lg font-bold text-[9px] uppercase tracking-wider bg-surface-3 hover:bg-surface-hover text-text-secondary border border-border-subtle transition-all select-none cursor-pointer"

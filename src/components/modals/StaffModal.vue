@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, reactive, computed, nextTick } from 'vue'
 import { useUIStore } from '@/stores/useUIStore'
 import { useAppStore } from '@/stores/useAppStore'
 import { CACHE_KEYS } from '@/utils/constants'
@@ -8,6 +8,16 @@ const ui = useUIStore()
 const appStore = useAppStore()
 
 const searchQuery = ref('')
+const showStaffForm = ref(false)
+const editingStaffIndex = ref<number | null>(null)
+const staffNameInputRef = ref<HTMLInputElement | null>(null)
+
+const staffForm = reactive({
+  name: '',
+  phone: '',
+  role: 'Quản lý',
+  isActive: true
+})
 
 const displayedStaff = computed(() => {
   return appStore.staffList.filter((s: any) => s.isActive !== false)
@@ -16,7 +26,10 @@ const displayedStaff = computed(() => {
 const otherStaff = computed(() => {
   const list = appStore.staffList.filter((s: any) => s.isActive === false)
   if (searchQuery.value) {
-    return list.filter((s: any) => s.name.toLowerCase().includes(searchQuery.value.toLowerCase()))
+    return list.filter((s: any) =>
+      s.name.toLowerCase().includes(searchQuery.value.toLowerCase()) ||
+      (s.phone || '').includes(searchQuery.value)
+    )
   }
   return list
 })
@@ -28,43 +41,73 @@ async function toggleStaffActive(staff: any) {
   await appStore.updateRemoteConfig('staff')
 }
 
-async function handleAddNewStaff() {
-  const name = await ui.showPrompt('Thêm Nhân Viên', 'Nhập Tên nhân viên:')
-  if (!name) return
-  const phone = await ui.showPrompt('Thêm Nhân Viên', 'Nhập Số điện thoại:')
-  if (!phone) return
-  appStore.staffList.push({ name, phone, isActive: false, role: 'Nhân viên' })
-  ui.showToast('Đã thêm nhân viên mới', 'success')
+function openAddStaffForm(defaultActive = true) {
+  editingStaffIndex.value = null
+  staffForm.name = ''
+  staffForm.phone = ''
+  staffForm.role = defaultActive ? 'Quản lý' : 'Nhân viên'
+  staffForm.isActive = defaultActive
+  showStaffForm.value = true
+  nextTick(() => staffNameInputRef.value?.focus())
+}
+
+function openEditStaffForm(staff: any) {
+  const idx = appStore.staffList.indexOf(staff)
+  if (idx === -1) return
+  editingStaffIndex.value = idx
+  staffForm.name = staff.name || ''
+  staffForm.phone = staff.phone || ''
+  staffForm.role = staff.role || 'Nhân viên'
+  staffForm.isActive = staff.isActive !== false
+  showStaffForm.value = true
+  nextTick(() => staffNameInputRef.value?.focus())
+}
+
+async function handleSubmitStaffForm() {
+  const name = staffForm.name.trim()
+  const phone = staffForm.phone.trim()
+  if (!name || !phone) {
+    ui.showToast('Vui lòng nhập đầy đủ Tên và Số điện thoại nhân viên!', 'warning')
+    return
+  }
+
+  if (editingStaffIndex.value !== null && appStore.staffList[editingStaffIndex.value]) {
+    const target = appStore.staffList[editingStaffIndex.value]
+    target.name = name
+    target.phone = phone
+    target.role = staffForm.role.trim() || 'Nhân viên'
+    target.isActive = staffForm.isActive
+    ui.showToast('Đã cập nhật thông tin nhân viên', 'success')
+  } else {
+    appStore.staffList.push({
+      name,
+      phone,
+      role: staffForm.role.trim() || 'Nhân viên',
+      isActive: staffForm.isActive
+    })
+    ui.showToast('Đã thêm nhân viên mới', 'success')
+  }
+
+  showStaffForm.value = false
+  editingStaffIndex.value = null
   localStorage.setItem(CACHE_KEYS.STAFF, JSON.stringify(appStore.staffList))
   await appStore.updateRemoteConfig('staff')
 }
 
-async function handleStaffOptions(staff: any, idx: number) {
-  const choice = await ui.showConfirm('Quản lý nhân sự', `Nhấn "OK" để SỬA thông tin của ${staff.name}.\nNhấn "Cancel/Hủy" để XÓA nhân viên này.`)
-  if (choice) {
-    const newName = await ui.showPrompt('Sửa Tên', 'Nhập Tên nhân viên mới:', staff.name)
-    if (newName === null) return
-    const newPhone = await ui.showPrompt('Sửa Số Điện Thoại', 'Nhập Số điện thoại mới:', staff.phone)
-    if (newPhone === null) return
-    
-    if (newName.trim()) staff.name = newName.trim()
-    if (newPhone.trim()) staff.phone = newPhone.trim()
-    
-    ui.showToast('Đã cập nhật thông tin nhân viên', 'success')
+async function handleDeleteStaff(staff: any) {
+  if (appStore.staffList.length <= 1) {
+    ui.showToast('Phải giữ lại ít nhất 1 nhân viên!', 'warning')
+    return
+  }
+  const confirmed = await ui.showConfirm('Xác nhận xóa', `Bạn có chắc chắn muốn xóa nhân viên "${staff.name}"?`)
+  if (!confirmed) return
+
+  const idx = appStore.staffList.indexOf(staff)
+  if (idx !== -1) {
+    appStore.staffList.splice(idx, 1)
+    ui.showToast('Đã xóa nhân viên', 'success')
     localStorage.setItem(CACHE_KEYS.STAFF, JSON.stringify(appStore.staffList))
     await appStore.updateRemoteConfig('staff')
-  } else {
-    const confirmDelete = await ui.showConfirm('Xác nhận xóa', `Bạn có chắc chắn muốn XÓA nhân viên ${staff.name}?`)
-    if (!confirmDelete) return
-    
-    if (appStore.staffList.length > 1) {
-      appStore.staffList.splice(idx, 1)
-      ui.showToast('Đã xóa nhân viên', 'success')
-      localStorage.setItem(CACHE_KEYS.STAFF, JSON.stringify(appStore.staffList))
-      await appStore.updateRemoteConfig('staff')
-    } else {
-      ui.showToast('Phải giữ lại ít nhất 1 nhân viên!', 'warning')
-    }
   }
 }
 
@@ -77,152 +120,203 @@ async function handleSave() {
 </script>
 
 <template>
-  <div v-if="ui.activeSettingModal === 'staff'" class="flex flex-col h-full bg-slate-50 md:bg-white overflow-hidden w-full relative z-[1000] lg:z-10">
+  <div v-if="ui.activeSettingModal === 'staff'" class="flex flex-col h-full bg-slate-50 dark:bg-slate-950 md:bg-white dark:md:bg-slate-900 overflow-hidden w-full relative z-[1000] lg:z-10">
     
     <!-- Header -->
-    <div class="flex items-center justify-between px-4 py-3 border-b border-slate-100 bg-white shrink-0 shadow-sm relative z-20">
-      <button @click="ui.closeConfig()" class="w-10 h-10 flex items-center justify-center text-blue-900 hover:bg-slate-50 rounded-full transition-colors active:scale-95">
-        <i class="fa-solid fa-arrow-left text-xl"></i>
+    <div class="flex items-center justify-between px-4 py-3.5 border-b border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 shrink-0 shadow-xs relative z-20">
+      <button @click="ui.closeConfig()" class="w-10 h-10 flex items-center justify-center text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-colors active:scale-95 cursor-pointer">
+        <i class="fa-solid fa-arrow-left text-lg"></i>
       </button>
       <div class="text-center flex-1">
-        <h2 class="text-lg font-black text-blue-900">Danh sách nhân sự</h2>
-        <p class="text-[10px] font-bold text-slate-400 mt-0.5 uppercase tracking-wider">Quản lý & Thiết lập</p>
+        <h2 class="text-base md:text-lg font-black text-slate-900 dark:text-slate-100">Danh sách nhân sự</h2>
+        <p class="text-[10px] font-bold text-slate-400 dark:text-slate-500 mt-0.5 uppercase tracking-wider">Quản lý & Hiển thị trên phiếu</p>
       </div>
-      <button class="w-10 h-10 flex items-center justify-center text-blue-900 hover:bg-slate-50 rounded-full transition-colors">
-        <i class="fa-regular fa-circle-question text-xl"></i>
+      <button
+        @click="openAddStaffForm(true)"
+        class="px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-black text-[11px] flex items-center gap-1.5 transition-all active:scale-95 cursor-pointer shadow-xs"
+      >
+        <i class="fa-solid fa-plus text-[10px]"></i>
+        <span class="hidden sm:inline">Thêm mới</span>
       </button>
     </div>
 
     <!-- Scrollable Content -->
-    <div class="flex-1 overflow-y-auto custom-scrollbar bg-slate-50 md:bg-white">
-      <div class="text-center px-6 mt-6 mb-4 max-w-sm mx-auto">
-        <p class="text-[13px] font-bold text-slate-500 leading-relaxed">Danh sách nhân viên sẽ hiển thị trên phiếu đặt bàn để khách hàng liên hệ khi cần.</p>
-      </div>
+    <div class="flex-1 overflow-y-auto custom-scrollbar bg-slate-50/70 dark:bg-slate-950/60">
+      <div class="p-4 md:p-6 lg:p-8 max-w-2xl mx-auto w-full space-y-6 pb-8">
 
-      <div class="p-4 md:p-6 lg:p-8 max-w-2xl mx-auto w-full space-y-8 pb-8">
-      <!-- Section: Displayed Staff -->
-      <div class="space-y-4">
-        <div class="flex justify-between items-center pl-2">
-          <h4 class="text-[11px] font-black text-slate-400 uppercase tracking-widest">Hiển thị trên phiếu đặt bàn</h4>
-          <span class="text-[11px] font-black text-blue-600 cursor-pointer hover:text-blue-700">Sắp xếp</span>
-        </div>
-        
-        <div class="bg-white rounded-3xl shadow-sm border border-slate-100 overflow-hidden divide-y divide-slate-50 p-2 space-y-2">
-          
-          <!-- Staff Item -->
-          <div v-for="(s, idx) in displayedStaff" :key="`d-${idx}`" class="flex items-center gap-3 p-2 hover:bg-slate-50 transition-colors rounded-2xl">
-            <!-- Drag handle -->
-            <div class="flex flex-col items-center justify-center text-slate-300 w-6">
-              <i class="fa-solid fa-grip-vertical text-xs"></i>
-              <span class="text-[10px] font-black mt-1">{{ idx + 1 }}</span>
+        <!-- Inline Add / Edit Staff Form -->
+        <div v-if="showStaffForm" class="bg-white dark:bg-slate-900 rounded-2xl shadow-md border border-blue-200 dark:border-blue-800/70 p-4 md:p-5 space-y-4">
+          <div class="flex items-center justify-between">
+            <h3 class="text-xs font-black text-blue-700 dark:text-blue-400 uppercase tracking-wider flex items-center gap-1.5">
+              <i :class="['fa-solid', editingStaffIndex !== null ? 'fa-user-pen' : 'fa-user-plus']"></i>
+              <span>{{ editingStaffIndex !== null ? 'Chỉnh sửa thông tin nhân viên' : 'Thêm nhân viên mới' }}</span>
+            </h3>
+            <button @click="showStaffForm = false" class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-1">
+              <i class="fa-solid fa-xmark"></i>
+            </button>
+          </div>
+
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div class="space-y-1">
+              <label class="text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-wider ml-1">Tên nhân viên *</label>
+              <input
+                ref="staffNameInputRef"
+                v-model="staffForm.name"
+                type="text"
+                placeholder="VD: Nguyễn Văn A"
+                class="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs font-bold text-slate-800 dark:text-slate-100 focus:border-blue-600 outline-none"
+                @keydown.enter="handleSubmitStaffForm"
+              >
             </div>
-            
-            <!-- Avatar & Info -->
-            <div class="flex items-center gap-3 flex-1">
-              <img :src="`https://ui-avatars.com/api/?name=${encodeURIComponent(s.name)}&background=e0e7ff&color=1e40af&bold=true`" class="w-12 h-12 rounded-full object-cover border border-slate-100">
-              <div>
-                <div class="font-black text-[13px] text-blue-900 mb-0.5">{{ s.name }}</div>
-                <div class="inline-block bg-blue-50 text-blue-600 text-[9px] font-bold px-2 py-0.5 rounded-md">{{ s.role || 'Quản lý' }}</div>
-              </div>
+            <div class="space-y-1">
+              <label class="text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-wider ml-1">Số điện thoại *</label>
+              <input
+                v-model="staffForm.phone"
+                type="tel"
+                placeholder="VD: 0901234567"
+                class="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs font-bold text-slate-800 dark:text-slate-100 focus:border-blue-600 outline-none"
+                @keydown.enter="handleSubmitStaffForm"
+              >
             </div>
-            
-            <!-- Contact Info -->
-            <div class="text-[10px] font-bold text-slate-500 space-y-1.5 hidden sm:block">
-              <div class="flex items-center gap-2"><i class="fa-solid fa-phone text-slate-400"></i> {{ s.phone }}</div>
-              <div class="flex items-center gap-2"><i class="fa-brands fa-rocketchat text-slate-400"></i> {{ s.phone }}</div>
+            <div class="space-y-1">
+              <label class="text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-wider ml-1">Chức vụ</label>
+              <select
+                v-model="staffForm.role"
+                class="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs font-bold text-slate-800 dark:text-slate-100 focus:border-blue-600 outline-none"
+              >
+                <option value="Quản lý">Quản lý</option>
+                <option value="Nhân viên">Nhân viên</option>
+                <option value="Lễ tân">Lễ tân</option>
+                <option value="CSKH">CSKH</option>
+              </select>
             </div>
-            
-            <!-- Controls -->
-            <div class="flex items-center gap-3">
-              <!-- Mobile Contact Info (Icon only) -->
-              <div class="flex flex-col gap-1 sm:hidden">
-                <i class="fa-solid fa-phone text-slate-300 text-xs"></i>
-              </div>
-              
-              <button @click="toggleStaffActive(s)" class="w-12 h-7 rounded-full relative transition-colors shadow-inner" :class="s.isActive !== false ? 'bg-blue-600' : 'bg-slate-200'">
-                <div class="w-5 h-5 rounded-full bg-white absolute top-1 transition-all shadow-sm" :class="s.isActive !== false ? 'right-1' : 'left-1'"></div>
+          </div>
+
+          <div class="flex flex-wrap items-center justify-between gap-3 pt-1">
+            <label class="flex items-center gap-2 cursor-pointer select-none">
+              <input v-model="staffForm.isActive" type="checkbox" class="w-4 h-4 rounded text-blue-600 focus:ring-blue-500">
+              <span class="text-xs font-bold text-slate-700 dark:text-slate-300">Hiển thị trực tiếp trên phiếu đặt bàn</span>
+            </label>
+            <div class="flex items-center gap-2">
+              <button
+                type="button"
+                @click="showStaffForm = false"
+                class="px-4 py-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-700 dark:text-slate-300 rounded-xl font-bold text-xs transition-colors cursor-pointer"
+              >
+                Hủy
               </button>
-              <button @click="handleStaffOptions(s, appStore.staffList.indexOf(s))" class="text-slate-300 hover:text-slate-600 p-1 w-6 text-center"><i class="fa-solid fa-ellipsis-vertical"></i></button>
+              <button
+                type="button"
+                @click="handleSubmitStaffForm"
+                class="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-black text-xs active:scale-95 transition-all cursor-pointer shadow-xs"
+              >
+                {{ editingStaffIndex !== null ? 'Lưu cập nhật' : 'Thêm nhân viên' }}
+              </button>
             </div>
           </div>
-          
-          <button @click="handleAddNewStaff" class="w-full mt-2 py-4 flex items-center justify-center gap-2 border border-dashed border-blue-200 text-blue-600 bg-blue-50/30 rounded-2xl font-black text-xs hover:bg-blue-50 transition-colors active:scale-95">
-            <i class="fa-solid fa-plus"></i> Thêm nhân viên hiển thị
-          </button>
         </div>
-      </div>
 
-      <!-- Section: All Staff -->
-      <div class="space-y-4">
-        <h4 class="text-[11px] font-black text-slate-400 uppercase tracking-widest pl-2">Tất cả nhân viên</h4>
-        
-        <div class="bg-white rounded-3xl shadow-sm border border-slate-100 overflow-hidden p-2">
-          
-          <!-- Search -->
-          <div class="px-2 pt-2 pb-4">
-            <div class="relative">
-              <input v-model="searchQuery" type="text" class="w-full pl-4 pr-10 py-3 rounded-xl border border-slate-100 bg-slate-50 font-bold text-slate-700 text-xs focus:border-blue-900 focus:bg-white outline-none transition-all placeholder-slate-400" placeholder="Tìm kiếm nhân viên...">
-              <i class="fa-solid fa-magnifying-glass absolute right-4 top-1/2 -translate-y-1/2 text-slate-400"></i>
-            </div>
+        <!-- Section: Displayed Staff -->
+        <div class="space-y-3">
+          <div class="flex justify-between items-center px-1">
+            <h4 class="text-[11px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest">Hiển thị trên phiếu đặt bàn ({{ displayedStaff.length }})</h4>
           </div>
-
-          <div class="space-y-2">
-            <!-- Inactive Staff Item -->
-            <div v-for="(s, idx) in otherStaff" :key="`o-${idx}`" class="flex items-center gap-3 p-2 hover:bg-slate-50 transition-colors rounded-2xl">
+          
+          <div class="bg-white dark:bg-slate-900 rounded-2xl shadow-sm border border-slate-200/80 dark:border-slate-800 overflow-hidden divide-y divide-slate-100 dark:divide-slate-800 p-2 space-y-1">
+            <div v-for="(s, idx) in displayedStaff" :key="`d-${idx}`" class="flex items-center gap-3 p-2.5 hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors rounded-xl">
+              <div class="flex flex-col items-center justify-center text-slate-400 w-5 shrink-0">
+                <span class="text-[11px] font-black">{{ idx + 1 }}</span>
+              </div>
               
-              <!-- Avatar & Info -->
-              <div class="flex items-center gap-3 flex-1 pl-2">
-                <img :src="`https://ui-avatars.com/api/?name=${encodeURIComponent(s.name)}&background=f1f5f9&color=64748b&bold=true`" class="w-12 h-12 rounded-full object-cover border border-slate-100 opacity-80">
-                <div>
-                  <div class="font-black text-[13px] text-blue-900 mb-0.5">{{ s.name }}</div>
-                  <div class="inline-block bg-slate-100 text-slate-500 text-[9px] font-bold px-2 py-0.5 rounded-md">{{ s.role || 'Nhân viên' }}</div>
+              <div class="flex items-center gap-3 flex-1 min-w-0">
+                <img :src="`https://ui-avatars.com/api/?name=${encodeURIComponent(s.name)}&background=e0e7ff&color=1e40af&bold=true`" class="w-10 h-10 rounded-full object-cover border border-slate-100 dark:border-slate-700 shrink-0">
+                <div class="min-w-0">
+                  <div class="font-black text-xs md:text-[13px] text-slate-900 dark:text-slate-100 truncate">{{ s.name }}</div>
+                  <div class="flex items-center gap-2 mt-0.5">
+                    <span class="inline-block bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 text-[9px] font-bold px-2 py-0.5 rounded-md">{{ s.role || 'Quản lý' }}</span>
+                    <span class="text-[11px] font-mono font-bold text-slate-500 dark:text-slate-400"><i class="fa-solid fa-phone text-[9px] mr-1"></i>{{ s.phone }}</span>
+                  </div>
                 </div>
               </div>
               
-              <!-- Contact Info -->
-              <div class="text-[10px] font-bold text-slate-500 space-y-1.5 hidden sm:block opacity-70">
-                <div class="flex items-center gap-2"><i class="fa-solid fa-phone text-slate-400"></i> {{ s.phone }}</div>
-                <div class="flex items-center gap-2"><i class="fa-brands fa-rocketchat text-slate-400"></i> {{ s.phone }}</div>
+              <div class="flex items-center gap-2 shrink-0">
+                <button @click="toggleStaffActive(s)" class="w-11 h-6 rounded-full relative transition-colors shadow-inner cursor-pointer" :class="s.isActive !== false ? 'bg-blue-600' : 'bg-slate-200 dark:bg-slate-700'" title="Bật/tắt hiển thị trên phiếu">
+                  <div class="w-4 h-4 rounded-full bg-white absolute top-1 transition-all shadow-sm" :class="s.isActive !== false ? 'right-1' : 'left-1'"></div>
+                </button>
+                <button @click="openEditStaffForm(s)" class="w-8 h-8 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-950/40 flex items-center justify-center transition-colors cursor-pointer" title="Sửa nhân viên">
+                  <i class="fa-regular fa-pen-to-square text-xs"></i>
+                </button>
+                <button @click="handleDeleteStaff(s)" class="w-8 h-8 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 flex items-center justify-center transition-colors cursor-pointer" title="Xóa nhân viên">
+                  <i class="fa-regular fa-trash-can text-xs"></i>
+                </button>
               </div>
-              
-              <!-- Controls -->
-              <div class="flex items-center gap-3">
-                <!-- Mobile Contact Info (Icon only) -->
-                <div class="flex flex-col gap-1 sm:hidden">
-                  <i class="fa-solid fa-phone text-slate-300 text-xs"></i>
+            </div>
+            
+            <button @click="openAddStaffForm(true)" class="w-full mt-2 py-3 flex items-center justify-center gap-2 border border-dashed border-blue-200 dark:border-blue-800/60 text-blue-600 dark:text-blue-400 bg-blue-50/30 dark:bg-blue-950/20 rounded-xl font-black text-xs hover:bg-blue-50 dark:hover:bg-blue-950/40 transition-colors active:scale-98 cursor-pointer">
+              <i class="fa-solid fa-plus"></i> Thêm nhân viên hiển thị
+            </button>
+          </div>
+        </div>
+
+        <!-- Section: Inactive / Other Staff -->
+        <div class="space-y-3">
+          <h4 class="text-[11px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest px-1">Nhân viên dự phòng / Đang ẩn ({{ otherStaff.length }})</h4>
+          
+          <div class="bg-white dark:bg-slate-900 rounded-2xl shadow-sm border border-slate-200/80 dark:border-slate-800 overflow-hidden p-3 space-y-2">
+            <div class="relative">
+              <input v-model="searchQuery" type="text" class="w-full pl-3.5 pr-9 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 font-bold text-slate-700 dark:text-slate-200 text-xs focus:border-blue-600 outline-none transition-all placeholder-slate-400" placeholder="Tìm kiếm nhân viên theo tên hoặc SĐT...">
+              <i class="fa-solid fa-magnifying-glass absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 text-xs"></i>
+            </div>
+
+            <div v-if="otherStaff.length > 0" class="divide-y divide-slate-100 dark:divide-slate-800">
+              <div v-for="(s, idx) in otherStaff" :key="`o-${idx}`" class="flex items-center gap-3 py-2.5 px-2 hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors rounded-xl">
+                <div class="flex items-center gap-3 flex-1 min-w-0">
+                  <img :src="`https://ui-avatars.com/api/?name=${encodeURIComponent(s.name)}&background=f1f5f9&color=64748b&bold=true`" class="w-10 h-10 rounded-full object-cover border border-slate-100 dark:border-slate-700 opacity-80 shrink-0">
+                  <div class="min-w-0">
+                    <div class="font-black text-xs md:text-[13px] text-slate-800 dark:text-slate-200 truncate">{{ s.name }}</div>
+                    <div class="flex items-center gap-2 mt-0.5">
+                      <span class="inline-block bg-slate-100 dark:bg-slate-800 text-slate-500 text-[9px] font-bold px-2 py-0.5 rounded-md">{{ s.role || 'Nhân viên' }}</span>
+                      <span class="text-[11px] font-mono font-bold text-slate-500"><i class="fa-solid fa-phone text-[9px] mr-1"></i>{{ s.phone }}</span>
+                    </div>
+                  </div>
                 </div>
                 
-                <button @click="toggleStaffActive(s)" class="w-12 h-7 rounded-full relative transition-colors shadow-inner" :class="s.isActive !== false ? 'bg-blue-600' : 'bg-slate-200'">
-                  <div class="w-5 h-5 rounded-full bg-white absolute top-1 transition-all shadow-sm" :class="s.isActive !== false ? 'right-1' : 'left-1'"></div>
-                </button>
-                <button @click="handleStaffOptions(s, appStore.staffList.indexOf(s))" class="text-slate-300 hover:text-slate-600 p-1 w-6 text-center"><i class="fa-solid fa-ellipsis-vertical"></i></button>
+                <div class="flex items-center gap-2 shrink-0">
+                  <button @click="toggleStaffActive(s)" class="w-11 h-6 rounded-full relative transition-colors shadow-inner cursor-pointer" :class="s.isActive !== false ? 'bg-blue-600' : 'bg-slate-200 dark:bg-slate-700'">
+                    <div class="w-4 h-4 rounded-full bg-white absolute top-1 transition-all shadow-sm" :class="s.isActive !== false ? 'right-1' : 'left-1'"></div>
+                  </button>
+                  <button @click="openEditStaffForm(s)" class="w-8 h-8 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-950/40 flex items-center justify-center transition-colors cursor-pointer" title="Sửa nhân viên">
+                    <i class="fa-regular fa-pen-to-square text-xs"></i>
+                  </button>
+                  <button @click="handleDeleteStaff(s)" class="w-8 h-8 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 flex items-center justify-center transition-colors cursor-pointer" title="Xóa nhân viên">
+                    <i class="fa-regular fa-trash-can text-xs"></i>
+                  </button>
+                </div>
               </div>
             </div>
+            
+            <button @click="openAddStaffForm(false)" class="w-full py-3 flex items-center justify-center gap-2 border border-dashed border-slate-300 dark:border-slate-700 text-slate-600 dark:text-slate-300 bg-slate-50/50 dark:bg-slate-800/30 rounded-xl font-black text-xs hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors active:scale-98 cursor-pointer">
+              <i class="fa-solid fa-plus"></i> Thêm vào danh sách dự phòng
+            </button>
           </div>
-          
-          <button @click="handleAddNewStaff" class="w-full mt-2 py-4 flex items-center justify-center gap-2 border border-dashed border-blue-200 text-blue-600 bg-blue-50/30 rounded-2xl font-black text-xs hover:bg-blue-50 transition-colors active:scale-95">
-            <i class="fa-solid fa-plus"></i> Thêm nhân viên mới
-          </button>
+        </div>
+        
+        <!-- Info Note -->
+        <div class="bg-blue-50/70 dark:bg-blue-950/30 rounded-2xl p-4 flex items-start gap-3 border border-blue-200/70 dark:border-blue-800/50">
+          <i class="fa-solid fa-circle-info text-blue-600 dark:text-blue-400 mt-0.5"></i>
+          <div>
+            <div class="font-black text-blue-700 dark:text-blue-300 text-xs mb-0.5">Lưu ý hiển thị</div>
+            <p class="text-[11px] font-medium text-slate-600 dark:text-slate-400 leading-relaxed">Chỉ các nhân viên đang bật công tắc màu xanh mới xuất hiện trên mẫu phiếu đặt bàn K80 để khách hàng liên hệ.</p>
+          </div>
         </div>
       </div>
-      
-      <!-- Info Note -->
-      <div class="bg-[#F0F5FF] rounded-2xl p-4 flex items-start gap-3 border border-[#E0EBFF]">
-        <i class="fa-solid fa-circle-info text-blue-600 mt-0.5"></i>
-        <div>
-          <div class="font-black text-blue-600 text-xs mb-1">Lưu ý</div>
-          <p class="text-[11px] font-bold text-slate-500 leading-relaxed">Chỉ các nhân viên được bật hiển thị mới xuất hiện trên phiếu đặt bàn và khách hàng có thể liên hệ.</p>
-        </div>
-      </div>
-    </div>
-
     </div>
 
     <!-- Bottom Footer -->
-    <div class="p-4 md:p-6 bg-slate-50 md:bg-white border-t border-slate-200 shrink-0 z-20 flex justify-center relative shadow-[0_-10px_30px_-15px_rgba(0,0,0,0.05)]">
+    <div class="p-4 bg-white dark:bg-slate-900 border-t border-slate-200/80 dark:border-slate-800 shrink-0 z-20 flex justify-center">
       <div class="max-w-2xl w-full">
-        <button @click="handleSave" class="w-full py-4 bg-blue-950 text-white rounded-2xl font-black text-[13px] shadow-lg shadow-blue-900/20 hover:bg-blue-900 active:scale-[0.98] transition-all flex justify-center items-center gap-2">
-          <i class="fa-regular fa-floppy-disk"></i> Lưu thay đổi
+        <button @click="handleSave" class="w-full py-3.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-black text-xs uppercase tracking-wider shadow-md active:scale-[0.98] transition-all flex justify-center items-center gap-2 cursor-pointer">
+          <i class="fa-regular fa-floppy-disk"></i> Lưu & Đồng bộ danh sách nhân sự
         </button>
       </div>
     </div>

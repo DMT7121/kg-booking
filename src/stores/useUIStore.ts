@@ -152,11 +152,12 @@ export const useUIStore = defineStore('ui', () => {
 
   // --- Promise-based Modal System ---
   function resolveModal(type: 'alert' | 'confirm' | 'prompt', value?: any) {
-    if (modal[type].resolve) {
-      modal[type].resolve!(value)
-      modal[type].resolve = null
-    }
+    const resolveFn = modal[type].resolve
+    modal[type].resolve = null
     modal[type].show = false
+    if (resolveFn) {
+      resolveFn(value)
+    }
   }
 
   function showAlert(title: string, msg: string): Promise<void> {

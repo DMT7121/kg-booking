@@ -126,6 +126,16 @@ export function getUnlockMode(): 'device' | 'passphrase' | null {
   return currentUnlockMode
 }
 
+export async function getStoredUnlockMode(): Promise<'device' | 'passphrase' | null> {
+  if (currentUnlockMode) return currentUnlockMode
+  const env = await idbGet<KeyVaultEnvelope>(ENVELOPE_KEY)
+  if (env && env.mode) {
+    currentUnlockMode = env.mode
+    return env.mode
+  }
+  return null
+}
+
 export async function getMetadata(): Promise<Record<string, LocalKeyMetadata>> {
   return (await idbGet<Record<string, LocalKeyMetadata>>(METADATA_KEY)) || {}
 }
@@ -156,6 +166,7 @@ export async function initialize(mode: 'device' | 'passphrase', credential?: str
 
   // Cache in sessionStorage to persist reload
   if (typeof sessionStorage !== 'undefined') {
+    sessionStorage.removeItem('kg_vault_manually_locked')
     if (mode === 'device') {
       sessionStorage.setItem('kg_vault_session_key', 'device')
     } else {
@@ -185,11 +196,25 @@ export async function unlock(credential?: string): Promise<void> {
     throw new Error('Vault not initialized')
   }
 
+  currentUnlockMode = envelope.mode
   let cryptoKey: CryptoKey
   if (envelope.mode === 'device') {
-    const devKey = await idbGet<CryptoKey>(DEVICE_KEY_KEY)
+    let devKey = await idbGet<CryptoKey>(DEVICE_KEY_KEY)
     if (!devKey) {
-      throw new Error('Device local key missing in IndexedDB')
+      // Self-heal device key if missing in IndexedDB
+      devKey = await generateDeviceKey()
+      await idbSet(DEVICE_KEY_KEY, devKey)
+      decryptedKeys = {}
+      activeCryptoKey = devKey
+      const { ciphertext, iv } = await encryptData(JSON.stringify(decryptedKeys), devKey)
+      await idbSet(ENVELOPE_KEY, { ...envelope, ciphertext, iv })
+      await updateMetadata()
+      resetInactivityTimer()
+      if (typeof sessionStorage !== 'undefined') {
+        sessionStorage.removeItem('kg_vault_manually_locked')
+        sessionStorage.setItem('kg_vault_session_key', 'device')
+      }
+      return
     }
     cryptoKey = devKey
   } else {
@@ -211,6 +236,7 @@ export async function unlock(credential?: string): Promise<void> {
 
     // Cache the unlock key in sessionStorage to persist reload
     if (typeof sessionStorage !== 'undefined') {
+      sessionStorage.removeItem('kg_vault_manually_locked')
       if (envelope.mode === 'device') {
         sessionStorage.setItem('kg_vault_session_key', 'device')
       } else {
@@ -228,24 +254,30 @@ export async function unlock(credential?: string): Promise<void> {
 
 export async function tryAutoUnlockFromSession(): Promise<boolean> {
   if (isUnlocked()) return true
-  if (typeof sessionStorage === 'undefined') return false
-  const cached = sessionStorage.getItem('kg_vault_session_key')
-  if (!cached) return false
-
   const envelope = await idbGet<KeyVaultEnvelope>(ENVELOPE_KEY)
   if (!envelope) return false
 
+  currentUnlockMode = envelope.mode
+
+  const hasSession = typeof sessionStorage !== 'undefined'
+  const cached = hasSession ? sessionStorage.getItem('kg_vault_session_key') : null
+  const manuallyLocked = hasSession && sessionStorage.getItem('kg_vault_manually_locked') === '1'
+
+  // Auto-unlock device mode on fresh browser tab/session unless manually locked
+  const effectiveKey = cached || (envelope.mode === 'device' && !manuallyLocked ? 'device' : null)
+  if (!effectiveKey) return false
+
   try {
     let cryptoKey: CryptoKey
-    if (cached === 'device') {
+    if (effectiveKey === 'device') {
       const devKey = await idbGet<CryptoKey>(DEVICE_KEY_KEY)
       if (!devKey) return false
       cryptoKey = devKey
     } else {
-      const len = cached.length / 2
+      const len = effectiveKey.length / 2
       const bytes = new Uint8Array(len)
       for (let i = 0; i < len; i++) {
-        bytes[i] = parseInt(cached.substring(i * 2, i * 2 + 2), 16)
+        bytes[i] = parseInt(effectiveKey.substring(i * 2, i * 2 + 2), 16)
       }
       cryptoKey = await crypto.subtle.importKey(
         'raw',
@@ -260,10 +292,15 @@ export async function tryAutoUnlockFromSession(): Promise<boolean> {
     decryptedKeys = JSON.parse(rawJson)
     activeCryptoKey = cryptoKey
     currentUnlockMode = envelope.mode
+    if (hasSession && effectiveKey === 'device') {
+      sessionStorage.setItem('kg_vault_session_key', 'device')
+    }
     resetInactivityTimer()
     return true
   } catch (e) {
-    sessionStorage.removeItem('kg_vault_session_key')
+    if (hasSession) {
+      sessionStorage.removeItem('kg_vault_session_key')
+    }
     return false
   }
 }
@@ -271,10 +308,10 @@ export async function tryAutoUnlockFromSession(): Promise<boolean> {
 export function lock(): void {
   decryptedKeys = null
   activeCryptoKey = null
-  currentUnlockMode = null
   clearInactivityTimer()
   if (typeof sessionStorage !== 'undefined') {
     sessionStorage.removeItem('kg_vault_session_key')
+    sessionStorage.setItem('kg_vault_manually_locked', '1')
   }
 }
 
@@ -389,6 +426,10 @@ export async function purgeObsoleteData(
 
 export async function purgeVault(): Promise<void> {
   lock()
+  currentUnlockMode = null
+  if (typeof sessionStorage !== 'undefined') {
+    sessionStorage.removeItem('kg_vault_manually_locked')
+  }
   await idbDel(ENVELOPE_KEY)
   await idbDel(DEVICE_KEY_KEY)
   await idbDel(METADATA_KEY)

@@ -146,7 +146,7 @@ export const useConfigStore = defineStore('config', () => {
     await localKeyVault.tryAutoUnlockFromSession()
     isVaultInitialized.value = await localKeyVault.isVaultInitialized()
     isVaultUnlocked.value = localKeyVault.isUnlocked()
-    vaultUnlockMode.value = localKeyVault.getUnlockMode()
+    vaultUnlockMode.value = (await localKeyVault.getStoredUnlockMode()) || localKeyVault.getUnlockMode()
 
     // Run legacy keys migration if unlocked
     if (isVaultUnlocked.value) {
@@ -222,16 +222,47 @@ export const useConfigStore = defineStore('config', () => {
     uiStore.showToast('Két sắt đã khóa!', 'info')
   }
 
+  async function resetVault(mode: 'device' | 'passphrase' = 'device', credential?: string) {
+    await localKeyVault.purgeVault()
+    await localKeyVault.initialize(mode, credential)
+    await autoImportKeys()
+    await refreshVaultState()
+    uiStore.showToast('Đã đặt lại két sắt bảo mật và đồng bộ lại API Keys!', 'success')
+  }
+
   // --- API Key Management ---
+  async function ensureVaultReadyForWrite(): Promise<boolean> {
+    if (localKeyVault.isUnlocked()) return true
+    await localKeyVault.tryAutoUnlockFromSession()
+    if (localKeyVault.isUnlocked()) return true
+
+    const isInit = await localKeyVault.isVaultInitialized()
+    if (!isInit) {
+      await localKeyVault.initialize('device')
+      await refreshVaultState()
+      return true
+    }
+
+    const mode = await localKeyVault.getStoredUnlockMode()
+    if (mode === 'device') {
+      try {
+        await localKeyVault.unlock()
+        await refreshVaultState()
+        return true
+      } catch {
+        return false
+      }
+    }
+    return false
+  }
+
   async function saveApiKey(pId: string) {
     const keyVal = tempKeys[pId]?.trim()
     if (!keyVal) return
 
-    if (!localKeyVault.isUnlocked()) {
-      await localKeyVault.tryAutoUnlockFromSession()
-    }
-    if (!localKeyVault.isUnlocked()) {
-      uiStore.showToast('Vui lòng mở khóa két sắt trước khi lưu key!', 'warning')
+    const ready = await ensureVaultReadyForWrite()
+    if (!ready) {
+      uiStore.showToast('Vui lòng nhập mật khẩu mở khóa két sắt trước khi lưu key!', 'warning')
       return
     }
 
@@ -246,11 +277,9 @@ export const useConfigStore = defineStore('config', () => {
   }
 
   async function deleteApiKey(pId: string, idx: number) {
-    if (!localKeyVault.isUnlocked()) {
-      await localKeyVault.tryAutoUnlockFromSession()
-    }
-    if (!localKeyVault.isUnlocked()) {
-      uiStore.showToast('Vui lòng mở khóa két sắt để xóa key!', 'warning')
+    const ready = await ensureVaultReadyForWrite()
+    if (!ready) {
+      uiStore.showToast('Vui lòng nhập mật khẩu mở khóa két sắt để xóa key!', 'warning')
       return
     }
 
@@ -267,11 +296,9 @@ export const useConfigStore = defineStore('config', () => {
     const actualPass = pass || borrowPass.value
     if (!actualPass) return uiStore.showToast('Nhập pass Admin hoặc Password Truy cập!', 'warning')
     
-    if (!localKeyVault.isUnlocked()) {
-      await localKeyVault.tryAutoUnlockFromSession()
-    }
-    if (!localKeyVault.isUnlocked()) {
-      return uiStore.showToast('Vui lòng mở khóa két sắt để nhập keys!', 'warning')
+    const ready = await ensureVaultReadyForWrite()
+    if (!ready) {
+      return uiStore.showToast('Vui lòng nhập mật khẩu mở khóa két sắt để nhập keys!', 'warning')
     }
 
     try {
@@ -435,7 +462,7 @@ export const useConfigStore = defineStore('config', () => {
     billPreferences,
     keysStatus, gatewayProviderStatus, defaults, visibleKeys, tempKeys, borrowPass,
     isVaultInitialized, isVaultUnlocked, vaultUnlockMode,
-    initializeVault, unlockVault, lockVault, refreshVaultState,
+    initializeVault, unlockVault, lockVault, resetVault, ensureVaultReadyForWrite, refreshVaultState,
     textModels, visionModels, totalKeyCount, totalKeysHasData,
     getKeyCount, toggleKeyVisibility,
     saveApiKey, deleteApiKey, borrowKeys: borrowKeys, hydrateAiRuntimeConfig,

@@ -123,6 +123,26 @@ describe('LocalKeyVault Service Tests', () => {
     expect(vault.getUnlockMode()).toBe('passphrase')
   })
 
+  it('should preserve unlockMode when locked and auto-unlock device mode on fresh session', async () => {
+    await vault.initialize('passphrase', 'pin9999')
+    vault.lock()
+    expect(vault.isUnlocked()).toBe(false)
+    expect(vault.getUnlockMode()).toBe('passphrase')
+    expect(await vault.getStoredUnlockMode()).toBe('passphrase')
+
+    // Reset and initialize in device mode, then simulate fresh browser tab (empty sessionStorage)
+    await vault.purgeVault()
+    await vault.initialize('device')
+    await vault.addKey('groq', 'gsk_fresh_session')
+    vault.lock()
+    global.sessionStorage.clear() // Fresh browser session (not manually locked in this tab)
+
+    const unlocked = await vault.tryAutoUnlockFromSession()
+    expect(unlocked).toBe(true)
+    expect(vault.isUnlocked()).toBe(true)
+    expect(await vault.getKeysForProvider('groq')).toContain('gsk_fresh_session')
+  })
+
   describe('Migration Tests', () => {
     it('should return requiresInitialization if vault is not initialized', async () => {
       const plaintextKeys = { google: ['key-to-migrate'] }
