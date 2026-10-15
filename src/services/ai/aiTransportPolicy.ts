@@ -53,6 +53,19 @@ export function classifyError(status: number | undefined, message: string): Erro
     return { action: 'retry_next_key', reason: 'Invalid API Key / Unauthorized' }
   }
   
+  // Billing / insufficient balance (402 Payment Required, Out of Credits, Insufficient Balance)
+  if (
+    status === 402 ||
+    msg.includes('payment') ||
+    msg.includes('billing') ||
+    msg.includes('insufficient balance') ||
+    msg.includes('insufficient_quota') ||
+    msg.includes('no remaining credits') ||
+    msg.includes('balance')
+  ) {
+    return { action: 'retry_next_key', reason: 'Billing / Insufficient Balance (Out of Credits)' }
+  }
+
   // Rate limit or quota exhausted
   if (
     status === 429 ||
@@ -63,19 +76,6 @@ export function classifyError(status: number | undefined, message: string): Erro
     msg.includes('too many requests')
   ) {
     return { action: 'cooldown_key', cooldownMs: 60000, reason: 'Rate Limit / Quota Exceeded' }
-  }
-
-  // Billing / insufficient balance (Cerebras 402, Hugging Face 402, DeepSeek 402, OpenRouter 402, etc.)
-  if (
-    status === 402 ||
-    msg.includes('payment') ||
-    msg.includes('billing') ||
-    msg.includes('insufficient balance') ||
-    msg.includes('insufficient_quota') ||
-    msg.includes('credit') ||
-    msg.includes('balance')
-  ) {
-    return { action: 'retry_next_key', reason: 'Billing / Insufficient Balance (Out of Credits)' }
   }
   
   // Model not found or decommissioned (Groq returns HTTP 400/404 for model_decommissioned/model_not_found, Mistral returns 400 Invalid model)

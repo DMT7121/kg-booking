@@ -9,7 +9,8 @@ import { geminiAdapter } from './providerAdapters/geminiAdapter'
 import { openaiAdapter } from './providerAdapters/openaiAdapter'
 import { useConfigStore } from '@/stores/useConfigStore'
 
-const CORS_RESTRICTED_PROVIDERS = new Set(['sambanova', 'github', 'huggingface', 'deepseek'])
+const CORS_RESTRICTED_PROVIDERS = new Set(['nvidia', 'cohere', 'sambanova', 'github', 'huggingface', 'deepseek'])
+const KNOWN_REVOKED_KEYS = new Set(['test-gemini-key-12345', 'AIzaSyBimS3f8NyESLsYS8bgwThM9scpl5_2WvI'])
 
 async function fetchWithCorsFallback(
   url: string,
@@ -142,10 +143,10 @@ export async function callAIModel(
     }
   }
 
-  // Filter out empty or known dummy placeholder keys
+  // Filter out empty or known dummy/revoked keys
   effectiveLocalKeys = effectiveLocalKeys
     .map(k => (k || '').trim())
-    .filter(k => k.length > 0 && k !== 'test-gemini-key-12345')
+    .filter(k => k.length > 0 && !KNOWN_REVOKED_KEYS.has(k))
 
   const adapter = model.format === 'gemini' ? geminiAdapter : openaiAdapter
   const baseTimeout = getTimeoutForModel(model)
@@ -523,7 +524,7 @@ export async function testProviderApiKey(
     }
   }
 
-  keysToTest = keysToTest.map(k => (k || '').trim()).filter(k => k.length > 0 && k !== 'test-gemini-key-12345')
+  keysToTest = keysToTest.map(k => (k || '').trim()).filter(k => k.length > 0 && !KNOWN_REVOKED_KEYS.has(k))
 
   if (keysToTest.length === 0 && normProvider !== 'pollinations') {
     return {

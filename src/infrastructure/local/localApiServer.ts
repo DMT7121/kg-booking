@@ -427,7 +427,7 @@ export async function handleLocalApi(req: http.IncomingMessage, res: http.Server
           pollinations: { configured: true, count: 1, maskedList: ['free'] }
         }
         
-        const providers = ['google', 'groq', 'cerebras', 'sambanova', 'deepseek', 'openrouter', 'mistral', 'github', 'huggingface']
+        const providers = ['google', 'groq', 'mistral', 'openrouter', 'nvidia', 'cohere']
         providers.forEach(p => {
           status[p] = { configured: false, count: 0, maskedList: [] }
         })

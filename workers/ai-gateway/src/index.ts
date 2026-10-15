@@ -1695,6 +1695,12 @@ async function executeAIRequest(payload: any, env: Env): Promise<string> {
     } else if (provider === 'mistral') {
       apiKey = env.MISTRAL_API_KEY || '';
       targetUrl = 'https://api.mistral.ai/v1/chat/completions';
+    } else if (provider === 'nvidia') {
+      apiKey = (env as any).NVIDIA_API_KEY || '';
+      targetUrl = 'https://integrate.api.nvidia.com/v1/chat/completions';
+    } else if (provider === 'cohere') {
+      apiKey = (env as any).COHERE_API_KEY || '';
+      targetUrl = 'https://api.cohere.ai/compatibility/v1/chat/completions';
     } else if (provider === 'openrouter') {
       apiKey = env.OPENROUTER_API_KEY || '';
       targetUrl = 'https://openrouter.ai/api/v1/chat/completions';

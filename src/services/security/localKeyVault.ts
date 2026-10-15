@@ -344,6 +344,49 @@ async function updateMetadata(): Promise<void> {
   await idbSet(METADATA_KEY, metadata)
 }
 
+export async function purgeObsoleteData(
+  obsoleteProviders: string[],
+  revokedKeys: string[] = []
+): Promise<boolean> {
+  let changed = false
+  const obsoleteSet = new Set(obsoleteProviders.map(p => p.toLowerCase()))
+  const revokedSet = new Set(revokedKeys)
+
+  if (isUnlocked() && decryptedKeys && activeCryptoKey) {
+    for (const provider of Object.keys(decryptedKeys)) {
+      if (obsoleteSet.has(provider.toLowerCase())) {
+        delete decryptedKeys[provider]
+        changed = true
+        continue
+      }
+      const list = decryptedKeys[provider] || []
+      const filtered = list.filter(k => !revokedSet.has((k || '').trim()))
+      if (filtered.length !== list.length) {
+        decryptedKeys[provider] = filtered
+        changed = true
+      }
+    }
+    if (changed) {
+      await saveVaultState()
+      return true
+    }
+  }
+
+  // Also sanitize METADATA_KEY even if vault is currently locked
+  const meta = (await idbGet<Record<string, LocalKeyMetadata>>(METADATA_KEY)) || {}
+  let metaChanged = false
+  for (const provider of Object.keys(meta)) {
+    if (obsoleteSet.has(provider.toLowerCase())) {
+      delete meta[provider]
+      metaChanged = true
+    }
+  }
+  if (metaChanged) {
+    await idbSet(METADATA_KEY, meta)
+  }
+  return changed || metaChanged
+}
+
 export async function purgeVault(): Promise<void> {
   lock()
   await idbDel(ENVELOPE_KEY)
