@@ -85,7 +85,7 @@ export async function handleLocalApi(req: http.IncomingMessage, res: http.Server
   res.setHeader('Content-Type', 'application/json')
   res.setHeader('Access-Control-Allow-Origin', '*')
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-FB-Access-Token')
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-FB-Access-Token, X-Target-Url, X-Gemini-Key')
 
   if (req.method === 'OPTIONS') {
     res.statusCode = 204
@@ -97,6 +97,43 @@ export async function handleLocalApi(req: http.IncomingMessage, res: http.Server
   let bodyText = ''
   for await (const chunk of req) {
     bodyText += chunk
+  }
+
+  // AI Provider CORS Proxy (cho các nền tảng chặn CORS trình duyệt như SambaNova, GitHub Models, HuggingFace)
+  if (url.pathname === '/api/ai-proxy' && req.method === 'POST') {
+    const targetUrl = (req.headers['x-target-url'] as string) || ''
+    if (!targetUrl || !targetUrl.startsWith('https://')) {
+      res.statusCode = 400
+      res.end(JSON.stringify({ error: { message: 'Missing or invalid x-target-url header' } }))
+      return true
+    }
+
+    try {
+      const forwardHeaders: Record<string, string> = {
+        'Content-Type': (req.headers['content-type'] as string) || 'application/json'
+      }
+      if (req.headers['authorization']) {
+        forwardHeaders['Authorization'] = req.headers['authorization'] as string
+      }
+      if (req.headers['x-gemini-key']) {
+        forwardHeaders['x-goog-api-key'] = req.headers['x-gemini-key'] as string
+      }
+
+      const upstreamRes = await fetch(targetUrl, {
+        method: 'POST',
+        headers: forwardHeaders,
+        body: bodyText
+      })
+      const upstreamText = await upstreamRes.text()
+      res.statusCode = upstreamRes.status
+      res.setHeader('Content-Type', upstreamRes.headers.get('content-type') || 'application/json')
+      res.end(upstreamText)
+      return true
+    } catch (e: any) {
+      res.statusCode = 502
+      res.end(JSON.stringify({ error: { message: `AI Proxy Error: ${e.message || String(e)}` } }))
+      return true
+    }
   }
 
   // Facebook Graph API Local Dev Proxy (Zero-token client exposure)
@@ -390,7 +427,7 @@ export async function handleLocalApi(req: http.IncomingMessage, res: http.Server
           pollinations: { configured: true, count: 1, maskedList: ['free'] }
         }
         
-        const providers = ['google', 'groq', 'cerebras', 'sambanova', 'openrouter', 'mistral', 'github']
+        const providers = ['google', 'groq', 'cerebras', 'sambanova', 'deepseek', 'openrouter', 'mistral', 'github', 'huggingface']
         providers.forEach(p => {
           status[p] = { configured: false, count: 0, maskedList: [] }
         })

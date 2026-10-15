@@ -604,6 +604,45 @@ export default {
         });
       }
 
+      // Direct AI CORS Proxy (/api/ai-proxy) for CORS-restricted providers (SambaNova, GitHub, HuggingFace)
+      if (path === "/api/ai-proxy" && request.method === "POST") {
+        const targetUrl = request.headers.get("x-target-url") || "";
+        if (!targetUrl || !targetUrl.startsWith("https://")) {
+          return new Response(JSON.stringify({ error: { message: "Missing or invalid x-target-url header" } }), {
+            status: 400,
+            headers: { ...corsHeaders, "Content-Type": "application/json" }
+          });
+        }
+        try {
+          const forwardHeaders = new Headers();
+          forwardHeaders.set("Content-Type", request.headers.get("content-type") || "application/json");
+          const authHeader = request.headers.get("authorization");
+          if (authHeader) forwardHeaders.set("Authorization", authHeader);
+          const geminiKey = request.headers.get("x-gemini-key");
+          if (geminiKey) forwardHeaders.set("x-goog-api-key", geminiKey);
+
+          const bodyText = await request.text();
+          const upstreamRes = await fetch(targetUrl, {
+            method: "POST",
+            headers: forwardHeaders,
+            body: bodyText
+          });
+          const upstreamBody = await upstreamRes.text();
+          return new Response(upstreamBody, {
+            status: upstreamRes.status,
+            headers: {
+              ...corsHeaders,
+              "Content-Type": upstreamRes.headers.get("content-type") || "application/json"
+            }
+          });
+        } catch (err: any) {
+          return new Response(JSON.stringify({ error: { message: `AI Proxy Error: ${err.message || String(err)}` } }), {
+            status: 502,
+            headers: { ...corsHeaders, "Content-Type": "application/json" }
+          });
+        }
+      }
+
       // Facebook Messenger Webhook Verification (GET)
       if ((path === "/api/webhook/facebook" || path === "/webhook/facebook") && request.method === "GET") {
         const mode = url.searchParams.get("hub.mode");
@@ -1649,7 +1688,10 @@ async function executeAIRequest(payload: any, env: Env): Promise<string> {
       targetUrl = 'https://api.deepseek.com/chat/completions';
     } else if (provider === 'github') {
       apiKey = env.GITHUB_API_KEY || '';
-      targetUrl = 'https://models.inference.ai.azure.com/chat/completions';
+      targetUrl = 'https://models.github.ai/inference/chat/completions';
+    } else if (provider === 'huggingface') {
+      apiKey = (env as any).HUGGINGFACE_API_KEY || '';
+      targetUrl = 'https://router.huggingface.co/v1/chat/completions';
     } else if (provider === 'mistral') {
       apiKey = env.MISTRAL_API_KEY || '';
       targetUrl = 'https://api.mistral.ai/v1/chat/completions';

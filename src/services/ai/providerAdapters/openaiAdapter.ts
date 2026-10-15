@@ -75,9 +75,16 @@ export const openaiAdapter: ProviderAdapter = {
   },
 
   parseResponse(responseJson): string {
-    const content = responseJson.choices?.[0]?.message?.content
-    if (content !== undefined && content !== null) {
+    const msg = responseJson?.choices?.[0]?.message
+    const content = msg?.content
+    if (typeof content === 'string' && content.trim().length > 0) {
       return content
+    }
+    if (typeof msg?.reasoning === 'string' && msg.reasoning.trim().length > 0) {
+      return msg.reasoning
+    }
+    if (content !== undefined && content !== null) {
+      return String(content)
     }
     throw new Error('Không tìm thấy nội dung phản hồi từ OpenAI Provider')
   }

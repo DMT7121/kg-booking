@@ -423,8 +423,9 @@ export function handleModelFailure(modelId: string, error: any): void {
 
   // Provider-level tracking
   const model = AI_MODELS.find(m => m.id === modelId)
-  if (model) {
-    reportProviderFailure(model.provider, failureKind, reason || errMsg)
+  const provider = model?.provider || (modelId.includes('llama-3.3-70b-versatile') ? 'groq' : undefined)
+  if (provider) {
+    reportProviderFailure(provider, failureKind, reason || errMsg)
   }
 }
 

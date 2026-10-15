@@ -45,32 +45,32 @@ export interface AIModel {
 export const AI_MODELS: AIModel[] = [
   // ══════ TEXT PIPELINE (VERIFIED 2026) ══════
   // Tier 0: Ultra-Fast — Groq LPU (1000+ tok/s)
-  { id: 'llama-3.3-70b-versatile', name: 'Llama 3.3 70B (Groq)', provider: 'groq', type: 'text', tier: 0, url: 'https://api.groq.com/openai/v1/chat/completions', format: 'openai' },
-  { id: 'meta-llama/llama-4-scout-17b-16e-instruct', name: 'Llama 4 Scout 17B (Groq)', provider: 'groq', type: 'text', tier: 0, url: 'https://api.groq.com/openai/v1/chat/completions', format: 'openai' },
-  // Tier 1: Google Gemini Fleet (Super Reliable & High Accuracy)
+  { id: 'qwen/qwen3.8-27b', name: 'Qwen 3.8 27B (Groq)', provider: 'groq', type: 'text', tier: 0, url: 'https://api.groq.com/openai/v1/chat/completions', format: 'openai' },
+  { id: 'openai/gpt-oss-120b', name: 'OpenAI GPT-OSS 120B (Groq)', provider: 'groq', type: 'text', tier: 0, url: 'https://api.groq.com/openai/v1/chat/completions', format: 'openai' },
+  // Tier 1: Google Gemini Fleet (Super Reliable & High Accuracy) & Groq Fast Backup
   { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash (Google)', provider: 'google', type: 'text', tier: 1, url: 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent', format: 'gemini' },
   { id: 'gemini-2.5-flash-lite', name: 'Gemini 2.5 Flash Lite (Google)', provider: 'google', type: 'text', tier: 1, url: 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent', format: 'gemini' },
   { id: 'gemini-2.0-flash', name: 'Gemini 2.0 Flash (Google)', provider: 'google', type: 'text', tier: 1, url: 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent', format: 'gemini' },
   { id: 'gemini-flash-latest', name: 'Gemini Flash Latest (Google)', provider: 'google', type: 'text', tier: 1, url: 'https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent', format: 'gemini' },
-  { id: 'meta-llama/llama-4-maverick-17b-128e-instruct', name: 'Llama 4 Maverick 17B (Groq)', provider: 'groq', type: 'text', tier: 1, url: 'https://api.groq.com/openai/v1/chat/completions', format: 'openai' },
-  // Tier 2: Cerebras Wafer-Scale & DeepSeek
-  { id: 'llama-3.3-70b', name: 'Llama 3.3 70B (Cerebras)', provider: 'cerebras', type: 'text', tier: 1, url: 'https://api.cerebras.ai/v1/chat/completions', format: 'openai' },
-  { id: 'llama-3.1-8b', name: 'Llama 3.1 8B (Cerebras)', provider: 'cerebras', type: 'text', tier: 2, url: 'https://api.cerebras.ai/v1/chat/completions', format: 'openai' },
-  { id: 'gpt-oss-120b', name: 'GPT OSS 120B (Cerebras)', provider: 'cerebras', type: 'text', tier: 2, url: 'https://api.cerebras.ai/v1/chat/completions', format: 'openai' },
-  { id: 'zai-glm-4.7', name: 'Z.ai GLM 4.7 (Cerebras)', provider: 'cerebras', type: 'text', tier: 2, url: 'https://api.cerebras.ai/v1/chat/completions', format: 'openai' },
-  { id: 'llama-3.1-8b-instant', name: 'Llama 3.1 8B (Groq)', provider: 'groq', type: 'text', tier: 2, url: 'https://api.groq.com/openai/v1/chat/completions', format: 'openai' },
+  { id: 'openai/gpt-oss-20b', name: 'OpenAI GPT-OSS 20B (Groq)', provider: 'groq', type: 'text', tier: 1, url: 'https://api.groq.com/openai/v1/chat/completions', format: 'openai' },
+  // Tier 2: Cerebras Wafer-Scale, DeepSeek & Mistral Free-Tier Ready
+  { id: 'gpt-oss-120b', name: 'GPT OSS 120B (Cerebras)', provider: 'cerebras', type: 'text', tier: 1, url: 'https://api.cerebras.ai/v1/chat/completions', format: 'openai' },
+  { id: 'qwen-3.8-27b', name: 'Qwen 3.8 27B (Cerebras)', provider: 'cerebras', type: 'text', tier: 2, url: 'https://api.cerebras.ai/v1/chat/completions', format: 'openai' },
   { id: 'deepseek-chat', name: 'DeepSeek V3 (DeepSeek)', provider: 'deepseek', type: 'text', tier: 2, url: 'https://api.deepseek.com/chat/completions', format: 'openai' },
+  { id: 'ministral-14b-latest', name: 'Ministral 14B (Mistral)', provider: 'mistral', type: 'text', tier: 2, url: 'https://api.mistral.ai/v1/chat/completions', format: 'openai' },
+  { id: 'ministral-8b-latest', name: 'Ministral 8B (Mistral)', provider: 'mistral', type: 'text', tier: 2, url: 'https://api.mistral.ai/v1/chat/completions', format: 'openai' },
   // Tier 3: Mistral & GitHub — High Quality
-  { id: 'mistral-large-latest', name: 'Mistral Large (Mistral)', provider: 'mistral', type: 'text', tier: 3, url: 'https://api.mistral.ai/v1/chat/completions', format: 'openai' },
+  { id: 'codestral-latest', name: 'Codestral Latest (Mistral)', provider: 'mistral', type: 'text', tier: 3, url: 'https://api.mistral.ai/v1/chat/completions', format: 'openai' },
   { id: 'mistral-small-latest', name: 'Mistral Small 4', provider: 'mistral', type: 'text', tier: 3, url: 'https://api.mistral.ai/v1/chat/completions', format: 'openai' },
   { id: 'gpt-4o', name: 'GitHub GPT-4o', provider: 'github', type: 'text', tier: 3, url: 'https://models.github.ai/inference/chat/completions', format: 'openai' },
   { id: 'gpt-4o-mini', name: 'GitHub GPT-4o-Mini', provider: 'github', type: 'text', tier: 3, url: 'https://models.github.ai/inference/chat/completions', format: 'openai' },
-  // Tier 4: SambaNova & Free Fallback (Requires Key/Balance)
-  { id: 'openai/gpt-oss-120b', name: 'OpenAI GPT-OSS 120B (Groq)', provider: 'groq', type: 'text', tier: 4, url: 'https://api.groq.com/openai/v1/chat/completions', format: 'openai' },
-  { id: 'deepseek-ai/DeepSeek-V3', name: 'DeepSeek V3 (SambaNova)', provider: 'sambanova', type: 'text', tier: 1, url: 'https://api.sambanova.ai/v1/chat/completions', format: 'openai' },
+  // Tier 4: SambaNova, Hugging Face & OpenRouter (Requires Key/Balance)
   { id: 'Meta-Llama-3.3-70B-Instruct', name: 'Llama 3.3 70B (SambaNova)', provider: 'sambanova', type: 'text', tier: 1, url: 'https://api.sambanova.ai/v1/chat/completions', format: 'openai' },
-  { id: 'Llama-4-Maverick-17B-128E-Instruct', name: 'Llama 4 Maverick (SambaNova)', provider: 'sambanova', type: 'text', tier: 4, url: 'https://api.sambanova.ai/v1/chat/completions', format: 'openai' },
-  { id: 'deepseek-ai/DeepSeek-R1', name: 'DeepSeek R1 (SambaNova)', provider: 'sambanova', type: 'text', tier: 4, url: 'https://api.sambanova.ai/v1/chat/completions', format: 'openai' },
+  { id: 'DeepSeek-V3.2', name: 'DeepSeek V3.2 (SambaNova)', provider: 'sambanova', type: 'text', tier: 1, url: 'https://api.sambanova.ai/v1/chat/completions', format: 'openai' },
+  { id: 'DeepSeek-V3.1', name: 'DeepSeek V3.1 (SambaNova)', provider: 'sambanova', type: 'text', tier: 4, url: 'https://api.sambanova.ai/v1/chat/completions', format: 'openai' },
+  { id: 'gpt-oss-120b', name: 'GPT OSS 120B (SambaNova)', provider: 'sambanova', type: 'text', tier: 4, url: 'https://api.sambanova.ai/v1/chat/completions', format: 'openai' },
+  { id: 'Qwen/Qwen2.5-72B-Instruct', name: 'Qwen 2.5 72B (Hugging Face)', provider: 'huggingface', type: 'text', tier: 4, url: 'https://router.huggingface.co/v1/chat/completions', format: 'openai' },
+  { id: 'meta-llama/Llama-3.3-70B-Instruct', name: 'Llama 3.3 70B (Hugging Face)', provider: 'huggingface', type: 'text', tier: 4, url: 'https://router.huggingface.co/v1/chat/completions', format: 'openai' },
   { id: 'openrouter/free', name: 'OpenRouter Free Router', provider: 'openrouter', type: 'text', tier: 4, url: 'https://openrouter.ai/api/v1/chat/completions', format: 'openai' },
   { id: 'meta-llama/llama-3.3-70b-instruct:free', name: 'Llama 3.3 70B (Free)', provider: 'openrouter', type: 'text', tier: 4, url: 'https://openrouter.ai/api/v1/chat/completions', format: 'openai' },
   { id: 'deepseek/deepseek-r1:free', name: 'DeepSeek R1 (Free)', provider: 'openrouter', type: 'text', tier: 4, url: 'https://openrouter.ai/api/v1/chat/completions', format: 'openai' },
@@ -81,23 +81,23 @@ export const AI_MODELS: AIModel[] = [
   { id: 'deepseek', name: 'DeepSeek R1 / V3 (Free)', provider: 'pollinations', type: 'text', tier: 5, url: 'https://text.pollinations.ai/openai/v1/chat/completions', format: 'openai' },
 
   // ══════ VISION PIPELINE (VERIFIED 2026) ══════
-  // Tier 0: Google Gemini Multimodal & Groq Llama 4 Vision (Highest OCR & Vietnamese accuracy)
+  // Tier 0: Google Gemini Multimodal & Groq Qwen 3.8 Vision (Highest OCR & Vietnamese accuracy)
   { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash (Vision)', provider: 'google', type: 'vision', tier: 0, url: 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent', format: 'gemini' },
-  { id: 'meta-llama/llama-4-scout-17b-16e-instruct', name: 'Llama 4 Scout Vision (Groq)', provider: 'groq', type: 'vision', tier: 0, url: 'https://api.groq.com/openai/v1/chat/completions', format: 'openai' },
-  // Tier 1: Google Gemini Fast Backup & Groq Maverick Vision
+  { id: 'qwen/qwen3.8-27b', name: 'Qwen 3.8 27B Vision (Groq)', provider: 'groq', type: 'vision', tier: 0, url: 'https://api.groq.com/openai/v1/chat/completions', format: 'openai' },
+  // Tier 1: Google Gemini Fast Backup
   { id: 'gemini-2.5-flash-lite', name: 'Gemini 2.5 Flash Lite (Vision)', provider: 'google', type: 'vision', tier: 1, url: 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent', format: 'gemini' },
   { id: 'gemini-2.0-flash', name: 'Gemini 2.0 Flash (Vision)', provider: 'google', type: 'vision', tier: 1, url: 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent', format: 'gemini' },
   { id: 'gemini-flash-latest', name: 'Gemini Flash Latest (Vision)', provider: 'google', type: 'vision', tier: 1, url: 'https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent', format: 'gemini' },
-  { id: 'meta-llama/llama-4-maverick-17b-128e-instruct', name: 'Llama 4 Maverick Vision (Groq)', provider: 'groq', type: 'vision', tier: 1, url: 'https://api.groq.com/openai/v1/chat/completions', format: 'openai' },
-  // Tier 2: Mistral Pixtral Vision
-  { id: 'pixtral-large-latest', name: 'Pixtral Large (Vision)', provider: 'mistral', type: 'vision', tier: 2, url: 'https://api.mistral.ai/v1/chat/completions', format: 'openai' },
+  // Tier 2: Mistral Ministral & Pixtral Vision
+  { id: 'ministral-14b-latest', name: 'Ministral 14B (Vision)', provider: 'mistral', type: 'vision', tier: 2, url: 'https://api.mistral.ai/v1/chat/completions', format: 'openai' },
   { id: 'pixtral-12b-2409', name: 'Pixtral 12B (Vision)', provider: 'mistral', type: 'vision', tier: 2, url: 'https://api.mistral.ai/v1/chat/completions', format: 'openai' },
+  { id: 'ministral-8b-latest', name: 'Ministral 8B (Vision)', provider: 'mistral', type: 'vision', tier: 2, url: 'https://api.mistral.ai/v1/chat/completions', format: 'openai' },
   { id: 'mistral-small-latest', name: 'Mistral Small 4 (Vision)', provider: 'mistral', type: 'vision', tier: 2, url: 'https://api.mistral.ai/v1/chat/completions', format: 'openai' },
-  // Tier 3: GitHub, SambaNova & OpenRouter Vision
+  // Tier 3: GitHub, SambaNova, Hugging Face & OpenRouter Vision
   { id: 'gpt-4o', name: 'GitHub GPT-4o (Vision)', provider: 'github', type: 'vision', tier: 3, url: 'https://models.github.ai/inference/chat/completions', format: 'openai' },
   { id: 'gpt-4o-mini', name: 'GitHub GPT-4o-Mini (Vision)', provider: 'github', type: 'vision', tier: 3, url: 'https://models.github.ai/inference/chat/completions', format: 'openai' },
-  { id: 'Llama-4-Maverick-17B-128E-Instruct', name: 'Llama 4 Maverick (SambaNova)', provider: 'sambanova', type: 'vision', tier: 3, url: 'https://api.sambanova.ai/v1/chat/completions', format: 'openai' },
-  { id: 'Llama-4-Scout-17B-16E-Instruct', name: 'Llama 4 Scout (SambaNova)', provider: 'sambanova', type: 'vision', tier: 3, url: 'https://api.sambanova.ai/v1/chat/completions', format: 'openai' },
+  { id: 'gemma-4-31B-it', name: 'Gemma 4 31B Vision (SambaNova)', provider: 'sambanova', type: 'vision', tier: 3, url: 'https://api.sambanova.ai/v1/chat/completions', format: 'openai' },
+  { id: 'Qwen/Qwen2.5-VL-72B-Instruct', name: 'Qwen 2.5 VL 72B (Hugging Face)', provider: 'huggingface', type: 'vision', tier: 3, url: 'https://router.huggingface.co/v1/chat/completions', format: 'openai' },
   { id: 'qwen/qwen2.5-vl-72b-instruct:free', name: 'Qwen 2.5 VL 72B (Free Vision)', provider: 'openrouter', type: 'vision', tier: 3, url: 'https://openrouter.ai/api/v1/chat/completions', format: 'openai' },
   { id: 'google/gemini-2.0-flash-exp:free', name: 'Gemini 2.0 Flash (Free Vision)', provider: 'openrouter', type: 'vision', tier: 3, url: 'https://openrouter.ai/api/v1/chat/completions', format: 'openai' },
   // Tier 4: Pollinations Free Vision Fallback

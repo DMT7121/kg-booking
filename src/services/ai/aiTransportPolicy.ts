@@ -17,6 +17,23 @@ export function classifyError(status: number | undefined, message: string): Erro
   if (msg.includes('turnstile') || msg.includes('missing turnstile token')) {
     return { action: 'switch_transport', reason: 'Cloudflare Turnstile block' }
   }
+
+  // Model not available in subscription tier (e.g. Mistral 403 tier_not_allowed on Free Tier)
+  if (
+    msg.includes('tier_not_allowed') ||
+    msg.includes('not available in your subscription tier') ||
+    msg.includes('subscription tier')
+  ) {
+    return { action: 'cooldown_model', cooldownMs: 15 * 60 * 1000, reason: 'Model Not Available in Subscription Tier' }
+  }
+
+  // Token missing Fine-Grained Scope (e.g. Hugging Face 403 insufficient permissions for Inference Providers)
+  if (
+    status === 403 &&
+    (msg.includes('sufficient permissions') || msg.includes('inference providers'))
+  ) {
+    return { action: 'retry_next_key', reason: 'Token thiếu quyền gọi Inference Providers (Insufficient Permissions)' }
+  }
   
   // API Key invalid / expired / unauthorized (including Google Gemini HTTP 400 API_KEY_INVALID / "API key not valid")
   if (
@@ -48,7 +65,7 @@ export function classifyError(status: number | undefined, message: string): Erro
     return { action: 'cooldown_key', cooldownMs: 60000, reason: 'Rate Limit / Quota Exceeded' }
   }
 
-  // Billing / insufficient balance (DeepSeek 402, OpenRouter 402, etc.)
+  // Billing / insufficient balance (Cerebras 402, Hugging Face 402, DeepSeek 402, OpenRouter 402, etc.)
   if (
     status === 402 ||
     msg.includes('payment') ||
@@ -58,17 +75,18 @@ export function classifyError(status: number | undefined, message: string): Erro
     msg.includes('credit') ||
     msg.includes('balance')
   ) {
-    return { action: 'retry_next_key', reason: 'Billing / Insufficient Balance' }
+    return { action: 'retry_next_key', reason: 'Billing / Insufficient Balance (Out of Credits)' }
   }
   
-  // Model not found or decommissioned (Groq returns HTTP 400 for model_decommissioned)
+  // Model not found or decommissioned (Groq returns HTTP 400/404 for model_decommissioned/model_not_found, Mistral returns 400 Invalid model)
   if (
     status === 404 ||
     msg.includes('not found') ||
     msg.includes('model_not_found') ||
     msg.includes('decommissioned') ||
     msg.includes('does not exist') ||
-    msg.includes('unsupported model')
+    msg.includes('unsupported model') ||
+    msg.includes('invalid model')
   ) {
     return { action: 'cooldown_model', cooldownMs: 15 * 60 * 1000, reason: 'Model Not Found / Decommissioned' }
   }

@@ -1,12 +1,42 @@
 import { AI_TIMEOUTS, AI_MODELS } from '@/utils/constants'
 import type { AIModel } from '@/utils/constants'
 import * as api from '@/services/api'
+import { API_GATEWAY_URL } from '@/config/endpoints'
 import { handleModelFailure, isGatewayCircuitOpen, reportGatewaySuccess, reportGatewayFailure, cooldownModel } from './circuitBreaker'
 import * as localKeyVault from '@/services/security/localKeyVault'
 import { classifyError, AITransportPolicy } from './aiTransportPolicy'
 import { geminiAdapter } from './providerAdapters/geminiAdapter'
 import { openaiAdapter } from './providerAdapters/openaiAdapter'
 import { useConfigStore } from '@/stores/useConfigStore'
+
+const CORS_RESTRICTED_PROVIDERS = new Set(['sambanova', 'github', 'huggingface', 'deepseek'])
+
+async function fetchWithCorsFallback(
+  url: string,
+  init: RequestInit,
+  provider: string,
+  allowCorsProxy = true
+): Promise<Response> {
+  try {
+    return await fetch(url, init)
+  } catch (err: any) {
+    const isAbort = err?.name === 'AbortError' || init.signal?.aborted
+    const errMsg = String(err?.message || err || '').toLowerCase()
+    const isCorsOrNetwork = !isAbort && (err?.name === 'TypeError' || errMsg.includes('failed to fetch') || errMsg.includes('network'))
+    if (allowCorsProxy && isCorsOrNetwork && CORS_RESTRICTED_PROVIDERS.has(provider.toLowerCase())) {
+      const proxyUrl = `${API_GATEWAY_URL.replace(/\/$/, '')}/ai-proxy`
+      const baseHeaders = (init.headers || {}) as Record<string, string>
+      return await fetch(proxyUrl, {
+        ...init,
+        headers: {
+          ...baseHeaders,
+          'x-target-url': url
+        }
+      })
+    }
+    throw err
+  }
+}
 
 export interface AICompletionRequest {
   model: AIModel
@@ -164,12 +194,12 @@ export async function callAIModel(
           key
         })
 
-        let res = await fetch(url, {
+        let res = await fetchWithCorsFallback(url, {
           method: 'POST',
           headers,
           body,
           signal: controller.signal
-        })
+        }, model.provider)
 
         // Helper to safely read error body whether res has .text() or .json()
         const readErrorBody = async (r: any, st: number): Promise<string> => {
@@ -206,12 +236,12 @@ export async function callAIModel(
               temperature,
               key
             })
-            res = await fetch(fallbackReq.url, {
+            res = await fetchWithCorsFallback(fallbackReq.url, {
               method: 'POST',
               headers: fallbackReq.headers,
               body: fallbackReq.body,
               signal: controller.signal
-            })
+            }, model.provider)
           } else {
             // Reconstruct a synthetic response-like flow using initialClass
             clearTimeout(timeoutId)
@@ -450,10 +480,12 @@ export async function testProviderApiKey(
     ? 'google'
     : provider.toLowerCase()
 
-  const candidateModel = AI_MODELS.find(m => m.provider === normProvider && m.type === 'text')
-    || AI_MODELS.find(m => m.provider === normProvider)
+  const textModels = AI_MODELS.filter(m => m.provider === normProvider && m.type === 'text')
+  const candidateModels = textModels.length > 0
+    ? textModels
+    : AI_MODELS.filter(m => m.provider === normProvider)
 
-  if (!candidateModel) {
+  if (candidateModels.length === 0) {
     return {
       ok: false,
       provider: normProvider,
@@ -464,6 +496,8 @@ export async function testProviderApiKey(
       message: `Không tìm thấy model cấu hình cho nền tảng ${normProvider}`
     }
   }
+
+  let activeModel = candidateModels[0]
 
   let keysToTest: string[] = []
   if (explicitKey && explicitKey.trim()) {
@@ -495,7 +529,7 @@ export async function testProviderApiKey(
     return {
       ok: false,
       provider: normProvider,
-      modelName: candidateModel.name,
+      modelName: activeModel.name,
       latencyMs: 0,
       activeKeyCount: 0,
       totalKeyCount: 0,
@@ -503,47 +537,96 @@ export async function testProviderApiKey(
     }
   }
 
-  const adapter = candidateModel.format === 'gemini' ? geminiAdapter : openaiAdapter
   let activeCount = 0
   let lastErrorMsg = ''
   let bestLatency = 0
 
-  // Test up to 3 keys per provider for speed
-  const sampleKeys = keysToTest.slice(0, 3)
+  // Test up to 6 keys per provider
+  const sampleKeys = keysToTest.slice(0, 6)
   for (const key of sampleKeys) {
-    const kStart = performance.now()
-    const controller = new AbortController()
-    const timeoutId = setTimeout(() => controller.abort(), 8000)
-    try {
-      const { url, headers, body } = adapter.formatRequest({
-        model: candidateModel,
-        sysPrompt: 'You are a health check assistant. Respond with {"ok":true}',
-        userPrompt: 'Ping JSON health check',
-        image: null,
-        jsonMode: false,
-        maxOutputTokens: 32,
-        temperature: 0,
-        key
-      })
-      const res = await fetch(url, {
-        method: 'POST',
-        headers,
-        body,
-        signal: controller.signal
-      })
-      clearTimeout(timeoutId)
-      if (res.ok) {
-        activeCount++
-        const lat = Math.round(performance.now() - kStart)
-        if (bestLatency === 0 || lat < bestLatency) bestLatency = lat
-      } else {
-        const errTxt = await res.text().catch(() => `HTTP ${res.status}`)
-        const cls = classifyError(res.status, errTxt)
-        lastErrorMsg = `HTTP ${res.status}: ${cls.reason}`
+    let keySucceeded = false
+    for (const modelCandidate of candidateModels) {
+      const adapter = modelCandidate.format === 'gemini' ? geminiAdapter : openaiAdapter
+      const kStart = performance.now()
+      const controller = new AbortController()
+      const timeoutId = setTimeout(() => controller.abort(), 8000)
+      try {
+        const { url, headers, body } = adapter.formatRequest({
+          model: modelCandidate,
+          sysPrompt: 'You are a health check assistant. Respond with {"ok":true}',
+          userPrompt: 'Ping JSON health check',
+          image: null,
+          jsonMode: false,
+          maxOutputTokens: 32,
+          temperature: 0,
+          key
+        })
+        const res = await fetchWithCorsFallback(url, {
+          method: 'POST',
+          headers,
+          body,
+          signal: controller.signal
+        }, normProvider)
+        clearTimeout(timeoutId)
+
+        if (res.ok) {
+          // Verify that the 200 OK payload is a real completion JSON and not an empty/stub response
+          let parsedJson: any = null
+          let rawText = ''
+          try {
+            if (typeof res.text === 'function') {
+              rawText = await res.text()
+              parsedJson = rawText ? JSON.parse(rawText) : null
+            } else if (typeof res.json === 'function') {
+              parsedJson = await res.json()
+            }
+          } catch {
+            parsedJson = null
+          }
+
+          if (parsedJson) {
+            try {
+              adapter.parseResponse(parsedJson)
+              activeModel = modelCandidate
+              activeCount++
+              keySucceeded = true
+              const lat = Math.round(performance.now() - kStart)
+              if (bestLatency === 0 || lat < bestLatency) bestLatency = lat
+              break
+            } catch (parseErr: any) {
+              lastErrorMsg = parseErr?.message || 'Phản hồi JSON thiếu trường dữ liệu AI'
+            }
+          } else {
+            if (normProvider === 'github' && rawText.trim() === 'OK') {
+              lastErrorMsg = 'Dịch vụ GitHub Models (models.github.ai) đã ngừng hoạt động (trả về stub "OK" thay vì JSON)'
+            } else {
+              lastErrorMsg = `Endpoint trả về dữ liệu không phải JSON hợp lệ (${rawText.slice(0, 40) || 'Empty'})`
+            }
+            break
+          }
+        } else {
+          const errTxt = await res.text().catch(() => `HTTP ${res.status}`)
+          const cls = classifyError(res.status, errTxt)
+          lastErrorMsg = `HTTP ${res.status}: ${cls.reason}`
+          // If model is not found or not allowed in subscription tier, try next candidate model for this provider
+          if (cls.action === 'cooldown_model' && candidateModels.length > 1) {
+            continue
+          }
+          break
+        }
+      } catch (e: any) {
+        clearTimeout(timeoutId)
+        lastErrorMsg = e.name === 'AbortError' ? 'Timeout (8s)' : (e.message || 'Lỗi mạng/CORS')
+        break
       }
-    } catch (e: any) {
-      clearTimeout(timeoutId)
-      lastErrorMsg = e.name === 'AbortError' ? 'Timeout (8s)' : (e.message || 'Lỗi mạng/CORS')
+    }
+    if (keySucceeded) {
+      // Once we know which candidate model works for this provider, keep it first
+      const idx = candidateModels.indexOf(activeModel)
+      if (idx > 0) {
+        candidateModels.splice(idx, 1)
+        candidateModels.unshift(activeModel)
+      }
     }
   }
 
@@ -552,7 +635,7 @@ export async function testProviderApiKey(
     return {
       ok: true,
       provider: normProvider,
-      modelName: candidateModel.name,
+      modelName: activeModel.name,
       latencyMs: totalLatency,
       activeKeyCount: activeCount,
       totalKeyCount: keysToTest.length,
@@ -563,7 +646,7 @@ export async function testProviderApiKey(
   return {
     ok: false,
     provider: normProvider,
-    modelName: candidateModel.name,
+    modelName: activeModel.name,
     latencyMs: totalLatency,
     activeKeyCount: 0,
     totalKeyCount: keysToTest.length,
