@@ -31,8 +31,8 @@ export const openaiAdapter: ProviderAdapter = {
     }
 
     // Providers or models that do not reliably support response_format parameter
-    const noResponseFormatProviders = ['pollinations', 'huggingface']
-    const isFreeOrReasoningModel = model.id.includes(':free') || model.id.toLowerCase().includes('deepseek-r1')
+    const noResponseFormatProviders = ['pollinations', 'huggingface', 'nvidia', 'cohere']
+    const isFreeOrReasoningModel = model.id.includes(':free') || model.id.toLowerCase().includes('deepseek-r1') || model.id.toLowerCase().includes('nemotron')
     const skipResponseFormatParam = noResponseFormatProviders.includes(model.provider) || isFreeOrReasoningModel
 
     // Always ensure the word "JSON" is in the system prompt when jsonMode is enabled
@@ -79,6 +79,9 @@ export const openaiAdapter: ProviderAdapter = {
     const content = msg?.content
     if (typeof content === 'string' && content.trim().length > 0) {
       return content
+    }
+    if (typeof msg?.reasoning_content === 'string' && msg.reasoning_content.trim().length > 0) {
+      return msg.reasoning_content
     }
     if (typeof msg?.reasoning === 'string' && msg.reasoning.trim().length > 0) {
       return msg.reasoning

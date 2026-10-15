@@ -78,22 +78,25 @@ export function classifyError(status: number | undefined, message: string): Erro
     return { action: 'cooldown_key', cooldownMs: 60000, reason: 'Rate Limit / Quota Exceeded' }
   }
   
-  // Model not found or decommissioned (Groq returns HTTP 400/404 for model_decommissioned/model_not_found, Mistral returns 400 Invalid model)
+  // Model not found, decommissioned, or reached End-Of-Life (Groq 400/404, NVIDIA NIM 410 Gone, Mistral 400 Invalid model)
   if (
     status === 404 ||
+    status === 410 ||
     msg.includes('not found') ||
     msg.includes('model_not_found') ||
     msg.includes('decommissioned') ||
+    msg.includes('end of life') ||
+    msg.includes('no longer available') ||
     msg.includes('does not exist') ||
     msg.includes('unsupported model') ||
     msg.includes('invalid model')
   ) {
-    return { action: 'cooldown_model', cooldownMs: 15 * 60 * 1000, reason: 'Model Not Found / Decommissioned' }
+    return { action: 'cooldown_model', cooldownMs: 15 * 60 * 1000, reason: 'Model Not Found / Decommissioned (End of Life)' }
   }
   
-  // Schema / response_format / thinkingConfig parameter rejection (HTTP 400) -> retry once without schema/json_object parameter
+  // Schema / response_format / thinkingConfig parameter rejection (HTTP 400 / 422) -> retry once without schema/json_object parameter
   if (
-    status === 400 &&
+    (status === 400 || status === 422) &&
     (msg.includes('response_format') ||
       msg.includes('json_schema') ||
       msg.includes('responseschema') ||
@@ -102,13 +105,14 @@ export function classifyError(status: number | undefined, message: string): Erro
       msg.includes('json_object') ||
       msg.includes('invalid_argument') ||
       msg.includes('invalid argument') ||
+      msg.includes('unprocessable') ||
       msg.includes('bad request'))
   ) {
     return { action: 'retry_without_schema', reason: 'Provider rejected structured schema parameter' }
   }
 
-  if (status === 400) {
-    return { action: 'retry_next_key', reason: 'HTTP 400 Bad Request - Try next key or model' }
+  if (status === 400 || status === 422) {
+    return { action: 'retry_next_key', reason: `HTTP ${status} Bad Request - Try next key or model` }
   }
 
   // CORS, Network failures, 5xx, or timeouts

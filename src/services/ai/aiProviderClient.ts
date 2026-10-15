@@ -18,15 +18,33 @@ async function fetchWithCorsFallback(
   provider: string,
   allowCorsProxy = true
 ): Promise<Response> {
+  const normProv = provider.toLowerCase()
+  const isBrowserRuntime = typeof window !== 'undefined' && import.meta.env.MODE !== 'test'
+  const proxyUrl = `${API_GATEWAY_URL.replace(/\/$/, '')}/ai-proxy`
+  const baseHeaders = (init.headers || {}) as Record<string, string>
+
+  // Providers like NVIDIA NIM & Cohere block browser CORS preflight; route directly via Edge CORS Proxy in browser runtime
+  if (allowCorsProxy && isBrowserRuntime && CORS_RESTRICTED_PROVIDERS.has(normProv)) {
+    try {
+      return await fetch(proxyUrl, {
+        ...init,
+        headers: {
+          ...baseHeaders,
+          'x-target-url': url
+        }
+      })
+    } catch {
+      return await fetch(url, init)
+    }
+  }
+
   try {
     return await fetch(url, init)
   } catch (err: any) {
     const isAbort = err?.name === 'AbortError' || init.signal?.aborted
     const errMsg = String(err?.message || err || '').toLowerCase()
     const isCorsOrNetwork = !isAbort && (err?.name === 'TypeError' || errMsg.includes('failed to fetch') || errMsg.includes('network'))
-    if (allowCorsProxy && isCorsOrNetwork && CORS_RESTRICTED_PROVIDERS.has(provider.toLowerCase())) {
-      const proxyUrl = `${API_GATEWAY_URL.replace(/\/$/, '')}/ai-proxy`
-      const baseHeaders = (init.headers || {}) as Record<string, string>
+    if (allowCorsProxy && isCorsOrNetwork && CORS_RESTRICTED_PROVIDERS.has(normProv)) {
       return await fetch(proxyUrl, {
         ...init,
         headers: {
@@ -550,7 +568,7 @@ export async function testProviderApiKey(
       const adapter = modelCandidate.format === 'gemini' ? geminiAdapter : openaiAdapter
       const kStart = performance.now()
       const controller = new AbortController()
-      const timeoutId = setTimeout(() => controller.abort(), 8000)
+      const timeoutId = setTimeout(() => controller.abort(), 12000)
       try {
         const { url, headers, body } = adapter.formatRequest({
           model: modelCandidate,
@@ -558,7 +576,7 @@ export async function testProviderApiKey(
           userPrompt: 'Ping JSON health check',
           image: null,
           jsonMode: false,
-          maxOutputTokens: 32,
+          maxOutputTokens: 64,
           temperature: 0,
           key
         })
@@ -609,15 +627,25 @@ export async function testProviderApiKey(
           const errTxt = await res.text().catch(() => `HTTP ${res.status}`)
           const cls = classifyError(res.status, errTxt)
           lastErrorMsg = `HTTP ${res.status}: ${cls.reason}`
-          // If model is not found or not allowed in subscription tier, try next candidate model for this provider
-          if (cls.action === 'cooldown_model' && candidateModels.length > 1) {
+          // If model is EOL/not found (404/410), tier-restricted, or rejected parameters/overloaded, try next candidate model for this provider
+          const shouldTryNextModel =
+            cls.action === 'cooldown_model' ||
+            res.status === 404 ||
+            res.status === 410 ||
+            res.status === 400 ||
+            res.status === 422 ||
+            res.status >= 500
+          if (shouldTryNextModel && candidateModels.length > 1) {
             continue
           }
           break
         }
       } catch (e: any) {
         clearTimeout(timeoutId)
-        lastErrorMsg = e.name === 'AbortError' ? 'Timeout (8s)' : (e.message || 'Lỗi mạng/CORS')
+        lastErrorMsg = e.name === 'AbortError' ? 'Timeout (12s)' : (e.message || 'Lỗi mạng/CORS')
+        if (e.name === 'AbortError' && candidateModels.length > 1) {
+          continue
+        }
         break
       }
     }

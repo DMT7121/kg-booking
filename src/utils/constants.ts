@@ -56,9 +56,11 @@ export const AI_MODELS: AIModel[] = [
   { id: 'codestral-latest', name: 'Codestral Latest (Mistral)', provider: 'mistral', type: 'text', tier: 2, url: 'https://api.mistral.ai/v1/chat/completions', format: 'openai' },
   { id: 'mistral-small-latest', name: 'Mistral Small 4 (Mistral)', provider: 'mistral', type: 'text', tier: 3, url: 'https://api.mistral.ai/v1/chat/completions', format: 'openai' },
   // Tier 3: NVIDIA NIM & Cohere Trial (Free Developer API Keys)
-  { id: 'meta/llama-3.3-70b-instruct', name: 'Llama 3.3 70B (NVIDIA NIM)', provider: 'nvidia', type: 'text', tier: 3, url: 'https://integrate.api.nvidia.com/v1/chat/completions', format: 'openai' },
-  { id: 'deepseek-ai/deepseek-r1', name: 'DeepSeek R1 (NVIDIA NIM)', provider: 'nvidia', type: 'text', tier: 3, url: 'https://integrate.api.nvidia.com/v1/chat/completions', format: 'openai' },
-  { id: 'qwen/qwen2.5-72b-instruct', name: 'Qwen 2.5 72B (NVIDIA NIM)', provider: 'nvidia', type: 'text', tier: 3, url: 'https://integrate.api.nvidia.com/v1/chat/completions', format: 'openai' },
+  { id: 'nvidia/nemotron-3-super-120b-a12b', name: 'Nemotron 3 Super 120B (NVIDIA NIM)', provider: 'nvidia', type: 'text', tier: 3, url: 'https://integrate.api.nvidia.com/v1/chat/completions', format: 'openai' },
+  { id: 'deepseek-ai/deepseek-v4.1-flash', name: 'DeepSeek V4.1 Flash (NVIDIA NIM)', provider: 'nvidia', type: 'text', tier: 3, url: 'https://integrate.api.nvidia.com/v1/chat/completions', format: 'openai' },
+  { id: 'google/gemma-4-31b-it', name: 'Gemma 4 31B Instruct (NVIDIA NIM)', provider: 'nvidia', type: 'text', tier: 3, url: 'https://integrate.api.nvidia.com/v1/chat/completions', format: 'openai' },
+  { id: 'nvidia/nemotron-3.5-lightning-30b-a3b', name: 'Nemotron 3.5 Lightning (NVIDIA NIM)', provider: 'nvidia', type: 'text', tier: 3, url: 'https://integrate.api.nvidia.com/v1/chat/completions', format: 'openai' },
+  { id: 'z-ai/glm-5.3-flash', name: 'GLM 5.3 Flash (NVIDIA NIM)', provider: 'nvidia', type: 'text', tier: 3, url: 'https://integrate.api.nvidia.com/v1/chat/completions', format: 'openai' },
   { id: 'command-a-03-2025', name: 'Command A (Cohere Free)', provider: 'cohere', type: 'text', tier: 3, url: 'https://api.cohere.ai/compatibility/v1/chat/completions', format: 'openai' },
   { id: 'command-r-plus-08-2024', name: 'Command R+ (Cohere Free)', provider: 'cohere', type: 'text', tier: 3, url: 'https://api.cohere.ai/compatibility/v1/chat/completions', format: 'openai' },
   // Tier 4: OpenRouter Verified Free Models (2026 :free Roster)
