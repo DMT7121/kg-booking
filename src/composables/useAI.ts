@@ -3,7 +3,7 @@ import { useFormStore } from '@/stores/useFormStore'
 import { useConfigStore } from '@/stores/useConfigStore'
 import { useAppStore } from '@/stores/useAppStore'
 import { useLogStore } from '@/stores/useLogStore'
-import { resizeImage, cleanPhoneNumber, formatDateStr, formatVND, stripAccents, formatSetNote } from '@/utils'
+import { resizeImage, cleanPhoneNumber, formatDateStr, formatVND, stripAccents, formatSetNote, mergeSetComponentNote } from '@/utils'
 import { processImageForOCR } from '@/utils/imageProcessor'
 import { AI_MODELS, PLATFORMS, ADVANCED_AI_PROMPT, IMAGE_OCR_PROMPT, SINGLE_PASS_VISION_PROMPT } from '@/utils/constants'
 import type { AIModel } from '@/utils/constants'
@@ -26,6 +26,7 @@ import {
   resolveBestMenuSheet, 
   resolveMenuItemsLocally,
   resolveSetMenuDescription,
+  extractSetOrComboHeaderAndQty,
   deduplicateMatchedItems
 } from '@/domain/menu/menuMatcher'
 import { 
@@ -338,15 +339,10 @@ export function useAI() {
           const isSetItem = /set|combo|goi|phan|couple/i.test(item.name)
           const desc = resolveSetMenuDescription(item.name, appStore.menuList, appStore.menuDetails || {})
           if (desc) {
-            const formattedDesc = formatSetNote(desc)
-            if (isSetItem || !item.note) {
-              if (item.note) {
-                if (!item.note.includes(formattedDesc)) {
-                  item.note = `${item.note}\n${formattedDesc}`
-                }
-              } else {
-                item.note = formattedDesc
-              }
+            if (isSetItem) {
+              item.note = mergeSetComponentNote(item.note || '', desc)
+            } else if (!item.note) {
+              item.note = formatSetNote(desc)
             }
           }
         }
@@ -625,8 +621,8 @@ export function useAI() {
         modelProfile: profile,
         menuFingerprint,
         correctionFingerprint,
-        promptSchemaVersion: 1,
-        normalizerSchemaVersion: 2
+        promptSchemaVersion: 2,
+        normalizerSchemaVersion: 3
       }))
 
       logStore.addLog(`[Classifier] Complexity: "${classification.complexity}", requiresLLM: ${classification.requiresLLM}, requiresMenuContext: ${classification.requiresMenuContext}`)
@@ -635,6 +631,7 @@ export function useAI() {
         ? (formStore.rawInput || 'Phân tích ảnh này để lấy thông tin đặt bàn, khách hàng và danh sách món ăn.')
         : formStore.rawInput
       promptText = preNormalizeInput(promptText)
+      const cleanedPromptForAI = stripSetMenuComponents(promptText)
 
       ruleBasedResult = extractByRules(promptText)
       hardEntities = extractHardEntities(promptText)
@@ -717,7 +714,7 @@ export function useAI() {
           }
 
           menuCandidates = retrieveMenuCandidates({
-            text: promptText,
+            text: cleanedPromptForAI,
             menus: menusForRetriever,
             limit: 15
           })
@@ -739,7 +736,7 @@ export function useAI() {
 
         const promptResult = buildDynamicPrompt({
           profile,
-          userText: promptText,
+          userText: cleanedPromptForAI,
           classification,
           menuCandidates,
           conversationContext: '',
@@ -802,6 +799,57 @@ export function useAI() {
           rawJsonParsed = crossValidated
           if (validations.length > 0) {
             logStore.addLog(`[CrossValidation] ${validations.length} trường được đối chiếu chéo: ${validations.map(v => `${v.field}→${v.chosenSource}`).join(', ')}`, 'info')
+          }
+
+          // Cross-validate Set menu (1..15) & Combo couple (1..11) against deterministic Rule Engine extraction
+          if (Array.isArray(ruleBasedResult.menu_items) && ruleBasedResult.menu_items.length > 0) {
+            const ruleSetItems = ruleBasedResult.menu_items.filter((ri: any) =>
+              /^(?:Set menu \d+|Combo couple \d+)$/i.test(String(ri.raw_name || ri.name || '').trim())
+            )
+            if (ruleSetItems.length > 0) {
+              if (!Array.isArray(rawJsonParsed.menu_items)) rawJsonParsed.menu_items = []
+              const ruleSetNorms = new Set(ruleSetItems.map((r: any) => stripAccents(r.raw_name).toLowerCase().trim()))
+
+              // In text mode, remove any AI-hallucinated Set menu / Combo couple whose number conflicts with deterministic Rule Engine
+              if (!formStore.aiImage) {
+                rawJsonParsed.menu_items = rawJsonParsed.menu_items.filter((aiItem: any) => {
+                  const rawAiName = String(aiItem.raw_name || aiItem.name || aiItem.matched_name || '').trim()
+                  const parsedAiSet = extractSetOrComboHeaderAndQty(rawAiName)
+                  if (!parsedAiSet) return true
+                  const normAiSet = stripAccents(parsedAiSet.canonicalName).toLowerCase().trim()
+                  return ruleSetNorms.has(normAiSet)
+                })
+              }
+
+              for (const rSet of ruleSetItems) {
+                const targetSetNorm = stripAccents(rSet.raw_name).toLowerCase().trim()
+                const existingIdx = rawJsonParsed.menu_items.findIndex((aiItem: any) => {
+                  const rawAiName = String(aiItem.raw_name || aiItem.name || aiItem.matched_name || '').trim()
+                  const parsedAiSet = extractSetOrComboHeaderAndQty(rawAiName)
+                  const aiNameNorm = stripAccents(parsedAiSet ? parsedAiSet.canonicalName : rawAiName).toLowerCase().trim()
+                  return aiNameNorm === targetSetNorm || aiNameNorm.includes(targetSetNorm)
+                })
+                if (existingIdx >= 0) {
+                  // Lock exact canonical Set/Combo name, deterministic quantity, and custom notes
+                  rawJsonParsed.menu_items[existingIdx].raw_name = rSet.raw_name
+                  rawJsonParsed.menu_items[existingIdx].matched_name = rSet.raw_name
+                  rawJsonParsed.menu_items[existingIdx].quantity = rSet.quantity || 1
+                  if (rSet.note && !String(rawJsonParsed.menu_items[existingIdx].note || '').includes(rSet.note)) {
+                    rawJsonParsed.menu_items[existingIdx].note = rawJsonParsed.menu_items[existingIdx].note
+                      ? `${rawJsonParsed.menu_items[existingIdx].note}; ${rSet.note}`
+                      : rSet.note
+                  }
+                } else {
+                  rawJsonParsed.menu_items.unshift({
+                    raw_name: rSet.raw_name,
+                    matched_name: rSet.raw_name,
+                    quantity: rSet.quantity || 1,
+                    unit_price: rSet.unit_price || null,
+                    note: rSet.note || ''
+                  })
+                }
+              }
+            }
           }
         }
 

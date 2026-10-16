@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref, reactive, computed, shallowRef } from 'vue'
 import { stripAccents, formatVND, cleanPhoneNumber, formatDateStr } from '@/utils'
-import { CACHE_KEYS, DEFAULTS, DEFAULT_FALLBACK_MENU_ITEMS } from '@/utils/constants'
+import { CACHE_KEYS, DEFAULTS, DEFAULT_FALLBACK_MENU_ITEMS, SETS } from '@/utils/constants'
 import { parseTimeToMinutes } from '@/utils/time'
 import { useUIStore } from './useUIStore'
 import {
@@ -294,7 +294,80 @@ export const useAppStore = defineStore('app', () => {
   }
   const defaultMenuProfileId = ref(initialDefaultProfile)
   const defaultBankAccountIndex = ref(parseInt(localStorage.getItem('default_bank_account_index') || '-1'))
-  const menuAliases = ref<{ alias: string; dishName: string }[]>(JSON.parse(localStorage.getItem('menu_aliases') || '[]'))
+  const POISONED_ALIAS_PAIRS = new Set([
+    'bach tuoc nuong hanh hoa->mi xao bo',
+    'thit heo nuong xien->bach tuoc nuong hanh hoa',
+    'lau ga shitake->bi nu xao toi',
+    'lau chua cay hai san->sun ga chien mam toi',
+    'bi nu xao toi->lau ga nam shiitake',
+    'sun ga mam toi->lau chua cay hai san'
+  ])
+
+  function sanitizeAliasesList(rawAliases: any[], currentMenu: MenuListItem[] = []): { alias: string; dishName: string }[] {
+    if (!Array.isArray(rawAliases)) return []
+    const menuNameSet = new Set(
+      (currentMenu || []).map(m => stripAccents(String(m?.name || '')).toLowerCase().trim()).filter(Boolean)
+    )
+    const seen = new Set<string>()
+    const result: { alias: string; dishName: string }[] = []
+
+    for (const entry of rawAliases) {
+      if (!entry || typeof entry.alias !== 'string' || typeof entry.dishName !== 'string') continue
+      const aNorm = stripAccents(entry.alias).toLowerCase().trim()
+      const dNorm = stripAccents(entry.dishName).toLowerCase().trim()
+      if (!aNorm || !dNorm) continue
+      const pairKey = `${aNorm}->${dNorm}`
+      if (POISONED_ALIAS_PAIRS.has(pairKey)) continue
+      // Never allow an alias that is the exact name of a different dish in the menu
+      if (menuNameSet.size > 0 && menuNameSet.has(aNorm) && aNorm !== dNorm) continue
+      if (seen.has(pairKey)) continue
+      seen.add(pairKey)
+      result.push({ alias: entry.alias.trim(), dishName: entry.dishName.trim() })
+    }
+    return result
+  }
+
+  function hydrateMenuItemsAndDetails(items: any[]): { list: MenuListItem[]; details: Record<string, string> } {
+    const details: Record<string, string> = { ...SETS }
+    const canonicalSetsMap = new Map<string, string>()
+    for (const [k, v] of Object.entries(SETS)) {
+      canonicalSetsMap.set(stripAccents(k).toLowerCase().trim(), v)
+    }
+
+    const list: MenuListItem[] = (Array.isArray(items) ? items : []).map((raw: any) => {
+      const item = { ...raw }
+      const normName = stripAccents(String(item.name || '')).toLowerCase().trim()
+      const canonicalDesc = canonicalSetsMap.get(normName)
+      const currentDesc = typeof item.desc === 'string' ? item.desc.trim() : ''
+
+      // Repair missing or corrupted 1-char descriptions (e.g. "T" on Set menu 2 from GAS)
+      if (canonicalDesc && currentDesc.length < 5) {
+        item.desc = canonicalDesc
+      }
+      // Repair truncated acronyms for Set menu 10..15 (SM1 -> SM10..15) & Combo couple 10..11 (CC1 -> CC10..11)
+      const smMatch = normName.match(/^set\s+menu\s+(\d+)$/)
+      if (smMatch) {
+        item.acronym = `SM${smMatch[1]}`
+      }
+      const ccMatch = normName.match(/^combo\s+couple\s+(\d+)$/)
+      if (ccMatch) {
+        item.acronym = `CC${ccMatch[1]}`
+      }
+
+      if (item.desc && String(item.desc).trim().length >= 5) {
+        details[item.name] = String(item.desc).trim()
+      } else if (canonicalDesc) {
+        details[item.name] = canonicalDesc
+      }
+      return item
+    })
+
+    return { list, details }
+  }
+
+  const menuAliases = ref<{ alias: string; dishName: string }[]>(
+    sanitizeAliasesList(JSON.parse(localStorage.getItem('menu_aliases') || '[]'))
+  )
   const aiCorrections = ref<any[]>(JSON.parse(localStorage.getItem('ai_corrections') || '[]'))
 
   // --- Cached Fingerprints ---
@@ -624,24 +697,22 @@ export const useAppStore = defineStore('app', () => {
 
     const cached = await getCachedMenu(targetSheet)
     if (cached && cached.length > 0) {
-      menuList.value = cached
+      const hydrated = hydrateMenuItemsAndDetails(cached)
+      menuList.value = hydrated.list
+      menuDetails.value = hydrated.details
+      menuAliases.value = sanitizeAliasesList(menuAliases.value, hydrated.list)
       computeMenuFingerprint()
-      const ds: Record<string, string> = {}
-      cached.forEach((i: any) => { if (i.desc) ds[i.name] = i.desc })
-      menuDetails.value = ds
       activeSheet.value = targetSheet
 
       // Revalidate in the background
       menuRepo.getMenu(targetSheet).then((data) => {
         if (data.ok) {
-          menuList.value = data.data || []
+          const freshHydrated = hydrateMenuItemsAndDetails(data.data || [])
+          menuList.value = freshHydrated.list
+          menuDetails.value = freshHydrated.details
+          menuAliases.value = sanitizeAliasesList(menuAliases.value, freshHydrated.list)
           computeMenuFingerprint()
-          const dsUpdate: Record<string, string> = {}
-          if (Array.isArray(data.data)) {
-            data.data.forEach((i: any) => { if (i.desc) dsUpdate[i.name] = i.desc })
-          }
-          menuDetails.value = dsUpdate
-          cacheMenu(targetSheet, data.data || [])
+          cacheMenu(targetSheet, freshHydrated.list)
         }
       }).catch((e) => {
         console.warn('[Menu Revalidation Failed]', e)
@@ -653,25 +724,29 @@ export const useAppStore = defineStore('app', () => {
     try {
       const data = await menuRepo.getMenu(targetSheet)
       if (data.ok && Array.isArray(data.data) && data.data.length > 0) {
-        menuList.value = data.data
+        const hydrated = hydrateMenuItemsAndDetails(data.data)
+        menuList.value = hydrated.list
+        menuDetails.value = hydrated.details
+        menuAliases.value = sanitizeAliasesList(menuAliases.value, hydrated.list)
         computeMenuFingerprint()
-        const ds: Record<string, string> = {}
-        data.data.forEach((i: any) => { if (i.desc) ds[i.name] = i.desc })
-        menuDetails.value = ds
         activeSheet.value = targetSheet
-        await cacheMenu(targetSheet, data.data)
+        await cacheMenu(targetSheet, hydrated.list)
         try {
-          useMenuStore().setMenuList(data.data)
+          useMenuStore().setMenuList(hydrated.list)
           useMenuStore().setActiveMenuSheet(targetSheet)
         } catch {}
       } else if (menuList.value.length === 0) {
-        menuList.value = DEFAULT_FALLBACK_MENU_ITEMS
+        const fallbackHydrated = hydrateMenuItemsAndDetails(DEFAULT_FALLBACK_MENU_ITEMS)
+        menuList.value = fallbackHydrated.list
+        menuDetails.value = fallbackHydrated.details
         computeMenuFingerprint()
       }
     } catch (e) {
       console.error(e)
       if (menuList.value.length === 0) {
-        menuList.value = DEFAULT_FALLBACK_MENU_ITEMS
+        const fallbackHydrated = hydrateMenuItemsAndDetails(DEFAULT_FALLBACK_MENU_ITEMS)
+        menuList.value = fallbackHydrated.list
+        menuDetails.value = fallbackHydrated.details
         computeMenuFingerprint()
       }
       uiStore.showToast('Đã nạp thực đơn mặc định', 'info')
@@ -1442,8 +1517,9 @@ export const useAppStore = defineStore('app', () => {
     try {
       const res = await menuRepo.getMenuAliases()
       if (res.ok && res.data) {
-        menuAliases.value = res.data
-        localStorage.setItem('menu_aliases', JSON.stringify(res.data))
+        const cleaned = sanitizeAliasesList(res.data, menuList.value)
+        menuAliases.value = cleaned
+        localStorage.setItem('menu_aliases', JSON.stringify(cleaned))
       }
     } catch (e) {
       console.warn('Failed to load menu aliases:', e)

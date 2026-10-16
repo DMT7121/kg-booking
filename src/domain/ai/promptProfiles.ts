@@ -60,7 +60,12 @@ Quy tắc làm sạch & Phân định thực thể cấp độ Chuyên gia:
    - TUYỆT ĐỐI KHÔNG trích xuất thông tin trang trí, không gian, màu sắc, phụ kiện (vd: "Tông trắng", "Tone trắng", "Hoa tươi", "Background trắng", "Bóng bay", "Set up", "Bàn ngoài trời", "Phòng lạnh") vào menu_items!
    - TUYỆT ĐỐI KHÔNG trích xuất tiện ích chỗ ngồi ("ghế em bé", "ghế baby", "phòng VIP") vào menu_items!
    - TUYỆT ĐỐI KHÔNG trích xuất khẩu vị ("làm không cay", "dị ứng tôm", "không bột ngọt") làm món riêng trong menu_items!
-   - Nhận diện số lượng đứng trước ("10 Coca", "2pepsi", "7 lon sting", "25 chai suối") hoặc đứng sau ("Khoai tây chiên 5", "Cánh gà chiên mắm tỏi -5", "Sụn gà chiên mắm - 10", "Cá diêu hồng (x3)", "Gà x5").
+   - QUY TẮC BẮT BUỘC VỚI SET MENU (Set menu 1..15) & COMBO COUPLE (Combo couple 1..11):
+     * Con số đi sau "Set menu", "Set", "SM", "Combo couple", "Combo", "Couple", "CC" là SỐ THỨ TỰ ĐỊNH DANH CỦA SET/COMBO, TUYỆT ĐỐI KHÔNG PHẢI LÀ QUANTITY (số lượng suất đặt)!
+     * Ví dụ: "Set menu 3" -> { "raw_name": "Set menu 3", "matched_name": "Set menu 3", "quantity": 1 }. "Combo couple 4" -> { "raw_name": "Combo couple 4", "matched_name": "Combo couple 4", "quantity": 1 }.
+     * Chỉ khi có số lượng đặt thực tế đi kèm như "2 Set menu 3", "02 bàn Set menu 3", "Set menu 3 (2 bàn)", "Set menu 3 x2", "Combo couple 4 x 2 phần" thì mới đặt quantity = 2 và giữ nguyên tên món là "Set menu 3" / "Combo couple 4".
+     * Khi trong tin nhắn có liệt kê danh sách các món thành phần của Set menu / Combo couple ngay bên dưới (dạng "1/ ... [1]", "2/ ... [2]", ...): TUYỆT ĐỐI KHÔNG tách các món thành phần đó thành các món ăn lẻ trong menu_items! Chỉ trích xuất duy nhất 1 mục cho Set menu / Combo couple đó. Nếu khách có yêu cầu đổi món trong Set, ghi yêu cầu đổi món vào trường note của Set menu.
+   - Nhận diện số lượng đứng trước ("10 Coca", "2pepsi", "7 lon sting", "25 chai suối") hoặc đứng sau ("Khoai tây chiên 5", "Cánh gà chiên mắm tỏi -5", "Sụn gà chiên mắm - 10", "Cá diêu hồng (x3)", "Gà x5") cho các món ăn lẻ thông thường.
    - Bảo toàn nguyên văn tên món khi có ngoặc đơn thực đơn (như "Cơm chiên cá mặn chà bông ớt hiểm (cay)"), đồng thời tách đúng ghi chú biến tấu (như "(làm không cay)") vào trường note của món.
 
 8. note: Tổng hợp ĐẦY ĐỦ VÀ CHÍNH XÁC mọi thông tin ghi chú liên quan đến trang trí (tông màu, hoa tươi, background, bóng bay...), không gian ([Không gian & Chỗ ngồi]: ...), khẩu vị ([Khẩu vị & Dị ứng]: ...), dặn dò phục vụ và bếp. Tuyệt đối không làm rơi rớt bất kỳ dặn dò nào của khách.
@@ -80,6 +85,7 @@ Quy tắc:
 - Trích xuất đầy đủ thông tin đặt bàn, trang trí như TEXT_SIMPLE.
 - Trích xuất toàn bộ món ăn khách thực sự gọi vào menu_items. KHÔNG tự thêm món không có trong yêu cầu.
 - Áp dụng nghiêm ngặt Quy tắc số 3 & số 7: Chặn 100% việc trích tên người (vd: Chị Yến, Bé Bắp), tông màu decor, hay ghế em bé vào menu_items!
+- Với Set menu (Set menu 1..15) và Combo couple (Combo couple 1..11): Giữ nguyên số định danh trong raw_name và matched_name (vd: "Set menu 2", "Combo couple 3"), tuyệt đối không lấy số định danh của Set/Combo làm quantity, và không tách các món con (1/, 2/...) trong Set thành món lẻ.
 - Đối soát với danh sách ứng viên thực đơn được cung cấp bên dưới để nạp matched_name chuẩn xác.
 - Tự động tách giá tiền (129K -> 129000) và trọng lượng/khẩu phần (0.5kg, 1/2 con, 5 con, 10 con, dĩa lớn/nhỏ) vào note của món.
 

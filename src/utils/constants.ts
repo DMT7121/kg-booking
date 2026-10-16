@@ -169,18 +169,52 @@ export interface PartyType {
 export const PARTY_TYPES: PartyType[] = [
   { name: 'Sinh nhật', icon: 'fa-cake-candles' },
   { name: 'Thôi nôi (1st)', icon: 'fa-baby' },
+  { name: 'Đầy tháng', icon: 'fa-baby-carriage' },
   { name: 'Công ty', icon: 'fa-building' },
   { name: 'Ăn thường', icon: 'fa-utensils' },
   { name: 'Cưới/Báo hỷ', icon: 'fa-ring' },
+  { name: 'Báo hỷ', icon: 'fa-ring' },
   { name: 'Liên hoan', icon: 'fa-champagne-glasses' },
+  { name: 'Họp mặt', icon: 'fa-users' },
+  { name: 'Gia đình', icon: 'fa-house-chimney-user' },
   { name: 'Farewell (Tiệc chia tay)', icon: 'fa-plane-departure' },
+  { name: 'Tiệc chia tay (Farewell)', icon: 'fa-plane-departure' },
   { name: 'Kỉ niệm', icon: 'fa-heart' },
+  { name: 'Cầu hôn (Proposal)', icon: 'fa-gem' },
+  { name: 'Tiếp khách / Đối tác', icon: 'fa-handshake' },
   { name: 'Tất niên', icon: 'fa-calendar-xmark' },
-  { name: 'Tân niên', icon: 'fa-calendar-star' }
+  { name: 'Tân niên', icon: 'fa-calendar-star' },
+  { name: 'Khác', icon: 'fa-star' }
 ]
 
 // --- SET COMBOS ---
 export const SETS: Record<string, string> = {
+  'Set menu 1': "1/ Sum Vầy [1]\n2/ Súp Gà Trứng Bắc Thảo (10) [1]\n3/ Thịt Heo Xiên Nướng [2]\n4/ Bò Om Pate [2]\n5/ Tôm Cocktail (10) [1]\n6/ Lẩu Riêu Cua Đồng [1]\n7/ Trái Cây/ Tàu Hủ Lạnh/ Bánh Bò Thốt Nốt [1]",
+  'Set menu 2': "1/ Combo Khai Vị: Chả Giò Kim Tiền (10), Gỏi Tôm Thịt Hoa Chuối, Thịt Xiên Nướng (10) [1]\n2/ Miến Xào Trứng Tôm [2]\n3/ Giò Heo Muối Hoa Tiêu Xôi Hạt Sen [1]\n4/ Mực Trứng Om Ớt Xiêm Xanh [2]\n5/ Lẩu Chua Cay Hải Sản [1]\n6/ Trái Cây/ Tàu Hủ Lạnh/ Bánh Bò Thốt Nốt [1]",
+  'Set menu 3': "1/ Con Gà Cục Tác Lá Chanh [1]\n2/ Chả Giò Bát Bửu (5) [2]\n3/ Bê Chao Tỏi [2]\n4/ Cá Chim Om Chanh [1]\n5/ Lẩu Bò Sate [1]\n6/ Trái Cây/ Tàu Hủ Lạnh/ Bánh Bò Thốt Nốt [1]",
+  'Set menu 4': "1/ Gỏi Bò Rau Muống [2]\n2/ Gà Om Mía [2]\n3/ Cơm Chiên Cá Mặn [2]\n4/ Cá Diêu Hồng Nướng Hà Giang [2]\n5/ Tôm Cocktail (10) [1]\n6/ Lẩu Nấm Hải Sản [1]\n7/ Trái Cây/ Tàu Hủ Lạnh/ Bánh Bò Thốt Nốt [1]",
+  'Set menu 5': "1/ Salad King's Grill [2]\n2/ Chả Đùm Trứng Muối [2]\n3/ Gà Nướng King's Grill [1]\n4/ Tôm Nướng Muối Ớt (10) [1]\n5/ Sườn Bò Om Kim Chi [2]\n6/ Lẩu Bò Lá Giang [1]\n7/ Trái Cây/ Tàu Hủ Lạnh/ Bánh Bò Thốt Nốt [1]",
+  'Set menu 6': "1/ Gánh Gánh Gồng Gồng (Tôm (10), Thịt Xiên (10), Chả Giò Kim Tiền (10), Chả Vuông) [1]\n2/ Súp Cua Rong Biển (10) [1]\n3/ Bò Nướng Xiên Sốt Mè [2]\n4/ Tôm Cocktail (10) [1]\n5/ Mực Né Chảo Gang [2]\n6/ Lẩu Gà Nấm Shiitake [1]\n7/ Trái Cây/ Tàu Hủ Lạnh/ Bánh Bò Thốt Nốt [1]",
+  'Set menu 7': "1/ Gỏi Gà Hoa Chuối [2]\n2/ Cá Chim Chiên Giòn Sốt Mắm Chanh [2]\n3/ Tôm Rang Mắm Phú Quốc (10) [1]\n4/ Bò Lúc Lắc [2]\n5/ Bao Tử Om Tiêu [2]\n6/ Lẩu Riêu Cua Đồng [1]\n7/ Trái Cây/ Tàu Hủ Lạnh/ Bánh Bò Thốt Nốt [1]",
+  'Set menu 8': "1/ Gỏi Đu Đủ Đâm & Nạc Nọng Nướng [2]\n2/ Chả Giò Bát Bửu (10) [2]\n3/ Thịt Heo Nướng Xiên [2]\n4/ Hủ Tiếu Áp Chảo Tomyum [2]\n5/ Dã Tràng Xe Cát Biển Đông (5 tôm sú) [2]\n6/ Lẩu Mực Lá É [1]\n7/ Trái Cây/ Tàu Hủ Lạnh/ Bánh Bò Thốt Nốt [1]",
+  'Set menu 9': "1/ Chả Giò Kim Tiền (5) [2]\n2/ Giò Heo Muối Hoa Tiêu Xôi Hạt Sen [2]\n3/ Con Gà Cục Tác Lá Chanh [1]\n4/ Tôm Cocktail (10) [1]\n5/ Bê Chao Tỏi [2]\n6/ Lẩu Chua Cay Hải Sản [1]\n7/ Trái Cây/ Tàu Hủ Lạnh/ Bánh Bò Thốt Nốt [1]",
+  'Set menu 10': "1/ Sum Vầy [2]\n2/ Gà Nướng King's Grill [1]\n3/ Phá Lấu Bánh Mì [2]\n4/ Tôm Rang Trứng Muối (10) [2]\n5/ Bò Lục Lạc Nướng Than Hoa [2]\n6/ Lẩu Chua Cay Hải Sản [1]\n7/ Trái Cây/ Tàu Hủ Lạnh/ Bánh Bò Thốt Nốt [1]",
+  'Set menu 11': "1/ Thịt Nguội [2]\n2/ Chả Giò Kim Tiền (5) [2]\n3/ Bò Nướng Chảo Gang [2]\n4/ Tôm Càng Nướng Phomai (10) [1]\n5/ Giò Heo Muối Hoa Tiêu Xôi Hạt Sen [1]\n6/ Mực Trứng Om Ớt Xiêm Xanh [2]\n7/ Lẩu Gà Nấm Shiitake [1]\n8/ Trái Cây/ Tàu Hủ Lạnh/ Bánh Bò Thốt Nốt [1]",
+  'Set menu 12': "1/ Combo Khai Vị: (Chả Đùm Trứng Muối (1), Chả Giò Bát Bửu (10), Phá Lấu Bánh Mì (1)) [1]\n2/ Súp Bào Ngư (10) [1]\n3/ Con Gà Cục Tác Lá Chanh [1]\n4/ Sườn Bò Nướng Tiêu Đen Sốt Salsa [2]\n5/ Cá Chim Om Chanh [2]\n6/ Tôm Cocktail (10) [1]\n7/ Lẩu Sườn Bò Kim Chi [1]\n8/ Trái Cây/ Tàu Hủ Lạnh/ Bánh Bò Thốt Nốt [1]",
+  'Set menu 13': "1/ Salad King's Grill [2]\n2/ Thịt Heo Nướng Xiên [2]\n3/ Súp Hải Sản Tomyum (10) [1]\n4/ Gà Om Mía & Xôi Xéo [2]\n5/ Cá Bống Mú Hấp Hongkong [1]\n6/ Tôm Cocktail (10) [1]\n7/ Lẩu Chua Cay Hải Sản [1]\n8/ Trái Cây/ Tàu Hủ Lạnh/ Bánh Bò Thốt Nốt [1]",
+  'Set menu 14': "1/ Khói Tây Bắc & Gỏi Đu Đủ Đâm [2]\n2/ Sườn Heo Om Ớt Xiêm Xanh [2]\n3/ Bò Nướng Xiên Sốt Mè [2]\n4/ Tôm Cocktail (10) [1]\n5/ Cá Lăng Nướng Muối Ớt [2]\n6/ Bào Ngư Sốt XO [1]\n7/ Lẩu Gà Nấm Shiitake Thượng Hạng [1]\n8/ Trái Cây/ Tàu Hủ Lạnh/ Bánh Bò Thốt Nốt [1]",
+  'Set menu 15': "1/ Combo Khai Vị: Bánh Bèo, Bánh Bột Lọc, Bánh Nậm [1]\n2/ Gỏi Tôm Thịt Hoa Chuối [2]\n3/ Dã Tràng Xe Cát Biển Đông [2]\n4/ Gà Nướng King's Grill [1]\n5/ Bò Né Rau Củ Dầu Hào [2]\n6/ Mực Một Nắng Nướng Sate [2]\n7/ Lẩu Cá Lăng Măng Chua [1]\n8/ Trái Cây/ Tàu Hủ Lạnh/ Bánh Bò Thốt Nốt [1]",
+  'Combo couple 1': "1/ Nạc Dăm Heo Nướng Thảo Mộc Sốtchẩm Chéo [1]\n2/ Ba Rọi Xông Khói Nướng Sốt Chua Ngọt [1]\n3/ Xúc Xích Nướng Tiêu [1]\n4/ Salad Dầu Giấm [1]",
+  'Combo couple 2': "1/ Lườn Ngỗng Xông Khói Áp Chảo Sốt Tiêu Đen [1]\n2/ Nai Nướng Sốt Chẩm Chéo [1]\n3/ Ba Rọi Heo Nướng Riềng Mẻ [1]\n4/ Salad Dầu Giấm [1]",
+  'Combo couple 3': "1/ Bò Mỹ Nướng Sốt Chua Ngọt [1]\n2/ Đùi Gà Nướng Sốt Teriyaki [1]\n3/ Bạch Tuộc Nướng Muối Ớt [1]\n4/ Salad Dầu Giấm [1]",
+  'Combo couple 4': "1/ Thăn Ngoại Bò Nướng Thảo Mộc [1]\n2/ Sườn Heo Nướng Sốt Bbq [1]\n3/ Lườn Ngỗng Xông Khói Áp Chảo Sốt Tiêu Đen [1]\n4/ Salad Dầu Giấm [1]",
+  'Combo couple 5': "1/ Bò Cuộn Nấm Kim Châm [1]\n2/ Đà Điểu Nướng Thảo Mộc [1]\n3/ Cá Cơm Sông Ôm Trứng [1]\n4/ Salad Dầu Giấm [1]",
+  'Combo couple 6': "1/ Thăn Nội Bò Nướng Thảo Mộc [1]\n2/ Thịt Heo Xiên Nướng [1]\n3/ Tôm Nướng Muối Ớt [1]\n4/ Salad Dầu Giấm [1]",
+  'Combo couple 7': "1/ Sườn Cừu Nướng Thảo Mộc [1]\n2/ Đùi Gà Nướng Sốt Teriyaki [1]\n3/ Ba Rọi Bò Mỹ Nướng Sốt Cay [1]\n4/ Salad Dầu Giấm [1]",
+  'Combo couple 8': "1/ Dẻ Sườn Bò Mỹ Nướng Thảo Mộc [1]\n2/ Vú Heo Nướng Chao [1]\n3/ Bạch Tuộc Nướng Sa Tế [1]\n4/ Salad Dầu Giấm [1]",
+  'Combo couple 9': "1/ Bò Lúc Lắc [1]\n2/ Sườn Heo Nướng Sốt Bbq [1]\n3/ Mực Một Nắng Nướng Muối Ớt [1]\n4/ Salad Dầu Giấm [1]",
+  'Combo couple 10': "1/ Sườn Cừu Nướng Thảo Mộc [1]\n2/ Thăn Ngoại Bò Nướng Thảo Mộc [1]\n3/ Tôm Nướng Muối Ớt [1]\n4/ Salad Dầu Giấm [1]",
+  'Combo couple 11': "1/ Cá Tuyết Áp Chảo Sốt Bơ Chanh [1]\n2/ Thăn Nội Bò Nướng Thảo Mộc [1]\n3/ Lườn Ngỗng Xông Khói Áp Chảo Sốt Tiêu Đen [1]\n4/ Salad Dầu Giấm [1]",
   'SET 199K': 'Ba chỉ bò, Nầm heo, Chân gà rút xương, Kim chi, Rau',
   'SET 299K': 'Dẻ sườn bò, Lõi vai, Mực trứng, Bạch tuộc, Panchan',
   'COMBO 4 NGƯỜI': 'Lẩu Thái, 200g Bò, 200g Mực, Rau nấm tổng hợp'
@@ -274,11 +308,16 @@ NGUYÊN TẮC BẮT BUỘC:
 - note: Tổng hợp mạch lạc toàn bộ thông tin quan trọng. Format gợi ý:
   "Chủ tiệc: [party.owner_name] | Tông màu: [party.decor_color] | Bảng tên: \"[party.display_board_text]\" | Gương: \"[party.mirror_board_text]\" | Trang trí/Dặn dò: [party.special_request] | Yêu cầu khác: [ăn uống/vị trí]"
 
-# 5. MÓN ĂN (menu_items)
+# 5. MÓN ĂN (menu_items) & QUY TẮC ĐẶC BIỆT CHO SET MENU / COMBO COUPLE
 - CHỈ trích xuất món ăn khách hàng THỰC SỰ ĐẶT / YÊU CẦU trong tin nhắn.
 - TUYỆT ĐỐI KHÔNG tự bịa, không tự ý thêm món từ thực đơn nếu khách không yêu cầu. Nếu khách không đặt món, để menu_items = [].
 - Trích xuất ĐẦY ĐỦ TẤT CẢ các món ăn được gọi, không bỏ sót món.
-- raw_name: Tên món thô trong tin nhắn (xử lý dính chữ: "6hàu" -> 6 hàu, "mì xào2" -> 2 mì xào).
+- QUY TẮC SET MENU (Set menu 1..15) & COMBO COUPLE (Combo couple 1..11):
+  * GIỮ NGUYÊN SỐ ĐỊNH DANH CỦA SET/COMBO TRONG TÊN MÓN: "Set menu 3" -> raw_name = "Set menu 3", matched_name = "Set menu 3", quantity = 1. "Combo couple 5" -> raw_name = "Combo couple 5", matched_name = "Combo couple 5", quantity = 1.
+  * TUYỆT ĐỐI KHÔNG tách con số định danh của Set/Combo làm quantity! Ví dụ: "Set menu 3" là Set số 3 với quantity = 1 (KHÔNG PHẢI "Set menu 1" với quantity = 3!). "2 Set menu 3" hoặc "Set menu 3 (2 bàn)" hoặc "Set menu 3 x2" mới có quantity = 2 và tên món là "Set menu 3".
+  * Khi khách gọi Set menu hoặc Combo couple kèm theo danh sách các món thành phần bên dưới (ví dụ các dòng "1/ ... [1]", "2/ ... [2]", ...): TUYỆT ĐỐI KHÔNG tách các món thành phần của Set/Combo thành các món lẻ độc lập trong menu_items! Chỉ trả về 1 phần tử duy nhất cho Set menu / Combo couple đó.
+  * Nếu khách có yêu cầu đổi món hoặc ghi chú riêng trong Set (vd: "đổi lẩu chua cay thành lẩu nấm"), ghi yêu cầu đó vào trường note của Set menu.
+- raw_name: Tên món thô trong tin nhắn (xử lý dính chữ: "6hàu" -> 6 hàu, "mì xào2" -> 2 mì xào, nhưng giữ nguyên "Set menu 2", "Combo couple 3").
 - matched_name: Khớp chính xác tên từ thực đơn ứng viên nếu có {{MENU_CONTEXT}}, không có để "".
 - quantity: Số lượng suất gọi (mặc định 1).
 - note: Yêu cầu riêng hoặc quy cách khẩu phần (vd: "ít cay", "1/2 con", "5 con", "10 con", "0.5kg", "dĩa lớn").

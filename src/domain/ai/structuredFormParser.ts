@@ -1,4 +1,6 @@
 import { cleanPhoneNumber, formatDateStr, stripAccents } from '@/utils'
+import { extractSetOrComboHeaderAndQty } from '@/domain/menu/menuMatcher'
+import { stripSetMenuComponents } from './ruleEngine'
 
 export interface ParsedMenuItemFromForm {
   raw_name: string
@@ -85,14 +87,27 @@ function parseKeyValueLine(line: string): { key: string; value: string } | null 
 }
 
 /**
- * Extracts quantity from a dish line like "Gà ủ muối x2", "2 Coca", "1/2 con vịt", "Khoai tây chiên (1)"
+ * Extracts quantity from a dish line like "Gà ủ muối x2", "2 Coca", "1/2 con vịt", "Khoai tây chiên (1)", "Set menu 2 x2"
  */
 function parseDishLine(line: string): { name: string; quantity: number; note: string } | null {
-  const clean = line.replace(/^[•▶●\*\-\+\d\.\)]+\s*/, '').trim()
+  let clean = line.trim()
+  // Strip bullet symbols first, then explicit STT index ("1.", "1/", "1)") without eating leading quantities like "2 Set menu 3"
+  clean = clean.replace(/^[•▶●\*\-\+✔☑↳]+\s*/, '').trim()
+  clean = clean.replace(/^(?!\d+[\.,]\d+)(?!1\/[2348]\b)([1-9]\d{0,2})\s*[\/\.\)]\s*/, '').trim()
   if (!clean || clean.length < 2) return null
 
+  // Fast-path for Set menu 1..15 and Combo couple 1..11
+  const setOrCombo = extractSetOrComboHeaderAndQty(clean)
+  if (setOrCombo) {
+    return {
+      name: setOrCombo.canonicalName,
+      quantity: setOrCombo.quantity,
+      note: setOrCombo.customNote || ''
+    }
+  }
+
   // Check prefix quantity: "2 Coca", "10 lon tiger"
-  const prefixMatch = clean.match(/^(\d+)\s*(?:lon|chai|dia|phan|suat|to|cai|hop|con)?\s+([^(\-–—]+)(?:\(([^)]+)\))?/i)
+  const prefixMatch = clean.match(/^(\d+)\s*(?:bàn|ban|set|lon|chai|dĩa|đĩa|dia|phần|phan|suất|suat|tô|to|cái|cai|hộp|hop|con)?\s+([^(\-–—]+)(?:\(([^)]+)\))?/i)
   if (prefixMatch && parseInt(prefixMatch[1]) > 0 && prefixMatch[2].trim().length > 1) {
     return {
       name: prefixMatch[2].trim(),
@@ -104,16 +119,21 @@ function parseDishLine(line: string): { name: string; quantity: number; note: st
   // Check suffix quantity: "Gà ủ muối x 2", "Lẩu thái - 2", "Khoai tây chiên (x2)", "Lẩu cá chép giòn 1"
   const suffixMatch = clean.match(/^([^(xX\*\-–—\d]+?)(?:\s*[\*xX\-–—]\s*(\d+)|\s*\(x?(\d+)\)|\s+(\d+))(?:\s*[-–—]\s*(.*))?$/i)
   if (suffixMatch) {
-    const qty = parseInt(suffixMatch[2] || suffixMatch[3] || suffixMatch[4] || '1', 10)
-    return {
-      name: suffixMatch[1].trim(),
-      quantity: qty > 0 ? qty : 1,
-      note: (suffixMatch[5] || '').trim()
+    const candidateName = suffixMatch[1].trim()
+    const isBareTrailing = Boolean(suffixMatch[4] && !suffixMatch[2] && !suffixMatch[3])
+    const isSetPrefix = /(?:^|\s)(?:set\s*menu|combo\s*couple|set|combo|couple|sm|cc)$/i.test(stripAccents(candidateName))
+    if (!(isBareTrailing && isSetPrefix)) {
+      const qty = parseInt(suffixMatch[2] || suffixMatch[3] || suffixMatch[4] || '1', 10)
+      return {
+        name: candidateName,
+        quantity: qty > 0 ? qty : 1,
+        note: (suffixMatch[5] || '').trim()
+      }
     }
   }
 
   // Check parenthesis with quantity: "Khoai tây chiên (2 dĩa)", "Bò lúc lắc (1 phần)"
-  const parenQtyMatch = clean.match(/^([^(]+?)\s*\((\d+)\s*(?:dĩa|dia|phần|phan|suất|suat|nồi|noi|con|lon|chai|bát|bat|chén|chen|ly)?\)$/i)
+  const parenQtyMatch = clean.match(/^([^(]+?)\s*\((\d+)\s*(?:bàn|ban|set|dĩa|đĩa|dia|phần|phan|suất|suat|nồi|noi|con|lon|chai|bát|bat|chén|chen|ly)?\)$/i)
   if (parenQtyMatch) {
     const qty = parseInt(parenQtyMatch[2], 10)
     return {
@@ -183,13 +203,20 @@ export function parseStructuredForm(text: string): StructuredFormParseResult {
     // Menu block detection
     const cleanLineLower = stripAccents(line).toLowerCase()
     if (/^(?:mon|mon an|thuc don|danh sach mon|menu|dishes|items)\s*[:\-–—]?$/i.test(cleanLineLower) ||
-        /^(?:mon|thuc don|menu)\s*[:\-–—]/i.test(cleanLineLower)) {
+        /^(?:mon|mon an|thuc don|danh sach mon|menu)\s*[:\-–—]/i.test(cleanLineLower)) {
       inMenuSection = true
-      const colonIdx = line.indexOf(':')
+      const colonIdx = line.search(/[:\-–—]/)
       if (colonIdx !== -1) {
         const afterColon = line.substring(colonIdx + 1).trim()
         if (afterColon) rawMenuItems.push(afterColon)
       }
+      continue
+    }
+
+    // Direct Set menu / Combo couple line in structured form (even without "Thực đơn:" header)
+    if (extractSetOrComboHeaderAndQty(line) !== null) {
+      inMenuSection = true
+      rawMenuItems.push(line)
       continue
     }
 
@@ -362,8 +389,13 @@ export function parseStructuredForm(text: string): StructuredFormParseResult {
     result.data.note = recognized.general_note.trim()
   }
 
-  // Map Menu Items
-  for (const itemLine of rawMenuItems) {
+  // Map Menu Items (consolidate Set menu / Combo couple component lines first)
+  const consolidatedMenuLines = stripSetMenuComponents(rawMenuItems.join('\n'))
+    .split('\n')
+    .map(l => l.trim())
+    .filter(Boolean)
+
+  for (const itemLine of consolidatedMenuLines) {
     const parsed = parseDishLine(itemLine)
     if (parsed && parsed.name) {
       result.data.menu_items.push({

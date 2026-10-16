@@ -132,34 +132,79 @@ export const resizeImage = (
   })
 }
 
-/** Format set/combo note - split comma-separated items into numbered list */
-export const formatSetNote = (str: string): string => {
-  if (!str) return ''
-  
-  // If it already has newlines, just clean them up and return
-  if (str.includes('\n')) {
-    return str.split('\n').map(line => line.trim()).filter(line => line).join('\n')
+/** Split a single line containing multiple numbered set items (e.g. "1/ Dish A [1] 2/ Dish B (10) [1]") safely outside () and [] */
+const splitNumberedSetLine = (line: string): string[] => {
+  const trimmed = line.trim()
+  if (!trimmed) return []
+
+  const splitIndices: number[] = []
+  let depth = 0
+
+  for (let i = 0; i < trimmed.length; i++) {
+    const ch = trimmed[i]
+    if (ch === '(' || ch === '[') {
+      depth++
+      continue
+    }
+    if (ch === ')' || ch === ']') {
+      depth = Math.max(0, depth - 1)
+      continue
+    }
+    if (depth === 0 && (i === 0 || /\s/.test(trimmed[i - 1]))) {
+      const rest = trimmed.slice(i)
+      // Match "1/ ", "2/ ", "1. ", "2) " at top level (1..15)
+      const m = rest.match(/^(?:[1-9]|1[0-5])\s*(?:\/|\.(?=\s)|(?:\)(?=\s)))\s*/)
+      if (m) {
+        splitIndices.push(i)
+      }
+    }
   }
 
-  // Check if it contains numbered items like "1/" or "1." or "1)" 
-  // e.g. "1/ Sum Vầy [1] 2/ Súp Gà Trứng Bắc Thảo (10) [1]"
-  // The regex looks for a digit followed by / or . or ) and optionally a space
-  if (/(?:\s|^)\d+[\/\.\)]/.test(str)) {
-    // Split the string right before the number
-    const parts = str.split(/(?=(?:\s|^)\d+[\/\.\)])/)
-    if (parts.length > 1) {
-      return parts.map(p => p.trim()).filter(p => p).join('\n')
-    }
+  if (splitIndices.length <= 1) {
+    return [trimmed]
+  }
+
+  const parts: string[] = []
+  for (let k = 0; k < splitIndices.length; k++) {
+    const start = splitIndices[k]
+    const end = k + 1 < splitIndices.length ? splitIndices[k + 1] : trimmed.length
+    const segment = trimmed.slice(start, end).trim().replace(/^[,;\s]+|[,;\s]+$/g, '')
+    if (segment) parts.push(segment)
+  }
+  return parts
+}
+
+/** Format set/combo note - split numbered or comma-separated items into clean multi-line list */
+export const formatSetNote = (str: string): string => {
+  if (!str) return ''
+
+  // First split by existing newlines, and also split any line that has multiple top-level numbered items
+  const rawLines = String(str)
+    .split(/\r?\n/)
+    .flatMap(line => splitNumberedSetLine(line))
+    .map(line => line.trim())
+    .filter(Boolean)
+
+  if (rawLines.length > 1) {
+    return rawLines.join('\n')
+  }
+
+  const single = rawLines[0] || ''
+  if (!single) return ''
+
+  // If it starts with a numbered prefix like "1/", return as-is
+  if (/^(?:[1-9]|1[0-5])\s*[\/\.\)]/.test(single)) {
+    return single
   }
 
   const result: string[] = []
   let currentPart = ''
   let depth = 0
 
-  for (let i = 0; i < str.length; i++) {
-    const char = str[i]
+  for (let i = 0; i < single.length; i++) {
+    const char = single[i]
     if (char === '(' || char === '[') depth++
-    if (char === ')' || char === ']') depth--
+    if (char === ')' || char === ']') depth = Math.max(0, depth - 1)
     if (char === ',' && depth === 0) {
       if (currentPart.trim()) result.push(currentPart.trim())
       currentPart = ''
@@ -172,7 +217,72 @@ export const formatSetNote = (str: string): string => {
   if (result.length > 1) {
     return result.map((s, i) => `${i + 1}. ${s}`).join('\n')
   }
-  return str
+  return single
+}
+
+/** Normalize a set component line for deduplication comparison */
+const normalizeSetComponentLine = (line: string): string => {
+  return stripAccents(line)
+    .toLowerCase()
+    .replace(/^\d+\s*[\/\.\)]\s*/, '')
+    .replace(/\[\d+\]/g, '')
+    .replace(/\(\d+(?:\s*con)?\)/g, '')
+    .replace(/[^a-z0-9\s]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+/**
+ * Merge existing item note with canonical formatted Set/Combo component list
+ * without duplicating component lines that are already present.
+ */
+export const mergeSetComponentNote = (existingNote: string, canonicalDescription: string): string => {
+  const formattedCanonical = formatSetNote(canonicalDescription)
+  if (!formattedCanonical) return (existingNote || '').trim()
+  if (!existingNote || !existingNote.trim()) return formattedCanonical
+
+  const trimmedExisting = existingNote.trim()
+  if (trimmedExisting === formattedCanonical) return formattedCanonical
+
+  const canonicalLines = formattedCanonical.split('\n').map(l => l.trim()).filter(Boolean)
+  const canonicalNorms = canonicalLines.map(normalizeSetComponentLine).filter(Boolean)
+
+  const existingLines = formatSetNote(trimmedExisting).split('\n').map(l => l.trim()).filter(Boolean)
+  const customLines: string[] = []
+
+  const MODIFICATION_KEYWORDS = /\b(?:doi|thay|bo|khong\s+lay|khong\s+hanh|khong\s+cay|it\s+cay|them|tach|rieng|ghi\s+chu|luu\s+y)\b/i
+
+  for (const line of existingLines) {
+    const normLine = normalizeSetComponentLine(line)
+    if (!normLine) continue
+
+    const hasModification = MODIFICATION_KEYWORDS.test(stripAccents(line).toLowerCase())
+    const matchesCanonical = canonicalNorms.some(cNorm => {
+      if (cNorm === normLine) return true
+      if (cNorm.includes(normLine) || normLine.includes(cNorm)) {
+        return normLine.length >= 6
+      }
+      const lineWords = normLine.split(' ').filter(w => w.length > 1)
+      const cWords = cNorm.split(' ').filter(w => w.length > 1)
+      if (lineWords.length >= 2 && cWords.length >= 2) {
+        const shared = lineWords.filter(w => cWords.includes(w)).length
+        return shared / Math.min(lineWords.length, cWords.length) >= 0.75
+      }
+      return false
+    })
+
+    if (!matchesCanonical || hasModification) {
+      if (!customLines.includes(line)) {
+        customLines.push(line)
+      }
+    }
+  }
+
+  if (customLines.length === 0) {
+    return formattedCanonical
+  }
+
+  return `${customLines.join('\n')}\n${formattedCanonical}`
 }
 
 /** Detect iOS device */

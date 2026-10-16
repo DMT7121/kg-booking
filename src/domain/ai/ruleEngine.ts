@@ -1,5 +1,6 @@
 import { stripAccents, cleanPhoneNumber, formatVND } from '@/utils'
 import { isStructuredFormText, parseStructuredForm } from './structuredFormParser'
+import { extractSetOrComboHeaderAndQty, detectSetMenuFromComponentLines } from '@/domain/menu/menuMatcher'
 
 // Top 200 Vietnamese first names (no diacritics, lowercase) for NER boosting
 export const COMMON_VN_FIRST_NAMES = new Set([
@@ -130,6 +131,11 @@ export function parseDishItems(input: string): Array<{ name: string; qty: number
   let cleanInput = input.trim()
   if (!cleanInput) return []
 
+  const setOrComboHeader = extractSetOrComboHeaderAndQty(cleanInput)
+  if (setOrComboHeader) {
+    return [{ name: setOrComboHeader.canonicalName, qty: setOrComboHeader.quantity }]
+  }
+
   // Pre-extract trailing quantity multiplier like "x2", "x 4", "*5", "(x3)"
   let baseQty = 1
   const qtyMatch = cleanInput.match(/(?:\((?:[x\*])\s*(\d+)\)|(?:[x\*])\s*(\d+))\s*$/i)
@@ -170,7 +176,7 @@ export function parseDishItems(input: string): Array<{ name: string; qty: number
       const qty = parseInt(match[2])
       if (name.length > 2) {
         const lowerName = stripAccents(name).toLowerCase()
-        const isSetOrCombo = /(?:^|\s)(set\s*menu|set|combo|thuc\s*don|thực\s*đơn)(?:\s+)?$/i.test(lowerName)
+        const isSetOrCombo = /(?:^|\s)(set\s*menu|combo\s*couple|couple|set|combo|sm|cc|thuc\s*don|thực\s*đơn)(?:\s+)?$/i.test(lowerName)
         if (!isSetOrCombo) {
           results.push({ name, qty })
         }
@@ -225,7 +231,10 @@ export function segmentInputBlocksCompat(text: string) {
       lastBlockType = 'deposit'
       continue
     }
-    const isGuestLine = /(\d+)\s*(?:pax|nguoi|người|ng\b|khach|khách|cho)/i.test(lower) || /nguoi lon|tre em|lon.*nho|be/i.test(lower)
+    const isSetOrComboLine = extractSetOrComboHeaderAndQty(trimmed) !== null || /\b(?:combo\s*couple|set\s*menu|combo\s*\d+\s*nguoi|(?:set|combo|couple|sm|cc)\s*(?:so\s*)?\d+)\b/i.test(lower)
+    const isGuestLine = !isSetOrComboLine && (
+      /(\d+)\s*(?:pax|nguoi|người|ng\b|khach|khách|cho)/i.test(lower) || /nguoi lon|tre em|lon.*nho|be/i.test(lower)
+    )
     if (isGuestLine) {
       blocks.guest_count_block.push(trimmed)
       lastBlockType = 'guest'
@@ -241,7 +250,7 @@ export function segmentInputBlocksCompat(text: string) {
     const hasCustomerKeywords = /\b(anh|chi|chị|khách|khach|cô|co|chú|chu|bác|bac|người\s*đặt|nguoi\s*dat|chủ\s*tiệc|chu\s*tiec)\b/i.test(lower)
     const hasPhone = /(0[35789]\d{7,9})/.test(lower)
     const isCustomerHeaderLine = /^(?:[-*+•●▶▪▫◆✦★✓✔☑↳]\s*)?(?:tên\s*khách(?:\s*[\/\&,]\s*chủ\s*tiệc)?|ten\s*khach(?:\s*[\/\&,]\s*chu\s*tiec)?|người\s*đặt(?:\s*[\/\&,]\s*chủ\s*tiệc)?|nguoi\s*dat(?:\s*[\/\&,]\s*chu\s*tiec)?|chủ\s*tiệc|chu\s*tiec|khách\s*hàng|khach\s*hang|người\s*liên\s*hệ|nguoi\s*lien\s*he|người\s*book|nguoi\s*book|tên|ten|khách|khach)\s*[:-–—]/i.test(trimmed)
-    const isPureCustomerLine = (hasCustomerKeywords && !isHeaderPattern && !isGuestLine && !isPartyPurposeLine && !hasDistributiveWord)
+    const isPureCustomerLine = (hasCustomerKeywords && !isHeaderPattern && !isGuestLine && !isPartyPurposeLine && !hasDistributiveWord && !isSetOrComboLine)
     if (hasPhone || isCustomerHeaderLine || isPureCustomerLine) {
       blocks.customer_block.push(trimmed)
       lastBlockType = 'customer'
@@ -249,7 +258,7 @@ export function segmentInputBlocksCompat(text: string) {
     const isDishCulinaryStarter = /^(?:cá|ca|tôm|tom|lẩu|lau|cơm|com|thịt|thit|bò|bo|gà|ga|heo|vịt|vit|mực|muc|bạch tuộc|bach tuoc|ốc|oc|hàu|hau|cua|ghẹ|ghe|sườn|suon|ba chỉ|ba chi|gỏi|goi|salad|khoai|ngô|ngo|canh|cháo|chao|mì|mi|hủ tiếu|hu tieu|bún|bun|rau|nấm|nam|đậu hũ|dau hu|chim|ếch|ech|dê|de|dồi|doi|xúc xích|xuc xich|nem|chả|cha|bánh|banh)(?=[^\p{L}]|$)/ui.test(trimmed.replace(/^[-*+•●▶▪▫◆✦★✓✔☑↳]\s*/, ''))
     const isDishNumberPattern = /^\d+\s*[\/\.\-\)]?\s*[\p{L}]/ui.test(trimmed)
     const isDishSuffixPattern = /(?:\s*x\s*\d+|\s+\d{2,3}k|\s+\d{3}\.000|\d+\s*(?:con|phan|phần|dia|đĩa|dĩa|set|suat|suất|to|tô|tho|thố|noi|nồi|c|cai|cái)|\(\s*\d+\s*(?:con|c|phần|phan|đĩa|dia|tô|to|set|suất|suat)\s*\))\s*$/i.test(trimmed) || /(?:x|×)\s*\d+(?:\s*(?:con|phan|phần|dia|đĩa|dĩa|set|suat|suất|c|cai|cái))?\s*$/i.test(trimmed)
-    const isMenuKeywordPattern = /combo|set menu|thuc don|mon an|thuc an/i.test(lower)
+    const isMenuKeywordPattern = isSetOrComboLine || /\b(?:combo|couple|set\s*menu|thuc\s*don|mon\s*an|thuc\s*an)\b/i.test(lower)
     const isBulletPattern = /^[-*+•●▶▪▫◆✦★✓✔☑↳]\s+[\p{L}\s]+/ui.test(trimmed)
 
     const isMenuLine = (isDishNumberPattern || isDishSuffixPattern || isDishCulinaryStarter || isMenuKeywordPattern || (isBulletPattern && !hasCustomerKeywords && !isHeaderPattern)) &&
@@ -1149,7 +1158,7 @@ export function preNormalizeInput(rawText: string): string {
   clean = clean.replace(/(\d+)(pax|người|khách|cho|nguoi|khach|ban)/gi, '$1 $2')
   clean = clean.replace(/([\p{L}]{2,})(\d+)\b/ugi, (match, word, num) => {
     const lowerWord = stripAccents(word).toLowerCase()
-    if (/^(set|combo|menu|ban|table|vip|tang|goi|phong|kv|khu|khu\s+vuc)$/.test(lowerWord)) {
+    if (/^(set|combo|couple|sm|cc|so|menu|ban|table|vip|tang|goi|phong|kv|khu|khu\s+vuc)$/.test(lowerWord)) {
       return `${word} ${num}`
     }
     return `${word} x${num}`
@@ -1578,6 +1587,28 @@ export function parseSingleMenuLine(lineStr: string): { raw_name: string; quanti
   cleaned = cleaned.trim()
   if (!cleaned) return null
 
+  // Fast-path for Set menu 1..15 and Combo couple 1..11 so Set/Combo identifier numbers are never confused with order quantities
+  let preExtractedPrice: number | null = null
+  let setCandidateStr = cleaned
+  const setPriceMatch = setCandidateStr.match(/\b(\d{3,4})\s*(k|K)\b/) || setCandidateStr.match(/\b(\d{1,3}(?:[\.,]\d{3})+)\s*(?:đ|VND|vnd)?\b/i)
+  if (setPriceMatch) {
+    if (setPriceMatch[2] && setPriceMatch[2].toLowerCase() === 'k') {
+      preExtractedPrice = parseInt(setPriceMatch[1], 10) * 1000
+    } else {
+      preExtractedPrice = parseInt(setPriceMatch[1].replace(/[\.,]/g, ''), 10)
+    }
+    setCandidateStr = setCandidateStr.replace(setPriceMatch[0], '').replace(/\(\s*\)/g, '').trim()
+  }
+  const setComboParsed = extractSetOrComboHeaderAndQty(setCandidateStr)
+  if (setComboParsed) {
+    return {
+      raw_name: setComboParsed.canonicalName,
+      quantity: setComboParsed.quantity,
+      unit_price: preExtractedPrice,
+      note: setComboParsed.customNote || ''
+    }
+  }
+
   // Mask portion parens like "(5 con)" so they aren't misparsed as trailing order quantity
   const portionParens: string[] = []
   cleaned = cleaned.replace(/\(\s*\d+\s*(?:con|c|kg|g|l|ml|phần|phan|đĩa|dia|dĩa|tô|to|ly|lon|set|suất|suat)\s*\)/gi, (match) => {
@@ -1587,36 +1618,38 @@ export function parseSingleMenuLine(lineStr: string): { raw_name: string; quanti
 
   // 2. Extract portion/qty indicators like "3 phần", "3 đĩa", "3 tô", "3 ly", "3 lon", "6 con", "x5", "-5", "- 10", "(x3)"
   let qty = 1
+  const leadingQtyRegex = /^(?:(\d+)\s*[x\*]\s*|(\d+)\s*(?:bàn|ban|phần|phan|đĩa|dia|dĩa|tô|to|ly|lon|set|suất|suat|con|chai|lon|ket|két|thung|thùng)\s+|(\d+)\s+)/i
+  const leadingQtyMatch = cleaned.match(leadingQtyRegex)
   
   // Trailing quantity multiplier: "x1", "x 2", "x 2 phần", "*3", "(x1)", "(x3)", "-5", "- 10", "1 phần", "6 con", "5", "10"
-  const trailingQtyMatch = cleaned.match(/(?:\((?:[x\*])\s*(\d+)\)|(?:[x\*])\s*(\d+)(?:\s*(?:phần|phan|đĩa|dia|dĩa|tô|to|ly|lon|set|suất|suat|con|cái|cai|thố|tho|chén|chen|nồi|noi|chai|lon))?|\b(\d+)\s*(?:phần|phan|đĩa|dia|dĩa|tô|to|ly|lon|set|suất|suat|con|cái|cai|thố|tho|chén|chen|nồi|noi|chai|lon)|(?:[-–—]\s*|\s+)(\d+))\s*$/i)
-  if (trailingQtyMatch) {
+  const trailingQtyMatch = cleaned.match(/(?:\((?:[x\*])\s*(\d+)\)|(?:[x\*])\s*(\d+)(?:\s*(?:bàn|ban|phần|phan|đĩa|dia|dĩa|tô|to|ly|lon|set|suất|suat|con|cái|cai|thố|tho|chén|chen|nồi|noi|chai|lon))?|\b(\d+)\s*(?:bàn|ban|phần|phan|đĩa|dia|dĩa|tô|to|ly|lon|set|suất|suat|con|cái|cai|thố|tho|chén|chen|nồi|noi|chai|lon)|(?:[-–—]\s*|\s+)(\d+))\s*$/i)
+  const isBareTrailingNum = Boolean(trailingQtyMatch && trailingQtyMatch[4] && !trailingQtyMatch[1] && !trailingQtyMatch[2] && !trailingQtyMatch[3])
+
+  if (trailingQtyMatch && !(isBareTrailingNum && leadingQtyMatch)) {
     const rawVal = trailingQtyMatch[1] || trailingQtyMatch[2] || trailingQtyMatch[3] || trailingQtyMatch[4]
     const parsedVal = parseInt(rawVal, 10)
-    // Only accept trailing standalone number if it's a realistic quantity (1..99)
-    if (parsedVal >= 1 && parsedVal <= 99) {
+    const prefixBeforeTrailing = cleaned.slice(0, trailingQtyMatch.index).trim()
+    const isSetComboPrefix = /(?:^|\s)(?:set\s*menu|combo\s*couple|set|combo|couple|sm|cc)$/i.test(stripAccents(prefixBeforeTrailing))
+    // Only accept trailing standalone number if it's a realistic quantity (1..99) and not a Set/Combo identifier
+    if (parsedVal >= 1 && parsedVal <= 99 && !(isBareTrailingNum && isSetComboPrefix)) {
       qty = parsedVal
-      cleaned = cleaned.slice(0, trailingQtyMatch.index).trim()
+      cleaned = prefixBeforeTrailing
+    }
+  } else if (leadingQtyMatch) {
+    const parsedVal = parseInt(leadingQtyMatch[1] || leadingQtyMatch[2] || leadingQtyMatch[3], 10) || 1
+    if (parsedVal >= 1 && parsedVal <= 100) {
+      qty = parsedVal
+      cleaned = cleaned.replace(leadingQtyRegex, '').trim()
     }
   } else {
-    // Leading explicit quantity: "2x ", "3* ", "2 phần ", "3 đĩa ", "2 dĩa ", "7 lon ", "25 chai ", "10 "
-    const leadingQtyMatch = cleaned.match(/^(?:(\d+)\s*[x\*]\s*|(\d+)\s*(?:phần|phan|đĩa|dia|dĩa|tô|to|ly|lon|set|suất|suat|con|chai|lon|ket|két|thung|thùng)\s+|(\d+)\s+)/i)
-    if (leadingQtyMatch) {
-      const parsedVal = parseInt(leadingQtyMatch[1] || leadingQtyMatch[2] || leadingQtyMatch[3], 10) || 1
-      if (parsedVal >= 1 && parsedVal <= 100) {
-        qty = parsedVal
-        cleaned = cleaned.replace(/^(?:(\d+)\s*[x\*]\s*|(\d+)\s*(?:phần|phan|đĩa|dia|dĩa|tô|to|ly|lon|set|suất|suat|con|chai|lon|ket|két|thung|thùng)\s+|(\d+)\s+)/i, '').trim()
-      }
-    } else {
-      // Check if leading "X con" is not a dish portion (5 con, 10 con)
-      const leadingConMatch = cleaned.match(/^(\d+)\s*(?:con|c)\s+(.+)$/i)
-      if (leadingConMatch) {
-        const count = parseInt(leadingConMatch[1], 10)
-        // If count is 5 or 10, it's a portion specification for oysters/seafood, not order quantity
-        if (count !== 5 && count !== 10) {
-          qty = count
-          cleaned = leadingConMatch[2].trim()
-        }
+    // Check if leading "X con" is not a dish portion (5 con, 10 con)
+    const leadingConMatch = cleaned.match(/^(\d+)\s*(?:con|c)\s+(.+)$/i)
+    if (leadingConMatch) {
+      const count = parseInt(leadingConMatch[1], 10)
+      // If count is 5 or 10, it's a portion specification for oysters/seafood, not order quantity
+      if (count !== 5 && count !== 10) {
+        qty = count
+        cleaned = leadingConMatch[2].trim()
       }
     }
   }
@@ -2097,7 +2130,7 @@ export function resolveDistributiveQuantifiers(menuItems: any[], text: string): 
 }
 
 export function extractByRules(rawOrNormalizedText: string) {
-  const normalizedText = preNormalizeInput(rawOrNormalizedText)
+  const normalizedText = stripSetMenuComponents(preNormalizeInput(rawOrNormalizedText))
   const blocks = segmentInputBlocksCompat(normalizedText)
   const clean = stripAccents(normalizedText).toLowerCase()
   
@@ -2497,8 +2530,10 @@ export function extractByRules(rawOrNormalizedText: string) {
     const menuLines = blocks.menu_block.split('\n')
     for (const line of menuLines) {
       let cleanLine = line.trim().replace(/^[-*+•]\s*/, '').replace(/^(?:món|mon|thực đơn|thuc don)\s*[:\-–—]?\s*/i, '').trim()
-      if ((cleanLine.includes(',') || cleanLine.includes(';')) && !/^\d+\s*kg/i.test(cleanLine)) {
-        const subDishes = cleanLine.split(/[,;]/).map(d => d.trim()).filter(Boolean)
+      const isSetHeaderLine = extractSetOrComboHeaderAndQty(cleanLine) !== null
+      const hasCommaOutsideParens = /[,;](?![^()]*\))/.test(cleanLine)
+      if (!isSetHeaderLine && hasCommaOutsideParens && !/^\d+\s*kg/i.test(cleanLine)) {
+        const subDishes = cleanLine.split(/[,;](?![^()]*\))/).map(d => d.trim()).filter(Boolean)
         for (const sd of subDishes) {
           const parsed = parseSingleMenuLine(sd)
           if (parsed) menu_items.push(parsed)
@@ -2730,20 +2765,87 @@ export function stripSetMenuComponents(text: string): string {
   const lines = text.split('\n')
   const result: string[] = []
   let inSetMenuBlock = false
+  let lastSetHeaderIdx = -1
+  let orphanComponentBuffer: string[] = []
+
+  const extractCustomComponentNote = (compLine: string): string => {
+    const cleanedComp = compLine.replace(/\s*\[\d+\]\s*/g, ' ').trim()
+    const parenMatch = cleanedComp.match(/\(([^)]+)\)\s*$/)
+    if (parenMatch) {
+      const inside = parenMatch[1].trim()
+      if (!/^(?:\d+|0[.,]\d+\s*kg|\d+\s*(?:con|c|kg|g|l|ml|phần|phan|đĩa|dia|tô|to)|1\/2\s*con|½\s*con|nửa\s*con|nua\s*con)$/i.test(inside)) {
+        return inside
+      }
+    }
+    const dashSwapMatch = cleanedComp.match(/(?:[-–—:]|\bđổi\b|\bdoi\b|\bthay\b)\s*((?:đổi|doi|thay|không|khong|ít|it)\s+.+)$/i)
+    if (dashSwapMatch) {
+      return dashSwapMatch[1].trim()
+    }
+    return ''
+  }
+
+  const flushOrphanBuffer = () => {
+    if (orphanComponentBuffer.length === 0) return
+    if (orphanComponentBuffer.length >= 2) {
+      const detected = detectSetMenuFromComponentLines(orphanComponentBuffer)
+      if (detected) {
+        const modSuffix = detected.customModifications.length > 0
+          ? ` (${detected.customModifications.join('; ')})`
+          : ''
+        result.push(`${detected.matchedSetName}${modSuffix}`)
+        orphanComponentBuffer = []
+        return
+      }
+    }
+    result.push(...orphanComponentBuffer)
+    orphanComponentBuffer = []
+  }
+
   for (const line of lines) {
     const trimmed = line.trim()
-    const lower = stripAccents(trimmed).toLowerCase()
-    if (/set\s*menu|combo\s*\d/i.test(lower) && /x\s*\d|\(x\d\)|\d\s*phan/i.test(lower)) {
-      inSetMenuBlock = true
+    if (!trimmed) {
+      flushOrphanBuffer()
       result.push(trimmed)
       continue
     }
-    if (inSetMenuBlock) {
-      if (/^\d+[\/.)]\s+/i.test(trimmed)) continue
-      inSetMenuBlock = false
+    const lower = stripAccents(trimmed).toLowerCase()
+    const cleanCandidate = trimmed.replace(/^[-*+•]\s*/, '').replace(/^(?:món|mon|thực đơn|thuc don)\s*[:\-–—]?\s*/i, '').trim()
+    const isSetHeader = extractSetOrComboHeaderAndQty(cleanCandidate) !== null ||
+      /\b(?:set\s*menu|combo\s*couple)\s*\d+\b/i.test(lower) ||
+      (/set\s*menu|combo\s*\d/i.test(lower) && /x\s*\d|\(x\d\)|\d\s*(?:phan|ban|set)/i.test(lower))
+
+    if (isSetHeader) {
+      flushOrphanBuffer()
+      inSetMenuBlock = true
+      lastSetHeaderIdx = result.length
+      result.push(trimmed)
+      continue
     }
+
+    const isNumberedComponent = /^(?:[-*+•]\s*)?\d+\s*[\/.)]\s+/i.test(trimmed) || /\[\d+\]\s*$/.test(trimmed)
+
+    if (inSetMenuBlock) {
+      if (isNumberedComponent) {
+        const customCompNote = extractCustomComponentNote(trimmed)
+        if (customCompNote && lastSetHeaderIdx >= 0) {
+          result[lastSetHeaderIdx] = `${result[lastSetHeaderIdx]} (${customCompNote})`
+        }
+        continue
+      }
+      inSetMenuBlock = false
+      lastSetHeaderIdx = -1
+    }
+
+    if (isNumberedComponent) {
+      orphanComponentBuffer.push(trimmed)
+      continue
+    }
+
+    flushOrphanBuffer()
     result.push(trimmed)
   }
+
+  flushOrphanBuffer()
   return result.join('\n')
 }
 
@@ -2754,7 +2856,7 @@ export function prepareAIPayload(
   menuList: any[]
 ): { sysPrompt: string; userPrompt: string; isLocalOnly: boolean; reason?: string } {
   const inputLower = stripAccents(promptText).toLowerCase()
-  const inputTokens = inputLower.split(/\s+/).filter(t => t.length > 2)
+  const inputTokens = inputLower.split(/\s+/).filter(t => t.length > 1 || /^\d+$/.test(t))
   const candidates = menuList.filter((item: any) => {
     const cleanName = stripAccents(item.name).toLowerCase()
     const nameTokens = cleanName.split(/\s+/)

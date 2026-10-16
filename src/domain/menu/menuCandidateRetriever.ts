@@ -30,8 +30,15 @@ function generateAcronym(name: string): string {
   return normalizeString(name)
     .split(' ')
     .filter(Boolean)
-    .map(w => w[0])
+    .map(w => (/^\d+$/.test(w) ? w : w[0]))
     .join('')
+}
+
+function expandSetAndComboShorthands(normText: string): string {
+  let expanded = normText
+  expanded = expanded.replace(/\b(?:sm|set\s*menu|set)\s*0*([1-9]|1[0-5])\b/gi, '$& set menu $1 sm$1')
+  expanded = expanded.replace(/\b(?:cc|combo\s*couple|couple|combo\s*2\s*nguoi|combo)\s*0*([1-9]|1[01])\b/gi, '$& combo couple $1 cc$1')
+  return expanded
 }
 
 const MENU_SEARCH_STOP_WORDS = new Set([
@@ -65,8 +72,9 @@ function computeMenuFingerprint(menus: any[]): string {
 
 export function retrieveMenuCandidates(input: MenuCandidateRetrievalInput): MenuCandidate[] {
   const { text, menus, limit = 15 } = input
-  const normalizedText = normalizeString(text)
-  if (!normalizedText || !menus || menus.length === 0) return []
+  const rawNormText = normalizeString(text)
+  if (!rawNormText || !menus || menus.length === 0) return []
+  const normalizedText = expandSetAndComboShorthands(rawNormText)
 
   // Reuse cached MiniSearch if menu has not changed
   const fingerprint = computeMenuFingerprint(menus)
@@ -115,10 +123,10 @@ export function retrieveMenuCandidates(input: MenuCandidateRetrievalInput): Menu
 
   if (!miniSearch || (miniSearch as any).documentCount === 0) return []
 
-  // Filter text tokens to remove general booking noise before searching
+  // Filter text tokens to remove general booking noise before searching (keep digits like 1..15)
   const textTokens = normalizedText
     .split(' ')
-    .filter(t => t.length > 1 && !MENU_SEARCH_STOP_WORDS.has(t))
+    .filter(t => (t.length > 1 || /^\d+$/.test(t)) && !MENU_SEARCH_STOP_WORDS.has(t))
 
   const searchQuery = textTokens.join(' ')
   if (!searchQuery) return []
@@ -131,10 +139,11 @@ export function retrieveMenuCandidates(input: MenuCandidateRetrievalInput): Menu
     const matchedBy: Array<'exact' | 'alias' | 'token' | 'fuzzy' | 'bm25'> = []
 
     const cleanItemName = normalizeString(res.itemName)
-    const itemTokens = cleanItemName.split(' ').filter(t => t.length > 1)
+    const itemTokens = cleanItemName.split(' ').filter(t => t.length > 1 || /^\d+$/.test(t))
 
-    // Check exact match
-    if (normalizedText.includes(cleanItemName)) {
+    // Check exact match (ensure numbered Set/Combo matches exact trailing number boundary)
+    const exactRegex = new RegExp(`(?:^|\\s)${cleanItemName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?:\\s|$)`, 'i')
+    if (exactRegex.test(normalizedText)) {
       matchedBy.push('exact')
     }
 

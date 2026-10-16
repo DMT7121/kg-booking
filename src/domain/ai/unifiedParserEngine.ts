@@ -1,4 +1,5 @@
 import { stripAccents, cleanPhoneNumber, formatDateStr } from '@/utils'
+import { SETS } from '@/utils/constants'
 import { parseStructuredForm, isStructuredFormText } from './structuredFormParser'
 import { extractByRules, extractHardEntities, classifyPeopleNames } from './ruleEngine'
 import { matchMenuItems, getBaseDishName } from '@/domain/menu/menuMatcher'
@@ -546,8 +547,9 @@ export function parseUnifiedBooking(
   }
 
   // 10. Menu Items extraction from dishes if not in structured form
-  if (result.menuItems.length === 0 && rAny.dishes && rAny.dishes.length > 0) {
-    const rawDishes = rAny.dishes.map((d: any) => ({
+  const ruleDishes = (ruleResult.menu_items && ruleResult.menu_items.length > 0) ? ruleResult.menu_items : rAny.dishes
+  if (result.menuItems.length === 0 && ruleDishes && ruleDishes.length > 0) {
+    const rawDishes = ruleDishes.map((d: any) => ({
       name: d.raw_name || d.name,
       quantity: d.quantity || 1,
       note: d.note || '',
@@ -575,7 +577,7 @@ export function parseUnifiedBooking(
       result.booking.guestCount.value,
       options.menuCatalog as any,
       [],
-      {},
+      SETS,
       result.booking.guestCount.value
     )
     result.menuItems = matched.map((m: any) => ({

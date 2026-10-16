@@ -2,8 +2,9 @@ import { ref, computed, watch } from 'vue'
 import { useFormStore } from '@/stores/useFormStore'
 import { useAppStore } from '@/stores/useAppStore'
 import { useUIStore } from '@/stores/useUIStore'
-import { stripAccents, formatVND, cleanPhoneNumber, formatDateStr, isIOS, formatSetNote, escapeHtml, generateBookingId, formatCurrentDepositTime, formatTimestampToDepositTime } from '@/utils'
+import { stripAccents, formatVND, cleanPhoneNumber, formatDateStr, isIOS, formatSetNote, mergeSetComponentNote, escapeHtml, generateBookingId, formatCurrentDepositTime, formatTimestampToDepositTime } from '@/utils'
 import { SETS, SAMPLE_MENU } from '@/utils/constants'
+import { resolveSetMenuDescription } from '@/domain/menu/menuMatcher'
 import { saveFormDraft, getFormDraft, clearFormDraft } from '@/services/cache'
 import { useAI } from '@/composables/useAI'
 
@@ -27,7 +28,7 @@ function _createForm() {
 
 
   // --- MiniSearch for menu items ---
-  const miniSearch = new MiniSearch({ fields: ['name', 'acronym', 'cleanName'], storeFields: ['name', 'price'] })
+  const miniSearch = new MiniSearch({ fields: ['name', 'acronym', 'cleanName'], storeFields: ['name', 'price', 'desc'] })
   const itemSuggestions = ref<any[]>([])
 
   watch(() => appStore.menuList, (nl) => {
@@ -45,9 +46,10 @@ function _createForm() {
   function selectMenuItem(s: any, idx: number) {
     formStore.items[idx].name = s.name
     formStore.items[idx].price = s.price
-    let rawNote = s.desc || appStore.menuDetails[s.name] || SETS[s.name.toUpperCase()] || ''
+    const resolvedDesc = resolveSetMenuDescription(s.name, appStore.menuList, appStore.menuDetails || {})
+    const rawNote = resolvedDesc || (s.desc && String(s.desc).trim().length >= 5 ? s.desc : '') || SETS[s.name] || SETS[s.name.toUpperCase()] || ''
     if (rawNote) {
-      formStore.items[idx].note = formatSetNote(rawNote)
+      formStore.items[idx].note = mergeSetComponentNote('', rawNote)
     }
     uiStore.focusIdx = null
   }

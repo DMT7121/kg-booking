@@ -1,6 +1,327 @@
-import { stripAccents, formatSetNote } from '@/utils'
+import { stripAccents, formatSetNote, mergeSetComponentNote } from '@/utils'
 import { SETS } from '@/utils/constants'
 import { parseDishItems } from '@/domain/ai/ruleEngine'
+
+export const CANONICAL_SET_AND_COMBO_ITEMS = [
+  { name: 'Set menu 1', price: 2277000, acronym: 'SM1', cleanName: 'set menu 1', desc: SETS['Set menu 1'] },
+  { name: 'Set menu 2', price: 2163000, acronym: 'SM2', cleanName: 'set menu 2', desc: SETS['Set menu 2'] },
+  { name: 'Set menu 3', price: 2213000, acronym: 'SM3', cleanName: 'set menu 3', desc: SETS['Set menu 3'] },
+  { name: 'Set menu 4', price: 2469000, acronym: 'SM4', cleanName: 'set menu 4', desc: SETS['Set menu 4'] },
+  { name: 'Set menu 5', price: 2562000, acronym: 'SM5', cleanName: 'set menu 5', desc: SETS['Set menu 5'] },
+  { name: 'Set menu 6', price: 2608000, acronym: 'SM6', cleanName: 'set menu 6', desc: SETS['Set menu 6'] },
+  { name: 'Set menu 7', price: 2702000, acronym: 'SM7', cleanName: 'set menu 7', desc: SETS['Set menu 7'] },
+  { name: 'Set menu 8', price: 2740000, acronym: 'SM8', cleanName: 'set menu 8', desc: SETS['Set menu 8'] },
+  { name: 'Set menu 9', price: 2832000, acronym: 'SM9', cleanName: 'set menu 9', desc: SETS['Set menu 9'] },
+  { name: 'Set menu 10', price: 3030000, acronym: 'SM10', cleanName: 'set menu 10', desc: SETS['Set menu 10'] },
+  { name: 'Set menu 11', price: 3040000, acronym: 'SM11', cleanName: 'set menu 11', desc: SETS['Set menu 11'] },
+  { name: 'Set menu 12', price: 3269000, acronym: 'SM12', cleanName: 'set menu 12', desc: SETS['Set menu 12'] },
+  { name: 'Set menu 13', price: 3530000, acronym: 'SM13', cleanName: 'set menu 13', desc: SETS['Set menu 13'] },
+  { name: 'Set menu 14', price: 3709000, acronym: 'SM14', cleanName: 'set menu 14', desc: SETS['Set menu 14'] },
+  { name: 'Set menu 15', price: 4029000, acronym: 'SM15', cleanName: 'set menu 15', desc: SETS['Set menu 15'] },
+  { name: 'Combo couple 1', price: 399000, acronym: 'CC1', cleanName: 'combo couple 1', desc: SETS['Combo couple 1'] },
+  { name: 'Combo couple 2', price: 399000, acronym: 'CC2', cleanName: 'combo couple 2', desc: SETS['Combo couple 2'] },
+  { name: 'Combo couple 3', price: 399000, acronym: 'CC3', cleanName: 'combo couple 3', desc: SETS['Combo couple 3'] },
+  { name: 'Combo couple 4', price: 499000, acronym: 'CC4', cleanName: 'combo couple 4', desc: SETS['Combo couple 4'] },
+  { name: 'Combo couple 5', price: 499000, acronym: 'CC5', cleanName: 'combo couple 5', desc: SETS['Combo couple 5'] },
+  { name: 'Combo couple 6', price: 499000, acronym: 'CC6', cleanName: 'combo couple 6', desc: SETS['Combo couple 6'] },
+  { name: 'Combo couple 7', price: 499000, acronym: 'CC7', cleanName: 'combo couple 7', desc: SETS['Combo couple 7'] },
+  { name: 'Combo couple 8', price: 599000, acronym: 'CC8', cleanName: 'combo couple 8', desc: SETS['Combo couple 8'] },
+  { name: 'Combo couple 9', price: 599000, acronym: 'CC9', cleanName: 'combo couple 9', desc: SETS['Combo couple 9'] },
+  { name: 'Combo couple 10', price: 599000, acronym: 'CC10', cleanName: 'combo couple 10', desc: SETS['Combo couple 10'] },
+  { name: 'Combo couple 11', price: 599000, acronym: 'CC11', cleanName: 'combo couple 11', desc: SETS['Combo couple 11'] }
+]
+
+/**
+ * Normalize Set menu (1..15) and Combo couple (1..11) shorthand names to canonical form.
+ * E.g. "Set 2", "SM2", "Set menu số 02" -> "Set menu 2"
+ *      "Combo 3", "Couple 3", "CC3", "Combo 2 người số 3" -> "Combo couple 3"
+ */
+export function normalizeSetOrComboName(rawInput: string): string {
+  if (!rawInput) return ''
+  const cleaned = stripAccents(rawInput)
+    .toLowerCase()
+    .replace(/^[\s\-–—•*+>:,.]+|[\s\-–—•*+>:,.]+$/g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+
+  // Set menu 1..15
+  const setMatch = cleaned.match(/^(?:set\s*menu|menu\s*set|set)\s*(?:so\s*|#|:|-|\s)*0*([1-9]|1[0-5])$/i)
+  if (setMatch) return `Set menu ${setMatch[1]}`
+
+  const smMatch = cleaned.match(/^sm\s*(?:so\s*|#|:|-|\s)*0*([1-9]|1[0-5])$/i)
+  if (smMatch) return `Set menu ${smMatch[1]}`
+
+  // Combo couple 1..11
+  const ccExplicitMatch = cleaned.match(/^(?:combo\s*couple|couple\s*combo|set\s*couple|menu\s*couple|couple|combo\s*2\s*nguoi|combo\s*doi|combo\s*cap\s*doi)\s*(?:so\s*|#|:|-|\s)*0*([1-9]|1[01])$/i)
+  if (ccExplicitMatch) return `Combo couple ${ccExplicitMatch[1]}`
+
+  const ccAcronymMatch = cleaned.match(/^cc\s*(?:so\s*|#|:|-|\s)*0*([1-9]|1[01])$/i)
+  if (ccAcronymMatch) return `Combo couple ${ccAcronymMatch[1]}`
+
+  const comboShortMatch = cleaned.match(/^combo\s*(?:so\s*|#|:|-|\s)*0*([1-9]|1[01])$/i)
+  if (comboShortMatch) return `Combo couple ${comboShortMatch[1]}`
+
+  return rawInput.trim()
+}
+
+/**
+ * Extract canonical Set menu / Combo couple name, explicit order quantity, and custom notes
+ * from a raw dish string without ever mistaking the Set/Combo identifier number for quantity.
+ */
+export function extractSetOrComboHeaderAndQty(
+  rawInput: string,
+  existingQty?: number | null
+): {
+  isSetOrCombo: boolean
+  canonicalName: string
+  identifierNumber: number
+  quantity: number
+  hasExplicitQty: boolean
+  customNote: string
+} | null {
+  if (!rawInput) return null
+  let work = rawInput.trim().replace(/^[\s\-–—•*+>✔↳]+|[\s\-–—:;.]+$/g, '').trim()
+  if (!work) return null
+
+  const customNotes: string[] = []
+  let explicitQty: number | null = null
+
+  // 1. Iteratively strip trailing parentheticals, price tags, and explicit trailing quantities in any order
+  let stripLoop = true
+  while (stripLoop) {
+    stripLoop = false
+
+    // 1a. Strip trailing standalone price tag e.g. "1.699.000đ", "1699k", "- 499k"
+    const trailingPriceMatch = work.match(/\s*(?:[-–—:]\s*)?\b(?:\d{3,4}\s*k|\d{1,3}(?:[.,]\d{3})+(?:\s*(?:đ|d|vnd|vnđ))?)\s*$/i)
+    if (trailingPriceMatch && trailingPriceMatch.index && trailingPriceMatch.index > 0) {
+      work = work.slice(0, trailingPriceMatch.index).trim()
+      stripLoop = true
+      continue
+    }
+
+    // 1b. Check parenthetical or bracket expressions at the end: e.g. "(2 bàn)", "(x2)", "(02 set)", "(đổi lẩu nấm)", "(2 bàn, không cay)"
+    const parenMatch = work.match(/\s*(?:\(([^)]+)\)|\[([^\]]+)\])\s*$/)
+    if (parenMatch) {
+      const inside = (parenMatch[1] ?? parenMatch[2] ?? '').trim()
+      const insideNorm = stripAccents(inside).toLowerCase().trim()
+
+      // Ignore price inside parens e.g. "(1.699k)", "(1.699.000đ)"
+      if (/^(?:\d{3,4}\s*k|\d{1,3}(?:[.,]\d{3})+(?:\s*(?:d|vnd))?)$/i.test(insideNorm)) {
+        work = work.slice(0, parenMatch.index).trim()
+        stripLoop = true
+        continue
+      }
+
+      // Pure quantity inside parens/brackets: "(x2)", "[2]", "(2 bàn)", "(02 set)", "(2 phần)", "(2 suất)", "(2 combo)"
+      const pureQtyMatch = insideNorm.match(/^(?:[x\*]\s*0*(\d+)|0*(\d+)\s*(?:[x\*]|ban|set|phan|suat|combo|goi|mam)?)$/)
+      if (pureQtyMatch) {
+        const q = parseInt(pureQtyMatch[1] || pureQtyMatch[2], 10)
+        if (q >= 1 && q <= 100) {
+          explicitQty = q
+          work = work.slice(0, parenMatch.index).trim()
+          stripLoop = true
+          continue
+        }
+      }
+
+      // Combined quantity + note inside parens: "(2 bàn, đổi lẩu nấm)" or "(2 set - không cay)"
+      const comboQtyNoteMatch = inside.match(/^(?:[x\*]\s*0*(\d+)|0*(\d+)\s*(?:bàn|ban|set|phần|phan|suất|suat|combo))\s*[,;\-–—]\s*(.+)$/i)
+      if (comboQtyNoteMatch) {
+        const q = parseInt(comboQtyNoteMatch[1] || comboQtyNoteMatch[2], 10)
+        if (q >= 1 && q <= 100) {
+          explicitQty = q
+        }
+        if (comboQtyNoteMatch[3]?.trim()) {
+          customNotes.unshift(comboQtyNoteMatch[3].trim())
+        }
+        work = work.slice(0, parenMatch.index).trim()
+        stripLoop = true
+        continue
+      }
+
+      // Otherwise it's a custom note in parens, e.g. "(đổi lẩu nấm)"
+      customNotes.unshift(inside)
+      work = work.slice(0, parenMatch.index).trim()
+      stripLoop = true
+      continue
+    }
+
+    // 1c. Check explicit trailing multiplier with x/* or unit: e.g. "x2", "x 2 bàn", "- 2 bàn", ": 2 set"
+    const explicitTrailingUnitMatch = work.match(/^(.+?)\s*(?:(?:[x\*])\s*0*(\d+)\s*(?:bàn|ban|set|phần|phan|suất|suat|combo|gói|goi|mâm|mam)?|(?:[-–—:]\s*|\s+)0*(\d+)\s*(?:bàn|ban|set|phần|phan|suất|suat|combo|gói|goi|mâm|mam))\s*$/i)
+    if (explicitTrailingUnitMatch) {
+      const candidatePrefix = explicitTrailingUnitMatch[1].trim()
+      // Only strip if the remaining prefix still contains a Set/Combo number or parenthetical before it
+      if (/\d/.test(candidatePrefix)) {
+        const q = parseInt(explicitTrailingUnitMatch[2] || explicitTrailingUnitMatch[3], 10)
+        if (q >= 1 && q <= 100) {
+          explicitQty = q
+          work = candidatePrefix
+          stripLoop = true
+          continue
+        }
+      }
+    }
+  }
+
+  // 2. Check leading quantity before Set/Combo: e.g. "2 Set menu 3", "02 bàn Set menu 3", "2 phần Combo couple 4", "2x Set 3", "2 set Set menu 3"
+  const leadingMatch = work.match(/^0*(\d+)\s*(?:(?:bàn|ban|phần|phan|suất|suat|gói|goi|mâm|mam|x|\*)\s+|(?:set|combo)\s+(?=(?:set|combo|couple|sm|cc)\b)|\s+)(.+)$/i)
+  if (leadingMatch) {
+    const candidateRest = leadingMatch[2].trim()
+    // Re-check if candidateRest has trailing quantity/notes or is already a canonical Set/Combo name
+    const normRest = normalizeSetOrComboName(candidateRest)
+    if (/^(?:Set menu \d+|Combo couple \d+|SET \d+K|COMBO \d+ NGƯỜI)$/i.test(normRest)) {
+      if (explicitQty === null) explicitQty = parseInt(leadingMatch[1], 10)
+      work = candidateRest
+    }
+  }
+
+  // 3. Check trailing bare hyphen/colon quantity after a Set/Combo identifier: e.g. "Set menu 3 - 2", "Set menu 3: 2"
+  const trailingWithIdentMatch = work.match(/^(.+?\b0*(?:[1-9]|1[0-5]))\s*[-–—:]\s*0*(\d+)\s*$/i)
+  if (trailingWithIdentMatch) {
+    const candidatePrefix = trailingWithIdentMatch[1].trim()
+    const normPrefix = normalizeSetOrComboName(candidatePrefix)
+    if (/^(?:Set menu \d+|Combo couple \d+)$/i.test(normPrefix)) {
+      const q = parseInt(trailingWithIdentMatch[2], 10)
+      if (q >= 1 && q <= 100) {
+        explicitQty = q
+        work = candidatePrefix
+      }
+    }
+  }
+
+  // 4. Also check trailing note separated by dash/colon/comma after Set/Combo identifier:
+  //    e.g. "Set menu 3 - đổi lẩu bò thành lẩu nấm"
+  const trailingNoteMatch = work.match(/^(.+?\b0*(?:[1-9]|1[0-5]))\s*(?:[-–—:,])\s*([^\d].*)$/i)
+  if (trailingNoteMatch) {
+    const candidatePrefix = trailingNoteMatch[1].trim()
+    const normPrefix = normalizeSetOrComboName(candidatePrefix)
+    if (/^(?:Set menu \d+|Combo couple \d+)$/i.test(normPrefix)) {
+      customNotes.push(trailingNoteMatch[2].trim())
+      work = candidatePrefix
+    }
+  }
+
+  const canonical = normalizeSetOrComboName(work)
+  const identMatch = canonical.match(/^(Set menu|Combo couple)\s+(\d+)$/i)
+  if (!identMatch) {
+    return null
+  }
+
+  const identifierNumber = parseInt(identMatch[2], 10)
+  let finalQty = 1
+  if (explicitQty !== null && explicitQty >= 1) {
+    finalQty = explicitQty
+  } else if (existingQty && existingQty >= 1) {
+    finalQty = existingQty
+  }
+
+  return {
+    isSetOrCombo: true,
+    canonicalName: `${identMatch[1]} ${identifierNumber}`,
+    identifierNumber,
+    quantity: finalQty,
+    hasExplicitQty: explicitQty !== null,
+    customNote: customNotes.join('; ').trim()
+  }
+}
+
+/**
+ * Reverse-match a list of component dish lines (e.g. "1/ Sum Vầy [1]", "2/ Súp Gà...")
+ * to the canonical Set menu (1..15) or Combo couple (1..11).
+ */
+export function detectSetMenuFromComponentLines(
+  lines: string[],
+  menuList: any[] = [],
+  menuDetails: Record<string, string> = {}
+): {
+  matchedSetName: string
+  score: number
+  matchedCount: number
+  customModifications: string[]
+} | null {
+  if (!lines || lines.length < 2) return null
+
+  const cleanComp = (s: string) =>
+    stripAccents(s)
+      .toLowerCase()
+      .replace(/^\s*(?:[-•*+>↳]|\d+\s*[\/\.\)])\s*/, '')
+      .replace(/\[\d+\]/g, '')
+      .replace(/\(\d+(?:\s*con)?\)/g, '')
+      .replace(/[^a-z0-9\s]/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim()
+
+  const inputCleaned = lines.map(l => ({ raw: l.trim(), norm: cleanComp(l) })).filter(x => x.norm.length >= 3)
+  if (inputCleaned.length < 2) return null
+
+  // Build candidate set definitions from SETS + menuDetails + menuList
+  const setDefs = new Map<string, string>()
+  for (const [k, v] of Object.entries(SETS)) {
+    if (v && v.trim().length >= 5) setDefs.set(k, v)
+  }
+  for (const [k, v] of Object.entries(menuDetails || {})) {
+    if (v && v.trim().length >= 5 && /set\s*menu|combo\s*couple/i.test(k)) {
+      setDefs.set(k, v)
+    }
+  }
+  for (const m of menuList || []) {
+    if (m?.name && m?.desc && String(m.desc).trim().length >= 5 && /set\s*menu|combo\s*couple/i.test(m.name)) {
+      setDefs.set(m.name, String(m.desc))
+    }
+  }
+
+  let bestSet = ''
+  let bestScore = 0
+  let bestMatchedCount = 0
+  let bestCanonicalNorms: string[] = []
+
+  for (const [setName, desc] of setDefs.entries()) {
+    const canonLines = formatSetNote(desc).split('\n').map(cleanComp).filter(Boolean)
+    if (canonLines.length < 3) continue
+
+    let matchedCanon = 0
+    for (const cNorm of canonLines) {
+      const cWords = cNorm.split(' ').filter(w => w.length > 1)
+      const isHit = inputCleaned.some(inp => {
+        if (inp.norm === cNorm) return true
+        if (cNorm.includes(inp.norm) || inp.norm.includes(cNorm)) return inp.norm.length >= 5
+        const iWords = inp.norm.split(' ').filter(w => w.length > 1)
+        if (iWords.length >= 2 && cWords.length >= 2) {
+          const shared = iWords.filter(w => cWords.includes(w)).length
+          return shared / Math.min(iWords.length, cWords.length) >= 0.7
+        }
+        return false
+      })
+      if (isHit) matchedCanon++
+    }
+
+    const ratio = matchedCanon / canonLines.length
+    if (matchedCanon >= 3 && (ratio > bestScore || (ratio === bestScore && matchedCanon > bestMatchedCount))) {
+      bestScore = ratio
+      bestSet = setName
+      bestMatchedCount = matchedCanon
+      bestCanonicalNorms = canonLines
+    }
+  }
+
+  if (!bestSet || bestScore < 0.5) return null
+
+  // Identify any input lines that were modified compared to canonical lines
+  const MOD_WORDS = /\b(?:doi|thay|bo|khong\s+lay|khong\s+cay|it\s+cay|them)\b/i
+  const customModifications: string[] = []
+  for (const inp of inputCleaned) {
+    if (MOD_WORDS.test(inp.norm)) {
+      customModifications.push(inp.raw)
+    }
+  }
+
+  return {
+    matchedSetName: bestSet,
+    score: bestScore,
+    matchedCount: bestMatchedCount,
+    customModifications
+  }
+}
 
 export function extractPortionSize(rawName: string): number | string | null {
   const clean = stripAccents(rawName).toLowerCase()
@@ -41,6 +362,10 @@ export function getBaseDishName(name: string): string {
 }
 
 export function normalizeSynonyms(name: string): string {
+  const setOrCombo = normalizeSetOrComboName(name)
+  if (setOrCombo !== name.trim()) {
+    return setOrCombo
+  }
   const replacements = [
     { pattern: /\bba\s+roi\b/gi, replacement: 'ba chỉ' },
     { pattern: /\bsườn\s+non\b/gi, replacement: 'dẻ sườn' },
@@ -150,19 +475,36 @@ export function scoreAndMatchMenu(
   }
   
   let rawName = inputName.trim()
-  const qtyMatch = rawName.match(/(?:[x\*])\s*(\d+)\s*$/i)
-  if (qtyMatch) {
-    rawName = rawName.replace(/(?:[x\*])\s*(\d+)\s*$/i, '').trim()
+
+  // First check if this is a Set menu or Combo couple expression
+  const setOrComboParsed = extractSetOrComboHeaderAndQty(rawName)
+  if (setOrComboParsed) {
+    rawName = setOrComboParsed.canonicalName
+  } else {
+    const qtyMatch = rawName.match(/(?:[x\*])\s*(\d+)\s*$/i)
+    if (qtyMatch) {
+      rawName = rawName.replace(/(?:[x\*])\s*(\d+)\s*$/i, '').trim()
+    }
+  }
+
+  // Ensure canonical Set menu 1..15 and Combo couple 1..11 exist in effectiveMenuList when matching Set/Combo
+  let effectiveMenuList = menuList
+  if (/^(?:Set menu \d+|Combo couple \d+)$/i.test(rawName)) {
+    const targetNorm = stripAccents(rawName).toLowerCase().trim()
+    const existsInMenu = menuList.some((m: any) => stripAccents(m.name || '').toLowerCase().trim() === targetNorm)
+    if (!existsInMenu) {
+      effectiveMenuList = [...menuList, ...CANONICAL_SET_AND_COMBO_ITEMS]
+    }
   }
 
   // Strip parenthetical note / discount like "(Giảm 10% tiền thức ăn)" or "(làm không cay)" before matching
   // but protect official menu suffixes like (cay), (chay), (5 con), (10 con)
-  const hasExactFullMatch = menuList.some((m: any) => stripAccents(m.name).toLowerCase().trim() === stripAccents(rawName).toLowerCase().trim())
+  const hasExactFullMatch = effectiveMenuList.some((m: any) => stripAccents(m.name).toLowerCase().trim() === stripAccents(rawName).toLowerCase().trim())
   if (!hasExactFullMatch) {
     const parenMatch = rawName.match(/\s*\(([^)]+)\)\s*$/)
     if (parenMatch) {
       const insideParen = parenMatch[1].trim()
-      const isOfficialMenuSuffix = menuList.some((m: any) => {
+      const isOfficialMenuSuffix = effectiveMenuList.some((m: any) => {
         const mNorm = stripAccents(m.name).toLowerCase()
         return mNorm.endsWith(`(${stripAccents(insideParen).toLowerCase()})`)
       })
@@ -180,7 +522,7 @@ export function scoreAndMatchMenu(
 
   // Portion matching override
   const baseRaw = getBaseDishName(rawName)
-  const portionCandidates = menuList.filter((m: any) => getBaseDishName(m.name) === baseRaw)
+  const portionCandidates = effectiveMenuList.filter((m: any) => getBaseDishName(m.name) === baseRaw)
   const hasPortions = portionCandidates.some((m: any) => getMenuPortionSize(m.name) !== null)
   
   if (portionCandidates.length > 0 && hasPortions) {
@@ -206,39 +548,62 @@ export function scoreAndMatchMenu(
     }
   }
 
-  const inputTokens = clean.split(/\s+/).filter(t => t.length > 1)
+  // Keep single-digit numbers (1..9) in inputTokens so Set menu 1..9 & Combo couple 1..9 retain their identifier token
+  const inputTokens = clean.split(/\s+/).filter(t => t.length > 1 || /^\d+$/.test(t))
+  const inputNumbers = clean.match(/\b\d+\b/g) || []
+  const isInputNumberedSetOrCombo = /\b(?:set|combo|couple)\b/i.test(clean) && inputNumbers.length > 0
+  const hasDirectMenuMatch = effectiveMenuList.some((m: any) => stripAccents(m.name || '').toLowerCase().trim() === clean)
+
   const candidates: { item: any; score: number; reasons: string[]; risks: string[] }[] = []
 
-  for (const m of menuList) {
+  for (const m of effectiveMenuList) {
     let score = 0.0
     const reasons: string[] = []
     const risks: string[] = []
     
     const mClean = stripAccents(m.name).toLowerCase().trim()
     const mTokens = mClean.split(/\s+/)
+    const mNumbers = mClean.match(/\b\d+\b/g) || []
+    const mAcronym = String(m.acronym || '').toLowerCase().trim()
+
+    // Strict Number Guard for Set menu / Combo couple:
+    // Never allow "Set menu 2" to match "Set menu 1" or "Set menu 12", or "Combo couple 3" to match "Combo couple 1"
+    if (isInputNumberedSetOrCombo && /\b(?:set|combo|couple)\b/i.test(mClean) && mNumbers.length > 0) {
+      if (inputNumbers[0] !== mNumbers[0]) {
+        continue
+      }
+    }
     
-    // 1. Exact match
-    if (clean === mClean || m.acronym === clean) {
+    // 1. Exact match (only match acronym if it's exact and not a truncated SM1 for Set menu 10..15)
+    const isTruncatedAcronym =
+      (mAcronym === 'sm1' && /^set\s+menu\s+1\d$/.test(mClean)) ||
+      (mAcronym === 'cc1' && /^combo\s+couple\s+1\d$/.test(mClean))
+    if (clean === mClean || (!isTruncatedAcronym && mAcronym === clean)) {
       score = Math.max(score, 1.0)
       reasons.push('exact_match')
     }
     
-    // 2. Alias match
-    const aliasMatch = menuAliases.find((a: any) => stripAccents(a.alias).toLowerCase().trim() === clean)
-    if (aliasMatch && aliasMatch.dishName === m.name) {
-      score = Math.max(score, 0.95)
-      reasons.push('alias_match')
+    // 2. Alias match (Guard against poisoned aliases when input is already an exact dish name in menuList)
+    if (!hasDirectMenuMatch || clean === mClean) {
+      const aliasMatch = menuAliases.find((a: any) => stripAccents(a.alias).toLowerCase().trim() === clean)
+      if (aliasMatch && aliasMatch.dishName === m.name) {
+        score = Math.max(score, 0.95)
+        reasons.push('alias_match')
+      }
+      
+      // 3. Synonym matching
+      const dynamicSynonymMatch = menuAliases.find((a: any) => a.dishName === m.name && stripAccents(a.alias).toLowerCase().trim() === clean)
+      if (dynamicSynonymMatch) {
+        score = Math.max(score, 0.90)
+        reasons.push('synonym_match')
+      }
     }
     
-    // 3. Synonym matching
-    const dynamicSynonymMatch = menuAliases.find((a: any) => a.dishName === m.name && stripAccents(a.alias).toLowerCase().trim() === clean)
-    if (dynamicSynonymMatch) {
-      score = Math.max(score, 0.90)
-      reasons.push('synonym_match')
-    }
-    
-    // 4. Prefix match
-    if (mClean.startsWith(clean) || clean.startsWith(mClean)) {
+    // 4. Prefix match (must respect word/digit boundaries so "set menu 1" is NOT a prefix of "set menu 10")
+    const isWordBoundaryPrefix =
+      (mClean.startsWith(clean) && (mClean.length === clean.length || mClean[clean.length] === ' ')) ||
+      (clean.startsWith(mClean) && (clean.length === mClean.length || clean[mClean.length] === ' '))
+    if (isWordBoundaryPrefix) {
       const prefixScore = 0.80
       if (prefixScore > score) {
         score = prefixScore
@@ -246,8 +611,13 @@ export function scoreAndMatchMenu(
       }
     }
     
-    // 5. Word / Token overlap
-    const overlap = inputTokens.filter(t => mTokens.some(mt => mt.includes(t) || t.includes(mt))).length
+    // 5. Word / Token overlap (numbers must match exactly, not as substrings like '1' in '10')
+    const overlap = inputTokens.filter(t => {
+      if (/^\d+$/.test(t)) {
+        return mTokens.some(mt => mt === t)
+      }
+      return mTokens.some(mt => !/^\d+$/.test(mt) && (mt.includes(t) || t.includes(mt)))
+    }).length
     if (overlap > 0) {
       const menuOverlapRatio = overlap / Math.max(mTokens.length, 1)
       const inputOverlapRatio = overlap / Math.max(inputTokens.length, 1)
@@ -266,7 +636,7 @@ export function scoreAndMatchMenu(
     let fuzzyScore = 0.5 * levenshteinScore + 0.5 * jaroWinklerScore
     
     // Giảm mạnh hình phạt nếu không có overlap token
-    if (overlap === 0 && !mClean.startsWith(clean) && !clean.startsWith(mClean)) {
+    if (overlap === 0 && !isWordBoundaryPrefix) {
       fuzzyScore *= 0.5 // Phạt nặng nếu không có token overlap và không phải prefix
     }
     
@@ -302,7 +672,7 @@ export function scoreAndMatchMenu(
     const best = candidates[0]
     let needsReview = false
     
-    if (candidates.length > 1) {
+    if (candidates.length > 1 && !best.reasons.includes('exact_match')) {
       const runnerUp = candidates[1]
       // Nếu top 2 món ăn quá gần nhau về điểm (khoảng cách < 0.1), yêu cầu người dùng xác nhận
       if (best.score - runnerUp.score < 0.1) {
@@ -352,14 +722,29 @@ export function resolveMenuItemsLocally(
 ): any[] {
   if (!rawItems || rawItems.length === 0) return []
   return rawItems.map(item => {
-    const match = fuzzyMatchMenu(item.raw_name || item.name || '', guestCount, menuList, aliases, fallbackGuestCount)
+    const rawStr = item.raw_name || item.name || ''
+    const setOrCombo = extractSetOrComboHeaderAndQty(rawStr, item.quantity || item.qty || null)
+    const lookupName = setOrCombo ? setOrCombo.canonicalName : rawStr
+    const match = fuzzyMatchMenu(lookupName, guestCount, menuList, aliases, fallbackGuestCount)
+    const resolvedQty = setOrCombo ? setOrCombo.quantity : (item.quantity || item.qty || 1)
+    let note = item.note || ''
+    if (setOrCombo?.customNote && !note.includes(setOrCombo.customNote)) {
+      note = note ? `${note}; ${setOrCombo.customNote}` : setOrCombo.customNote
+    }
+    const matchedName = match ? match.name : lookupName
+    if (/set|combo|couple/i.test(matchedName)) {
+      const desc = resolveSetMenuDescription(matchedName, menuList, SETS)
+      if (desc) {
+        note = mergeSetComponentNote(note, desc)
+      }
+    }
     return {
-      matched_name: match ? match.name : (item.raw_name || item.name),
-      name: match ? match.name : (item.raw_name || item.name),
-      quantity: item.quantity || item.qty || 1,
+      matched_name: matchedName,
+      name: matchedName,
+      quantity: resolvedQty,
       unit_price: match ? match.price : (item.unit_price || 0),
       price: match ? match.price : (item.unit_price || 0),
-      note: item.note || ''
+      note
     }
   })
 }
@@ -370,29 +755,205 @@ export function resolveSetMenuDescription(
   menuDetails: Record<string, string> = {}
 ): string {
   if (!name) return ''
-  if (menuDetails[name]) return menuDetails[name]
+  const isValidDesc = (d?: string) => typeof d === 'string' && d.trim().length >= 5
 
-  const normTarget = stripAccents(name).toLowerCase().trim()
+  const normalizedName = normalizeSetOrComboName(name)
+  if (isValidDesc(menuDetails[normalizedName])) return menuDetails[normalizedName].trim()
+  if (isValidDesc(menuDetails[name])) return menuDetails[name].trim()
+
+  const normTarget = stripAccents(normalizedName).toLowerCase().trim()
 
   for (const [key, desc] of Object.entries(menuDetails)) {
-    if (desc && stripAccents(key).toLowerCase().trim() === normTarget) {
-      return desc
+    if (isValidDesc(desc) && stripAccents(key).toLowerCase().trim() === normTarget) {
+      return desc.trim()
     }
   }
 
   const foundItem = menuList.find(i => i.name && stripAccents(i.name).toLowerCase().trim() === normTarget)
-  if (foundItem && (foundItem.desc || foundItem.description)) {
-    return foundItem.desc || foundItem.description
+  if (foundItem) {
+    const itemDesc = foundItem.desc || foundItem.description
+    if (isValidDesc(itemDesc)) {
+      return String(itemDesc).trim()
+    }
   }
 
+  // Exact match in canonical SETS first (prevents "set menu 1" matching "set menu 10")
   for (const [setKey, setVal] of Object.entries(SETS)) {
     const normKey = stripAccents(setKey).toLowerCase().trim()
-    if (normTarget.includes(normKey) || normKey.includes(normTarget)) {
-      return setVal
+    if (normTarget === normKey && isValidDesc(setVal)) {
+      return setVal.trim()
+    }
+  }
+
+  // Fallback substring match ONLY for non-numbered legacy sets
+  const targetHasNum = /\b\d+\b/.test(normTarget)
+  if (!targetHasNum) {
+    for (const [setKey, setVal] of Object.entries(SETS)) {
+      const normKey = stripAccents(setKey).toLowerCase().trim()
+      if ((normTarget.includes(normKey) || normKey.includes(normTarget)) && isValidDesc(setVal)) {
+        return setVal.trim()
+      }
     }
   }
 
   return ''
+}
+
+/**
+ * Consolidate Set menu / Combo couple items and absorb any component sub-dishes
+ * that were accidentally extracted as separate items alongside or instead of the Set header.
+ */
+function consolidateSetMenuItems(
+  rawItems: any[],
+  menuList: any[] = [],
+  menuDetails: Record<string, string> = {}
+): any[] {
+  if (!rawItems || rawItems.length === 0) return []
+
+  const cleanCompNorm = (s: string) =>
+    stripAccents(s)
+      .toLowerCase()
+      .replace(/^\s*(?:[-•*+>↳]|\d+\s*[\/\.\)])\s*/, '')
+      .replace(/\[\d+\]/g, '')
+      .replace(/\(\d+(?:\s*con)?\)/g, '')
+      .replace(/[^a-z0-9\s]/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim()
+
+  // Check if a raw item name looks like a Set component line (e.g. "1/ Sum Vầy [1]", "Miến Xào Trứng Tôm [2]")
+  const hasComponentMarkers = (s: string) =>
+    /^\s*(?:[1-9]|1[0-5])\s*[\/\.\)]\s+\S+/.test(s) || /\[\d+\]\s*$/.test(s)
+
+  // Step A: Find any explicit or generic Set menu / Combo couple items in rawItems
+  const setIndices: number[] = []
+  for (let i = 0; i < rawItems.length; i++) {
+    const rName = String(rawItems[i].raw_name || rawItems[i].name || '').trim()
+    const mName = String(rawItems[i].matched_name || '').trim()
+    const parsedSet = extractSetOrComboHeaderAndQty(rName) || extractSetOrComboHeaderAndQty(mName)
+    const isGenericSet = /^(?:set\s*menu|menu\s*set|combo\s*couple|couple\s*combo)$/i.test(stripAccents(rName).trim())
+    if (parsedSet || isGenericSet) {
+      setIndices.push(i)
+    }
+  }
+
+  // Case 1: No explicit Set header in rawItems, check if rawItems (3+ items) are actually a dumped Set menu component list
+  if (setIndices.length === 0 && rawItems.length >= 3) {
+    const candidateLines = rawItems.map(it => String(it.raw_name || it.name || '').trim()).filter(Boolean)
+    const markedCount = candidateLines.filter(hasComponentMarkers).length
+    if (markedCount >= 2 || rawItems.length >= 4) {
+      const detected = detectSetMenuFromComponentLines(candidateLines, menuList, menuDetails)
+      if (detected && (detected.score >= 0.65 || (markedCount >= 3 && detected.score >= 0.5))) {
+        return [{
+          raw_name: detected.matchedSetName,
+          matched_name: detected.matchedSetName,
+          quantity: 1,
+          note: detected.customModifications.join('\n')
+        }]
+      }
+    }
+    return rawItems
+  }
+
+  if (setIndices.length === 0) return rawItems
+
+  // Case 2: At least one Set menu / Combo couple item exists in rawItems.
+  // Check if non-set items in rawItems are actually the component dishes of the Set menu(s).
+  const nonSetIndices = rawItems.map((_, idx) => idx).filter(idx => !setIndices.includes(idx))
+  if (nonSetIndices.length === 0) return rawItems
+
+  const nonSetNames = nonSetIndices.map(idx => String(rawItems[idx].raw_name || rawItems[idx].name || '').trim())
+  const detectedFromComponents = nonSetNames.length >= 2
+    ? detectSetMenuFromComponentLines(nonSetNames, menuList, menuDetails)
+    : null
+
+  const absorbedIndices = new Set<number>()
+
+  for (const sIdx of setIndices) {
+    const setItem = rawItems[sIdx]
+    let rName = String(setItem.raw_name || setItem.name || '').trim()
+    const mName = String(setItem.matched_name || '').trim()
+    let parsedSet = extractSetOrComboHeaderAndQty(rName, setItem.quantity || setItem.qty || null) ||
+                    extractSetOrComboHeaderAndQty(mName, setItem.quantity || setItem.qty || null)
+
+    // If the Set item was generic ("Set menu") or mis-numbered to "Set menu 1" when components clearly belong to another Set
+    if (detectedFromComponents && detectedFromComponents.score >= 0.65) {
+      const isGeneric = !parsedSet
+      const isLikelyMisnumberedSet1 =
+        parsedSet &&
+        parsedSet.identifierNumber === 1 &&
+        detectedFromComponents.matchedSetName !== parsedSet.canonicalName &&
+        setItem.quantity &&
+        `Set menu ${setItem.quantity}` === detectedFromComponents.matchedSetName
+
+      if (isGeneric || isLikelyMisnumberedSet1) {
+        setItem.raw_name = detectedFromComponents.matchedSetName
+        setItem.name = detectedFromComponents.matchedSetName
+        setItem.matched_name = detectedFromComponents.matchedSetName
+        setItem.quantity = 1
+        setItem.qty = 1
+        rName = detectedFromComponents.matchedSetName
+        parsedSet = extractSetOrComboHeaderAndQty(rName, 1)
+      }
+    }
+
+    const canonicalSetName = parsedSet ? parsedSet.canonicalName : rName
+    const desc = resolveSetMenuDescription(canonicalSetName, menuList, menuDetails)
+    if (!desc) continue
+
+    const canonSubDishes = formatSetNote(desc)
+      .split('\n')
+      .flatMap(line => {
+        const cleanedLine = cleanCompNorm(line)
+        // Also split sub-items inside "Combo Khai Vị: A, B, C" or "Trái Cây/ Tàu Hủ Lạnh/ Bánh Bò Thốt Nốt"
+        const subParts = line
+          .replace(/^\s*\d+\s*[\/\.\)]\s*/, '')
+          .replace(/\[\d+\]/g, '')
+          .split(/[:,\/()]/)
+          .map(cleanCompNorm)
+          .filter(s => s.length >= 4)
+        return [cleanedLine, ...subParts]
+      })
+      .filter(Boolean)
+
+    // Find which nonSetIndices match a canonical component of this Set
+    const matchingNonSetIndices: number[] = []
+    for (const nsIdx of nonSetIndices) {
+      if (absorbedIndices.has(nsIdx)) continue
+      const nsRaw = String(rawItems[nsIdx].raw_name || rawItems[nsIdx].name || '').trim()
+      const nsNorm = cleanCompNorm(nsRaw)
+      if (!nsNorm) continue
+
+      const isCompMatch = canonSubDishes.some(cNorm => {
+        if (cNorm === nsNorm) return true
+        if (cNorm.includes(nsNorm) || nsNorm.includes(cNorm)) return nsNorm.length >= 5
+        const nWords = nsNorm.split(' ').filter(w => w.length > 1)
+        const cWords = cNorm.split(' ').filter(w => w.length > 1)
+        if (nWords.length >= 2 && cWords.length >= 2) {
+          const shared = nWords.filter(w => cWords.includes(w)).length
+          return shared / Math.min(nWords.length, cWords.length) >= 0.75
+        }
+        return false
+      })
+
+      if (isCompMatch) {
+        matchingNonSetIndices.push(nsIdx)
+      }
+    }
+
+    // Absorb if items have explicit component markers OR at least 3 component dishes of the Set were dumped
+    for (const nsIdx of matchingNonSetIndices) {
+      const nsRaw = String(rawItems[nsIdx].raw_name || rawItems[nsIdx].name || '').trim()
+      if (hasComponentMarkers(nsRaw) || matchingNonSetIndices.length >= 3) {
+        absorbedIndices.add(nsIdx)
+        const nsNote = String(rawItems[nsIdx].note || rawItems[nsIdx].notes || '').trim()
+        if (nsNote && /\b(?:doi|thay|khong\s+cay|it\s+cay|khong\s+hanh)\b/i.test(stripAccents(nsNote))) {
+          setItem.note = setItem.note ? `${setItem.note}; ${nsRaw} (${nsNote})` : `${nsRaw} (${nsNote})`
+        }
+      }
+    }
+  }
+
+  return rawItems.filter((_, idx) => !absorbedIndices.has(idx))
 }
 
 export function matchMenuItems(
@@ -404,11 +965,13 @@ export function matchMenuItems(
   fallbackGuestCount?: number | null,
   logCallback?: (msg: string, type?: 'info' | 'warning' | 'error' | 'success') => void
 ): any[] {
+  const consolidatedRawItems = consolidateSetMenuItems(rawItems, menuList, menuDetails)
   const expandedItems: any[] = []
   
-  for (const item of rawItems) {
+  for (const item of consolidatedRawItems) {
     const rawName = (item.raw_name || item.name || '').trim()
-    const parsedSubDishes = parseDishItems(rawName)
+    const isSetOrCombo = !!extractSetOrComboHeaderAndQty(rawName) || /set\s*menu|combo\s*couple/i.test(rawName)
+    const parsedSubDishes = isSetOrCombo ? [] : parseDishItems(rawName)
     if (parsedSubDishes.length > 1) {
       if (logCallback) {
         logCallback(`Tách món ghép: "${rawName}" -> [${parsedSubDishes.map(d => `${d.qty}x ${d.name}`).join(', ')}]`)
@@ -424,74 +987,121 @@ export function matchMenuItems(
         })
       }
     } else {
-      expandedItems.push(item)
+      expandedItems.push({ ...item })
     }
   }
-
-  const attributes = ['trung muoi', 'tieu', 'pho mai', 'mo hanh', 'cay', 'lau', 'nuong', 'xao', 'hap']
 
   return expandedItems.map((item) => {
     let rawName = (item.raw_name || item.name || '').trim()
     let extractedCustomNote = ''
 
-    // 0. Extract trailing custom note if it's placed after quantity (e.g. "... x4 (làm không cay)")
-    const trailingParenCustomNote = rawName.match(/\s*\(([^)]+)\)\s*$/)
-    if (trailingParenCustomNote) {
-      const inside = trailingParenCustomNote[1].trim()
-      const isOfficialMenuSuffix = menuList.some((m: any) => {
-        const mNorm = stripAccents(m.name).toLowerCase()
-        return mNorm.endsWith(`(${stripAccents(inside).toLowerCase()})`)
-      })
-      if (!isOfficialMenuSuffix && !/^\d+\s*(?:con|c|kg|g|l|ml)$/i.test(inside)) {
-        extractedCustomNote = inside
-        rawName = rawName.replace(/\s*\([^)]+\)\s*$/, '').trim()
+    // Special Fast-Path for Set Menu (1..15) & Combo Couple (1..11):
+    // Protects Set/Combo identifier numbers from ever being stripped as quantities!
+    const setComboCandidate = extractSetOrComboHeaderAndQty(rawName, item.quantity || item.qty || null) ||
+                              extractSetOrComboHeaderAndQty(item.matched_name || '', item.quantity || item.qty || null)
+    if (setComboCandidate) {
+      rawName = setComboCandidate.canonicalName
+      item.quantity = setComboCandidate.quantity
+      if (setComboCandidate.customNote) {
+        extractedCustomNote = setComboCandidate.customNote
       }
-    }
+    } else {
+      // 0. Extract trailing custom note if it's placed after quantity (e.g. "... x4 (làm không cay)")
+      const trailingParenCustomNote = rawName.match(/\s*\(([^)]+)\)\s*$/)
+      if (trailingParenCustomNote) {
+        const inside = trailingParenCustomNote[1].trim()
+        const isOfficialMenuSuffix = menuList.some((m: any) => {
+          const mNorm = stripAccents(m.name).toLowerCase()
+          return mNorm.endsWith(`(${stripAccents(inside).toLowerCase()})`)
+        })
+        const isParenQty = /^(?:[x\*]\s*\d+|\d+\s*(?:[x\*]|phần|phan|đĩa|dia|suất|suat|bàn|ban|set|combo|lon|chai|ly|tháp|thap|nồi|noi))$/i.test(inside)
+        if (!isOfficialMenuSuffix && !isParenQty && !/^\d+\s*(?:con|c|kg|g|l|ml)$/i.test(inside)) {
+          extractedCustomNote = inside
+          rawName = rawName.replace(/\s*\([^)]+\)\s*$/, '').trim()
+        }
+      }
 
-    // Kiểm tra xem số ở đầu có phải là quy cách khẩu phần (vd: "5 con", "10 con", "1/2 con", "0.5kg") hay không
-    const isPortionPrefix = /^(?:(?:5|10)\s*(?:con|c)|1\/[2348]\s*con|½\s*con|nửa\s*con|nua\s*con|0[\.,]\d+\s*kg|\d+\s*(?:kg|g|l|ml)|dĩa\s*(?:lớn|nhỏ|lon|nho)|phan\s*(?:lon|nho))\b/i.test(rawName)
+      // Kiểm tra xem số ở đầu có phải là quy cách khẩu phần (vd: "5 con", "10 con", "1/2 con", "0.5kg") hay không
+      const isPortionPrefix = /^(?:(?:5|10)\s*(?:con|c)|1\/[2348]\s*con|½\s*con|nửa\s*con|nua\s*con|0[\.,]\d+\s*kg|\d+\s*(?:kg|g|l|ml)|dĩa\s*(?:lớn|nhỏ|lon|nho)|phan\s*(?:lon|nho))\b/i.test(rawName)
+      let hadLeadingQty = false
 
-    // 1. Trích xuất số lượng có từ "phần", "dĩa", "suất", "x" ở đầu: e.g. "2 phần hàu 5 con", "2x gà 1/2 con"
-    const explicitLeadingQtyMatch = rawName.match(/^(?:(\d+)\s*(?:phần|phan|đĩa|dia|suất|suat|x|\*)\s+)(.+)$/i)
-    if (explicitLeadingQtyMatch) {
-      item.quantity = parseInt(explicitLeadingQtyMatch[1], 10) || item.quantity || 1
-      rawName = explicitLeadingQtyMatch[2].trim()
-    } else if (!isPortionPrefix) {
-      // Trích xuất số lượng đứng ở đầu tên món thông thường (vd: "2 cơm chiên hải sản", "2 miến xào cua", "10 Coca", "25 chai suối")
-      const leadingQtyMatch = rawName.match(/^(\d+)\s+(.+)$/)
-      if (leadingQtyMatch) {
-        const extractedQty = parseInt(leadingQtyMatch[1], 10)
-        // Chỉ nhận là số lượng nếu phần sau không bắt đầu bằng đơn vị con/kg/g
-        if (!/^(?:con|c|kg|g|l|ml)\b/i.test(leadingQtyMatch[2].trim())) {
-          rawName = leadingQtyMatch[2].trim()
-          if (!item.quantity || item.quantity === 1) {
-            item.quantity = extractedQty
+      // 1. Trích xuất số lượng có từ "phần", "dĩa", "suất", "bàn", "set", "x" ở đầu: e.g. "2 phần hàu 5 con", "2x gà 1/2 con"
+      const explicitLeadingQtyMatch = rawName.match(/^(?:(\d+)\s*(?:phần|phan|đĩa|dia|suất|suat|bàn|ban|set|x|\*)\s+)(.+)$/i)
+      if (explicitLeadingQtyMatch) {
+        item.quantity = parseInt(explicitLeadingQtyMatch[1], 10) || item.quantity || 1
+        rawName = explicitLeadingQtyMatch[2].trim()
+        hadLeadingQty = true
+      } else if (!isPortionPrefix) {
+        // Trích xuất số lượng đứng ở đầu tên món thông thường (vd: "2 cơm chiên hải sản", "2 miến xào cua", "10 Coca", "25 chai suối")
+        const leadingQtyMatch = rawName.match(/^(\d+)\s+(.+)$/)
+        if (leadingQtyMatch) {
+          const extractedQty = parseInt(leadingQtyMatch[1], 10)
+          // Chỉ nhận là số lượng nếu phần sau không bắt đầu bằng đơn vị con/kg/g
+          if (!/^(?:con|c|kg|g|l|ml)\b/i.test(leadingQtyMatch[2].trim())) {
+            rawName = leadingQtyMatch[2].trim()
+            hadLeadingQty = true
+            if (!item.quantity || item.quantity === 1) {
+              item.quantity = extractedQty
+            }
           }
         }
       }
-    }
 
-    // 2. Trích xuất số lượng ở cuối tên món (vd: "cơm chiên hải sản x 2", "hàu phô mai 5 con x 2", "khoai tây chiên 5", "cánh gà -5", "sụn gà - 10", "cá diêu hồng (x3)")
-    const qtyMatch = rawName.match(/(?:\((?:[x\*])\s*(\d+)\)|(?:[x\*]|\bphần|\bphan|\bđĩa|\bdia)\s*(\d+)|(?:[-–—]\s*|\s+)(\d+))\s*$/i)
-    if (qtyMatch) {
-      const parsedQty = parseInt(qtyMatch[1] || qtyMatch[2] || qtyMatch[3], 10)
-      if (parsedQty >= 1 && parsedQty <= 100) {
-        item.quantity = parsedQty
-        rawName = rawName.slice(0, qtyMatch.index).trim()
+      // Check again if stripping leading quantity revealed a Set menu / Combo couple (e.g. "2 Set menu 3")
+      const postLeadingSetCheck = extractSetOrComboHeaderAndQty(rawName, item.quantity)
+      if (postLeadingSetCheck) {
+        rawName = postLeadingSetCheck.canonicalName
+        if (postLeadingSetCheck.hasExplicitQty) {
+          item.quantity = postLeadingSetCheck.quantity
+        }
+        if (postLeadingSetCheck.customNote) {
+          extractedCustomNote = extractedCustomNote
+            ? `${extractedCustomNote}; ${postLeadingSetCheck.customNote}`
+            : postLeadingSetCheck.customNote
+        }
+      } else {
+        // 2. Trích xuất số lượng ở cuối tên món (vd: "cơm chiên hải sản x 2", "khoai tây chiên 5", "cánh gà -5", "cá diêu hồng (x3)")
+        // Bảo vệ tên món có sẵn số trong menu (vd: "7up", "555", "Set 199k")
+        const fullRawMatchesMenu = menuList.some(
+          (m: any) => stripAccents(m.name || '').toLowerCase().trim() === stripAccents(rawName).toLowerCase().trim()
+        )
+        const qtyMatch = rawName.match(/(?:\((?:[x\*])\s*(\d+)\)|\(\s*(\d+)\s*(?:phần|phan|đĩa|dia|suất|suat|bàn|ban|set)\s*\)|(?:[x\*]|\bphần|\bphan|\bđĩa|\bdia|\bsuất|\bsuat|\bbàn|\bban|\bset)\s*(\d+)|(?:[-–—]\s*|\s+)(\d+))\s*$/i)
+        if (qtyMatch) {
+          const explicitTrailingQty = qtyMatch[1] || qtyMatch[2] || qtyMatch[3]
+          const bareTrailingQty = qtyMatch[4]
+          const candidatePrefix = rawName.slice(0, qtyMatch.index).trim()
+          const isSetPrefix = /\b(?:set(?:\s+menu)?|combo(?:\s+couple|\s+2\s*nguoi|\s+doi)?|couple|menu\s+set|sm|cc)\s*(?:so|#)?$/i.test(
+            stripAccents(candidatePrefix)
+          )
+
+          if (explicitTrailingQty) {
+            const parsedQty = parseInt(explicitTrailingQty, 10)
+            if (parsedQty >= 1 && parsedQty <= 100) {
+              item.quantity = parsedQty
+              rawName = candidatePrefix
+            }
+          } else if (bareTrailingQty && !hadLeadingQty && !fullRawMatchesMenu && !isSetPrefix) {
+            const parsedQty = parseInt(bareTrailingQty, 10)
+            if (parsedQty >= 1 && parsedQty <= 100) {
+              item.quantity = parsedQty
+              rawName = candidatePrefix
+            }
+          }
+        }
       }
-    }
 
-    // 2b. Check if there is still a custom parenthetical note before quantity: e.g. "Cơm chiên cá mặn chà bông ớt hiểm (cay) (làm không cay)"
-    const preQtyParenNote = rawName.match(/\s*\(([^)]+)\)\s*$/)
-    if (preQtyParenNote) {
-      const inside = preQtyParenNote[1].trim()
-      const isOfficialMenuSuffix = menuList.some((m: any) => {
-        const mNorm = stripAccents(m.name).toLowerCase()
-        return mNorm.endsWith(`(${stripAccents(inside).toLowerCase()})`)
-      })
-      if (!isOfficialMenuSuffix && !/^\d+\s*(?:con|c|kg|g|l|ml)$/i.test(inside)) {
-        extractedCustomNote = extractedCustomNote ? `${extractedCustomNote} - ${inside}` : inside
-        rawName = rawName.replace(/\s*\([^)]+\)\s*$/, '').trim()
+      // 2b. Check if there is still a custom parenthetical note before quantity
+      const preQtyParenNote = rawName.match(/\s*\(([^)]+)\)\s*$/)
+      if (preQtyParenNote) {
+        const inside = preQtyParenNote[1].trim()
+        const isOfficialMenuSuffix = menuList.some((m: any) => {
+          const mNorm = stripAccents(m.name).toLowerCase()
+          return mNorm.endsWith(`(${stripAccents(inside).toLowerCase()})`)
+        })
+        if (!isOfficialMenuSuffix && !/^\d+\s*(?:con|c|kg|g|l|ml)$/i.test(inside)) {
+          extractedCustomNote = extractedCustomNote ? `${extractedCustomNote} - ${inside}` : inside
+          rawName = rawName.replace(/\s*\([^)]+\)\s*$/, '').trim()
+        }
       }
     }
 
@@ -515,15 +1125,18 @@ export function matchMenuItems(
         note = note ? `${note} (${detectedPortion})` : String(detectedPortion)
       }
       const isSet = /set|combo|goi|phan|couple/i.test(match.name) || /set|combo|goi|phan|couple/i.test(rawName)
-      let description = match.desc || resolveSetMenuDescription(match.name, menuList, menuDetails) || resolveSetMenuDescription(rawName, menuList, menuDetails)
+      const validMatchDesc = match.desc && String(match.desc).trim().length >= 5 ? String(match.desc).trim() : ''
+      const description =
+        resolveSetMenuDescription(match.name, menuList, menuDetails) ||
+        validMatchDesc ||
+        resolveSetMenuDescription(rawName, menuList, menuDetails)
+
       if (description) {
-        const formattedNote = formatSetNote(description)
         if (isSet) {
-          if (!note.includes(formattedNote)) {
-            note = note ? `${note}\n${formattedNote}` : formattedNote
-          }
+          note = mergeSetComponentNote(note, description)
         } else {
-          if (!note.includes(description)) {
+          const formattedNote = formatSetNote(description)
+          if (!note.includes(description) && !note.includes(formattedNote)) {
             note = note ? `${note} (${description})` : description
           }
         }
@@ -548,6 +1161,7 @@ export function matchMenuItems(
         match_confidence: confidence,
         confidence,
         needs_review: needsReview,
+        needsReview,
         matchType,
         match_type: matchType,
         warning: confidence < 0.75 ? 'dish_fuzzy_match_low_confidence' : undefined
@@ -572,6 +1186,7 @@ export function matchMenuItems(
         match_confidence: 0.0,
         confidence: 0.0,
         needs_review: true,
+        needsReview: true,
         matchType: 'none',
         match_type: 'none',
         warning: 'dish_not_found'
