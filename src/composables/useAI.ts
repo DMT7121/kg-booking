@@ -168,7 +168,7 @@ export function useAI() {
     return false
   }
 
-  function fillBookingFormSafely(parsedResult: any, options: { mode: 'all' | 'customer' | 'menu' }) {
+  function fillBookingFormSafely(parsedResult: any, options: { mode: 'all' | 'customer' | 'menu' | 'append_menu' }) {
     const { mode } = options
 
     function parseTableCode(tableStr: string): { zone: string; number: string } | null {
@@ -296,7 +296,7 @@ export function useAI() {
       }
     }
 
-    if (mode === 'all' || mode === 'menu') {
+    if (mode === 'all' || mode === 'menu' || mode === 'append_menu') {
       const menuItems = parsedResult.menu_items || parsedResult.items
       if (menuItems && Array.isArray(menuItems) && menuItems.length > 0) {
         const consolidatedMap = new Map<string, any>()
@@ -319,14 +319,14 @@ export function useAI() {
         if (mode === 'all') {
           formStore.items = newItems
         } else {
-          const existingItems = [...formStore.items]
+          const existingItems = formStore.items.filter(i => i.name && i.name.trim())
           for (const item of newItems) {
             const matchIdx = existingItems.findIndex(i => 
               i.name.toLowerCase().trim() === item.name.toLowerCase().trim() &&
-              i.note === item.note
+              (i.note || '').trim() === (item.note || '').trim()
             )
             if (matchIdx !== -1) {
-              existingItems[matchIdx].qty += item.qty
+              existingItems[matchIdx].qty = (Number(existingItems[matchIdx].qty) || 1) + item.qty
             } else {
               existingItems.push(item)
             }
@@ -1249,8 +1249,8 @@ Output JSON: { "amount": Number, "content": "String", "bank": "String", "time": 
     })
   }
 
-  function applyCanonicalPayload(payload: CanonicalBookingPayload, options: { showToast?: boolean } = {}) {
-    const { showToast = true } = options
+  function applyCanonicalPayload(payload: CanonicalBookingPayload, options: { showToast?: boolean; mode?: 'all' | 'customer' | 'menu' | 'append_menu' } = {}) {
+    const { showToast = true, mode = 'all' } = options
     const formattedResult = {
       customer: {
         name: payload.customer.name.value,
@@ -1287,12 +1287,18 @@ Output JSON: { "amount": Number, "content": "String", "bank": "String", "time": 
       note: payload.note
     }
 
-    fillBookingFormSafely(formattedResult, { mode: 'all' })
+    fillBookingFormSafely(formattedResult, { mode })
 
     if (showToast) {
-      uiStore.showToast('⚡ Đã áp dụng bóc tách Deterministic tức thì (0ms)!', 'success', 3000)
+      uiStore.showToast(
+        mode === 'append_menu'
+          ? `➕ Đã gộp thêm ${payload.menuItems.length} món vào đơn hiện tại (0ms)!`
+          : '⚡ Đã áp dụng bóc tách Deterministic tức thì (0ms)!',
+        'success',
+        3000
+      )
     }
-    logStore.addLog(`[Unified Deterministic] Đã áp dụng thông tin đặt bàn vào Form (Confidence: ${payload.overallConfidence}).`, 'success')
+    logStore.addLog(`[Unified Deterministic] Đã áp dụng thông tin đặt bàn vào Form (Mode: ${mode}, Confidence: ${payload.overallConfidence}).`, 'success')
   }
 
   async function analyzeImageSinglePass(base64Img: string): Promise<any> {

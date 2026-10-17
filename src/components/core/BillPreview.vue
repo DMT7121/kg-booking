@@ -204,6 +204,14 @@ import BillTemplateLuxury from '@/components/bills/templates/BillTemplateLuxury.
 import BillTemplateTicket from '@/components/bills/templates/BillTemplateTicket.vue'
 
 const showQualityMenu = ref(false)
+const showCopyMenu = ref(false)
+
+const copyTemplates = [
+  { id: 'quote_deposit' as const, name: 'Báo giá & Xin cọc', desc: 'Gửi xác nhận món + STK & nội dung CK cọc', icon: 'fa-file-invoice-dollar text-amber-500' },
+  { id: 'deposit_confirmed' as const, name: 'Xác nhận Đã cọc', desc: 'Báo đã nhận cọc thành công & giữ bàn', icon: 'fa-circle-check text-emerald-500' },
+  { id: 'reminder' as const, name: 'Nhắc lịch hẹn hôm nay', desc: 'Nhắn nhắc giờ đón khách & vị trí bàn', icon: 'fa-bell text-blue-500' }
+]
+
 const qualities = [
   { id: 'standard', name: 'Tiêu chuẩn', scale: '1.5x', tag: '~350KB', desc: 'Gửi nhanh Zalo/3G', icon: 'fa-bolt' },
   { id: 'hd', name: 'Sắc nét HD', scale: '2.0x', tag: '~800KB', desc: 'Chuẩn Retina / 2K', icon: 'fa-star' },
@@ -328,6 +336,49 @@ function toggleHidePrice() {
           <i class="fa-solid" :class="formStore.deposit.isPaid ? 'fa-xmark' : 'fa-check'"></i>
           <span>{{ formStore.deposit.isPaid ? 'Hủy cọc' : 'Đã cọc' }}</span>
         </button>
+
+        <!-- Copy Smart Reply Messages (3 Scenarios) -->
+        <div class="relative flex items-center">
+          <button
+            @click="copyBookingConfirmation()"
+            class="bg-slate-50 dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 pl-2.5 pr-1.5 py-1.5 rounded-l-xl font-black text-[10px] uppercase flex items-center gap-1 border border-r-0 border-slate-200 dark:border-slate-700 transition-all active:scale-95 shadow-sm cursor-pointer"
+            title="Copy tin nhắn phản hồi khách (Tự động theo trạng thái cọc)"
+          >
+            <i class="fa-solid fa-comment-dots text-emerald-600 dark:text-emerald-400"></i>
+            <span>Tin nhắn</span>
+          </button>
+          <button
+            @click="showCopyMenu = !showCopyMenu"
+            class="bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 px-1.5 py-1.5 rounded-r-xl border border-slate-200 dark:border-slate-700 font-bold text-[10px] transition-all cursor-pointer"
+            title="Chọn kịch bản tin nhắn Zalo / Messenger"
+          >
+            <i class="fa-solid fa-chevron-down text-[9px]"></i>
+          </button>
+
+          <div v-if="showCopyMenu" class="fixed inset-0 z-40" @click="showCopyMenu = false"></div>
+          <div
+            v-if="showCopyMenu"
+            class="absolute right-0 top-full mt-2 w-64 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl z-50 p-2 text-left space-y-1 animate-in fade-in slide-in-from-top-2 duration-150"
+          >
+            <div class="px-2 py-1 text-[10px] font-black uppercase tracking-wider text-slate-400 border-b border-slate-100 dark:border-slate-800">
+              Kịch bản tin nhắn Zalo / FB:
+            </div>
+            <button
+              v-for="tpl in copyTemplates"
+              :key="tpl.id"
+              @click="copyBookingConfirmation(tpl.id); showCopyMenu = false"
+              class="w-full p-2 rounded-xl text-left flex items-start gap-2.5 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 transition-all cursor-pointer"
+            >
+              <div class="w-6 h-6 rounded-lg bg-slate-100 dark:bg-slate-800 flex items-center justify-center shrink-0 mt-0.5">
+                <i class="fa-solid text-xs" :class="tpl.icon"></i>
+              </div>
+              <div class="min-w-0 flex-1">
+                <div class="text-xs font-extrabold">{{ tpl.name }}</div>
+                <div class="text-[10px] text-slate-400 mt-0.5 leading-snug">{{ tpl.desc }}</div>
+              </div>
+            </button>
+          </div>
+        </div>
 
         <!-- Copy Link -->
         <button @click="shareCurrentBill" class="bg-slate-50 dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 px-2.5 py-1.5 rounded-xl font-black text-[10px] uppercase flex items-center gap-1 border border-slate-200 dark:border-slate-700 transition-all active:scale-95 shadow-sm cursor-pointer" title="Copy link bill">
@@ -458,8 +509,14 @@ function toggleHidePrice() {
               </div>
             </div>
 
-            <button @click="copyBookingConfirmation(); showMoreMenu = false" class="w-full px-4 py-3 text-left text-xs font-black uppercase tracking-wider hover:bg-slate-50 dark:hover:bg-slate-800 active:bg-slate-100 flex items-center gap-2.5 min-h-[44px]">
-              <i class="fa-solid fa-copy text-slate-400 w-4 text-center text-sm"></i> Copy tin nhắn
+            <button @click="copyBookingConfirmation('quote_deposit'); showMoreMenu = false" class="w-full px-4 py-2.5 text-left text-xs font-black uppercase tracking-wider hover:bg-slate-50 dark:hover:bg-slate-800 active:bg-slate-100 flex items-center gap-2.5 min-h-[42px]">
+              <i class="fa-solid fa-file-invoice-dollar text-amber-500 w-4 text-center text-sm"></i> Copy Báo giá & Xin cọc
+            </button>
+            <button @click="copyBookingConfirmation('deposit_confirmed'); showMoreMenu = false" class="w-full px-4 py-2.5 text-left text-xs font-black uppercase tracking-wider hover:bg-slate-50 dark:hover:bg-slate-800 active:bg-slate-100 flex items-center gap-2.5 min-h-[42px]">
+              <i class="fa-solid fa-circle-check text-emerald-500 w-4 text-center text-sm"></i> Copy Xác nhận Đã cọc
+            </button>
+            <button @click="copyBookingConfirmation('reminder'); showMoreMenu = false" class="w-full px-4 py-2.5 text-left text-xs font-black uppercase tracking-wider hover:bg-slate-50 dark:hover:bg-slate-800 active:bg-slate-100 flex items-center gap-2.5 min-h-[42px]">
+              <i class="fa-solid fa-bell text-blue-500 w-4 text-center text-sm"></i> Copy Nhắc lịch hẹn
             </button>
             <button @click="shareCurrentBill(); showMoreMenu = false" class="w-full px-4 py-3 text-left text-xs font-black uppercase tracking-wider hover:bg-slate-50 dark:hover:bg-slate-800 active:bg-slate-100 flex items-center gap-2.5 min-h-[44px]">
               <i class="fa-solid fa-link text-slate-400 w-4 text-center text-sm"></i> Chia sẻ link

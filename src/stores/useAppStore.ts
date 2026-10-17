@@ -1539,6 +1539,22 @@ export const useAppStore = defineStore('app', () => {
     return res
   }
 
+  function learnLocalAlias(rawAlias: string, dishName: string) {
+    const cleanRaw = (rawAlias || '').trim()
+    const cleanDish = (dishName || '').trim()
+    if (!cleanRaw || !cleanDish || cleanRaw.toLowerCase() === cleanDish.toLowerCase()) return false
+    const updated = sanitizeAliasesList([...menuAliases.value, { alias: cleanRaw, dishName: cleanDish }], menuList.value)
+    if (updated.length > menuAliases.value.length) {
+      menuAliases.value = updated
+      localStorage.setItem('menu_aliases', JSON.stringify(updated))
+      if (isAdminSettingsUnlocked.value) {
+        menuRepo.saveMenuAlias(cleanRaw, cleanDish, adminToken.value).catch(() => {})
+      }
+      return true
+    }
+    return false
+  }
+
   async function deleteAlias(alias: string, promptUser = true) {
     const isAuth = await verifySession('corrections:approve', promptUser)
     if (!isAuth) return { ok: false, message: 'Permission Denied' }
@@ -1863,7 +1879,7 @@ export const useAppStore = defineStore('app', () => {
     adminToken, adminExpiresAt, isAdminSettingsUnlocked, lockAdminSettings, unlockAdminSettings, defaultMenuProfileId, defaultBankAccountIndex, setDefaultBankAccount, setDefaultMenuProfile, autoSyncIfReady,
     showPortalMinigames,
     historyList, menuList, menuDetails, menuImages, dishImages, menuSheets, activeSheet, newMenuName, newMenuContent,
-    menuAliases, loadMenuAliases, saveAlias, deleteAlias,
+    menuAliases, loadMenuAliases, saveAlias, learnLocalAlias, deleteAlias,
     aiCorrections, loadAiCorrections, logAiCorrection,
     menuFingerprint, correctionFingerprint,
     bankList, selectedBankIndex, newBank,

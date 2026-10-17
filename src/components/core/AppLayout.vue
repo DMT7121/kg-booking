@@ -6,7 +6,8 @@ import { useAppStore } from '@/stores/useAppStore'
 import { useConfigStore } from '@/stores/useConfigStore'
 import { useBillRender } from '@/composables/useBillRender'
 import { useForm } from '@/composables/useForm'
-import { isIOS } from '@/utils'
+import { isIOS, formatVND } from '@/utils'
+import { CANONICAL_SET_AND_COMBO_ITEMS } from '@/domain/menu/menuMatcher'
 import { onMounted, onUnmounted, ref, computed, watch, nextTick, defineAsyncComponent } from 'vue'
 import LeftPanel from './LeftPanel.vue'
 
@@ -209,6 +210,12 @@ onUnmounted(() => {
 })
 
 const searchQuery = ref('')
+const paletteFilter = ref<'all' | 'orders' | 'menu' | 'commands'>('all')
+const paletteSelectedIndex = ref(0)
+
+watch([searchQuery, paletteFilter], () => {
+  paletteSelectedIndex.value = 0
+})
 
 function getTodayStr() {
   const d = new Date()
@@ -223,36 +230,130 @@ function getTomorrowStr() {
 
 const commands = [
   { label: 'Tạo phiếu đặt bàn mới', cmd: '/create', desc: 'Xóa form và chuyển sang tab Tạo Phiếu', icon: 'fa-plus text-emerald-500' },
-  { label: 'Lịch đặt bàn hôm nay', cmd: '/today', desc: 'Xem timeline đặt bàn ngày hôm nay', icon: 'fa-calendar-day text-blue-500' },
+  { label: 'Xem trước & Xuất ảnh Phiếu', cmd: '/preview', desc: 'Mở màn hình xem phiếu và tải ảnh/PDF gửi khách', icon: 'fa-eye text-cyan-500' },
+  { label: 'Mở Sơ đồ bàn nhà hàng (F3)', cmd: '/floor', desc: 'Xem trực quan sơ đồ bàn trống / đã đặt', icon: 'fa-map-location-dot text-orange-500' },
+  { label: 'Lịch đặt bàn hôm nay (F4)', cmd: '/today', desc: 'Xem timeline đặt bàn ngày hôm nay', icon: 'fa-calendar-day text-blue-500' },
   { label: 'Lịch đặt bàn ngày mai', cmd: '/tomorrow', desc: 'Xem timeline đặt bàn ngày mai', icon: 'fa-calendar-plus text-indigo-500' },
   { label: 'Xem phiếu chưa cọc', cmd: '/unpaid', desc: 'Lọc lịch sử các phiếu chưa cọc', icon: 'fa-hourglass-half text-amber-500' },
-  { label: 'Cài đặt hệ thống', cmd: '/settings', desc: 'Mở cửa sổ cài đặt hệ thống', icon: 'fa-gear text-slate-500' },
+  { label: 'Copy Báo giá & Xin cọc (Zalo/FB)', cmd: '/copy-quote', desc: 'Copy nhanh kịch bản báo giá kèm STK nhận cọc', icon: 'fa-file-invoice-dollar text-amber-600' },
+  { label: 'Copy Xác nhận Đã cọc (Zalo/FB)', cmd: '/copy-paid', desc: 'Copy nhanh tin nhắn báo đã nhận cọc giữ bàn', icon: 'fa-circle-check text-emerald-600' },
+  { label: 'Đổi giao diện Sáng / Tối', cmd: '/dark', desc: 'Bật/Tắt chế độ ban đêm (Dark Mode)', icon: 'fa-moon text-indigo-400' },
+  { label: 'Cài đặt hệ thống', cmd: '/settings', desc: 'Mở cửa sổ cài đặt AI, Ngân hàng, Thực đơn', icon: 'fa-gear text-slate-500' },
   { label: 'Đồng bộ dữ liệu Cloud', cmd: '/sync', desc: 'Tải lại lịch sử đặt bàn từ server', icon: 'fa-rotate text-purple-500' }
 ]
 
 const filteredCommands = computed(() => {
+  if (paletteFilter.value !== 'all' && paletteFilter.value !== 'commands') return []
   const q = searchQuery.value.trim().toLowerCase()
   if (!q) return commands
-  if (q.startsWith('/')) {
-    return commands.filter(c => c.cmd.includes(q) || c.label.toLowerCase().includes(q))
-  }
-  return commands.filter(c => c.label.toLowerCase().includes(q))
+  const cleanQ = q.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
+  return commands.filter(c => {
+    const cleanLabel = c.label.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
+    const cleanDesc = c.desc.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
+    return c.cmd.includes(q) || cleanLabel.includes(cleanQ) || cleanDesc.includes(cleanQ)
+  })
 })
 
 const searchResults = computed(() => {
+  if (paletteFilter.value !== 'all' && paletteFilter.value !== 'orders') return []
   const q = searchQuery.value.trim().toLowerCase()
-  if (!q || q.startsWith('/')) return []
+  if (!q && paletteFilter.value !== 'orders') return []
+  if (q.startsWith('/')) return []
   
   const cleanQ = q.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase()
-  return appStore.historyList.filter(o => {
+  const list = !cleanQ ? appStore.historyList : appStore.historyList.filter(o => {
     if (!o.parsedCustomer) return false
     const name = (o.parsedCustomer.name || '').normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase()
     const phone = (o.parsedCustomer.phone || '').replace(/\D/g, '')
     const id = (o.id || '').toLowerCase()
     const table = (o.parsedCustomer.tables || '').toLowerCase()
     return name.includes(cleanQ) || phone.includes(cleanQ) || id.includes(cleanQ) || table.includes(cleanQ)
-  }).slice(0, 5)
+  })
+  return list.slice(0, 6)
 })
+
+const menuSearchResults = computed(() => {
+  if (paletteFilter.value !== 'all' && paletteFilter.value !== 'menu') return []
+  const q = searchQuery.value.trim().toLowerCase()
+  if (!q && paletteFilter.value !== 'menu') return []
+  if (q.startsWith('/')) return []
+
+  const cleanQ = q.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/đ/g, 'd').toLowerCase()
+  const mergedMap = new Map<string, any>()
+  for (const item of CANONICAL_SET_AND_COMBO_ITEMS) {
+    mergedMap.set(item.name.toLowerCase(), item)
+  }
+  for (const item of appStore.menuList || []) {
+    const key = String(item.name || '').toLowerCase()
+    if (key && !mergedMap.has(key)) {
+      mergedMap.set(key, item)
+    }
+  }
+  const allItems = Array.from(mergedMap.values())
+  if (!cleanQ) return allItems.slice(0, 8)
+
+  return allItems.filter(item => {
+    const nameClean = String(item.name || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/đ/g, 'd').toLowerCase()
+    const noteClean = String(item.note || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/đ/g, 'd').toLowerCase()
+    return nameClean.includes(cleanQ) || noteClean.includes(cleanQ)
+  }).slice(0, 6)
+})
+
+function quickAddDishFromPalette(dish: any) {
+  if (
+    formStore.items.length === 1 &&
+    !formStore.items[0].name.trim() &&
+    Number(formStore.items[0].price || 0) === 0
+  ) {
+    formStore.items.splice(0, 1)
+  }
+  const existing = formStore.items.find(
+    (i: any) => i.name.trim().toLowerCase() === String(dish.name || '').trim().toLowerCase() && (i.note || '') === (dish.note || '')
+  )
+  if (existing) {
+    existing.qty = (Number(existing.qty) || 1) + 1
+  } else {
+    formStore.items.push({
+      name: dish.name,
+      qty: 1,
+      price: Number(dish.price || 0),
+      note: dish.note || ''
+    })
+  }
+  if (ui.tab !== 'create' && ui.tab !== 'preview') {
+    ui.tab = 'create'
+  }
+  ui.showCommandPalette = false
+  searchQuery.value = ''
+  ui.showToast(`➕ Đã thêm "${dish.name}" vào thực đơn phiếu hiện tại`, 'success')
+}
+
+function handlePaletteKeydown(e: KeyboardEvent) {
+  const total = searchResults.value.length + menuSearchResults.value.length + filteredCommands.value.length
+  if (total === 0) return
+
+  if (e.key === 'ArrowDown') {
+    e.preventDefault()
+    paletteSelectedIndex.value = (paletteSelectedIndex.value + 1) % total
+  } else if (e.key === 'ArrowUp') {
+    e.preventDefault()
+    paletteSelectedIndex.value = (paletteSelectedIndex.value - 1 + total) % total
+  } else if (e.key === 'Enter') {
+    e.preventDefault()
+    const idx = paletteSelectedIndex.value
+    const orderLen = searchResults.value.length
+    const menuLen = menuSearchResults.value.length
+
+    if (idx < orderLen) {
+      handleResultClick(searchResults.value[idx])
+    } else if (idx < orderLen + menuLen) {
+      quickAddDishFromPalette(menuSearchResults.value[idx - orderLen])
+    } else {
+      const cmdItem = filteredCommands.value[idx - orderLen - menuLen]
+      if (cmdItem) executeCommand(cmdItem.cmd)
+    }
+  }
+}
 
 function executeCommand(cmd: string) {
   ui.showCommandPalette = false
@@ -262,6 +363,10 @@ function executeCommand(cmd: string) {
     formStore.$reset()
     ui.tab = 'create'
     ui.showToast('Đã khởi tạo phiếu mới!', 'success')
+  } else if (cmd === '/preview') {
+    ui.tab = 'preview'
+  } else if (cmd === '/floor') {
+    ui.showFloorPlan = true
   } else if (cmd === '/today') {
     ui.selectedTimelineDate = getTodayStr()
     ui.tab = 'timeline'
@@ -274,6 +379,12 @@ function executeCommand(cmd: string) {
     ui.tab = 'history'
     ui.historyFilters.deposit = 'unpaid'
     appStore.loadHistory(false)
+  } else if (cmd === '/copy-quote') {
+    copyBookingConfirmation('quote_deposit')
+  } else if (cmd === '/copy-paid') {
+    copyBookingConfirmation('deposit_confirmed')
+  } else if (cmd === '/dark') {
+    ui.toggleDarkMode()
   } else if (cmd === '/settings') {
     ui.showSettingsHub = true
   } else if (cmd === '/sync') {
@@ -1109,18 +1220,19 @@ const ambientTheme = computed(() => {
 
     <!-- COMMAND PALETTE MODAL -->
     <transition name="fade">
-      <div v-if="ui.showCommandPalette" class="fixed inset-0 z-[99999] flex items-start justify-center pt-[10vh] px-4 backdrop-blur-sm bg-slate-950/60" @click.self="ui.showCommandPalette = false">
-        <div class="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 w-full max-w-xl flex flex-col overflow-hidden max-h-[75vh] transition-all transform duration-200">
+      <div v-if="ui.showCommandPalette" class="fixed inset-0 z-[99999] flex items-start justify-center pt-[8vh] px-4 backdrop-blur-sm bg-slate-950/60" @click.self="ui.showCommandPalette = false">
+        <div class="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 w-full max-w-xl flex flex-col overflow-hidden max-h-[80vh] transition-all transform duration-200">
           <!-- Search Header -->
           <div class="p-3.5 border-b border-slate-200 dark:border-slate-800 flex items-center gap-3 bg-slate-50 dark:bg-slate-950">
-            <i class="fa-solid fa-magnifying-glass text-slate-400 text-base"></i>
+            <i class="fa-solid fa-magnifying-glass text-indigo-500 text-base"></i>
             <input
               id="palette-search"
               v-model="searchQuery"
+              @keydown="handlePaletteKeydown"
               type="search"
               enterkeyhint="search"
               class="flex-1 bg-transparent border-none outline-none font-bold text-slate-800 dark:text-slate-100 text-[16px] md:text-sm placeholder-slate-400 min-h-[44px]"
-              placeholder="Tìm tên khách, SĐT, số bàn hoặc nói 'Xếp bàn A1 lúc 19:00'..."
+              placeholder="Gõ tên khách, SĐT, 'Set 3', 'Combo 2', tên món hoặc lệnh '/...'..."
               autocomplete="off"
             >
             <button
@@ -1134,6 +1246,30 @@ const ambientTheme = computed(() => {
             <kbd class="hidden md:inline-flex items-center gap-0.5 px-2 py-0.5 rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-[10px] font-bold text-slate-400 shadow-sm">ESC</kbd>
           </div>
 
+          <!-- Filter Tabs -->
+          <div class="px-3 py-1.5 bg-slate-100/80 dark:bg-slate-900/90 border-b border-slate-200/70 dark:border-slate-800 flex items-center gap-1.5 overflow-x-auto no-scrollbar">
+            <button
+              v-for="tabItem in [
+                { id: 'all', label: 'Tất cả', icon: 'fa-layer-group' },
+                { id: 'orders', label: 'Đơn đặt bàn', icon: 'fa-receipt' },
+                { id: 'menu', label: 'Thêm Set / Món', icon: 'fa-utensils' },
+                { id: 'commands', label: 'Lệnh nhanh', icon: 'fa-bolt' }
+              ]"
+              :key="tabItem.id"
+              type="button"
+              @click="paletteFilter = tabItem.id as any"
+              :class="[
+                'px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider flex items-center gap-1.5 transition-all shrink-0 cursor-pointer',
+                paletteFilter === tabItem.id
+                  ? 'bg-indigo-600 text-white shadow-2xs'
+                  : 'text-slate-500 dark:text-slate-400 hover:bg-white dark:hover:bg-slate-800'
+              ]"
+            >
+              <i class="fa-solid text-[9px]" :class="tabItem.icon"></i>
+              <span>{{ tabItem.label }}</span>
+            </button>
+          </div>
+
           <!-- Voice Status Bar -->
           <div v-if="voiceStatus" class="px-4 py-2 bg-blue-50 dark:bg-blue-950/50 border-b border-blue-100 dark:border-blue-900/50 text-[10px] font-black text-blue-700 dark:text-blue-300 uppercase tracking-widest flex items-center justify-between">
             <span class="animate-pulse">🎙️ {{ voiceStatus }}</span>
@@ -1141,20 +1277,37 @@ const ambientTheme = computed(() => {
           </div>
 
           <!-- Content Area -->
-          <div class="flex-grow overflow-y-auto p-2 custom-scrollbar space-y-3 max-h-[50vh]">
-            <!-- Booking Search Results -->
+          <div class="flex-grow overflow-y-auto p-2 custom-scrollbar space-y-3 max-h-[52vh]">
+            <!-- 1. Booking Search Results -->
             <div v-if="searchResults.length > 0" class="space-y-1">
-              <div class="px-3 py-1 text-[10px] font-black uppercase text-slate-400 tracking-wider">Đơn đặt bàn khớp kết quả</div>
+              <div class="px-3 py-1 text-[10px] font-black uppercase text-slate-400 tracking-wider flex items-center justify-between">
+                <span>Đơn đặt bàn khớp kết quả</span>
+                <span class="text-[9px] font-mono">{{ searchResults.length }} đơn</span>
+              </div>
               <button
-                v-for="order in searchResults"
+                v-for="(order, oIdx) in searchResults"
                 :key="order.id"
                 @click="handleResultClick(order)"
-                class="w-full text-left px-3 py-2.5 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800/70 active:bg-slate-200 dark:active:bg-slate-800 transition-colors flex items-center justify-between border border-transparent hover:border-slate-200 dark:hover:border-slate-700"
+                :class="[
+                  'w-full text-left px-3 py-2.5 rounded-xl transition-colors flex items-center justify-between border cursor-pointer',
+                  paletteSelectedIndex === oIdx
+                    ? 'bg-indigo-50/90 dark:bg-indigo-950/50 border-indigo-200 dark:border-indigo-800/70'
+                    : 'hover:bg-slate-100 dark:hover:bg-slate-800/70 border-transparent hover:border-slate-200 dark:hover:border-slate-700'
+                ]"
               >
                 <div class="min-w-0">
-                  <div class="font-bold text-slate-800 dark:text-slate-100 text-xs flex items-center gap-2">
+                  <div class="font-bold text-slate-800 dark:text-slate-100 text-xs flex items-center gap-2 flex-wrap">
                     <span>{{ order.parsedCustomer.name }}</span>
                     <span v-if="order.parsedCustomer.tables" class="px-1.5 py-0.5 bg-blue-50 dark:bg-blue-950 text-blue-700 dark:text-blue-300 rounded text-[9px] font-black border border-blue-200 dark:border-blue-800">Bàn {{ order.parsedCustomer.tables }}</span>
+                    <span v-if="order.parsedCustomer.pax" class="px-1.5 py-0.5 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 rounded text-[9px] font-bold">{{ order.parsedCustomer.pax }} khách</span>
+                    <span :class="[
+                      'px-1.5 py-0.5 rounded text-[9px] font-black uppercase',
+                      (order.isDeposited || order.deposit?.isPaid)
+                        ? 'bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300'
+                        : 'bg-amber-50 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300'
+                    ]">
+                      {{ (order.isDeposited || order.deposit?.isPaid) ? 'Đã cọc' : 'Chưa cọc' }}
+                    </span>
                   </div>
                   <div class="text-[10px] text-slate-400 font-medium mt-0.5 flex items-center gap-3">
                     <span><i class="fa-solid fa-phone text-[8px]"></i> {{ order.parsedCustomer.phone }}</span>
@@ -1165,14 +1318,51 @@ const ambientTheme = computed(() => {
               </button>
             </div>
 
-            <!-- Commands -->
-            <div class="space-y-1">
-              <div class="px-3 py-1 text-[10px] font-black uppercase text-slate-400 tracking-wider">Lệnh điều hướng nhanh</div>
+            <!-- 2. 1-Click Add Set Menu / Combo Couple / Dish -->
+            <div v-if="menuSearchResults.length > 0" class="space-y-1">
+              <div class="px-3 py-1 text-[10px] font-black uppercase text-emerald-600 dark:text-emerald-400 tracking-wider flex items-center justify-between">
+                <span><i class="fa-solid fa-utensils mr-1"></i> Thêm nhanh Set / Combo / Món vào đơn hiện tại</span>
+                <span class="text-[9px] font-mono">1-chạm</span>
+              </div>
               <button
-                v-for="cmd in filteredCommands"
+                v-for="(dish, mIdx) in menuSearchResults"
+                :key="dish.name"
+                @click="quickAddDishFromPalette(dish)"
+                :class="[
+                  'w-full text-left px-3 py-2 rounded-xl transition-colors flex items-center justify-between gap-3 border cursor-pointer',
+                  paletteSelectedIndex === searchResults.length + mIdx
+                    ? 'bg-emerald-50/90 dark:bg-emerald-950/50 border-emerald-300 dark:border-emerald-800/70'
+                    : 'hover:bg-slate-100 dark:hover:bg-slate-800/70 border-transparent hover:border-slate-200 dark:hover:border-slate-700'
+                ]"
+              >
+                <div class="min-w-0 flex-1">
+                  <div class="font-extrabold text-slate-800 dark:text-slate-100 text-xs flex items-center gap-2">
+                    <span class="px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 text-[9px] font-black">+ THÊM</span>
+                    <span class="truncate">{{ dish.name }}</span>
+                  </div>
+                  <div v-if="dish.note" class="text-[10px] text-slate-400 dark:text-slate-500 mt-0.5 truncate">
+                    {{ String(dish.note).replace(/\n+/g, ' • ') }}
+                  </div>
+                </div>
+                <div class="shrink-0 font-mono text-xs font-black text-emerald-600 dark:text-emerald-400">
+                  {{ formatVND(dish.price || 0) }}đ
+                </div>
+              </button>
+            </div>
+
+            <!-- 3. Commands -->
+            <div v-if="filteredCommands.length > 0" class="space-y-1">
+              <div class="px-3 py-1 text-[10px] font-black uppercase text-slate-400 tracking-wider">Lệnh điều hành nhanh</div>
+              <button
+                v-for="(cmd, cIdx) in filteredCommands"
                 :key="cmd.cmd"
                 @click="executeCommand(cmd.cmd)"
-                class="w-full text-left px-3 py-2.5 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800/70 active:bg-slate-200 dark:active:bg-slate-800 transition-colors flex items-center gap-3 border border-transparent hover:border-slate-200 dark:hover:border-slate-700 min-h-[48px] touch-target-48"
+                :class="[
+                  'w-full text-left px-3 py-2.5 rounded-xl transition-colors flex items-center gap-3 border min-h-[46px] cursor-pointer',
+                  paletteSelectedIndex === searchResults.length + menuSearchResults.length + cIdx
+                    ? 'bg-indigo-50/90 dark:bg-indigo-950/50 border-indigo-200 dark:border-indigo-800/70'
+                    : 'hover:bg-slate-100 dark:hover:bg-slate-800/70 border-transparent hover:border-slate-200 dark:hover:border-slate-700'
+                ]"
               >
                 <div class="w-8 h-8 rounded-lg bg-slate-100 dark:bg-slate-800 flex items-center justify-center border border-slate-200 dark:border-slate-700 shrink-0">
                   <i class="fa-solid" :class="cmd.icon"></i>
@@ -1188,9 +1378,19 @@ const ambientTheme = computed(() => {
             </div>
 
             <!-- No results -->
-            <div v-if="searchQuery && searchResults.length === 0 && filteredCommands.length === 0" class="text-center py-6 text-slate-400 font-semibold text-xs">
+            <div v-if="searchQuery && searchResults.length === 0 && menuSearchResults.length === 0 && filteredCommands.length === 0" class="text-center py-6 text-slate-400 font-semibold text-xs">
                Không tìm thấy kết quả phù hợp cho "{{ searchQuery }}"
             </div>
+          </div>
+
+          <!-- Footer Shortcut Hints -->
+          <div class="px-4 py-2 bg-slate-50 dark:bg-slate-950 border-t border-slate-200/80 dark:border-slate-800 flex items-center justify-between text-[10px] font-bold text-slate-400">
+            <div class="flex items-center gap-3">
+              <span><kbd class="px-1.5 py-0.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded text-[9px] font-mono">↑↓</kbd> Di chuyển</span>
+              <span><kbd class="px-1.5 py-0.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded text-[9px] font-mono">↵</kbd> Chọn</span>
+              <span><kbd class="px-1.5 py-0.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded text-[9px] font-mono">Ctrl+K</kbd> Mở nhanh</span>
+            </div>
+            <span class="hidden sm:inline text-indigo-500 dark:text-indigo-400">Mẹo: Gõ "Set 5" để thêm nhanh Set 5</span>
           </div>
         </div>
       </div>

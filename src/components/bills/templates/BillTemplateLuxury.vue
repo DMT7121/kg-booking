@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import { formatVND, formatShortVND, getDayOfWeek, formatDepositTime } from '../billHelpers'
+import { formatVND, formatShortVND, getDayOfWeek, formatDepositTime, parseBillItemNote } from '../billHelpers'
 
 const props = defineProps<{
   formStore: any
@@ -152,8 +152,22 @@ const qrLink = computed(() => {
                 <div class="font-black text-slate-900 uppercase tracking-wide text-[13px]">
                   {{ item.name || 'Món chưa đặt tên' }}
                 </div>
-                <div v-if="item.note" class="text-[11px] text-rose-700 font-semibold mt-0.5 border-l-2 border-[#C5A059] pl-2 italic">
-                  {{ item.note }}
+                <div v-if="item.note" class="mt-1 space-y-1">
+                  <div
+                    v-for="(cNote, cnIdx) in parseBillItemNote(item.note).customNotes"
+                    :key="'cn-' + cnIdx"
+                    class="text-[11px] text-rose-700 font-semibold border-l-2 border-[#C5A059] pl-2 italic whitespace-pre-line leading-snug"
+                  >
+                    {{ cNote }}
+                  </div>
+                  <div
+                    v-if="parseBillItemNote(item.note).components.length > 0"
+                    class="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-0.5 pl-2 border-l-2 border-[#C5A059]/70 bg-[#FAF9F5] rounded-r-lg py-1.5 pr-2 text-[11px] text-slate-700 font-semibold leading-snug"
+                  >
+                    <div v-for="(comp, cpIdx) in parseBillItemNote(item.note).components" :key="'cp-' + cpIdx">
+                      {{ comp }}
+                    </div>
+                  </div>
                 </div>
               </td>
               <td class="py-3 px-4 text-center font-black text-slate-800">

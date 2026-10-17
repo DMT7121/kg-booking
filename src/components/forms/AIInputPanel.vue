@@ -3,15 +3,19 @@ import { ref, watch, computed, onMounted, onUnmounted } from 'vue'
 import { useUIStore } from '@/stores/useUIStore'
 import { useFormStore } from '@/stores/useFormStore'
 import { useConfigStore } from '@/stores/useConfigStore'
+import { useAppStore } from '@/stores/useAppStore'
 import { useAI } from '@/composables/useAI'
 import { useForm } from '@/composables/useForm'
 import { abortActiveAIRequest } from '@/services/api'
-import { formatVND } from '@/utils'
+import { formatVND, mergeSetComponentNote } from '@/utils'
+import { retrieveMenuCandidates } from '@/domain/menu/menuCandidateRetriever'
+import { resolveSetMenuDescription, CANONICAL_SET_AND_COMBO_ITEMS } from '@/domain/menu/menuMatcher'
 import type { CanonicalBookingPayload } from '@/domain/ai/unifiedParserEngine'
 
 const ui = useUIStore()
 const formStore = useFormStore()
 const configStore = useConfigStore()
+const appStore = useAppStore()
 const { 
   processAI, 
   ocrExtractText, 
@@ -43,9 +47,80 @@ watch(() => formStore.rawInput, (newVal) => {
   }, 120)
 }, { immediate: true })
 
+const hasExistingFormItems = computed(() =>
+  formStore.items.some(i => i.name && i.name.trim().length > 0)
+)
+
 function applyLiveCanonical() {
   if (!liveCanonical.value) return
-  applyCanonicalPayload(liveCanonical.value, { showToast: true })
+  applyCanonicalPayload(liveCanonical.value, { showToast: true, mode: 'all' })
+}
+
+function applyLiveCanonicalAppendMenu() {
+  if (!liveCanonical.value) return
+  applyCanonicalPayload(liveCanonical.value, { showToast: true, mode: 'append_menu' })
+}
+
+function getDishSuggestionsForAiItem(item: any): any[] {
+  if (!item) return []
+  const isUnresolved = item.needs_review || !item.unit_price || (item.match_confidence ?? 1) < 0.85
+  if (!isUnresolved) return []
+  const query = (item.raw_name || item.matched_name || item.name || '').trim()
+  if (!query) return []
+
+  const mergedItems = [...CANONICAL_SET_AND_COMBO_ITEMS, ...(appStore.menuList || [])]
+  const candidates = retrieveMenuCandidates({
+    text: query,
+    menus: [{ menuId: 'default', menuName: 'Menu', items: mergedItems }],
+    limit: 5
+  })
+
+  const currentMatchLower = (item.matched_name || '').toLowerCase()
+  const resolved: any[] = []
+  const seen = new Set<string>()
+  for (const cand of candidates) {
+    const key = (cand.itemName || '').toLowerCase()
+    if (!key || key === currentMatchLower || seen.has(key)) continue
+    const found = mergedItems.find(m => (m.name || '').toLowerCase() === key)
+    if (found) {
+      seen.add(key)
+      resolved.push(found)
+      if (resolved.length >= 3) break
+    }
+  }
+  return resolved
+}
+
+function resolveAiDishInline(idx: number, candidate: any) {
+  if (!formStore.parsedAiResult?.menu_items?.[idx] || !candidate) return
+  const target = formStore.parsedAiResult.menu_items[idx]
+  const rawName = (target.raw_name || target.matched_name || '').trim()
+
+  target.matched_name = candidate.name
+  target.name = candidate.name
+  target.unit_price = candidate.price || 0
+  target.needs_review = false
+  target.match_confidence = 1.0
+
+  const setDesc = resolveSetMenuDescription(candidate.name, appStore.menuList, appStore.menuDetails || {})
+  if (setDesc) {
+    target.note = mergeSetComponentNote(target.note || '', setDesc)
+  }
+
+  if (Array.isArray(formStore.unresolvedItems) && rawName) {
+    formStore.unresolvedItems = formStore.unresolvedItems.filter(
+      (u: string) => !u.toLowerCase().includes(rawName.toLowerCase())
+    )
+  }
+
+  if (rawName && rawName.toLowerCase() !== candidate.name.toLowerCase()) {
+    const learned = appStore.learnLocalAlias(rawName, candidate.name)
+    if (learned) {
+      ui.showToast(`🧠 Đã khớp "${candidate.name}" & tự học từ khóa "${rawName}" cho lần sau!`, 'success')
+      return
+    }
+  }
+  ui.showToast(`✅ Đã khớp món: ${candidate.name} (${formatVND(candidate.price)})`, 'success')
 }
 
 watch(() => formStore.customer.name, (val) => {
@@ -108,7 +183,14 @@ function applyMenuOnly() {
   if (!formStore.parsedAiResult) return
   fillBookingFormSafely(formStore.parsedAiResult, { mode: 'menu' })
   closeReviewCard()
-  ui.showToast('🍽️ Đã áp dụng danh sách món!', 'success')
+  ui.showToast('🍽️ Đã gộp/áp dụng danh sách món!', 'success')
+}
+
+function appendMenuOnly() {
+  if (!formStore.parsedAiResult) return
+  fillBookingFormSafely(formStore.parsedAiResult, { mode: 'append_menu' })
+  closeReviewCard()
+  ui.showToast('➕ Đã gộp thêm món mới vào đơn hiện tại!', 'success')
 }
 
 function closeReviewCard() {
@@ -572,7 +654,7 @@ onUnmounted(() => {
             </div>
 
             <!-- Fast-track buttons -->
-            <div class="flex gap-2 pt-0.5">
+            <div class="flex flex-wrap gap-2 pt-0.5">
               <button 
                 @click.prevent="applyLiveCanonical" 
                 class="flex-1 py-1.5 px-3 bg-emerald-600 hover:bg-emerald-700 active:scale-98 text-white rounded-lg text-xs font-bold uppercase tracking-wider flex items-center justify-center gap-1.5 transition-all shadow-xs cursor-pointer min-h-[36px]"
@@ -580,6 +662,15 @@ onUnmounted(() => {
               >
                 <i class="fa-solid fa-bolt"></i>
                 <span>ÁP DỤNG NGAY (0ms)</span>
+              </button>
+              <button
+                v-if="liveCanonical.menuItems.length > 0 && hasExistingFormItems"
+                @click.prevent="applyLiveCanonicalAppendMenu"
+                class="py-1.5 px-3 bg-cyan-600 hover:bg-cyan-700 active:scale-98 text-white rounded-lg text-xs font-bold uppercase tracking-wider flex items-center justify-center gap-1.5 transition-all shadow-xs cursor-pointer min-h-[36px]"
+                title="Gộp thêm các món mới vào danh sách món đang có mà không ghi đè"
+              >
+                <i class="fa-solid fa-plus"></i>
+                <span>GỘP THÊM MÓN</span>
               </button>
             </div>
           </div>
@@ -893,19 +984,38 @@ onUnmounted(() => {
           </button>
         </div>
 
-        <div v-else class="space-y-1.5 max-h-[300px] overflow-y-auto pr-1 custom-scrollbar">
+        <div v-else class="space-y-1.5 max-h-[340px] overflow-y-auto pr-1 custom-scrollbar">
           <div v-if="!formStore.parsedAiResult.menu_items?.length" class="text-xs text-slate-400 italic text-center py-2 bg-slate-50 dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700">Không nhận diện được món ăn nào</div>
-          <div v-for="(item, idx) in formStore.parsedAiResult.menu_items" :key="idx" class="flex flex-wrap items-center justify-between gap-2 p-3 bg-slate-50 dark:bg-slate-850 border rounded-2xl" :class="item.needs_review ? 'border-amber-300 dark:border-amber-700 bg-amber-50/20 dark:bg-amber-950/30' : 'border-slate-100 dark:border-slate-800'">
-            <div class="flex-grow min-w-0 flex-1">
-              <div class="font-bold text-xs text-slate-800 dark:text-slate-100 flex flex-wrap items-center gap-1.5">
-                <span class="whitespace-normal break-words leading-snug">{{ item.matched_name || item.raw_name }}</span>
-                <span class="text-slate-400 font-extrabold text-[10px] shrink-0">x{{ item.quantity }}</span>
-                <span v-if="item.needs_review" class="px-1.5 py-0.5 bg-amber-100 dark:bg-amber-900/50 text-amber-800 dark:text-amber-200 rounded text-[7px] font-black uppercase tracking-wider shrink-0">Check</span>
+          <div v-for="(item, idx) in formStore.parsedAiResult.menu_items" :key="idx" class="flex flex-col gap-1.5 p-3 bg-slate-50 dark:bg-slate-850 border rounded-2xl" :class="item.needs_review || !item.unit_price ? 'border-amber-300 dark:border-amber-700 bg-amber-50/20 dark:bg-amber-950/30' : 'border-slate-100 dark:border-slate-800'">
+            <div class="flex flex-wrap items-center justify-between gap-2">
+              <div class="flex-grow min-w-0 flex-1">
+                <div class="font-bold text-xs text-slate-800 dark:text-slate-100 flex flex-wrap items-center gap-1.5">
+                  <span class="whitespace-normal break-words leading-snug">{{ item.matched_name || item.raw_name }}</span>
+                  <span class="text-slate-400 font-extrabold text-[10px] shrink-0">x{{ item.quantity }}</span>
+                  <span v-if="item.needs_review || !item.unit_price" class="px-1.5 py-0.5 bg-amber-100 dark:bg-amber-900/50 text-amber-800 dark:text-amber-200 rounded text-[7px] font-black uppercase tracking-wider shrink-0">Cần chọn món</span>
+                </div>
+                <div v-if="item.note" class="text-[9.5px] text-slate-500 dark:text-slate-400 italic mt-0.5 block whitespace-pre-line leading-relaxed">{{ item.note }}</div>
               </div>
-              <div v-if="item.note" class="text-[9px] text-slate-500 dark:text-slate-400 italic mt-0.5 block whitespace-pre-line leading-relaxed">{{ item.note }}</div>
+              <div class="flex items-center gap-1.5 shrink-0">
+                <span class="text-xs font-black text-blue-700 dark:text-blue-300">{{ formatVND(item.unit_price) }}</span>
+              </div>
             </div>
-            <div class="flex items-center gap-1.5 shrink-0">
-              <span class="text-xs font-black text-blue-700 dark:text-blue-300">{{ formatVND(item.unit_price) }}</span>
+
+            <!-- 1-Click Inline Dish Resolver + Self-Learning Alias -->
+            <div v-if="getDishSuggestionsForAiItem(item).length > 0" class="pt-1.5 border-t border-dashed border-amber-200 dark:border-amber-800/60 flex flex-wrap items-center gap-1.5">
+              <span class="text-[9px] font-black text-amber-700 dark:text-amber-300 uppercase tracking-wider flex items-center gap-1">
+                <i class="fa-solid fa-wand-magic-sparkles text-[9px]"></i> Khớp nhanh 1-chạm (Tự học):
+              </span>
+              <button
+                v-for="cand in getDishSuggestionsForAiItem(item)"
+                :key="cand.name"
+                type="button"
+                @click.prevent="resolveAiDishInline(idx, cand)"
+                class="px-2 py-1 rounded-lg bg-white dark:bg-slate-800 hover:bg-emerald-50 dark:hover:bg-emerald-950/50 text-slate-700 dark:text-slate-200 hover:text-emerald-700 dark:hover:text-emerald-300 border border-amber-300 dark:border-amber-700 hover:border-emerald-400 text-[10px] font-bold transition-all active:scale-95 cursor-pointer flex items-center gap-1 shadow-2xs"
+              >
+                <span>{{ cand.name }}</span>
+                <span class="text-[9px] font-black text-blue-600 dark:text-blue-400">({{ formatVND(cand.price) }})</span>
+              </button>
             </div>
           </div>
         </div>
@@ -923,7 +1033,7 @@ onUnmounted(() => {
           </button>
         </div>
 
-        <div class="grid grid-cols-3 gap-2">
+        <div class="grid grid-cols-2 sm:grid-cols-4 gap-2">
           <button @click.prevent="applyCustomerOnly" class="bg-indigo-50 dark:bg-indigo-950/50 hover:bg-indigo-100 dark:hover:bg-indigo-900/50 text-indigo-700 dark:text-indigo-300 rounded-2xl py-3 font-bold text-[10px] uppercase tracking-wider transition-all active:scale-95 flex flex-col items-center justify-center gap-1 border border-indigo-200 dark:border-indigo-800/60 cursor-pointer min-h-[48px]">
             <i class="fa-solid fa-user text-sm"></i>
             <span>Chỉ khách & bàn</span>
@@ -931,6 +1041,10 @@ onUnmounted(() => {
           <button @click.prevent="applyMenuOnly" class="bg-cyan-50 dark:bg-cyan-950/50 hover:bg-cyan-100 dark:hover:bg-cyan-900/50 text-cyan-700 dark:text-cyan-300 rounded-2xl py-3 font-bold text-[10px] uppercase tracking-wider transition-all active:scale-95 flex flex-col items-center justify-center gap-1 border border-cyan-200 dark:border-cyan-800/60 cursor-pointer min-h-[48px]">
             <i class="fa-solid fa-utensils text-sm"></i>
             <span>Chỉ danh sách món</span>
+          </button>
+          <button @click.prevent="appendMenuOnly" class="bg-emerald-50 dark:bg-emerald-950/50 hover:bg-emerald-100 dark:hover:bg-emerald-900/50 text-emerald-700 dark:text-emerald-300 rounded-2xl py-3 font-bold text-[10px] uppercase tracking-wider transition-all active:scale-95 flex flex-col items-center justify-center gap-1 border border-emerald-200 dark:border-emerald-800/60 cursor-pointer min-h-[48px]" title="Gộp thêm món mới vào đơn hiện tại mà không xóa món cũ">
+            <i class="fa-solid fa-folder-plus text-sm"></i>
+            <span>Gộp thêm món</span>
           </button>
           <button @click.prevent="ignoreResult" class="bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-2xl py-3 font-bold text-[10px] uppercase tracking-wider transition-all active:scale-95 flex flex-col items-center justify-center gap-1 border border-slate-200 dark:border-slate-700 cursor-pointer min-h-[48px]">
             <i class="fa-solid fa-xmark text-sm"></i>

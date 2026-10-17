@@ -293,39 +293,94 @@ function _createForm() {
     uiStore.tab = 'create'
   }
 
-  // --- Copy Booking Confirmation ---
-  function copyBookingConfirmation() {
-    if (!validateForm()) return
+  // --- Copy Booking Confirmation & Smart Reply Templates ---
+  function copyBookingConfirmation(templateType?: 'quote_deposit' | 'deposit_confirmed' | 'reminder') {
     const c = formStore.customer
-    if (!c.name || formStore.items.length === 0) {
-      uiStore.showAlert('Thiếu dữ liệu món ăn', 'Vui lòng nhập tên khách và ít nhất 1 món ăn!')
+    if (!c.name?.trim()) {
+      uiStore.showAlert('Thiếu thông tin bắt buộc', 'Chưa có tên khách hàng. Vui lòng nhập tên khách trước khi copy tin nhắn.')
       return
     }
 
-    const menuText = formStore.items.map((item, i) => {
-      const note = item.note ? ` (${item.note})` : ''
-      return `  ${i + 1}. ${item.name} x${item.qty}${note}`
-    }).join('\n')
+    const activeItems = formStore.items.filter(i => i.name && i.name.trim())
+    const menuText = activeItems.length > 0
+      ? activeItems.map((item, i) => {
+          const lineTotal = item.price ? ` — ${formatVND(item.price * (item.qty || 1))}` : ''
+          let block = `  ${i + 1}. ${item.name} x${item.qty}${lineTotal}`
+          if (item.note && item.note.trim()) {
+            const noteLines = item.note.split('\n').map((l: string) => l.trim()).filter(Boolean)
+            if (noteLines.length === 1 && !/^\d+\s*\//.test(noteLines[0])) {
+              block += ` (${noteLines[0]})`
+            } else {
+              block += '\n' + noteLines.map((l: string) => `     • ${l}`).join('\n')
+            }
+          }
+          return block
+        }).join('\n')
+      : '  (Chọn món trực tiếp tại nhà hàng)'
 
-    const total = formatVND(formStore.calculatedTotals.final)
-    const deposit = formStore.deposit.amount > 0 ? `\n💰 Cọc: ${formatVND(formStore.deposit.amount)}` : ''
-    const noteText = c.note ? `\n📝 ${c.note}` : ''
+    const totalNum = formStore.calculatedTotals.final || 0
+    const depNum = formStore.deposit.amount || 0
+    const total = formatVND(totalNum)
+    const depositStr = depNum > 0 ? formatVND(depNum) : '0đ'
+    const remainingStr = formatVND(Math.max(0, totalNum - depNum))
+    const noteText = c.note ? `\n📝 Ghi chú: ${c.note}` : ''
+    const bank = appStore.currentBank
+    const billLink = typeof window !== 'undefined' && formStore.id
+      ? `${window.location.origin}${window.location.pathname}#/bill/${formStore.id}`
+      : ''
 
-    const template = `Chào anh/chị ${c.name} ạ! 😊
-Em xác nhận đặt bàn tại King's Grill:
+    const resolvedMode = templateType || (formStore.deposit.isPaid ? 'deposit_confirmed' : 'quote_deposit')
+    let template = ''
 
-🕐 ${c.time} — ${c.date}
-👥 ${c.pax || '...'} khách | 📍 ${c.tables || 'Chưa xếp'}
+    if (resolvedMode === 'deposit_confirmed') {
+      template = `Dạ chào anh/chị ${c.name} ạ! 😊
+King's Grill xác nhận ĐÃ NHẬN CỌC và chốt lịch đặt bàn của anh/chị:
 
-🍽 Menu:
+🕐 Thời gian: ${c.time || '--:--'} — ${c.date || '--/--/----'}
+👥 Quy mô: ${c.pax || '...'} khách | 📍 Bàn: ${c.tables || 'Chưa xếp'} (${c.type || 'Ăn thường'})
+
+🍽 Thực đơn đã chốt:
 ${menuText}
-💵 Tạm tính: ${total}${deposit}${noteText}
+💵 Tổng tạm tính: ${total}
+✅ Đã nhận cọc: ${depositStr}
+💳 Còn lại tạm tính: ${remainingStr}${noteText}${billLink ? `\n🔗 Phiếu điện tử: ${billLink}` : ''}
 
-Anh/chị kiểm tra giúp em, thả ❤️ hoặc "OK" để em chốt bếp nhé!
-Cảm ơn anh/chị đã tin tưởng King's Grill 🙏`
+Nhà hàng đã lên lịch chuẩn bị chu đáo để đón tiếp đoàn mình ạ. Hẹn gặp anh/chị tại King's Grill (34 Hoàng Văn Thụ, P. Thủ Dầu Một)! 🙏`
+    } else if (resolvedMode === 'reminder') {
+      template = `Dạ chào anh/chị ${c.name} ạ! 🌟
+King's Grill xin phép nhắc lịch hẹn đặt bàn của đoàn mình:
+
+🕐 Thời gian đón khách: ${c.time || '--:--'} — ${c.date || '--/--/----'}
+👥 Số lượng: ${c.pax || '...'} khách | 📍 Vị trí bàn: ${c.tables || 'Đã chuẩn bị'}
+📍 Địa chỉ: 34 Hoàng Văn Thụ, P. Thủ Dầu Một${formStore.staff?.phone ? `\n📞 Hotline đón tiếp: ${formStore.staff.phone} (${formStore.staff.name || 'Lễ tân'})` : ''}
+
+Bàn tiệc và thực đơn của anh/chị đang được bếp chuẩn bị sẵn sàng. Nếu có thay đổi giờ đến hoặc số lượng khách, anh/chị nhắn lại giúp em nhé ạ! ❤️`
+    } else {
+      const bankSection = bank && bank.number && depNum > 0
+        ? `\n\n🏦 Thông tin chuyển khoản giữ bàn:\n• Ngân hàng: ${bank.name} (${bank.bankId})\n• Số TK: ${bank.number}\n• Chủ TK: ${bank.owner}\n• Số tiền cọc: ${depositStr}\n• Nội dung CK: ${depositTransferContent.value}`
+        : ''
+
+      template = `Chào anh/chị ${c.name} ạ! 😊
+Em gửi thông tin báo giá & giữ bàn tại King's Grill:
+
+🕐 Thời gian: ${c.time || '--:--'} — ${c.date || '--/--/----'}
+👥 Số lượng: ${c.pax || '...'} khách | 📍 Bàn dự kiến: ${c.tables || 'Chưa xếp'}
+
+🍽 Thực đơn đặt trước:
+${menuText}
+💵 Tạm tính: ${total}${depNum > 0 ? `\n💰 Tiền cọc giữ bàn: ${depositStr}` : ''}${noteText}${bankSection}
+
+Anh/chị kiểm tra thông tin giúp em, sau khi chuyển khoản cọc anh/chị gửi ảnh bill để em xuất phiếu xác nhận chính thức nhé ạ! Cảm ơn anh/chị 🙏`
+    }
+
+    const labelMap: Record<string, string> = {
+      quote_deposit: '📋 Đã copy mẫu Báo giá & Xin cọc giữ bàn!',
+      deposit_confirmed: '✅ Đã copy mẫu Xác nhận đã nhận cọc!',
+      reminder: '🔔 Đã copy mẫu Nhắc lịch hẹn đón khách!'
+    }
 
     navigator.clipboard.writeText(template).then(() => {
-      uiStore.showToast('✅ Đã copy nội dung xác nhận!', 'success')
+      uiStore.showToast(labelMap[resolvedMode] || '✅ Đã copy nội dung xác nhận!', 'success')
     }).catch(err => {
       uiStore.showToast('Lỗi copy: ' + err, 'error')
     })

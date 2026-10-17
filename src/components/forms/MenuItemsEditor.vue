@@ -4,7 +4,9 @@ import { useUIStore } from '@/stores/useUIStore'
 import { useFormStore } from '@/stores/useFormStore'
 import { useAppStore } from '@/stores/useAppStore'
 import { useForm } from '@/composables/useForm'
-import { formatVND } from '@/utils'
+import { formatVND, mergeSetComponentNote } from '@/utils'
+import { SETS } from '@/utils/constants'
+import { CANONICAL_SET_AND_COMBO_ITEMS, normalizeSetOrComboName, resolveSetMenuDescription } from '@/domain/menu/menuMatcher'
 
 const ui = useUIStore()
 const formStore = useFormStore()
@@ -15,10 +17,120 @@ const draggedIndex = ref<number | null>(null)
 const dragOverIndex = ref<number | null>(null)
 const expandedNotes = ref<Record<number, boolean>>({})
 const expandedItems = ref<Record<number, boolean>>({})
+const showQuickSetPicker = ref(false)
+const quickSetTab = ref<'set' | 'combo'>('set')
+
+const QUICK_NOTE_CHIPS = [
+  'Không cay',
+  'Ít cay',
+  'Không hành',
+  'Ra món trước',
+  'Lên cùng lúc',
+  'Làm kỹ cho bé'
+]
 
 function toggleItemExpand(index: number) {
   expandedItems.value[index] = !expandedItems.value[index]
 }
+
+function isSetOrComboItem(item: any): boolean {
+  if (!item?.name) return false
+  const norm = normalizeSetOrComboName(item.name)
+  return /^(?:Set menu|Combo couple)\s+\d+$/i.test(norm) || Boolean(SETS[norm])
+}
+
+function parseItemNoteStructure(noteStr?: string): { components: string[]; customNotes: string[] } {
+  if (!noteStr || !noteStr.trim()) return { components: [], customNotes: [] }
+  const lines = noteStr.split('\n').map(l => l.trim()).filter(Boolean)
+  const components: string[] = []
+  const customNotes: string[] = []
+  for (const line of lines) {
+    if (/^\d{1,2}\s*\/\s*\S+/.test(line)) {
+      components.push(line)
+    } else {
+      customNotes.push(line)
+    }
+  }
+  return { components, customNotes }
+}
+
+function restoreCanonicalSetNote(index: number) {
+  const item = formStore.items[index]
+  if (!item?.name) return
+  const normName = normalizeSetOrComboName(item.name)
+  const canonicalDesc = resolveSetMenuDescription(normName, appStore.menuList, appStore.menuDetails || {}) || SETS[normName] || ''
+  if (!canonicalDesc) return
+  const { customNotes } = parseItemNoteStructure(item.note)
+  item.note = mergeSetComponentNote(customNotes.join('\n'), canonicalDesc)
+  ui.showToast(`✅ Đã khôi phục danh sách món chuẩn cho ${normName}`, 'success')
+}
+
+function promptSwapSetDish(index: number, componentLine: string) {
+  const item = formStore.items[index]
+  if (!item) return
+  const dishTitle = componentLine.replace(/^\d{1,2}\s*\/\s*/, '').replace(/\s*\[\d+\]\s*$/, '').trim()
+  const swapPrefix = `🔄 Đổi [${dishTitle}] sang: `
+  expandedItems.value[index] = true
+  expandedNotes.value[index] = true
+  if (!item.note?.includes(swapPrefix)) {
+    item.note = swapPrefix + '\n' + (item.note || '')
+  }
+}
+
+function toggleQuickNoteChip(index: number, chip: string) {
+  const item = formStore.items[index]
+  if (!item) return
+  const current = (item.note || '').trim()
+  if (!current) {
+    item.note = chip
+    return
+  }
+  const { components, customNotes } = parseItemNoteStructure(current)
+  const existingCustom = customNotes.join(', ')
+  if (existingCustom.toLowerCase().includes(chip.toLowerCase())) {
+    const cleanedCustom = customNotes
+      .map(line => line.split(',').map(p => p.trim()).filter(p => p.toLowerCase() !== chip.toLowerCase()).join(', '))
+      .filter(Boolean)
+    item.note = [...cleanedCustom, ...components].join('\n')
+  } else {
+    const updatedCustom = customNotes.length > 0
+      ? [customNotes[0] + `, ${chip}`, ...customNotes.slice(1)]
+      : [`📝 Yêu cầu: ${chip}`]
+    item.note = [...updatedCustom, ...components].join('\n')
+  }
+}
+
+function quickAddSetOrCombo(preset: any) {
+  const emptyIdx = formStore.items.findIndex(i => !i.name || !i.name.trim())
+  const formattedNote = mergeSetComponentNote('', preset.desc || SETS[preset.name] || '')
+  if (emptyIdx !== -1) {
+    formStore.items[emptyIdx].name = preset.name
+    formStore.items[emptyIdx].price = preset.price
+    formStore.items[emptyIdx].qty = formStore.items[emptyIdx].qty || 1
+    formStore.items[emptyIdx].note = formattedNote
+  } else {
+    formStore.items.push({
+      name: preset.name,
+      qty: 1,
+      price: preset.price,
+      note: formattedNote
+    })
+  }
+  showQuickSetPicker.value = false
+  ui.showToast(`🍽️ Đã thêm ${preset.name} (${formatVND(preset.price)})`, 'success')
+}
+
+const quickSetOptions = computed(() => {
+  const prefix = quickSetTab.value === 'set' ? 'Set menu ' : 'Combo couple '
+  return CANONICAL_SET_AND_COMBO_ITEMS.filter(item => item.name.startsWith(prefix)).map(preset => {
+    const liveItem = appStore.menuList.find((m: any) => m.name.toLowerCase() === preset.name.toLowerCase())
+    return {
+      ...preset,
+      price: liveItem?.price || preset.price,
+      dishCount: (preset.desc || '').split('\n').filter(Boolean).length
+    }
+  })
+})
 
 function triggerCreateMenu() {
   ui.activeSettingModal = 'menu'
@@ -91,6 +203,48 @@ const partyPortionHint = computed(() => {
   return `Tiệc ${pax} khách · ${dishTypesCount} món · TB ${avgPortionPerDish} phần/món (~${guestsPerPortion} khách/phần)`
 })
 
+const smartSetAdvisor = computed(() => {
+  const pax = parseInt(formStore.customer.pax || '0', 10)
+  if (!pax || pax <= 0) return null
+
+  const setItemIndex = formStore.items.findIndex(i => /^set\s*menu\s+\d+$/i.test(normalizeSetOrComboName(i.name || '')))
+  if (setItemIndex !== -1 && pax >= 16) {
+    const recommendedSets = Math.max(2, Math.round(pax / 10))
+    const currentQty = Number(formStore.items[setItemIndex].qty) || 1
+    if (currentQty < recommendedSets) {
+      return {
+        type: 'scale_set' as const,
+        itemIndex: setItemIndex,
+        recommendedQty: recommendedSets,
+        text: `Đoàn ${pax} khách đang chọn ${currentQty} ${formStore.items[setItemIndex].name} (chuẩn ~10 khách/set).`,
+        cta: `Tăng lên x${recommendedSets} Set`
+      }
+    }
+  }
+
+  const hasComboCouple = formStore.items.some(i => /^combo\s*couple\s+\d+$/i.test(normalizeSetOrComboName(i.name || '')))
+  if (pax >= 2 && pax <= 3 && !hasComboCouple && setItemIndex === -1) {
+    return {
+      type: 'suggest_couple' as const,
+      text: `Bàn ${pax} khách rất phù hợp với các gói Combo Couple (399k - 599k).`,
+      cta: 'Xem 11 Combo Couple'
+    }
+  }
+  return null
+})
+
+function applySmartSetAdvisor() {
+  const adv = smartSetAdvisor.value
+  if (!adv) return
+  if (adv.type === 'scale_set' && typeof adv.itemIndex === 'number') {
+    formStore.items[adv.itemIndex].qty = adv.recommendedQty
+    ui.showToast(`✅ Đã cập nhật số lượng thành x${adv.recommendedQty} ${formStore.items[adv.itemIndex].name}`, 'success')
+  } else if (adv.type === 'suggest_couple') {
+    quickSetTab.value = 'combo'
+    showQuickSetPicker.value = true
+  }
+}
+
 function formatPriceWithDots(val: any): string {
   if (val === undefined || val === null || val === '') return ''
   const cleanStr = String(val).replace(/\./g, '')
@@ -108,6 +262,8 @@ const selectedCategory = ref('TẤT CẢ')
 
 const CATEGORIES = [
   { name: 'TẤT CẢ', keywords: [] },
+  { name: 'SET MENU', keywords: ['set menu'] },
+  { name: 'COMBO COUPLE', keywords: ['combo couple'] },
   { name: 'NƯỚNG/THỊT', keywords: ['nướng', 'tảng', 'ba chỉ', 'bò', 'heo', 'gà', 'thịt', 'dẻ sườn', 'sườn', 'chim', 'khay'] },
   { name: 'LẨU/SÚP', keywords: ['lẩu', 'súp', 'canh', 'mì', 'miến', 'cháo', 'tokbokki'] },
   { name: 'ĐỒ UỐNG', keywords: ['bia', 'nước', 'cola', 'sprite', 'sữa', 'trà', 'rượu', 'chanh', 'tiger', 'heineken'] }
@@ -145,7 +301,7 @@ const filteredSuggestions = computed(() => {
     if (cat) {
       return appStore.menuList.filter((item: any) => 
         cat.keywords.some(kw => item.name.toLowerCase().includes(kw))
-      ).slice(0, 15)
+      ).slice(0, 20)
     }
   }
   
@@ -193,7 +349,7 @@ function onSelectSuggestion(s: any, index: number) {
     <!-- Top Decorative Line -->
     <div class="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-emerald-500 via-teal-500 to-cyan-500"></div>
 
-    <div class="flex justify-between items-center mb-4 border-b border-slate-100 dark:border-border-subtle pb-3">
+    <div class="flex flex-wrap justify-between items-center gap-2 mb-4 border-b border-slate-100 dark:border-border-subtle pb-3">
       <div class="flex items-center gap-2.5">
         <div class="w-8 h-8 rounded-xl bg-emerald-50 dark:bg-emerald-950/50 text-emerald-600 dark:text-emerald-400 flex items-center justify-center text-sm shadow-sm border border-emerald-100 dark:border-emerald-800/40 shrink-0">
           <i class="fa-solid fa-bell-concierge"></i>
@@ -212,10 +368,82 @@ function onSelectSuggestion(s: any, index: number) {
           </div>
         </div>
       </div>
-      <button @click="ui.showMenuManager = true" class="text-[10px] bg-slate-50 dark:bg-surface-3 px-3 py-2 rounded-xl text-slate-600 dark:text-slate-300 font-black border border-slate-200 dark:border-border-subtle hover:bg-slate-100 dark:hover:bg-surface-4 active:scale-95 transition-all uppercase tracking-widest flex items-center gap-1.5 cursor-pointer shadow-xs min-h-[36px]">
-        <i class="fa-solid fa-book-open text-blue-600 dark:text-blue-400"></i> {{ appStore.activeSheet }}
+
+      <div class="flex items-center gap-1.5">
+        <button
+          type="button"
+          @click="showQuickSetPicker = !showQuickSetPicker"
+          class="text-[10px] px-3 py-2 rounded-xl font-black border transition-all uppercase tracking-wider flex items-center gap-1.5 cursor-pointer shadow-xs min-h-[36px] active:scale-95"
+          :class="showQuickSetPicker ? 'bg-emerald-600 text-white border-emerald-600' : 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800/50 hover:bg-emerald-100'"
+          title="Chọn nhanh Set Menu 1..15 hoặc Combo Couple 1..11"
+        >
+          <i class="fa-solid fa-layer-group text-[10px]"></i>
+          <span>Chọn Set / Combo</span>
+        </button>
+
+        <button @click="ui.showMenuManager = true" class="text-[10px] bg-slate-50 dark:bg-surface-3 px-3 py-2 rounded-xl text-slate-600 dark:text-slate-300 font-black border border-slate-200 dark:border-border-subtle hover:bg-slate-100 dark:hover:bg-surface-4 active:scale-95 transition-all uppercase tracking-widest flex items-center gap-1.5 cursor-pointer shadow-xs min-h-[36px]">
+          <i class="fa-solid fa-book-open text-blue-600 dark:text-blue-400"></i> {{ appStore.activeSheet }}
+        </button>
+      </div>
+    </div>
+
+    <!-- Smart Set & Portion Advisor Banner -->
+    <div v-if="smartSetAdvisor" class="mb-3.5 p-2.5 rounded-2xl bg-indigo-50/80 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800/60 flex items-center justify-between gap-2 text-xs">
+      <div class="flex items-center gap-2 min-w-0">
+        <i class="fa-solid fa-wand-magic-sparkles text-indigo-600 dark:text-indigo-400 shrink-0"></i>
+        <span class="font-bold text-indigo-900 dark:text-indigo-200 text-[11px] leading-snug">{{ smartSetAdvisor.text }}</span>
+      </div>
+      <button
+        type="button"
+        @click="applySmartSetAdvisor"
+        class="px-2.5 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-[10px] font-black uppercase tracking-wider shrink-0 active:scale-95 transition-all cursor-pointer shadow-xs"
+      >
+        {{ smartSetAdvisor.cta }}
       </button>
     </div>
+
+    <!-- Collapsible 1-Click Set Menu & Combo Couple Picker -->
+    <transition name="fade">
+      <div v-if="showQuickSetPicker" class="mb-4 p-3.5 rounded-2xl bg-slate-50 dark:bg-surface-3 border border-slate-200 dark:border-border-subtle space-y-3">
+        <div class="flex items-center justify-between gap-2">
+          <div class="flex gap-1.5">
+            <button
+              type="button"
+              @click="quickSetTab = 'set'"
+              class="px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer"
+              :class="quickSetTab === 'set' ? 'bg-emerald-600 text-white shadow-xs' : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700'"
+            >
+              🍽️ Set Menu 1 → 15 (Tiệc 10 người)
+            </button>
+            <button
+              type="button"
+              @click="quickSetTab = 'combo'"
+              class="px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer"
+              :class="quickSetTab === 'combo' ? 'bg-rose-600 text-white shadow-xs' : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700'"
+            >
+              💑 Combo Couple 1 → 11 (2 người)
+            </button>
+          </div>
+          <button type="button" @click="showQuickSetPicker = false" class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 text-xs px-1.5 cursor-pointer">✕</button>
+        </div>
+
+        <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2 max-h-[230px] overflow-y-auto custom-scrollbar pr-1">
+          <button
+            v-for="preset in quickSetOptions"
+            :key="preset.name"
+            type="button"
+            @click="quickAddSetOrCombo(preset)"
+            class="p-2.5 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:border-emerald-500 dark:hover:border-emerald-500 hover:shadow-sm text-left transition-all active:scale-95 cursor-pointer flex flex-col justify-between gap-1 group"
+          >
+            <div class="flex items-center justify-between gap-1">
+              <span class="font-black text-slate-800 dark:text-slate-100 text-[11px] group-hover:text-emerald-600 dark:group-hover:text-emerald-400">{{ preset.name }}</span>
+              <span class="text-[9px] font-bold px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-300">{{ preset.dishCount }} món</span>
+            </div>
+            <div class="text-[11px] font-black text-blue-600 dark:text-blue-400 font-tabular">{{ formatVND(preset.price) }}</div>
+          </button>
+        </div>
+      </div>
+    </transition>
 
     <!-- Alert when no menu is available -->
     <div v-if="appStore.menuSheets.length === 0 || appStore.menuList.length === 0" class="bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/50 rounded-2xl p-4 sm:p-5 mb-4 text-center flex flex-col items-center justify-center">
@@ -459,14 +687,69 @@ function onSelectSuggestion(s: any, index: number) {
             </button>
           </div>
 
+          <!-- Interactive Set / Combo Component Viewer -->
+          <div
+            v-if="isSetOrComboItem(item) || parseItemNoteStructure(item.note).components.length > 0"
+            class="w-full pt-2 border-t border-dashed border-emerald-200 dark:border-emerald-800/50 space-y-2"
+          >
+            <div class="flex items-center justify-between gap-2">
+              <span class="text-[10px] font-black uppercase tracking-wider text-emerald-700 dark:text-emerald-300 flex items-center gap-1.5">
+                <i class="fa-solid fa-list-check text-emerald-500"></i>
+                <span>Chi tiết món trong {{ normalizeSetOrComboName(item.name) }} ({{ parseItemNoteStructure(item.note).components.length }} món)</span>
+              </span>
+              <button
+                v-if="isSetOrComboItem(item)"
+                type="button"
+                @click.prevent="restoreCanonicalSetNote(index)"
+                class="px-2 py-0.5 rounded-lg bg-emerald-50 dark:bg-emerald-950/60 hover:bg-emerald-100 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 text-[9px] font-black uppercase tracking-wider transition-all cursor-pointer active:scale-95"
+                title="Khôi phục danh sách món mặc định của Set/Combo"
+              >
+                <i class="fa-solid fa-rotate-left mr-0.5"></i> Chuẩn hóa Set
+              </button>
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+              <div
+                v-for="(compLine, cIdx) in parseItemNoteStructure(item.note).components"
+                :key="cIdx"
+                class="flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-xl bg-emerald-50/50 dark:bg-emerald-950/20 border border-emerald-200/70 dark:border-emerald-800/40 text-[11px] font-bold text-slate-700 dark:text-slate-200"
+              >
+                <span class="truncate">{{ compLine }}</span>
+                <button
+                  type="button"
+                  @click.prevent="promptSwapSetDish(index, compLine)"
+                  class="px-1.5 py-0.5 rounded bg-white dark:bg-slate-800 hover:bg-amber-50 text-amber-600 dark:text-amber-400 border border-amber-200 dark:border-amber-800/60 text-[9px] font-black uppercase shrink-0 cursor-pointer active:scale-95"
+                  title="Ghi chú đổi món này sang món khác"
+                >
+                  Đổi món
+                </button>
+              </div>
+            </div>
+          </div>
+
           <!-- Expanded Note Editor (on demand or when note exists) -->
-          <div v-if="expandedItems[index] || (item.note && expandedItems[index] !== false)" class="w-full pt-1.5 border-t border-dashed border-slate-200 dark:border-slate-800">
+          <div v-if="expandedItems[index] || (item.note && expandedItems[index] !== false)" class="w-full pt-1.5 border-t border-dashed border-slate-200 dark:border-slate-800 space-y-2">
+            <!-- 1-Click Kitchen Quick-Note Chips -->
+            <div class="flex flex-wrap items-center gap-1">
+              <span class="text-[9px] font-black text-slate-400 uppercase tracking-wider mr-1">Ghi chú nhanh:</span>
+              <button
+                v-for="chip in QUICK_NOTE_CHIPS"
+                :key="chip"
+                type="button"
+                @click.prevent="toggleQuickNoteChip(index, chip)"
+                class="px-2 py-0.5 rounded-lg text-[10px] font-bold transition-all cursor-pointer active:scale-95 border"
+                :class="(item.note || '').toLowerCase().includes(chip.toLowerCase()) ? 'bg-rose-600 text-white border-rose-600 shadow-2xs' : 'bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:border-rose-300'"
+              >
+                + {{ chip }}
+              </button>
+            </div>
+
             <div class="relative">
               <textarea 
                 v-model="item.note" 
                 @focus="handleInputFocus" 
                 @blur="handleInputBlur"
-                :rows="expandedNotes[index] ? Math.max(item.note ? item.note.split('\n').length + 1 : 1, 4) : 2"
+                :rows="expandedNotes[index] || isSetOrComboItem(item) ? Math.max(item.note ? item.note.split('\n').length + 1 : 2, 4) : 2"
                 class="w-full text-[16px] sm:text-xs text-rose-600 dark:text-rose-300 font-bold bg-rose-50/40 dark:bg-rose-950/20 rounded-xl p-2.5 pb-7 border border-rose-200 dark:border-rose-800/60 focus:border-rose-400 focus:bg-rose-50 dark:focus:bg-rose-950/40 outline-none resize-none transition-all placeholder-rose-300 dark:placeholder-rose-500 custom-scrollbar leading-relaxed"
                 placeholder="Ghi chú món: cay, không hành, làm chín kĩ, phục vụ trước..."
               ></textarea>

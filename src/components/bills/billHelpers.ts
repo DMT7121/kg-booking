@@ -37,3 +37,18 @@ export function formatDepositTime(timeStr?: string): string {
     return timeStr
   }
 }
+
+export function parseBillItemNote(noteStr?: string): { components: string[]; customNotes: string[] } {
+  if (!noteStr || !noteStr.trim()) return { components: [], customNotes: [] }
+  const lines = noteStr.split('\n').map(l => l.trim()).filter(Boolean)
+  const components: string[] = []
+  const customNotes: string[] = []
+  for (const line of lines) {
+    if (/^\d{1,2}\s*\/\s*\S+/.test(line)) {
+      components.push(line)
+    } else {
+      customNotes.push(line)
+    }
+  }
+  return { components, customNotes }
+}

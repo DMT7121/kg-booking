@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import { formatVND, formatShortVND, getDayOfWeek, formatDepositTime } from '../billHelpers'
+import { formatVND, formatShortVND, getDayOfWeek, formatDepositTime, parseBillItemNote } from '../billHelpers'
 
 const props = defineProps<{
   formStore: any
@@ -136,8 +136,22 @@ const dayOfWeek = computed(() => getDayOfWeek(props.formStore?.customer?.date))
             <td class="py-4 px-4 font-bold text-slate-400">{{ i + 1 }}</td>
             <td class="py-4 px-4 text-left">
               <div class="font-black text-slate-800 text-[15px] uppercase tracking-wide whitespace-normal break-words overflow-wrap-anywhere">{{ item.name || 'Chưa đặt tên' }}</div>
-              <div v-if="item.note" class="text-[12px] text-rose-600 font-bold mt-1.5 whitespace-pre-line leading-relaxed text-left border-l-2 border-rose-200 pl-2">
-                {{ item.note }}
+              <div v-if="item.note" class="mt-1.5 space-y-1 text-left">
+                <div
+                  v-for="(cNote, cnIdx) in parseBillItemNote(item.note).customNotes"
+                  :key="'cn-' + cnIdx"
+                  class="text-[12px] text-rose-600 font-bold whitespace-pre-line leading-relaxed border-l-2 border-rose-200 pl-2"
+                >
+                  {{ cNote }}
+                </div>
+                <div
+                  v-if="parseBillItemNote(item.note).components.length > 0"
+                  class="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-0.5 pl-2 border-l-2 border-emerald-400/70 bg-slate-50 rounded-r-lg py-1.5 pr-2 text-[11.5px] text-slate-600 font-semibold leading-snug"
+                >
+                  <div v-for="(comp, cpIdx) in parseBillItemNote(item.note).components" :key="'cp-' + cpIdx">
+                    {{ comp }}
+                  </div>
+                </div>
               </div>
             </td>
             <td class="py-4 px-4 text-center font-black text-slate-800">{{ item.qty }}</td>
