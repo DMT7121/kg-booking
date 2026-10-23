@@ -188,12 +188,12 @@ async function handleSyncCalendar() {
             </span>
           </div>
           <!-- Deposit timestamp and installments if any -->
-          <div v-if="ui.selectedBooking.isDeposited && (ui.selectedBooking.deposit?.time || ui.selectedBooking.depositTime)" class="text-[10px] text-emerald-700 dark:text-emerald-300 font-bold flex items-center justify-between pt-1 border-t border-emerald-100 dark:border-emerald-800/40">
+          <div v-if="ui.selectedBooking.isDeposited && (ui.selectedBooking.deposit?.time || ui.selectedBooking.depositTime)" class="text-[10px] text-emerald-700 dark:text-emerald-300 font-bold flex items-center justify-between pt-1 border-t border-emerald-100 dark:border-emerald-800/40 font-deposit-meta" style="font-family: 'Google Sans Flex', 'Be Vietnam Pro', sans-serif;">
             <span class="flex items-center gap-1"><i class="fa-regular fa-clock"></i> Thời gian cọc:</span>
-            <span class="font-mono font-tabular">{{ ui.selectedBooking.deposit?.time || ui.selectedBooking.depositTime }}</span>
+            <span class="font-deposit-meta font-tabular">{{ ui.selectedBooking.deposit?.time || ui.selectedBooking.depositTime }}</span>
           </div>
-          <div v-if="ui.selectedBooking.isDeposited && ((ui.selectedBooking.deposit?.history && ui.selectedBooking.deposit.history.length > 1) || (ui.selectedBooking.depositHistory && ui.selectedBooking.depositHistory.length > 1))" class="pt-1.5 space-y-1">
-            <div v-for="(h, idx) in (ui.selectedBooking.deposit?.history || ui.selectedBooking.depositHistory)" :key="idx" class="flex justify-between items-center text-[10px] font-tabular bg-white/70 dark:bg-slate-900/60 px-2 py-0.5 rounded border border-emerald-100 dark:border-emerald-800/30">
+          <div v-if="ui.selectedBooking.isDeposited && ((ui.selectedBooking.deposit?.history && ui.selectedBooking.deposit.history.length > 1) || (ui.selectedBooking.depositHistory && ui.selectedBooking.depositHistory.length > 1))" class="pt-1.5 space-y-1 font-deposit-meta" style="font-family: 'Google Sans Flex', 'Be Vietnam Pro', sans-serif;">
+            <div v-for="(h, idx) in (ui.selectedBooking.deposit?.history || ui.selectedBooking.depositHistory)" :key="idx" class="flex justify-between items-center text-[10px] font-tabular font-deposit-meta bg-white/70 dark:bg-slate-900/60 px-2 py-0.5 rounded border border-emerald-100 dark:border-emerald-800/30" style="font-family: 'Google Sans Flex', 'Be Vietnam Pro', sans-serif;">
               <span class="text-slate-600 dark:text-slate-300">{{ h.time }} <span class="font-bold text-emerald-600">[{{ formatShortVND(h.delta) }}]</span> (Lần {{ idx + 1 }})</span>
               <span class="font-bold">{{ formatVND(h.amount) }}</span>
             </div>

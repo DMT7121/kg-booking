@@ -205,6 +205,16 @@ const verificationQrUrl = useVerificationQr(() => qrLink.value || 'https://kg-bo
               <span class="font-bold text-[10px] uppercase">TIỀN CỌC:</span>
               <span class="font-mono font-black text-sm">{{ formatVND(formStore?.deposit?.amount || 0) }} ({{ formStore?.deposit?.isPaid ? 'ĐÃ CỌC' : 'CHỜ CỌC' }})</span>
             </div>
+            <div v-if="formStore?.deposit?.isPaid && formStore?.deposit?.time" class="flex justify-between items-center text-[10px] text-slate-600 font-deposit-meta" style="font-family: 'Google Sans Flex', 'Be Vietnam Pro', sans-serif;">
+              <span class="font-semibold">Thời gian nhận cọc:</span>
+              <span class="font-bold tabular-nums">{{ formatDepositTime(formStore.deposit.time) }}</span>
+            </div>
+            <div v-if="formStore?.deposit?.history?.length > 1" class="pt-1 border-t border-blue-200/70 space-y-0.5 text-[10px] text-slate-700 font-deposit-meta" style="font-family: 'Google Sans Flex', 'Be Vietnam Pro', sans-serif;">
+              <div v-for="(h, idx) in formStore.deposit.history" :key="idx" class="flex justify-between items-center">
+                <span class="font-medium">{{ h.note || `Cọc lần ${Number(idx) + 1}` }} <span v-if="h.time" class="text-[9px] text-slate-500">({{ formatDepositTime(h.time) }})</span>:</span>
+                <span class="font-bold text-emerald-700 tabular-nums">+{{ formatVND(h.amount) }}</span>
+              </div>
+            </div>
             <div class="pt-1.5 border-t border-blue-200 flex justify-between items-center text-rose-600">
               <span class="font-black text-[10px] uppercase">CÒN LẠI:</span>
               <span class="font-mono font-black text-base">{{ formatVND((formStore?.calculatedTotals?.final || 0) - (formStore?.deposit?.amount || 0)) }}</span>

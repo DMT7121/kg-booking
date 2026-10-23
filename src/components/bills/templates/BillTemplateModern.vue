@@ -237,7 +237,7 @@ const verificationQrUrl = useVerificationQr(() => qrLink.value || 'https://kg-bo
             <div class="text-sm font-black mt-0.5" :class="formStore?.deposit?.isPaid ? 'text-emerald-800' : 'text-amber-800'">
               {{ formStore?.deposit?.isPaid ? 'ĐÃ XÁC NHẬN CỌC' : 'YÊU CẦU ĐẶT CỌC' }}
             </div>
-            <div v-if="formStore?.deposit?.isPaid && formStore?.deposit?.time" class="text-[11px] font-bold text-slate-500 font-mono mt-0.5">
+            <div v-if="formStore?.deposit?.isPaid && formStore?.deposit?.time" class="text-[11px] font-bold text-slate-500 font-deposit-meta mt-0.5" style="font-family: 'Google Sans Flex', 'Be Vietnam Pro', sans-serif;">
               Thời gian: {{ formatDepositTime(formStore.deposit.time) }}
             </div>
             <div v-if="!formStore?.deposit?.isPaid" class="text-[11px] font-semibold text-slate-500 mt-0.5">
@@ -249,14 +249,15 @@ const verificationQrUrl = useVerificationQr(() => qrLink.value || 'https://kg-bo
         <!-- Deposit History Breakdown (If multiple installments) -->
         <div 
           v-if="!hidePrice && formStore?.deposit?.isPaid && formStore?.deposit?.history && formStore.deposit.history.length > 1" 
-          class="w-full bg-emerald-50/70 border border-emerald-200/80 rounded-2xl p-3.5 space-y-1.5 text-xs text-left"
+          class="w-full bg-emerald-50/70 border border-emerald-200/80 rounded-2xl p-3.5 space-y-1.5 text-xs text-left font-deposit-meta"
+          style="font-family: 'Google Sans Flex', 'Be Vietnam Pro', sans-serif;"
         >
           <div class="font-black text-[10px] uppercase tracking-wider text-emerald-800 flex items-center gap-1.5 pb-1 border-b border-emerald-200">
             <i class="fa-solid fa-clock-rotate-left text-emerald-600"></i> Lịch sử các đợt cọc:
           </div>
-          <div v-for="(h, idx) in formStore.deposit.history" :key="idx" class="flex justify-between items-center font-mono text-[11px]">
+          <div v-for="(h, idx) in formStore.deposit.history" :key="idx" class="flex justify-between items-center font-deposit-meta text-[11px]" style="font-family: 'Google Sans Flex', 'Be Vietnam Pro', sans-serif;">
             <span class="text-slate-600">
-              {{ h.time }} <span class="font-black text-emerald-700">[{{ formatShortVND(h.delta) }}]</span>
+              {{ h.time }} <span class="font-black text-emerald-700">[{{ formatShortVND(h.delta) }}]</span> <span class="font-bold text-slate-400">(Lần {{ idx + 1 }})</span>
             </span>
             <span class="font-bold text-slate-800">{{ formatVND(h.amount) }}</span>
           </div>

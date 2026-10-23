@@ -93,8 +93,8 @@ const dayOfWeek = computed(() => getDayOfWeek(props.formStore?.customer?.date))
           />
           <div 
             v-if="formStore.deposit.isPaid" 
-            class="mt-2 px-3 py-1 bg-white/95 border border-red-200/90 rounded-full shadow-xs text-center text-[#961825] font-black tracking-widest whitespace-nowrap font-tabular" 
-            style="font-family: 'Cal Sans', sans-serif; font-size: 13px;"
+            class="mt-2 px-3 py-1 bg-white/95 border border-red-200/90 rounded-full shadow-xs text-center text-[#961825] font-black tracking-widest whitespace-nowrap font-tabular font-deposit-meta" 
+            style="font-family: 'Google Sans Flex', 'Be Vietnam Pro', sans-serif; font-size: 13px;"
           >
             {{ formatDepositTime(formStore.deposit.time) }}
           </div>
@@ -200,19 +200,19 @@ const dayOfWeek = computed(() => getDayOfWeek(props.formStore?.customer?.date))
       </div>
 
       <!-- DEPOSIT INSTALLMENT BREAKDOWN -->
-      <div v-if="formStore.deposit.isPaid && formStore.deposit.history && formStore.deposit.history.length > 1" class="bg-emerald-50/70 border border-emerald-200/80 rounded-2xl p-3 space-y-1.5 text-xs text-left shadow-xs">
+      <div v-if="formStore.deposit.isPaid && formStore.deposit.history && formStore.deposit.history.length > 1" class="bg-emerald-50/70 border border-emerald-200/80 rounded-2xl p-3 space-y-1.5 text-xs text-left shadow-xs font-deposit-meta" style="font-family: 'Google Sans Flex', 'Be Vietnam Pro', sans-serif;">
         <div class="font-black text-[10px] uppercase tracking-wider text-emerald-800 flex items-center gap-1.5 pb-1 border-b border-emerald-200/60">
           <i class="fa-solid fa-clock-rotate-left text-[11px] text-emerald-600"></i> Chi tiết các đợt cọc:
         </div>
-        <div v-for="(h, idx) in formStore.deposit.history" :key="idx" class="flex justify-between items-center font-tabular text-[11px]">
+        <div v-for="(h, idx) in formStore.deposit.history" :key="idx" class="flex justify-between items-center font-tabular text-[11px] font-deposit-meta" style="font-family: 'Google Sans Flex', 'Be Vietnam Pro', sans-serif;">
           <span class="text-slate-600">
             {{ h.time }} <span class="font-black text-emerald-700">[{{ formatShortVND(h.delta) }}]</span> <span class="font-bold text-slate-400">(Lần {{ idx + 1 }})</span>
           </span>
-          <span class="font-bold text-slate-700 font-mono">{{ formatVND(h.amount) }}</span>
+          <span class="font-bold text-slate-700 font-deposit-meta">{{ formatVND(h.amount) }}</span>
         </div>
-        <div class="pt-1.5 border-t border-emerald-200/60 flex justify-between items-center font-black text-[12px] text-emerald-800">
+        <div class="pt-1.5 border-t border-emerald-200/60 flex justify-between items-center font-black text-[12px] text-emerald-800 font-deposit-meta">
           <span>Tổng cọc: [{{ formatShortVND(formStore.deposit.amount) }}]</span>
-          <span class="font-tabular font-mono">{{ formatVND(formStore.deposit.amount) }}</span>
+          <span class="font-tabular font-deposit-meta">{{ formatVND(formStore.deposit.amount) }}</span>
         </div>
       </div>
       <div v-if="formStore.calculatedTotals.final - formStore.deposit.amount > 0" class="flex justify-between items-center pt-4 border-t-2 border-slate-200">

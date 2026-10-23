@@ -1,7 +1,12 @@
-@import url('https://fonts.googleapis.com/css2?family=Cal+Sans&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Cal+Sans&family=Google+Sans+Flex:opsz,wght@6..144,100..1000&family=Hurricane&display=swap');
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+.font-deposit-meta {
+    font-family: 'Google Sans Flex', 'Be Vietnam Pro', sans-serif !important;
+    font-variant-numeric: tabular-nums;
+}
 
 html, body, #app {
     height: 100%;

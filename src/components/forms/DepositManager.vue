@@ -275,11 +275,11 @@ function onDrop(e: DragEvent) {
               <div class="text-[10px] text-emerald-700 dark:text-emerald-400 font-medium truncate">{{ formStore.deposit.note || 'Chuyển khoản thành công' }}</div>
             </div>
           </div>
-          <span class="text-[10px] font-mono text-emerald-700 dark:text-emerald-300 font-bold shrink-0 font-tabular bg-emerald-100/70 dark:bg-emerald-900/40 px-2 py-0.5 rounded-md border border-emerald-200/50 dark:border-emerald-800/40">{{ formStore.deposit.time }}</span>
+          <span class="text-[10px] font-deposit-meta text-emerald-700 dark:text-emerald-300 font-bold shrink-0 font-tabular bg-emerald-100/70 dark:bg-emerald-900/40 px-2 py-0.5 rounded-md border border-emerald-200/50 dark:border-emerald-800/40" style="font-family: 'Google Sans Flex', 'Be Vietnam Pro', sans-serif;">{{ formStore.deposit.time }}</span>
         </div>
 
         <!-- Installment History Breakdown (Lần 1, Lần 2, ...) -->
-        <div v-if="formStore.deposit.history && formStore.deposit.history.length > 0" class="pt-2 border-t border-emerald-200/60 dark:border-emerald-800/40 space-y-1.5">
+        <div v-if="formStore.deposit.history && formStore.deposit.history.length > 0" class="pt-2 border-t border-emerald-200/60 dark:border-emerald-800/40 space-y-1.5 font-deposit-meta" style="font-family: 'Google Sans Flex', 'Be Vietnam Pro', sans-serif;">
           <div class="text-[9px] font-black uppercase text-emerald-800 dark:text-emerald-300 flex items-center justify-between">
             <span class="flex items-center gap-1"><i class="fa-solid fa-clock-rotate-left text-[10px]"></i> Lịch sử các đợt cọc:</span>
             <span class="text-[9px] font-bold text-slate-400">({{ formStore.deposit.history.length }} lần)</span>
@@ -288,7 +288,8 @@ function onDrop(e: DragEvent) {
             <div 
               v-for="(h, idx) in formStore.deposit.history" 
               :key="idx" 
-              class="flex items-center justify-between text-[10px] font-tabular bg-white/70 dark:bg-emerald-950/60 px-2.5 py-1 rounded-lg border border-emerald-100 dark:border-emerald-800/40"
+              class="flex items-center justify-between text-[10px] font-tabular font-deposit-meta bg-white/70 dark:bg-emerald-950/60 px-2.5 py-1 rounded-lg border border-emerald-100 dark:border-emerald-800/40"
+              style="font-family: 'Google Sans Flex', 'Be Vietnam Pro', sans-serif;"
             >
               <div class="flex items-center gap-1.5 min-w-0">
                 <span class="text-[9px] font-black bg-emerald-100 dark:bg-emerald-900/60 text-emerald-800 dark:text-emerald-300 px-1 py-0.2 rounded shrink-0">Lần {{ idx + 1 }}</span>

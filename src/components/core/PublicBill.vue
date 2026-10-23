@@ -426,7 +426,7 @@ onUnmounted(() => { if (timer) clearInterval(timer) })
           <div id="bill-stamp-zone" class="my-4 py-3 border-y border-dashed border-slate-200/80 flex flex-col items-center justify-center pointer-events-none bg-slate-50/40 rounded-2xl">
             <div class="relative w-[170px] sm:w-[200px] flex flex-col items-center justify-center" style="transform: rotate(-3deg); opacity: 0.95;">
               <img id="bill-stamp-img" :src="order.isDeposited ? '/images/stamps/paid.png' : '/images/stamps/pending.png'" class="w-full object-contain filter drop-shadow-sm" style="image-rendering: -webkit-optimize-contrast; image-rendering: crisp-edges;" alt="Stamp" />
-              <div v-if="order.isDeposited" class="mt-2 px-3 py-1 bg-white/95 border border-red-200/90 rounded-full shadow-xs text-center text-[#961825] font-black tracking-widest whitespace-nowrap font-tabular" style="font-family: 'Cal Sans', sans-serif; font-size: 13px;">
+              <div v-if="order.isDeposited" class="mt-2 px-3 py-1 bg-white/95 border border-red-200/90 rounded-full shadow-xs text-center text-[#961825] font-black tracking-widest whitespace-nowrap font-tabular font-deposit-meta" style="font-family: 'Google Sans Flex', 'Be Vietnam Pro', sans-serif; font-size: 13px;">
                 {{ formatDepositTime(order.deposit?.time || order.depositTime) }}
               </div>
             </div>
@@ -503,17 +503,17 @@ onUnmounted(() => { if (timer) clearInterval(timer) })
             </div>
 
             <!-- DEPOSIT INSTALLMENT BREAKDOWN -->
-            <div v-if="order.isDeposited && (order.deposit?.history?.length > 1 || order.depositHistory?.length > 1)" class="bg-emerald-50/70 border border-emerald-200/80 rounded-2xl p-3 space-y-1.5 text-xs text-left shadow-xs mt-2">
+            <div v-if="order.isDeposited && (order.deposit?.history?.length > 1 || order.depositHistory?.length > 1)" class="bg-emerald-50/70 border border-emerald-200/80 rounded-2xl p-3 space-y-1.5 text-xs text-left shadow-xs mt-2 font-deposit-meta" style="font-family: 'Google Sans Flex', 'Be Vietnam Pro', sans-serif;">
               <div class="font-black text-[10px] uppercase tracking-wider text-emerald-800 flex items-center gap-1.5 pb-1 border-b border-emerald-200/60">
                 <i class="fa-solid fa-clock-rotate-left text-[11px] text-emerald-600"></i> Chi tiết các đợt cọc:
               </div>
-              <div v-for="(h, idx) in (order.deposit?.history || order.depositHistory)" :key="idx" class="flex justify-between items-center font-tabular text-[11px]">
+              <div v-for="(h, idx) in (order.deposit?.history || order.depositHistory)" :key="idx" class="flex justify-between items-center font-tabular text-[11px] font-deposit-meta" style="font-family: 'Google Sans Flex', 'Be Vietnam Pro', sans-serif;">
                 <span class="text-slate-600">
                   {{ h.time }} <span class="font-black text-emerald-700">[{{ formatShortVND(h.delta) }}]</span> <span class="font-bold text-slate-400">(Lần {{ idx + 1 }})</span>
                 </span>
                 <span class="font-bold text-slate-700">{{ formatVND(h.amount) }}</span>
               </div>
-              <div class="pt-1.5 border-t border-emerald-200/60 flex justify-between items-center font-black text-[12px] text-emerald-800">
+              <div class="pt-1.5 border-t border-emerald-200/60 flex justify-between items-center font-black text-[12px] text-emerald-800 font-deposit-meta">
                 <span>Tổng cọc: [{{ formatShortVND(order.depositAmount) }}]</span>
                 <span class="font-tabular">{{ formatVND(order.depositAmount) }}</span>
               </div>
