@@ -27,7 +27,7 @@ const verificationQrUrl = useVerificationQr(() => qrLink.value || 'https://kg-bo
   <div class="w-full p-5 bg-[#FAF9F5] border-[5px] border-[#C5A059]/60 relative mx-auto text-slate-800 font-sans select-text">
     
     <!-- INNER ROYAL FRAME -->
-    <div class="border-2 border-[#C5A059] p-8 md:p-10 bg-white relative shadow-sm overflow-hidden">
+    <div class="border-2 border-[#C5A059] p-10 bg-white relative shadow-sm overflow-hidden">
       
       <!-- SUBTLE WATERMARK EMBLEM (Center Background) -->
       <div class="absolute inset-0 flex items-center justify-center pointer-events-none opacity-[0.03] select-none">
@@ -42,24 +42,32 @@ const verificationQrUrl = useVerificationQr(() => qrLink.value || 'https://kg-bo
 
       <!-- ROYAL HEADER -->
       <div class="text-center relative pb-6 border-b border-[#C5A059]/40 mb-6">
-        <div class="flex justify-center mb-2">
-          <div class="p-2 rounded-full border border-[#C5A059]/30 bg-[#FAF9F5] shadow-2xs">
+        <div class="flex justify-center mb-2.5">
+          <div class="p-3 rounded-full border border-[#C5A059]/40 bg-[#FAF9F5] shadow-2xs">
             <img 
               :src="configStore?.branding?.logo || '/images/brand-logo.svg'" 
-              class="h-16 w-16 object-contain" 
+              class="h-20 w-20 object-contain" 
               alt="King's Grill Logo" 
               loading="eager"
             />
           </div>
         </div>
 
-        <h1 class="text-3xl font-black tracking-widest text-[#0B192C] uppercase" style="font-family: 'Be Vietnam Pro', serif;">
+        <h1 class="text-[32px] font-black tracking-[0.15em] text-[#0B192C] uppercase leading-tight" style="font-family: 'Be Vietnam Pro', serif;">
           KING'S GRILL
         </h1>
         
-        <p class="text-xs text-slate-500 font-medium mt-1">
-          34 Hoàng Văn Thụ, Phường Thủ Dầu Một, TP. Hồ Chí Minh
+        <p class="text-[13px] text-slate-600 font-semibold mt-1">
+          ĐC: Số 34, Đường Hoàng Văn Thụ, Phường Thủ Dầu Một, TP. Hồ Chí Minh
         </p>
+
+        <div class="mt-3 flex items-center justify-center gap-3">
+          <span class="w-10 h-[2px] bg-[#C5A059]"></span>
+          <h2 class="text-[18px] font-black tracking-[0.22em] text-[#9A7B38] uppercase leading-none" style="font-family: 'Be Vietnam Pro', sans-serif;">
+            PHIẾU ĐẶT BÀN
+          </h2>
+          <span class="w-10 h-[2px] bg-[#C5A059]"></span>
+        </div>
 
         <div class="text-[10px] font-mono text-slate-400 font-bold mt-2">
           MÃ ĐƠN: #{{ formStore?.id ? formStore.id.slice(-8).toUpperCase() : 'KG-VIP' }}
@@ -189,10 +197,10 @@ const verificationQrUrl = useVerificationQr(() => qrLink.value || 'https://kg-bo
       </div>
 
       <!-- TOTALS & STAMP ROW -->
-      <div class="flex flex-col md:flex-row gap-6 items-start justify-between mb-6">
+      <div class="flex flex-row gap-6 items-start justify-between mb-6">
         
         <!-- Left: Royal Stamp & Deposit Guarantee -->
-        <div class="w-full md:w-1/2 flex flex-col items-start gap-3">
+        <div class="w-1/2 flex flex-col items-start gap-3">
           <div class="w-full p-4 rounded-xl bg-[#FAF9F5] border border-[#C5A059]/40 flex items-center gap-4 relative overflow-hidden">
             <div class="w-20 shrink-0 relative" :style="stampParallax ? { transform: `translate(${stampParallax.x}px, ${stampParallax.y}px)` } : {}">
               <img 
@@ -234,7 +242,7 @@ const verificationQrUrl = useVerificationQr(() => qrLink.value || 'https://kg-bo
         </div>
 
         <!-- Right: Totals Box -->
-        <div v-if="!hidePrice" class="w-full md:w-1/2 p-5 rounded-xl bg-[#FAF9F5] border border-[#C5A059]/40 space-y-2 text-xs">
+        <div v-if="!hidePrice" class="w-1/2 p-5 rounded-xl bg-[#FAF9F5] border border-[#C5A059]/40 space-y-2 text-xs">
           <div class="flex justify-between items-center text-slate-500 font-bold uppercase text-[11px]">
             <span>Tạm tính bữa tiệc</span>
             <span class="font-mono font-black text-slate-800 text-sm">{{ formatVND(formStore?.calculatedTotals?.sub || 0) }}</span>

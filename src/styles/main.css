@@ -557,8 +557,6 @@ input, textarea, button, select, a, div[role="button"] {
     -moz-osx-font-smoothing: grayscale;
     text-rendering: optimizeLegibility;
 }
-#bill-render h1 { font-size: 60px; line-height: 1.1; letter-spacing: 0.05em; }
-#bill-render h2 { font-size: 30px; line-height: 1.2; letter-spacing: 0.1em; }
 #bill-render .text-7xl { font-size: 72px; }
 #bill-render .text-5xl { font-size: 48px; }
 #bill-render .text-4xl { font-size: 36px; }

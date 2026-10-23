@@ -30,16 +30,16 @@ const verificationQrUrl = useVerificationQr(() => qrLink.value || 'https://kg-bo
     <div class="bg-white rounded-3xl shadow-md border border-slate-200 overflow-hidden relative">
       
       <!-- TOP BANNER (Header Stripe) -->
-      <div class="bg-blue-950 text-white px-8 py-4 flex items-center justify-between">
-        <div class="flex items-center gap-3">
+      <div class="bg-blue-950 text-white px-8 py-4.5 flex items-center justify-between">
+        <div class="flex items-center gap-3.5">
           <img 
             :src="configStore?.branding?.logo || '/images/brand-logo.svg'" 
-            class="h-10 w-10 object-contain invert brightness-0 shrink-0" 
+            class="h-12 w-12 object-contain invert brightness-0 shrink-0" 
             alt="Logo"
           >
           <div>
-            <div class="font-black text-sm tracking-widest uppercase">KING'S GRILL RESTAURANT</div>
-            <div class="text-[10px] text-blue-200">THẺ XÁC NHẬN BÀN TIỆC • VIP PASS</div>
+            <div class="font-black text-base tracking-[0.14em] uppercase">KING'S GRILL RESTAURANT</div>
+            <div class="text-[11px] font-bold text-amber-300 tracking-[0.14em] uppercase mt-0.5">PHIẾU ĐẶT BÀN • VIP BOARDING PASS</div>
           </div>
         </div>
 
@@ -127,7 +127,7 @@ const verificationQrUrl = useVerificationQr(() => qrLink.value || 'https://kg-bo
           </div>
 
           <!-- Compact 2-column or list view -->
-          <div v-else class="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-2 text-xs">
+          <div v-else class="grid grid-cols-2 gap-x-6 gap-y-2 text-xs">
             <div 
               v-for="(item, i) in formStore?.filteredBillItems" 
               :key="i"
@@ -174,7 +174,7 @@ const verificationQrUrl = useVerificationQr(() => qrLink.value || 'https://kg-bo
         </div>
 
         <!-- Settlement Row -->
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 items-center pt-4 border-t border-slate-200">
+        <div class="grid grid-cols-2 gap-6 items-center pt-4 border-t border-slate-200">
           
           <!-- Left: Policy / Check-in QR -->
           <div class="flex items-center gap-4 text-xs text-slate-500">

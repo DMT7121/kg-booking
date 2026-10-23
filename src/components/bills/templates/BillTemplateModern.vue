@@ -24,25 +24,25 @@ const verificationQrUrl = useVerificationQr(() => qrLink.value || 'https://kg-bo
 </script>
 
 <template>
-  <div class="w-full p-10 md:p-12 bg-white relative mx-auto text-slate-800 font-sans select-text">
+  <div class="w-full p-12 bg-white relative mx-auto text-slate-800 font-sans select-text">
     <!-- TOP BAR / SPLIT HEADER -->
-    <div class="flex items-start justify-between gap-6 pb-6 border-b border-slate-200">
+    <div class="flex items-center justify-between gap-6 pb-6 border-b border-slate-200">
       <!-- Left: Brand Identity -->
       <div class="flex items-center gap-4">
         <img 
           :src="configStore?.branding?.logo || '/images/brand-logo.svg'" 
-          class="h-16 w-16 object-contain shrink-0" 
+          class="h-20 w-20 object-contain shrink-0" 
           alt="King's Grill Logo"
           loading="eager"
         >
         <div>
-          <h1 class="text-2xl font-black tracking-wider text-blue-950 uppercase" style="font-family: 'Be Vietnam Pro', sans-serif;">
+          <h1 class="text-[28px] font-black tracking-[0.1em] text-blue-950 uppercase leading-tight" style="font-family: 'Be Vietnam Pro', sans-serif;">
             KING'S GRILL
           </h1>
-          <p class="text-[11px] font-semibold text-slate-500 mt-0.5 leading-snug">
-            34 Hoàng Văn Thụ, P. Thủ Dầu Một, TP. Hồ Chí Minh
+          <p class="text-[12.5px] font-semibold text-slate-600 mt-1 leading-snug">
+            ĐC: Số 34, Đường Hoàng Văn Thụ, P. Thủ Dầu Một, TP. Hồ Chí Minh
           </p>
-          <div class="text-[10px] font-bold text-amber-700 mt-1 flex items-center gap-1.5">
+          <div class="text-[11px] font-bold text-amber-700 mt-1 flex items-center gap-1.5">
             <span class="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
             <span v-if="formStore?.staff?.phone">Hotline: {{ formStore.staff.phone }} • Mở cửa: 10:00 - 23:00</span>
             <span v-else>Mở cửa: 10:00 - 23:00</span>
@@ -52,10 +52,10 @@ const verificationQrUrl = useVerificationQr(() => qrLink.value || 'https://kg-bo
 
       <!-- Right: Bill Meta & Status -->
       <div class="text-right flex flex-col items-end shrink-0">
-        <div class="text-[11px] font-black tracking-widest text-slate-400 uppercase">
+        <div class="text-[16px] font-black tracking-[0.18em] text-blue-950 uppercase">
           PHIẾU ĐẶT BÀN
         </div>
-        <div class="font-mono text-xs font-black text-blue-900 mt-0.5">
+        <div class="font-mono text-xs font-black text-slate-500 mt-1">
           #{{ formStore?.id ? formStore.id.slice(-8).toUpperCase() : 'KG-BOOKING' }}
         </div>
         
@@ -216,10 +216,10 @@ const verificationQrUrl = useVerificationQr(() => qrLink.value || 'https://kg-bo
     </div>
 
     <!-- TOTALS & SETTLEMENT SECTION -->
-    <div class="flex flex-col md:flex-row gap-6 items-start justify-between mb-8">
+    <div class="flex flex-row gap-6 items-start justify-between mb-8">
       
       <!-- Left Column: Deposit Stamp & Installments or Invitation Message -->
-      <div class="w-full md:w-1/2 flex flex-col items-start gap-4">
+      <div class="w-1/2 flex flex-col items-start gap-4">
         
         <!-- Stamp Indicator -->
         <div class="flex items-center gap-4 bg-slate-50 p-4 rounded-2xl border border-slate-200 w-full relative overflow-hidden">
@@ -270,7 +270,7 @@ const verificationQrUrl = useVerificationQr(() => qrLink.value || 'https://kg-bo
       </div>
 
       <!-- Right Column: Financial Totals (Only if not hidePrice) -->
-      <div v-if="!hidePrice" class="w-full md:w-1/2 bg-slate-50 p-5 rounded-2xl border border-slate-200 space-y-2.5">
+      <div v-if="!hidePrice" class="w-1/2 bg-slate-50 p-5 rounded-2xl border border-slate-200 space-y-2.5">
         <div class="flex justify-between items-center text-xs text-slate-500 font-bold uppercase">
           <span>Tạm tính thực đơn</span>
           <span class="font-mono font-black text-slate-800 text-sm">{{ formatVND(formStore?.calculatedTotals?.sub || 0) }}</span>

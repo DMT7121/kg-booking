@@ -16,31 +16,36 @@ const dayOfWeek = computed(() => getDayOfWeek(props.formStore?.customer?.date))
 </script>
 
 <template>
-  <div class="w-full p-10 md:p-14 bg-white relative mx-auto select-text text-slate-800 font-sans">
+  <div class="w-full px-12 pt-7 pb-12 bg-white relative mx-auto select-text text-slate-800 font-sans">
     <!-- HEADER -->
-    <div class="text-center mb-6 mt-0">
-      <img 
-        :src="configStore?.branding?.logo || '/images/brand-logo.svg'" 
-        class="h-20 w-auto mx-auto mb-3 opacity-90 object-contain" 
-        alt="Logo"
-        loading="eager"
-      >
-      <h1 class="font-black tracking-widest text-slate-800 uppercase text-3xl mb-1" style="font-family: 'Be Vietnam Pro', sans-serif;">
+    <div class="text-center mb-8 pb-6 border-b border-slate-100 mt-0">
+      <div class="flex justify-center mb-2">
+        <img 
+          :src="configStore?.branding?.logo || '/images/brand-logo.svg'" 
+          class="h-[108px] w-auto mx-auto object-contain" 
+          alt="Logo"
+          loading="eager"
+        >
+      </div>
+      <h1 class="font-black tracking-[0.14em] text-slate-900 uppercase text-[36px] leading-tight" style="font-family: 'Be Vietnam Pro', sans-serif;">
         KING'S GRILL
       </h1>
-      <p class="text-slate-500 text-xs font-semibold mb-2" style="font-family: 'Inter', sans-serif;">
+      <p class="text-slate-600 text-[14px] font-bold mt-1.5 tracking-wide" style="font-family: 'Be Vietnam Pro', sans-serif;">
         ĐC: Số 34, Đường Hoàng Văn Thụ, Phường Thủ Dầu Một, Thành phố Hồ Chí Minh
       </p>
-      <h2 class="font-bold tracking-widest text-slate-500 uppercase text-xl" style="font-family: 'Inter', sans-serif;">
-        PHIẾU ĐẶT BÀN
-      </h2>
-      <div class="w-24 h-1 mx-auto mt-4 rounded-full bg-yellow-400"></div>
+      <div class="mt-4 flex items-center justify-center gap-4">
+        <span class="w-14 h-[3.5px] rounded-full bg-amber-400"></span>
+        <h2 class="font-black tracking-[0.22em] text-blue-950 uppercase text-[24px] leading-none" style="font-family: 'Be Vietnam Pro', sans-serif;">
+          PHIẾU ĐẶT BÀN
+        </h2>
+        <span class="w-14 h-[3.5px] rounded-full bg-amber-400"></span>
+      </div>
     </div>
 
     <!-- INFO & STAMP SECTION -->
     <div class="relative mb-10">
       <!-- Customer Info Grid -->
-      <div class="grid gap-y-3.5 text-[16px] w-full lg:w-[70%]" style="grid-template-columns: 140px 1fr;">
+      <div class="grid gap-y-3.5 text-[16px] w-[68%]" style="grid-template-columns: 140px 1fr;">
         <div class="flex items-center gap-3 text-slate-500 font-bold uppercase text-[12px] tracking-wider">
           <i class="fa-solid fa-user-tie w-4 text-center text-[13px]"></i> Khách hàng
         </div>
@@ -76,10 +81,10 @@ const dayOfWeek = computed(() => getDayOfWeek(props.formStore?.customer?.date))
 
       <!-- Stamp -->
       <div 
-        class="absolute -top-12 right-0 z-20 pointer-events-none" 
+        class="absolute -top-3 right-0 z-20 pointer-events-none" 
         :style="{ transform: `rotate(-4deg) translate(${stampParallax?.x || 0}px, ${stampParallax?.y || 0}px)` }"
       >
-        <div class="relative w-[220px] flex flex-col items-center justify-center">
+        <div class="relative w-[215px] flex flex-col items-center justify-center">
           <img 
             :src="formStore.deposit.isPaid ? '/images/stamps/paid.png' : '/images/stamps/pending.png'" 
             class="w-full object-contain filter drop-shadow-sm" 
@@ -146,7 +151,7 @@ const dayOfWeek = computed(() => getDayOfWeek(props.formStore?.customer?.date))
                 </div>
                 <div
                   v-if="parseBillItemNote(item.note).components.length > 0"
-                  class="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-0.5 pl-2 border-l-2 border-emerald-400/70 bg-slate-50 rounded-r-lg py-1.5 pr-2 text-[11.5px] text-slate-600 font-semibold leading-snug"
+                  class="grid grid-cols-2 gap-x-4 gap-y-0.5 pl-2 border-l-2 border-emerald-400/70 bg-slate-50 rounded-r-lg py-1.5 pr-2 text-[11.5px] text-slate-600 font-semibold leading-snug"
                 >
                   <div v-for="(comp, cpIdx) in parseBillItemNote(item.note).components" :key="'cp-' + cpIdx">
                     {{ comp }}
@@ -163,7 +168,7 @@ const dayOfWeek = computed(() => getDayOfWeek(props.formStore?.customer?.date))
     </div>
 
     <!-- TOTALS -->
-    <div v-if="!hidePrice" class="space-y-4 mb-10 w-full md:w-1/2 ml-auto">
+    <div v-if="!hidePrice" class="space-y-4 mb-10 w-[54%] ml-auto">
       <div class="flex justify-between items-center text-lg">
         <span class="font-bold text-slate-500 uppercase">TẠM TÍNH</span>
         <span class="font-black text-slate-800 font-mono">{{ formatVND(formStore.calculatedTotals.sub) }}</span>
@@ -225,7 +230,7 @@ const dayOfWeek = computed(() => getDayOfWeek(props.formStore?.customer?.date))
     <div v-if="!hidePrice && appStore.currentBank && !formStore.deposit.isPaid" class="bg-slate-50 border-2 border-slate-100 rounded-3xl p-6 mb-8 w-full">
       <h3 class="font-black text-sm text-slate-800 uppercase tracking-widest mb-6 text-center">THÔNG TIN CHUYỂN KHOẢN</h3>
       
-      <div class="flex gap-4 md:gap-8 items-center justify-center flex-wrap md:flex-nowrap">
+      <div class="flex gap-8 items-center justify-center flex-nowrap">
         <!-- QR Code -->
         <div class="flex-shrink-0">
           <img :src="qrImageUrl" class="w-60 h-60 object-contain rounded-2xl shadow-md border border-slate-200" alt="QR Code" loading="eager" decoding="sync">

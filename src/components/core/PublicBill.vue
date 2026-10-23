@@ -376,12 +376,16 @@ onUnmounted(() => { if (timer) clearInterval(timer) })
         
         <div class="p-5 sm:p-6 md:p-7 relative overflow-hidden">
           <!-- HEADER -->
-          <div class="text-center mb-6 mt-0">
-            <img src="/favicon.svg" class="h-16 w-auto mx-auto mb-2 opacity-90 object-contain" alt="Logo">
-            <h1 class="font-black tracking-[0.1em] text-slate-800 uppercase text-lg mb-1" style="font-family: 'Be Vietnam Pro', sans-serif;">KING'S GRILL</h1>
-            <p class="text-slate-500 text-[9px] font-semibold mb-2">ĐC: Số 34, Đường Hoàng Văn Thụ, Phường Thủ Dầu Một, Thành phố Hồ Chí Minh</p>
-            <h2 class="font-bold tracking-[0.2em] text-slate-400 uppercase text-[10px]" style="font-family: 'Inter', sans-serif;">PHIẾU ĐẶT BÀN</h2>
-            <div class="text-[9px] font-mono text-slate-300 mt-1">ID: #{{ order.id?.split('-')[0].toUpperCase() }}</div>
+          <div class="text-center mb-6 pb-5 border-b border-slate-100 mt-0">
+            <img src="/images/brand-logo.svg" class="h-20 w-auto mx-auto mb-2.5 object-contain" alt="Logo" loading="eager">
+            <h1 class="font-black tracking-[0.12em] text-slate-900 uppercase text-2xl leading-tight" style="font-family: 'Be Vietnam Pro', sans-serif;">KING'S GRILL</h1>
+            <p class="text-slate-600 text-[11px] font-semibold mt-1 leading-snug">ĐC: Số 34, Đường Hoàng Văn Thụ, Phường Thủ Dầu Một, Thành phố Hồ Chí Minh</p>
+            <div class="mt-3 flex items-center justify-center gap-3">
+              <span class="w-8 h-[2.5px] rounded-full bg-amber-400"></span>
+              <h2 class="font-black tracking-[0.18em] text-blue-950 uppercase text-[15px] leading-none" style="font-family: 'Be Vietnam Pro', sans-serif;">PHIẾU ĐẶT BÀN</h2>
+              <span class="w-8 h-[2.5px] rounded-full bg-amber-400"></span>
+            </div>
+            <div class="text-[10px] font-mono font-bold text-slate-400 mt-1.5">ID: #{{ order.id?.split('-')[0].toUpperCase() }}</div>
           </div>
 
           <!-- INFO CARD -->

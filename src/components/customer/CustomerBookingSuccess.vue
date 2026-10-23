@@ -108,8 +108,8 @@ Nhờ nhà hàng kiểm tra và xác nhận giúp tôi nhé!`
         <div class="w-12 h-12 bg-emerald-50 border border-emerald-200 rounded-2xl flex items-center justify-center text-emerald-600 shadow-sm">
           <i class="fa-solid fa-check text-2xl"></i>
         </div>
-        <div class="w-12 h-12 bg-white border border-slate-200 rounded-2xl flex items-center justify-center p-2 shadow-sm">
-          <img src="/favicon.svg" alt="KG Logo" class="w-full h-full object-contain" />
+        <div class="w-12 h-12 bg-white border border-slate-200 rounded-2xl flex items-center justify-center p-1.5 shadow-sm">
+          <img src="/images/brand-logo.svg" alt="KG Logo" class="w-full h-full object-contain" />
         </div>
       </div>
 
@@ -139,8 +139,8 @@ Nhờ nhà hàng kiểm tra và xác nhận giúp tôi nhé!`
       <!-- Ticket Header -->
       <div class="border-b border-slate-200 pb-5 mb-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 relative z-10">
         <div class="flex items-center gap-3.5">
-          <div class="w-14 h-14 rounded-2xl bg-white border border-slate-200 p-2 flex items-center justify-center shrink-0 shadow-sm">
-            <img src="/favicon.svg" alt="Logo" class="w-full h-full object-contain" />
+          <div class="w-14 h-14 rounded-2xl bg-white border border-slate-200 p-1.5 flex items-center justify-center shrink-0 shadow-sm">
+            <img src="/images/brand-logo.svg" alt="Logo" class="w-full h-full object-contain" />
           </div>
           <div>
             <div class="flex items-center gap-2 flex-wrap">
