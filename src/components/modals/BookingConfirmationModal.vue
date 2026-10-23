@@ -78,13 +78,35 @@ watch(
 
       rawInput.value = payload.rawInput ?? formStore.rawInput ?? ''
 
-      // Reset verification state
-      verifiedSections.value = {
-        contact: false,
-        dateTimeGuest: false,
-        seating: false,
-        menu: false,
-        depositAndNotes: false
+      // Smart Pre-Verification: Automatically pre-check clean sections so low-risk orders take 1 keypress
+      const initialAudit = auditBookingCompleteness(
+        {
+          customer: editCustomer.value,
+          items: editItems.value,
+          deposit: editDeposit.value
+        },
+        rawInput.value
+      )
+
+      if (initialAudit.riskLevel === 'low') {
+        verifiedSections.value = {
+          contact: true,
+          dateTimeGuest: true,
+          seating: true,
+          menu: true,
+          depositAndNotes: true
+        }
+      } else {
+        const cleanPhone = (editCustomer.value.phone || '').replace(/\s+/g, '')
+        const isPhoneValid = /^(?:0|\+84)[1-9]\d{8}$/.test(cleanPhone)
+        const paxVal = Number(editCustomer.value.pax || 0)
+        verifiedSections.value = {
+          contact: Boolean(editCustomer.value.name?.trim() && isPhoneValid),
+          dateTimeGuest: Boolean(editCustomer.value.date?.trim() && editCustomer.value.time?.trim() && paxVal > 0),
+          seating: Boolean(editCustomer.value.tables?.trim() || (paxVal > 0 && paxVal < 8)),
+          menu: initialAudit.unresolvedItems.length === 0,
+          depositAndNotes: initialAudit.uncapturedRawNotes.length === 0 && !initialAudit.warnings.some(w => w.includes('cọc'))
+        }
       }
     }
   }
@@ -249,14 +271,37 @@ function confirmAndProceed() {
   ui.resolveBookingConfirmation(true)
 }
 
+function approveAllAndProceed() {
+  approveAll()
+  confirmAndProceed()
+}
+
 function cancel() {
   ui.resolveBookingConfirmation(false)
 }
 
-// Keyboard shortcuts (Esc to close)
+// Keyboard shortcuts (Esc to close, Enter / Ctrl+Enter to confirm)
 function handleKeydown(e: KeyboardEvent) {
-  if (e.key === 'Escape' && ui.showBookingConfirmationModal) {
+  if (!ui.showBookingConfirmationModal) return
+  if (e.key === 'Escape') {
     cancel()
+    return
+  }
+  if (e.key === 'Enter') {
+    if (e.ctrlKey || e.metaKey) {
+      e.preventDefault()
+      approveAllAndProceed()
+      return
+    }
+    const activeTag = document.activeElement?.tagName
+    if (activeTag !== 'INPUT' && activeTag !== 'TEXTAREA' && activeTag !== 'SELECT') {
+      e.preventDefault()
+      if (isAllVerified.value) {
+        confirmAndProceed()
+      } else if (auditResult.value.riskLevel === 'low') {
+        approveAllAndProceed()
+      }
+    }
   }
 }
 
@@ -1023,21 +1068,22 @@ onUnmounted(() => {
         <div class="flex sm:hidden flex-col gap-2 w-full">
           <!-- Primary CTA Button (Full Width, Prominent) -->
           <button
+            v-if="isAllVerified"
             @click="confirmAndProceed"
             type="button"
-            :disabled="!isAllVerified"
-            class="w-full h-11 rounded-xl text-xs font-black uppercase tracking-wider flex items-center justify-center gap-2 shadow-md transition-all active:scale-95"
-            :class="[
-              isAllVerified
-                ? 'bg-blue-600 hover:bg-blue-700 text-white shadow-md shadow-blue-600/30 cursor-pointer active:scale-95'
-                : 'bg-slate-100 dark:bg-surface-3 text-slate-400 dark:text-slate-500 cursor-not-allowed opacity-75 border border-slate-200 dark:border-border-subtle'
-            ]"
+            class="w-full h-11 rounded-xl text-xs font-black uppercase tracking-wider flex items-center justify-center gap-2 shadow-md transition-all active:scale-95 bg-blue-600 hover:bg-blue-700 text-white shadow-blue-600/30 cursor-pointer"
           >
-            <i :class="isAllVerified ? 'fa-solid fa-circle-check text-sm' : 'fa-solid fa-lock text-xs'"></i>
+            <i class="fa-solid fa-circle-check text-sm"></i>
             <span>Xác Nhận & Tiếp Tục</span>
-            <span v-if="!isAllVerified" class="text-[10px] font-normal normal-case opacity-80">
-              ({{ 5 - verifiedCount }} mục chưa duyệt)
-            </span>
+          </button>
+          <button
+            v-else
+            @click="approveAllAndProceed"
+            type="button"
+            class="w-full h-11 rounded-xl text-xs font-black uppercase tracking-wider flex items-center justify-center gap-2 shadow-md transition-all active:scale-95 bg-emerald-600 hover:bg-emerald-700 text-white shadow-emerald-600/30 cursor-pointer"
+          >
+            <i class="fa-solid fa-bolt text-sm"></i>
+            <span>Duyệt Tất Cả & Tiếp Tục ({{ 5 - verifiedCount }} mục)</span>
           </button>
 
           <!-- Secondary Actions Row (Duyệt Tất Cả + Hủy Bỏ) -->
@@ -1053,7 +1099,7 @@ onUnmounted(() => {
               ]"
             >
               <i class="fa-solid fa-check-double text-emerald-500 text-[10px]"></i>
-              <span>{{ isAllVerified ? 'Đã Duyệt Đủ (5/5)' : 'Duyệt Tất Cả (5/5)' }}</span>
+              <span>{{ isAllVerified ? 'Đã Duyệt Đủ (5/5)' : 'Chỉ Duyệt Đủ (5/5)' }}</span>
             </button>
 
             <button
@@ -1068,29 +1114,53 @@ onUnmounted(() => {
 
         <!-- DESKTOP LAYOUT (>= sm) -->
         <div class="hidden sm:flex items-center justify-between gap-3 w-full">
-          <!-- 1-Click Approve All Button -->
-          <button
-            @click="approveAll"
-            type="button"
-            :class="[
-              'px-4 py-2.5 rounded-xl border text-xs font-bold flex items-center justify-center gap-2 transition-all active:scale-95 shadow-2xs cursor-pointer',
-              isAllVerified
-                ? 'bg-emerald-50 dark:bg-emerald-950/60 border-emerald-300 dark:border-emerald-800 text-emerald-700 dark:text-emerald-300'
-                : 'bg-slate-50 dark:bg-surface-3 border-slate-200 dark:border-border-subtle hover:bg-slate-100 dark:hover:bg-surface-2 text-slate-700 dark:text-slate-300'
-            ]"
-          >
-            <i class="fa-solid fa-check-double text-emerald-500"></i>
-            <span>{{ isAllVerified ? 'Đã Duyệt Toàn Bộ (5/5)' : 'Xác Nhận Tất Cả' }}</span>
-          </button>
+          <div class="flex items-center gap-2.5">
+            <!-- 1-Click Approve All Button -->
+            <button
+              @click="approveAll"
+              type="button"
+              :class="[
+                'px-3.5 py-2.5 rounded-xl border text-xs font-bold flex items-center justify-center gap-2 transition-all active:scale-95 shadow-2xs cursor-pointer',
+                isAllVerified
+                  ? 'bg-emerald-50 dark:bg-emerald-950/60 border-emerald-300 dark:border-emerald-800 text-emerald-700 dark:text-emerald-300'
+                  : 'bg-slate-50 dark:bg-surface-3 border-slate-200 dark:border-border-subtle hover:bg-slate-100 dark:hover:bg-surface-2 text-slate-700 dark:text-slate-300'
+              ]"
+            >
+              <i class="fa-solid fa-check-double text-emerald-500"></i>
+              <span>{{ isAllVerified ? 'Đã Duyệt Toàn Bộ (5/5)' : 'Duyệt Tất Cả (5/5)' }}</span>
+            </button>
+
+            <!-- Active Shift Staff Indicator -->
+            <div
+              v-if="ui.activeShiftStaff?.name && ui.pinShiftStaff"
+              class="hidden md:inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-surface-2 dark:bg-surface-3 border border-border-subtle text-[11px] font-semibold text-text-secondary"
+              title="Nhân viên đang được ghim trong ca trực này"
+            >
+              <i class="fa-solid fa-user-check text-emerald-500 text-xs"></i>
+              <span>Ký bởi: <strong class="text-text-primary">{{ ui.activeShiftStaff.name }}</strong></span>
+            </div>
+          </div>
 
           <!-- Right Side Action Buttons -->
           <div class="flex items-center gap-2.5 sm:gap-3 justify-end">
             <button
               @click="cancel"
               type="button"
-              class="px-5 py-2.5 rounded-xl border border-slate-200 dark:border-border-subtle hover:bg-slate-100 dark:hover:bg-surface-3 text-xs font-bold text-slate-600 dark:text-slate-400 transition-all active:scale-95 cursor-pointer"
+              class="px-4 py-2.5 rounded-xl border border-slate-200 dark:border-border-subtle hover:bg-slate-100 dark:hover:bg-surface-3 text-xs font-bold text-slate-600 dark:text-slate-400 transition-all active:scale-95 cursor-pointer"
             >
               Hủy Bỏ
+            </button>
+
+            <button
+              v-if="!isAllVerified"
+              @click="approveAllAndProceed"
+              type="button"
+              class="px-5 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider flex items-center justify-center gap-2 transition-all shadow-md bg-emerald-600 hover:bg-emerald-700 text-white shadow-emerald-600/25 cursor-pointer active:scale-95"
+              title="Duyệt nhanh toàn bộ 5 mục và tiếp tục ngay (Ctrl + Enter)"
+            >
+              <i class="fa-solid fa-bolt"></i>
+              <span>Duyệt Nhanh & Tiếp Tục</span>
+              <kbd class="hidden lg:inline-block px-1.5 py-0.5 text-[9px] font-mono bg-white/20 rounded text-white border border-white/30">Ctrl+↵</kbd>
             </button>
 
             <button
@@ -1106,8 +1176,9 @@ onUnmounted(() => {
             >
               <i :class="isAllVerified ? 'fa-solid fa-circle-check' : 'fa-solid fa-lock'"></i>
               <span>Xác Nhận & Tiếp Tục</span>
-              <span v-if="!isAllVerified" class="text-[10px] font-normal normal-case opacity-80">
-                ({{ 5 - verifiedCount }} mục chưa duyệt)
+              <kbd v-if="isAllVerified" class="hidden lg:inline-block px-1.5 py-0.5 text-[9px] font-mono bg-white/20 rounded text-white border border-white/30">Enter ↵</kbd>
+              <span v-else class="text-[10px] font-normal normal-case opacity-80">
+                ({{ 5 - verifiedCount }} mục)
               </span>
             </button>
           </div>

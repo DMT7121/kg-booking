@@ -341,25 +341,48 @@ function handleNameInput(index: number, e?: Event) {
 function onSelectSuggestion(s: any, index: number) {
   selectMenuItem(s, index)
 }
+
+const viewMode = ref<'cards' | 'compact'>((localStorage.getItem('kg_menu_view_mode') as 'cards' | 'compact') || 'cards')
+
+function setViewMode(mode: 'cards' | 'compact') {
+  viewMode.value = mode
+  try {
+    localStorage.setItem('kg_menu_view_mode', mode)
+  } catch {}
+}
+
+const totalPortions = computed(() => {
+  return formStore.items.reduce((sum, i) => sum + (Number(i.qty) || 0), 0)
+})
+
+function addNewItemAndFocus() {
+  addNewItem()
+  setTimeout(() => {
+    const newIdx = formStore.items.length - 1
+    const el = document.getElementById(`pos-dish-name-${newIdx}`) || document.getElementById(`card-dish-name-${newIdx}`)
+    if (el) {
+      el.focus()
+      el.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+    }
+  }, 60)
+}
 </script>
 
 <template>
-  <div class="bg-white dark:bg-surface-2 rounded-3xl shadow-sm border p-4 sm:p-5 md:p-6 transition-all duration-300 relative overflow-hidden"
-       :class="hasSoftWarning ? 'border-amber-300 dark:border-amber-700/60 bg-amber-50/10' : 'border-slate-100 dark:border-border-subtle'">
-    <!-- Top Decorative Line -->
-    <div class="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-emerald-500 via-teal-500 to-cyan-500"></div>
+  <div id="menu-editor-card" class="bg-surface-2 dark:bg-surface-2 rounded-2xl shadow-sm border p-4 sm:p-5 transition-all duration-200 relative overflow-hidden"
+       :class="hasSoftWarning ? 'border-amber-300 dark:border-amber-700/60 bg-amber-50/10' : 'border-border-default dark:border-border-subtle'">
 
-    <div class="flex flex-wrap justify-between items-center gap-2 mb-4 border-b border-slate-100 dark:border-border-subtle pb-3">
+    <div class="flex flex-wrap justify-between items-center gap-2 mb-4 border-b border-border-subtle pb-3">
       <div class="flex items-center gap-2.5">
-        <div class="w-8 h-8 rounded-xl bg-emerald-50 dark:bg-emerald-950/50 text-emerald-600 dark:text-emerald-400 flex items-center justify-center text-sm shadow-sm border border-emerald-100 dark:border-emerald-800/40 shrink-0">
+        <div class="w-8 h-8 rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center text-sm shadow-xs border border-emerald-500/20 shrink-0">
           <i class="fa-solid fa-bell-concierge"></i>
         </div>
         <div>
-          <h3 class="font-black text-slate-800 dark:text-slate-100 text-xs uppercase tracking-widest flex items-center gap-1.5">
-            Danh Sách Món Ăn & Đồ Uống
-            <span class="bg-red-500 text-white px-2 py-0.5 rounded-full text-[10px] font-black font-tabular shadow-xs">{{ formStore.items.length }}</span>
+          <h3 class="font-bold text-text-primary text-xs uppercase tracking-wider flex items-center gap-1.5">
+            <span>3. Danh Sách Món Ăn & Đồ Uống</span>
+            <span class="bg-emerald-600 text-white px-2 py-0.5 rounded-full text-[10px] font-black font-tabular shadow-2xs">{{ formStore.items.length }} món · {{ totalPortions }} phần</span>
           </h3>
-          <p class="text-[10px] font-bold text-slate-400 dark:text-slate-500">Chọn từ thực đơn hoặc nhập tự do</p>
+          <p class="text-[11px] font-medium text-text-secondary">Chọn từ thực đơn hoặc nhập tự do</p>
           <div v-if="partyPortionHint" class="flex items-center gap-1 mt-1">
             <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-amber-500/15 border border-amber-500/30 text-amber-700 dark:text-amber-300 text-[10px] font-bold">
               <i class="fa-solid fa-calculator text-[9px] text-amber-500"></i>
@@ -369,11 +392,35 @@ function onSelectSuggestion(s: any, index: number) {
         </div>
       </div>
 
-      <div class="flex items-center gap-1.5">
+      <div class="flex items-center gap-1.5 flex-wrap">
+        <!-- View Mode Toggle: Card View vs POS Compact Table -->
+        <div class="inline-flex items-center bg-surface-3 dark:bg-surface-3 p-0.5 rounded-xl border border-border-subtle">
+          <button
+            type="button"
+            @click="setViewMode('cards')"
+            class="px-2.5 py-1.5 rounded-lg text-[10px] font-bold flex items-center gap-1 transition-all cursor-pointer"
+            :class="viewMode === 'cards' ? 'bg-surface-2 dark:bg-surface-4 text-text-primary shadow-2xs' : 'text-text-tertiary hover:text-text-primary'"
+            title="Chế độ Thẻ chi tiết"
+          >
+            <i class="fa-solid fa-grip-lines text-[10px]"></i>
+            <span>Thẻ</span>
+          </button>
+          <button
+            type="button"
+            @click="setViewMode('compact')"
+            class="px-2.5 py-1.5 rounded-lg text-[10px] font-bold flex items-center gap-1 transition-all cursor-pointer"
+            :class="viewMode === 'compact' ? 'bg-apex-primary text-white shadow-2xs' : 'text-text-tertiary hover:text-text-primary'"
+            title="Chế độ Bảng POS gọn (1 dòng/món - tối ưu đơn đông món)"
+          >
+            <i class="fa-solid fa-table-list text-[10px]"></i>
+            <span>Bảng POS</span>
+          </button>
+        </div>
+
         <button
           type="button"
           @click="showQuickSetPicker = !showQuickSetPicker"
-          class="text-[10px] px-3 py-2 rounded-xl font-black border transition-all uppercase tracking-wider flex items-center gap-1.5 cursor-pointer shadow-xs min-h-[36px] active:scale-95"
+          class="text-[10px] px-3 py-2 rounded-xl font-black border transition-all uppercase tracking-wider flex items-center gap-1.5 cursor-pointer shadow-2xs min-h-[36px] active:scale-95"
           :class="showQuickSetPicker ? 'bg-emerald-600 text-white border-emerald-600' : 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800/50 hover:bg-emerald-100'"
           title="Chọn nhanh Set Menu 1..15 hoặc Combo Couple 1..11"
         >
@@ -381,10 +428,28 @@ function onSelectSuggestion(s: any, index: number) {
           <span>Chọn Set / Combo</span>
         </button>
 
-        <button @click="ui.showMenuManager = true" class="text-[10px] bg-slate-50 dark:bg-surface-3 px-3 py-2 rounded-xl text-slate-600 dark:text-slate-300 font-black border border-slate-200 dark:border-border-subtle hover:bg-slate-100 dark:hover:bg-surface-4 active:scale-95 transition-all uppercase tracking-widest flex items-center gap-1.5 cursor-pointer shadow-xs min-h-[36px]">
-          <i class="fa-solid fa-book-open text-blue-600 dark:text-blue-400"></i> {{ appStore.activeSheet }}
+        <button @click="ui.showMenuManager = true" class="text-[10px] bg-surface-3 px-3 py-2 rounded-xl text-text-secondary font-black border border-border-subtle hover:bg-surface-hover active:scale-95 transition-all uppercase tracking-wider flex items-center gap-1.5 cursor-pointer shadow-2xs min-h-[36px]">
+          <i class="fa-solid fa-book-open text-apex-primary"></i> {{ appStore.activeSheet }}
         </button>
       </div>
+    </div>
+
+    <!-- High-Volume Party Suggestion Banner -->
+    <div
+      v-if="viewMode === 'cards' && formStore.items.length >= 6"
+      class="mb-3 px-3 py-2 rounded-xl bg-blue-500/10 border border-blue-500/25 flex items-center justify-between gap-2 text-xs"
+    >
+      <div class="flex items-center gap-2 text-text-primary font-medium text-[11px]">
+        <i class="fa-solid fa-table-list text-apex-primary"></i>
+        <span>Đơn có <strong>{{ formStore.items.length }} món</strong> — Bật <strong>Chế độ Bảng POS gọn</strong> để nhìn toàn bộ món không cần cuộn dài!</span>
+      </div>
+      <button
+        type="button"
+        @click="setViewMode('compact')"
+        class="px-2.5 py-1 rounded-lg bg-apex-primary hover:bg-apex-primary-hover text-white text-[10px] font-bold uppercase tracking-wider shrink-0 cursor-pointer active:scale-95 transition-all"
+      >
+        Chuyển Bảng POS
+      </button>
     </div>
 
     <!-- Smart Set & Portion Advisor Banner -->
@@ -470,8 +535,141 @@ function onSelectSuggestion(s: any, index: number) {
       </div>
     </div>
 
+    <!-- COMPACT POS TABLE VIEW (1 Line Per Dish - Ultra Fast High-Density Mode) -->
+    <div v-if="viewMode === 'compact'" class="border border-border-default dark:border-border-subtle rounded-2xl bg-surface-1 dark:bg-surface-3/40 overflow-visible shadow-xs">
+      <!-- Table Header -->
+      <div class="hidden sm:grid sm:grid-cols-12 gap-2 px-3 py-2 bg-surface-3 dark:bg-surface-3 border-b border-border-subtle text-[10px] font-bold uppercase tracking-wider text-text-secondary rounded-t-2xl">
+        <div class="col-span-5">Tên món ăn / Đồ uống</div>
+        <div class="col-span-2 text-center">Số lượng</div>
+        <div class="col-span-2 text-right">Đơn giá</div>
+        <div class="col-span-2 text-right">Thành tiền</div>
+        <div class="col-span-1 text-right">Xóa</div>
+      </div>
+
+      <div class="divide-y divide-border-subtle">
+        <div
+          v-for="(item, index) in formStore.items"
+          :key="`pos-${index}`"
+          class="p-2.5 sm:px-3 sm:py-2 hover:bg-surface-2/80 dark:hover:bg-surface-3/70 transition-colors relative"
+        >
+          <div class="grid grid-cols-1 sm:grid-cols-12 gap-2 items-center">
+            <!-- Col 1: # + Dish Name Input + Autocomplete -->
+            <div class="sm:col-span-5 flex items-center gap-2 relative min-w-0">
+              <span class="w-5 h-5 rounded-md bg-primary/10 text-apex-primary text-[10px] font-black flex items-center justify-center shrink-0 font-tabular">
+                {{ index + 1 }}
+              </span>
+              <div class="relative flex-1 min-w-0">
+                <input
+                  :id="`pos-dish-name-${index}`"
+                  type="text"
+                  v-model="item.name"
+                  @input="onSearchInput(index)"
+                  @focus="handleInputFocus"
+                  @blur="handleItemBlur"
+                  @keydown.enter.prevent="(index === formStore.items.length - 1 && item.name.trim()) ? addNewItemAndFocus() : undefined"
+                  placeholder="Gõ tên món (Enter thêm dòng)..."
+                  class="w-full px-2.5 py-1.5 rounded-lg bg-surface-input border border-border-default focus:border-border-focus outline-none text-xs font-bold text-text-primary uppercase placeholder:normal-case placeholder:font-normal placeholder:text-text-tertiary"
+                />
+                <!-- Compact Suggestion Dropdown -->
+                <div v-if="ui.focusIdx === index" class="absolute top-full left-0 right-0 sm:w-[380px] bg-surface-2 dark:bg-surface-4 border border-border-default rounded-xl shadow-2xl max-h-[260px] overflow-y-auto z-50 mt-1 p-1 custom-scrollbar">
+                  <div
+                    v-for="s in filteredSuggestions"
+                    :key="s.name"
+                    @mousedown.prevent="onSelectSuggestion(s, index)"
+                    class="px-2.5 py-2 hover:bg-primary/10 rounded-lg cursor-pointer flex items-center justify-between gap-2 text-xs"
+                  >
+                    <span class="font-bold text-text-primary uppercase truncate" v-html="highlightMatch(s.name, index)"></span>
+                    <span class="font-mono font-bold text-apex-primary shrink-0">{{ formatVND(s.price) }}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Col 2: Quantity Stepper -->
+            <div class="sm:col-span-2 flex items-center justify-between sm:justify-center gap-1">
+              <span class="sm:hidden text-[10px] font-bold text-text-tertiary uppercase">Số lượng:</span>
+              <div class="inline-flex items-center bg-surface-input rounded-lg border border-border-default p-0.5">
+                <button
+                  type="button"
+                  @click.prevent="item.qty > 1 ? item.qty-- : formStore.items.splice(index, 1)"
+                  class="w-6 h-6 rounded hover:bg-surface-3 text-text-secondary font-bold text-xs flex items-center justify-center cursor-pointer"
+                >-</button>
+                <input
+                  type="number"
+                  v-model.number="item.qty"
+                  @keydown.enter.prevent="index === formStore.items.length - 1 ? addNewItemAndFocus() : undefined"
+                  class="w-8 text-center bg-transparent border-none outline-none font-mono font-black text-xs text-text-primary [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                />
+                <button
+                  type="button"
+                  @click.prevent="item.qty++"
+                  class="w-6 h-6 rounded hover:bg-surface-3 text-text-secondary font-bold text-xs flex items-center justify-center cursor-pointer"
+                >+</button>
+              </div>
+            </div>
+
+            <!-- Col 3: Unit Price -->
+            <div class="sm:col-span-2 flex items-center justify-between sm:justify-end gap-1">
+              <span class="sm:hidden text-[10px] font-bold text-text-tertiary uppercase">Đơn giá:</span>
+              <div class="relative w-28 sm:w-full">
+                <input
+                  type="text"
+                  inputmode="numeric"
+                  :value="formatPriceWithDots(item.price)"
+                  @input="updateItemPrice(index, ($event.target as HTMLInputElement).value)"
+                  placeholder="0"
+                  class="w-full px-2 py-1.5 pr-5 rounded-lg bg-surface-input border border-border-default focus:border-border-focus outline-none text-right font-mono font-bold text-xs text-apex-primary tabular-nums"
+                />
+                <span class="absolute right-1.5 top-1/2 -translate-y-1/2 text-[9px] text-text-tertiary font-bold pointer-events-none">đ</span>
+              </div>
+            </div>
+
+            <!-- Col 4: Subtotal -->
+            <div class="sm:col-span-2 flex items-center justify-between sm:justify-end">
+              <span class="sm:hidden text-[10px] font-bold text-text-tertiary uppercase">Thành tiền:</span>
+              <span class="font-mono font-black text-xs text-emerald-600 dark:text-emerald-400 tabular-nums">
+                {{ formatVND((item.price || 0) * (item.qty || 1)) }}
+              </span>
+            </div>
+
+            <!-- Col 5: Note Toggle & Delete -->
+            <div class="sm:col-span-1 flex items-center justify-end gap-1">
+              <button
+                type="button"
+                @click="toggleItemExpand(index)"
+                class="w-7 h-7 rounded-lg border flex items-center justify-center transition-colors cursor-pointer"
+                :class="item.note ? 'bg-amber-500/15 border-amber-500/40 text-amber-500' : 'bg-surface-input border-border-subtle text-text-tertiary hover:text-text-primary'"
+                :title="item.note ? `Ghi chú: ${item.note}` : 'Thêm ghi chú bếp cho món này'"
+              >
+                <i class="fa-solid fa-comment-medical text-[10px]"></i>
+              </button>
+              <button
+                type="button"
+                @click="formStore.items.splice(index, 1)"
+                class="w-7 h-7 rounded-lg bg-surface-input hover:bg-rose-500/15 border border-border-subtle hover:border-rose-500/40 text-text-tertiary hover:text-rose-500 flex items-center justify-center transition-colors cursor-pointer"
+                title="Xóa món"
+              >
+                <i class="fa-solid fa-trash-can text-[10px]"></i>
+              </button>
+            </div>
+          </div>
+
+          <!-- Inline Note Input in Compact Mode when toggled or when note exists -->
+          <div v-if="expandedItems[index] || item.note" class="mt-1.5 pl-7 flex items-center gap-1.5">
+            <input
+              type="text"
+              v-model="item.note"
+              @keydown.enter.prevent="index === formStore.items.length - 1 ? addNewItemAndFocus() : undefined"
+              placeholder="Ghi chú bếp (ít cay, không hành, lên trước...)"
+              class="flex-1 px-2.5 py-1 rounded-lg bg-amber-500/10 border border-amber-500/30 text-[11px] font-semibold text-amber-800 dark:text-amber-200 outline-none"
+            />
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- Items List: Full-width Name with Wrapping + Clear Multi-Line View -->
-    <div class="space-y-3.5">
+    <div v-else class="space-y-3.5">
       <div v-for="(item, index) in formStore.items" :key="index" 
            draggable="true"
            @dragstart="onDragStart($event, index)"
@@ -777,22 +975,34 @@ function onSelectSuggestion(s: any, index: number) {
       </div>
     </div>
     
-    <!-- Add Item Button: 50px height -->
-    <button @click="addNewItem" class="mt-4 w-full bg-blue-50/70 dark:bg-surface-3 border-2 border-dashed border-blue-200 dark:border-border-default text-blue-700 dark:text-blue-300 py-3.5 rounded-2xl font-black hover:bg-blue-100/60 dark:hover:bg-surface-4 hover:border-blue-400 dark:hover:border-border-focus transition-all active:scale-95 uppercase tracking-widest min-h-[50px] flex items-center justify-center gap-2 cursor-pointer shadow-xs">
-      <i class="fa-solid fa-plus text-base"></i> THÊM MÓN
+    <!-- Add Item Button: 48px height -->
+    <button @click="addNewItemAndFocus" class="mt-3.5 w-full bg-primary/10 hover:bg-primary/15 border-2 border-dashed border-primary/30 hover:border-primary text-apex-primary py-3 rounded-xl font-bold text-xs transition-all active:scale-98 uppercase tracking-wider min-h-[46px] flex items-center justify-center gap-2 cursor-pointer shadow-2xs">
+      <i class="fa-solid fa-plus text-sm"></i>
+      <span>Thêm Món Mới</span>
     </button>
 
-    <!-- TAX CONFIG -->
-    <div class="mt-5 border-t border-slate-100 dark:border-slate-800 pt-4 flex justify-between items-center px-1">
-      <label class="flex items-center cursor-pointer select-none min-h-[44px] group">
+    <!-- STICKY MENU SUMMARY & TAX FOOTER -->
+    <div class="mt-4 pt-3.5 border-t border-border-subtle flex flex-wrap items-center justify-between gap-3 px-1">
+      <label class="flex items-center cursor-pointer select-none min-h-[40px] group">
         <div class="relative">
           <input type="checkbox" v-model="formStore.taxEnabled" class="sr-only toggle-checkbox">
-          <div class="block bg-slate-200 dark:bg-slate-700 group-hover:bg-slate-300 w-11 h-6 rounded-full transition-colors" :class="{'!bg-green-500': formStore.taxEnabled}"></div>
-          <div class="dot absolute left-1 top-1 bg-white w-4 h-4 rounded-full transition-transform duration-300 ease-in-out transform shadow-sm" :class="{'translate-x-5': formStore.taxEnabled}"></div>
+          <div class="block bg-slate-200 dark:bg-slate-700 group-hover:bg-slate-300 w-10 h-5 rounded-full transition-colors" :class="{'!bg-emerald-500': formStore.taxEnabled}"></div>
+          <div class="dot absolute left-0.5 top-0.5 bg-white w-4 h-4 rounded-full transition-transform duration-200 ease-in-out transform shadow-xs" :class="{'translate-x-5': formStore.taxEnabled}"></div>
         </div>
-        <span class="ml-3 text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest group-hover:text-slate-700 dark:group-hover:text-slate-300 transition-colors">Bao gồm VAT (8% - 10%)</span>
+        <span class="ml-2.5 text-xs font-bold text-text-secondary group-hover:text-text-primary transition-colors">Tính thuế VAT (8% - 10%)</span>
+        <span v-if="formStore.taxEnabled" class="ml-2 text-xs font-mono font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-md border border-emerald-500/20">
+          +{{ formatVND(formStore.calculatedTotals.tax) }}
+        </span>
       </label>
-      <div class="text-sm font-black text-blue-900 dark:text-blue-300 bg-blue-50 dark:bg-blue-950/60 px-3 py-1.5 rounded-lg font-tabular border border-blue-100 dark:border-blue-900/50" v-if="formStore.taxEnabled">{{ formatVND(formStore.calculatedTotals.tax) }}</div>
+
+      <div class="flex items-center gap-3 ml-auto text-xs">
+        <div class="text-text-secondary font-medium">
+          Tạm tính: <strong class="font-mono text-text-primary tabular-nums">{{ formatVND(formStore.calculatedTotals.sub) }}</strong>
+        </div>
+        <div class="px-3 py-1.5 rounded-xl bg-primary/10 border border-primary/25 font-black text-apex-primary font-mono tabular-nums">
+          Tổng: {{ formatVND(formStore.calculatedTotals.final) }}
+        </div>
+      </div>
     </div>
   </div>
 </template>

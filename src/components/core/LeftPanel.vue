@@ -38,14 +38,35 @@ const buildInfo = computed(() => {
 
 const checklistItems = computed(() => {
   return [
-    { name: 'Khách & SĐT', done: !!(formStore.customer.name && formStore.customer.phone) },
-    { name: 'Ngày & Giờ tiệc', done: !!(formStore.customer.date && formStore.customer.time) },
-    { name: 'Số lượng khách', done: !!formStore.customer.pax },
-    { name: 'Khu & Số bàn', done: !!formStore.customer.tables },
-    { name: 'Thực đơn món ăn', done: formStore.items.length > 0 && formStore.items.some(i => i.name && i.qty > 0) },
-    { name: 'Thông tin cọc', done: formStore.deposit.amount > 0 || formStore.deposit.isPaid }
+    { name: 'Khách & SĐT', short: 'Khách', targetId: 'cust-name', done: !!(formStore.customer.name && formStore.customer.phone) },
+    { name: 'Ngày & Giờ tiệc', short: 'Ngày/Giờ', targetId: 'cust-date', done: !!(formStore.customer.date && formStore.customer.time) },
+    { name: 'Số lượng khách', short: 'Số khách', targetId: 'cust-pax', done: !!formStore.customer.pax },
+    { name: 'Khu & Số bàn', short: 'Bàn', targetId: 'cust-tables', done: !!formStore.customer.tables },
+    { name: 'Thực đơn món ăn', short: 'Thực đơn', targetId: 'menu-editor-card', done: formStore.items.length > 0 && formStore.items.some(i => i.name && i.qty > 0) },
+    { name: 'Thông tin cọc', short: 'Tiền cọc', targetId: 'deposit-manager-card', done: formStore.deposit.amount > 0 || formStore.deposit.isPaid }
   ]
 })
+
+const activeReceiptItems = computed(() => {
+  return formStore.items.filter(i => i.name && i.name.trim() !== '' && Number(i.qty || 0) > 0)
+})
+
+function scrollToChecklistTarget(targetId: string) {
+  haptic('light')
+  const el = document.getElementById(targetId)
+  if (el) {
+    el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    if (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA') {
+      setTimeout(() => (el as HTMLElement).focus(), 180)
+    }
+  }
+}
+
+function openShiftStaffSwitcher() {
+  haptic('light')
+  ui.pendingAction = null
+  ui.showStaffSelector = true
+}
 
 const checklistPercent = computed(() => {
   const total = checklistItems.value.length
@@ -401,6 +422,17 @@ function goToTomorrowTimeline() {
           <span class="hidden sm:inline text-[11px] text-amber-200/90">chờ gửi</span>
         </button>
 
+        <!-- Active Shift Staff Pill (Desktop 1-Click Switcher) -->
+        <button
+          @click="openShiftStaffSwitcher"
+          class="hidden xl:flex items-center gap-1.5 px-2.5 h-9 rounded-xl border transition-all active:scale-95 cursor-pointer text-xs font-bold"
+          :class="ui.activeShiftStaff?.name ? 'bg-emerald-500/15 hover:bg-emerald-500/25 border-emerald-500/35 text-emerald-300' : 'bg-slate-800 hover:bg-slate-700 border-slate-700/40 text-slate-300 hover:text-white'"
+          :title="ui.activeShiftStaff?.name ? `Nhân viên đang trực ca: ${ui.activeShiftStaff.name} (${ui.activeShiftStaff.phone}) — Bấm để đổi ca` : 'Chọn và ghim Nhân viên trực ca hiện tại'"
+        >
+          <i class="fa-solid fa-user-check text-[11px]" :class="ui.activeShiftStaff?.name ? 'text-emerald-400' : 'text-slate-400'"></i>
+          <span class="max-w-[96px] truncate">{{ ui.activeShiftStaff?.name || 'Chọn NV ca' }}</span>
+        </button>
+
         <!-- Sync Button (Desktop) -->
         <button @click="appStore.loadHistory(false)" class="hidden lg:flex w-9 h-9 rounded-xl bg-slate-800 hover:bg-slate-700 items-center justify-center border border-slate-700/40 transition-all active:scale-95 text-slate-300 hover:text-white" title="Đồng bộ dữ liệu Cloud">
           <i class="fa-solid fa-rotate text-xs" :class="{'animate-spin text-blue-400': ui.isFetchingAPI}"></i>
@@ -554,52 +586,247 @@ function goToTomorrowTimeline() {
                 </div>
 
                 <div class="grid grid-cols-1 lg:grid-cols-12 gap-4 items-start">
-                  <!-- Left side: AI Input and Progress -->
-                  <div class="lg:col-span-5 space-y-3">
+                  <!-- Left side: AI Input, Compact Checklist & Live Split-Screen Bill Studio -->
+                  <div class="lg:col-span-5 space-y-3 lg:sticky lg:top-1">
                     <AIInputPanel />
 
-                    <!-- Smart Checklist Widget -->
-                    <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 shadow-sm space-y-3">
-                      <div class="flex items-center justify-between cursor-pointer" @click="showChecklist = !showChecklist">
+                    <!-- Compact Interactive Progress Strip -->
+                    <div class="bg-surface-2 dark:bg-surface-2 border border-border-default dark:border-border-subtle rounded-2xl p-3 shadow-xs space-y-2">
+                      <div class="flex items-center justify-between">
                         <div class="flex items-center gap-2">
-                          <i class="fa-solid fa-list-check text-blue-600 dark:text-blue-400 text-sm"></i>
-                          <span class="font-black text-slate-800 dark:text-slate-100 text-[11px] uppercase tracking-widest">Tiến độ hoàn thiện phiếu</span>
-                          <span class="px-2 py-0.5 rounded-full text-[10px] font-black" :class="checklistPercent === 100 ? 'bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/60' : 'bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800/60'">
+                          <i class="fa-solid fa-list-check text-apex-primary text-xs"></i>
+                          <span class="font-bold text-text-primary text-xs tracking-tight">Tiến độ hoàn thiện phiếu</span>
+                        </div>
+                        <div class="flex items-center gap-1.5">
+                          <span class="px-2 py-0.5 rounded-full text-[10px] font-black font-tabular" :class="checklistPercent === 100 ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30' : 'bg-primary/10 text-apex-primary border border-primary/25'">
                             {{ checklistPercent }}%
                           </span>
+                          <button
+                            type="button"
+                            @click="showChecklist = !showChecklist"
+                            class="w-6 h-6 rounded-lg hover:bg-surface-3 flex items-center justify-center text-text-tertiary hover:text-text-primary transition-colors cursor-pointer"
+                            :title="showChecklist ? 'Thu gọn tiến độ' : 'Mở rộng tiến độ'"
+                          >
+                            <i class="fa-solid text-[10px]" :class="showChecklist ? 'fa-chevron-up' : 'fa-chevron-down'"></i>
+                          </button>
                         </div>
-                        <i class="fa-solid text-slate-400 text-xs transition-transform" :class="showChecklist ? 'fa-chevron-up' : 'fa-chevron-down'"></i>
                       </div>
-                      
-                      <div v-show="showChecklist" class="space-y-2 pt-2 border-t border-slate-100 dark:border-slate-800 transition-all duration-300">
-                        <!-- Progress Bar -->
-                        <div class="w-full bg-slate-100 dark:bg-slate-800 h-2 rounded-full overflow-hidden">
-                          <div class="bg-gradient-to-r from-blue-500 to-indigo-600 dark:from-blue-600 dark:to-indigo-500 h-full transition-all duration-500" :style="{ width: `${checklistPercent}%` }"></div>
-                        </div>
-                        
-                        <div class="grid grid-cols-2 gap-2 text-xs pt-1">
-                          <div v-for="item in checklistItems" :key="item.name" class="flex items-center gap-2 p-2 rounded-xl border transition-all" :class="item.done ? 'bg-emerald-50/40 dark:bg-emerald-950/30 border-emerald-200/60 dark:border-emerald-800/40 text-emerald-700 dark:text-emerald-300 font-bold' : 'bg-slate-50/45 dark:bg-slate-850/40 border-slate-200 dark:border-slate-800 text-slate-400 dark:text-slate-500 font-semibold'">
-                            <i class="fa-solid" :class="item.done ? 'fa-circle-check text-emerald-500 dark:text-emerald-400' : 'fa-circle text-slate-300 dark:text-slate-600'"></i>
-                            <span>{{ item.name }}</span>
-                          </div>
-                        </div>
+
+                      <!-- Sleek Progress Bar -->
+                      <div class="w-full bg-surface-3 dark:bg-surface-4 h-1.5 rounded-full overflow-hidden">
+                        <div class="bg-gradient-to-r from-blue-500 via-indigo-500 to-emerald-500 h-full transition-all duration-300" :style="{ width: `${checklistPercent}%` }"></div>
+                      </div>
+
+                      <!-- 6 Interactive Jump Pills -->
+                      <div v-show="showChecklist" class="flex flex-wrap gap-1.5 pt-0.5">
+                        <button
+                          v-for="item in checklistItems"
+                          :key="item.name"
+                          type="button"
+                          @click="scrollToChecklistTarget(item.targetId)"
+                          class="px-2.5 py-1 rounded-lg border text-[11px] font-semibold flex items-center gap-1.5 transition-all active:scale-95 cursor-pointer"
+                          :class="item.done ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-700 dark:text-emerald-300' : 'bg-surface-1 dark:bg-surface-3 border-border-subtle text-text-secondary hover:border-primary/40 hover:text-text-primary'"
+                          :title="`Bấm để chuyển nhanh tới mục: ${item.name}`"
+                        >
+                          <i class="fa-solid text-[10px]" :class="item.done ? 'fa-circle-check text-emerald-500' : 'fa-regular fa-circle text-text-tertiary'"></i>
+                          <span>{{ item.short }}</span>
+                        </button>
                       </div>
                     </div>
 
                     <!-- Smart Warning Widget -->
-                    <div v-if="hasSoftWarning" class="bg-amber-50/90 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-800/60 rounded-2xl p-4 shadow-sm space-y-2">
-                      <div class="flex items-center gap-2 text-amber-800 dark:text-amber-200 font-black uppercase text-xs">
-                        <i class="fa-solid fa-triangle-exclamation text-amber-500 text-sm"></i>
+                    <div v-if="hasSoftWarning" class="bg-amber-50/90 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-800/60 rounded-2xl p-3.5 shadow-xs space-y-1.5">
+                      <div class="flex items-center gap-2 text-amber-800 dark:text-amber-200 font-bold uppercase text-xs">
+                        <i class="fa-solid fa-triangle-exclamation text-amber-500 text-xs"></i>
                         Cảnh báo phân tích AI
                       </div>
                       <ul class="list-disc pl-4 text-xs text-amber-700 dark:text-amber-300 space-y-1 font-medium">
                         <li v-if="formStore.aiMetadata && typeof formStore.aiMetadata.confidence_score === 'number' && formStore.aiMetadata.confidence_score < 0.8">
-                          Đo độ tin cậy AI thấp ({{ Math.round(formStore.aiMetadata.confidence_score * 100) }}%). Vui lòng kiểm tra lại.
+                          Độ tin cậy AI thấp ({{ Math.round(formStore.aiMetadata.confidence_score * 100) }}%). Vui lòng kiểm tra lại.
                         </li>
                         <li v-for="(warn, idx) in formStore.warnings" :key="idx">
                           {{ warn }}
                         </li>
                       </ul>
+                    </div>
+
+                    <!-- LIVE SPLIT-SCREEN BILL STUDIO DOCK (Desktop >= 1024px) -->
+                    <div class="hidden lg:block bg-surface-2 dark:bg-surface-2 border border-border-default dark:border-border-subtle rounded-2xl shadow-sm overflow-hidden transition-all">
+                      <!-- Studio Header -->
+                      <div class="px-3.5 py-2.5 bg-surface-3/70 dark:bg-surface-3 border-b border-border-subtle flex items-center justify-between gap-2">
+                        <div class="flex items-center gap-2 min-w-0">
+                          <div class="w-6 h-6 rounded-lg bg-cyan-500/15 border border-cyan-500/30 text-cyan-600 dark:text-cyan-400 flex items-center justify-center text-xs shrink-0">
+                            <i class="fa-solid fa-receipt"></i>
+                          </div>
+                          <span class="font-bold text-xs text-text-primary tracking-tight truncate">Live Bill Studio</span>
+                          <span
+                            class="px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider border shrink-0"
+                            :class="formStore.deposit.isPaid ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/30' : 'bg-amber-500/15 text-amber-600 dark:text-amber-400 border-amber-500/30'"
+                          >
+                            {{ formStore.deposit.isPaid ? 'ĐÃ CỌC' : 'CHỜ CỌC' }}
+                          </span>
+                        </div>
+                        <div class="flex items-center gap-1 shrink-0">
+                          <button
+                            type="button"
+                            @click="ui.tab = 'preview'"
+                            class="px-2 py-1 rounded-lg bg-surface-2 hover:bg-surface-hover text-text-secondary hover:text-apex-primary border border-border-subtle text-[10px] font-bold flex items-center gap-1 transition-all cursor-pointer"
+                            title="Mở chế độ Xem Phiếu toàn màn hình (F2)"
+                          >
+                            <i class="fa-solid fa-expand text-[9px]"></i>
+                            <span>Phóng to</span>
+                          </button>
+                          <button
+                            type="button"
+                            @click="ui.toggleLiveBillDock()"
+                            class="w-6 h-6 rounded-lg hover:bg-surface-hover text-text-tertiary hover:text-text-primary flex items-center justify-center transition-colors cursor-pointer"
+                            :title="ui.showLiveBillDock ? 'Thu gọn bản xem trước trực tiếp' : 'Mở rộng bản xem trước trực tiếp'"
+                          >
+                            <i class="fa-solid text-[10px]" :class="ui.showLiveBillDock ? 'fa-chevron-up' : 'fa-chevron-down'"></i>
+                          </button>
+                        </div>
+                      </div>
+
+                      <!-- Live Receipt Paper Mirror -->
+                      <div v-show="ui.showLiveBillDock" class="p-3 space-y-2.5 bg-surface-1/60 dark:bg-surface-1/40">
+                        <div class="bg-white text-slate-900 rounded-xl border border-slate-200/90 shadow-xs p-3.5 space-y-2.5 text-xs relative overflow-hidden">
+                          <!-- Top Dashed Hospitality Header -->
+                          <div class="flex items-start justify-between gap-2 pb-2 border-b border-dashed border-slate-300">
+                            <div class="min-w-0">
+                              <div class="text-[10px] font-black uppercase tracking-widest text-slate-400">PHIẾU XÁC NHẬN ĐẶT BÀN</div>
+                              <div class="text-sm font-black text-slate-900 truncate mt-0.5">
+                                {{ formStore.customer.name || 'Chưa nhập tên khách' }}
+                              </div>
+                              <div class="text-[11px] font-mono font-bold text-slate-600 flex items-center gap-2 mt-0.5">
+                                <span><i class="fa-solid fa-phone text-[9px] text-slate-400 mr-1"></i>{{ formStore.customer.phone || '---' }}</span>
+                                <span v-if="formStore.customer.type" class="px-1.5 py-0.5 rounded bg-slate-100 text-slate-700 font-sans text-[10px] font-bold">{{ formStore.customer.type }}</span>
+                              </div>
+                            </div>
+                            <div class="text-right shrink-0">
+                              <span
+                                class="inline-block px-2 py-0.5 rounded-md font-black text-[11px] border"
+                                :class="formStore.customer.tables ? 'bg-blue-50 text-blue-700 border-blue-200' : 'bg-slate-100 text-slate-400 border-slate-200'"
+                              >
+                                {{ formStore.customer.tables ? `Bàn ${formStore.customer.tables}` : 'Chưa xếp bàn' }}
+                              </span>
+                              <div class="text-[11px] font-mono font-bold text-slate-600 mt-1">
+                                {{ formStore.customer.time || '--:--' }} • {{ formStore.customer.date || '--/--/----' }}
+                              </div>
+                              <div class="text-[10px] font-bold text-slate-500">
+                                {{ formStore.customer.pax ? `${formStore.customer.pax} khách` : '0 khách' }}
+                              </div>
+                            </div>
+                          </div>
+
+                          <!-- Live Dishes List -->
+                          <div v-if="activeReceiptItems.length > 0" class="space-y-1 max-h-[168px] overflow-y-auto custom-scrollbar pr-1 border-b border-dashed border-slate-200 pb-2">
+                            <div class="flex items-center justify-between text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">
+                              <span>Thực đơn ({{ activeReceiptItems.length }} món)</span>
+                              <span>Thành tiền</span>
+                            </div>
+                            <div
+                              v-for="(item, rIdx) in activeReceiptItems"
+                              :key="rIdx"
+                              class="flex items-start justify-between gap-2 text-[11.5px] py-0.5"
+                            >
+                              <div class="min-w-0 flex-1">
+                                <span class="font-mono font-black text-blue-700 mr-1">{{ item.qty }}x</span>
+                                <span class="font-semibold text-slate-800">{{ item.name }}</span>
+                                <span v-if="item.note" class="block text-[10px] text-slate-500 italic truncate pl-4">↳ {{ item.note }}</span>
+                              </div>
+                              <span class="font-mono font-bold text-slate-800 shrink-0 tabular-nums">
+                                {{ formatVND(Number(item.price || 0) * Number(item.qty || 1)) }}
+                              </span>
+                            </div>
+                          </div>
+                          <div v-else class="py-2.5 text-center text-[11px] text-slate-400 border-b border-dashed border-slate-200 italic">
+                            Chưa chọn món trước (Gọi món tại nhà hàng)
+                          </div>
+
+                          <!-- Customer Note Preview -->
+                          <div v-if="formStore.customer.note" class="px-2.5 py-1.5 rounded-lg bg-amber-50 border border-amber-200/70 text-[11px] text-amber-900 leading-snug">
+                            <span class="font-bold">Ghi chú:</span> {{ formStore.customer.note }}
+                          </div>
+
+                          <!-- Financial Totals Breakdown -->
+                          <div class="space-y-1 text-[11.5px] pt-0.5">
+                            <div class="flex justify-between text-slate-600">
+                              <span>Tạm tính thực đơn:</span>
+                              <span class="font-mono font-bold tabular-nums">{{ formatVND(formStore.calculatedTotals.sub) }}</span>
+                            </div>
+                            <div v-if="formStore.taxEnabled && formStore.calculatedTotals.tax > 0" class="flex justify-between text-slate-500 text-[11px]">
+                              <span>Thuế VAT (8% - 10%):</span>
+                              <span class="font-mono font-semibold tabular-nums">+{{ formatVND(formStore.calculatedTotals.tax) }}</span>
+                            </div>
+                            <div class="flex justify-between text-slate-900 font-black text-xs pt-0.5 border-t border-slate-100">
+                              <span>Tổng cộng:</span>
+                              <span class="font-mono tabular-nums text-blue-700">{{ formatVND(formStore.calculatedTotals.final) }}</span>
+                            </div>
+                            <div v-if="formStore.deposit.amount > 0" class="flex justify-between text-[11px]" :class="formStore.deposit.isPaid ? 'text-emerald-700 font-bold' : 'text-amber-700 font-semibold'">
+                              <span>{{ formStore.deposit.isPaid ? 'Đã nhận cọc:' : 'Yêu cầu đặt cọc:' }}</span>
+                              <span class="font-mono tabular-nums">{{ formatVND(formStore.deposit.amount) }}</span>
+                            </div>
+                            <div v-if="formStore.deposit.amount > 0 && formStore.calculatedTotals.final > 0" class="flex justify-between text-slate-700 font-bold text-[11px]">
+                              <span>Còn lại thanh toán:</span>
+                              <span class="font-mono tabular-nums">{{ formatVND(Math.max(0, formStore.calculatedTotals.final - (formStore.deposit.amount || 0))) }}</span>
+                            </div>
+                          </div>
+
+                          <!-- Staff Attribution Footer -->
+                          <div class="pt-2 border-t border-dashed border-slate-200 flex items-center justify-between text-[10.5px] text-slate-500">
+                            <button
+                              type="button"
+                              @click="openShiftStaffSwitcher"
+                              class="hover:text-blue-600 font-semibold flex items-center gap-1 transition-colors cursor-pointer"
+                              title="Bấm để chọn hoặc đổi Nhân viên trực ca ký phiếu"
+                            >
+                              <i class="fa-solid fa-user-pen text-[9px] text-blue-500"></i>
+                              <span>NV: <strong class="text-slate-700">{{ ui.activeShiftStaff?.name || formStore.staff.name || 'Chọn NV trực' }}</strong></span>
+                            </button>
+                            <span class="font-mono text-[9.5px] text-slate-400">#{{ (formStore.id || '').slice(0, 8).toUpperCase() }}</span>
+                          </div>
+                        </div>
+
+                        <!-- 1-Click Express Export Bar inside Live Studio -->
+                        <div class="grid grid-cols-4 gap-1.5">
+                          <button
+                            type="button"
+                            @click="doSave('copy')"
+                            class="py-2 px-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-[11px] flex items-center justify-center gap-1.5 shadow-2xs transition-all active:scale-95 cursor-pointer"
+                            title="Lưu & Copy ảnh phiếu độ nét cao vào Clipboard để dán ngay vào Zalo/Messenger"
+                          >
+                            <i class="fa-solid fa-copy text-[10px]"></i>
+                            <span>Copy Ảnh</span>
+                          </button>
+                          <button
+                            type="button"
+                            @click="doSave('image')"
+                            class="py-2 px-2 rounded-xl bg-surface-3 hover:bg-surface-hover text-text-primary border border-border-default font-bold text-[11px] flex items-center justify-center gap-1.5 transition-all active:scale-95 cursor-pointer"
+                            title="Lưu & Tải xuống file ảnh PNG sắc nét"
+                          >
+                            <i class="fa-solid fa-download text-[10px] text-apex-primary"></i>
+                            <span>Tải PNG</span>
+                          </button>
+                          <button
+                            type="button"
+                            @click="doSave('pdf')"
+                            class="py-2 px-2 rounded-xl bg-surface-3 hover:bg-surface-hover text-text-primary border border-border-default font-bold text-[11px] flex items-center justify-center gap-1.5 transition-all active:scale-95 cursor-pointer"
+                            title="Lưu & Xuất file PDF vector sắc nét"
+                          >
+                            <i class="fa-solid fa-file-pdf text-[10px] text-rose-500"></i>
+                            <span>Tải PDF</span>
+                          </button>
+                          <button
+                            type="button"
+                            @click="copyBookingConfirmation(formStore.deposit.isPaid ? 'deposit_confirmed' : 'quote_deposit')"
+                            class="py-2 px-2 rounded-xl bg-surface-3 hover:bg-surface-hover text-text-primary border border-border-default font-bold text-[11px] flex items-center justify-center gap-1.5 transition-all active:scale-95 cursor-pointer"
+                            title="Copy mẫu tin nhắn xác nhận / báo giá gửi Zalo khách"
+                          >
+                            <i class="fa-solid fa-comment-dots text-[10px] text-emerald-500"></i>
+                            <span>Tin Zalo</span>
+                          </button>
+                        </div>
+                      </div>
                     </div>
                   </div>
 
@@ -613,16 +840,27 @@ function goToTomorrowTimeline() {
               </div>
 
               <!-- Sticky bottom bar -->
-              <div class="bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-t border-slate-200/90 dark:border-slate-800/90 px-3 py-2.5 sm:px-4 sm:py-3 shrink-0 shadow-[0_-4px_16px_rgba(0,0,0,0.04)] dark:shadow-[0_-4px_16px_rgba(0,0,0,0.3)] flex items-center justify-between gap-2.5 sm:gap-3 z-10 transition-colors duration-200">
-                <!-- Left: Tổng tạm tính -->
-                <div class="min-w-0 flex flex-col justify-center">
-                  <div class="text-[9px] font-extrabold uppercase tracking-wider text-slate-400 dark:text-slate-400 leading-none">Tổng tạm tính</div>
-                  <div class="text-[15px] sm:text-base font-black text-slate-900 dark:text-slate-100 tracking-tight leading-tight mt-1 font-tabular whitespace-nowrap">
-                    {{ formatVND(formStore.calculatedTotals.final) }}
+              <div class="bg-surface-2/95 dark:bg-surface-2/95 backdrop-blur-md border-t border-border-default dark:border-border-subtle px-3 py-2.5 sm:px-4 sm:py-3 shrink-0 shadow-[0_-4px_16px_rgba(0,0,0,0.04)] dark:shadow-[0_-4px_16px_rgba(0,0,0,0.3)] flex items-center justify-between gap-2.5 sm:gap-3 z-10 transition-colors duration-200">
+                <!-- Left: Tổng tạm tính & Nhân viên trực -->
+                <div class="min-w-0 flex items-center gap-3">
+                  <div class="min-w-0 flex flex-col justify-center">
+                    <div class="text-[10px] font-bold uppercase tracking-wider text-text-tertiary leading-none">Tổng tạm tính</div>
+                    <div class="text-[15px] sm:text-base font-black text-text-primary tracking-tight leading-tight mt-1 font-tabular whitespace-nowrap">
+                      {{ formatVND(formStore.calculatedTotals.final) }}
+                    </div>
                   </div>
+                  <button
+                    type="button"
+                    @click="openShiftStaffSwitcher"
+                    class="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-surface-3 hover:bg-surface-hover border border-border-subtle text-[11px] font-bold text-text-secondary hover:text-text-primary transition-all cursor-pointer shrink-0"
+                    title="Đổi nhân viên trực ca ký phiếu"
+                  >
+                    <i class="fa-solid fa-user-check text-[10px] text-emerald-500"></i>
+                    <span class="max-w-[110px] truncate">{{ ui.activeShiftStaff?.name || 'Chọn NV ca' }}</span>
+                  </button>
                 </div>
 
-                <!-- Right: Action Buttons Trio -->
+                <!-- Right: Action Buttons -->
                 <div class="flex items-center gap-1.5 sm:gap-2 shrink-0">
                   <!-- Nút 1: Thao tác nhanh (Sleek Squircle) -->
                   <button 
@@ -640,11 +878,22 @@ function goToTomorrowTimeline() {
                     @click="handleCreateNewForm" 
                     :title="formStore.isEditingHistoric ? 'Hủy sửa phiếu lịch sử & quay lại tạo mới' : 'Tạo lịch mới (Làm mới form)'"
                     aria-label="Tạo lịch mới"
-                    class="h-10 px-2.5 sm:px-3.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-xl font-bold text-xs uppercase flex items-center justify-center gap-1.5 transition-all active:scale-95 border border-slate-200/80 dark:border-slate-700 shrink-0 shadow-2xs cursor-pointer"
+                    class="h-10 px-2.5 sm:px-3.5 bg-surface-3 hover:bg-surface-hover text-text-primary rounded-xl font-bold text-xs uppercase flex items-center justify-center gap-1.5 transition-all active:scale-95 border border-border-default shrink-0 shadow-2xs cursor-pointer"
                   >
-                    <i class="fa-solid fa-file-circle-plus text-slate-400 dark:text-slate-400 text-xs"></i>
+                    <i class="fa-solid fa-file-circle-plus text-text-tertiary text-xs"></i>
                     <span class="hidden sm:inline font-extrabold text-[11px] tracking-wide">{{ formStore.isEditingHistoric ? 'Hủy sửa' : 'Lịch mới' }}</span>
                     <span class="sm:hidden font-extrabold text-[11px]">{{ formStore.isEditingHistoric ? 'Hủy' : 'Mới' }}</span>
+                  </button>
+
+                  <!-- Nút Phụ Desktop: Xuất PNG Nhanh -->
+                  <button
+                    type="button"
+                    @click="doSave('image')"
+                    class="hidden md:flex h-10 px-3.5 bg-blue-600/10 hover:bg-blue-600/20 text-blue-600 dark:text-blue-400 border border-blue-500/30 rounded-xl font-black text-xs uppercase tracking-wider items-center justify-center gap-1.5 transition-all active:scale-95 shrink-0 cursor-pointer"
+                    title="Lưu đơn và tải ngay file ảnh PNG độ nét cao"
+                  >
+                    <i class="fa-solid fa-image text-xs"></i>
+                    <span>Tải PNG</span>
                   </button>
 
                   <!-- Nút 3: Cập nhật / Tạo đơn (Dominant Primary CTA) -->

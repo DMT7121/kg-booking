@@ -184,86 +184,109 @@ function isOrderCared(id: string) {
   const caredStatus = JSON.parse(localStorage.getItem('kg_cared_status') || '{}')
   return !!caredStatus[id]
 }
+
+function copyHistoricZaloMessage(order: any) {
+  haptic('light')
+  const c = order.parsedCustomer || {}
+  const items = (order.menuItems || []).filter((i: any) => i.name && Number(i.qty || 0) > 0)
+  const isPaid = Boolean(order.isDeposited || order.deposit?.isPaid)
+  const depAmt = Number(order.depositAmount || order.deposit?.amount || 0)
+  const totalAmt = Number(order.totalAmount || 0)
+
+  const lines: string[] = [
+    `✨ XÁC NHẬN ĐẶT BÀN — KING'S GRILL ✨`,
+    `• Khách hàng: ${c.name || 'Quý khách'} (${c.phone || '---'})`,
+    `• Thời gian: ${c.time || '--:--'} ngày ${c.date || '--/--/----'}`,
+    `• Số khách: ${c.pax || '---'} người | Bàn: ${c.tables || 'Đang sắp xếp'}`,
+    `• Loại tiệc: ${c.type || 'Ăn thường'}`
+  ]
+  if (items.length > 0) {
+    lines.push(`• Thực đơn (${items.length} món): ${items.map((i: any) => `${i.qty}x ${i.name}`).join(', ')}`)
+  }
+  if (totalAmt > 0) {
+    lines.push(`• Tổng tạm tính: ${formatVND(totalAmt)}`)
+  }
+  if (depAmt > 0) {
+    lines.push(`• Tiền cọc: ${formatVND(depAmt)} (${isPaid ? 'ĐÃ NHẬN CỌC ✅' : 'CHỜ CHUYỂN KHOẢN ⏳'})`)
+  }
+  if (c.note) {
+    lines.push(`• Ghi chú: ${c.note}`)
+  }
+  lines.push(`📍 Hẹn gặp quý khách tại Nhà hàng King's Grill!`)
+
+  navigator.clipboard.writeText(lines.join('\n')).then(() => {
+    ui.showToast(`💬 Đã copy tin nhắn Zalo cho khách ${c.name || ''}!`, 'success')
+  })
+}
 </script>
 
 <template>
-  <div class="flex-grow flex flex-col overflow-hidden text-[13px] bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-100 min-h-0">
-    <!-- Header Title -->
-    <div class="bg-slate-50 dark:bg-slate-950 px-4 py-4 flex items-center justify-between sticky top-0 z-20 shadow-sm border-b border-slate-200/60 dark:border-slate-800">
-      <button @click="ui.tab = 'create'" class="w-10 h-10 flex items-center justify-center text-blue-900 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 text-xl active:scale-95 transition-transform">
-        <i class="fa-solid fa-arrow-left"></i>
-      </button>
-      <div class="text-center flex-1">
-        <h2 class="text-xl font-black text-blue-900 dark:text-blue-400">Lịch sử tạo phiếu</h2>
-        <p class="text-[10px] font-bold text-slate-400 dark:text-slate-500 mt-0.5">Tất cả lịch/phiếu đã tạo của nhà hàng</p>
-      </div>
-      
-      <div class="w-10"></div> <!-- Placeholder to balance header -->
-    </div>
-
+  <div class="flex-grow flex flex-col overflow-hidden text-[13px] bg-surface-canvas text-text-primary min-h-0">
     <!-- LIST VIEW -->
-    <div class="flex-grow flex flex-col overflow-hidden bg-slate-50 dark:bg-slate-950 min-h-0">
+    <div class="flex-grow flex flex-col overflow-hidden bg-surface-canvas min-h-0">
 
-      <!-- Search & Filters -->
-      <div class="p-3 sm:p-4 bg-slate-50 dark:bg-slate-950 space-y-2.5 sm:space-y-3 z-10 shrink-0 border-b border-slate-200/40 dark:border-slate-800/80">
-        <div class="flex gap-2">
+      <!-- Unified Compact Sticky Search, Stats & Filter Command Bar (Reclaims 72px vertical viewport) -->
+      <div class="p-3 sm:px-4 sm:py-3 bg-surface-2 dark:bg-surface-2 space-y-2.5 z-10 shrink-0 border-b border-border-default dark:border-border-subtle shadow-2xs">
+        <div class="flex items-center gap-2">
           <div class="relative flex-grow min-w-0">
-            <input v-model="localSearch" type="text" class="w-full pl-10 pr-9 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 font-bold text-slate-700 dark:text-slate-200 text-[13px] focus:border-blue-600 dark:focus:border-blue-400 outline-none transition-all placeholder-slate-400 dark:placeholder-slate-500" placeholder="Tìm tên, SĐT, mã phiếu...">
-            <i class="fa-solid fa-magnifying-glass absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"></i>
-            <button v-if="localSearch" @click="localSearch = ''" class="absolute right-2.5 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full flex items-center justify-center text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors" title="Xóa tìm kiếm" aria-label="Xóa tìm kiếm">
+            <input v-model="localSearch" type="text" class="w-full pl-9 pr-8 py-2 rounded-xl border border-border-default bg-surface-input font-semibold text-text-primary text-xs sm:text-[13px] focus:border-border-focus outline-none transition-all placeholder-text-tertiary" placeholder="Tìm tên khách, SĐT, số bàn, mã phiếu...">
+            <i class="fa-solid fa-magnifying-glass absolute left-3.5 top-1/2 -translate-y-1/2 text-text-tertiary text-xs pointer-events-none"></i>
+            <button v-if="localSearch" @click="localSearch = ''" class="absolute right-2.5 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full flex items-center justify-center text-text-tertiary hover:text-text-primary transition-colors" title="Xóa tìm kiếm" aria-label="Xóa tìm kiếm">
               <i class="fa-solid fa-xmark text-xs"></i>
             </button>
           </div>
-          <button @click="ui.isBatchMode = !ui.isBatchMode" class="px-3 sm:px-4 py-2.5 rounded-xl border font-bold text-xs sm:text-[13px] flex items-center gap-1.5 sm:gap-2 active:scale-95 transition-all whitespace-nowrap shadow-sm cursor-pointer shrink-0" :class="ui.isBatchMode ? 'border-red-200 dark:border-red-800/60 bg-red-50 dark:bg-red-950/40 text-red-600 dark:text-red-400' : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800'" :title="ui.isBatchMode ? 'Hủy chế độ chọn nhiều' : 'Bật chế độ chọn nhiều để xóa hàng loạt'" :aria-label="ui.isBatchMode ? 'Hủy chọn' : 'Chọn nhiều'">
-            <i class="fa-solid text-sm" :class="ui.isBatchMode ? 'fa-xmark text-red-500' : 'fa-list-check text-blue-600 dark:text-blue-400'"></i>
+          <button @click="ui.isBatchMode = !ui.isBatchMode" class="px-3 py-2 rounded-xl border font-bold text-xs flex items-center gap-1.5 active:scale-95 transition-all whitespace-nowrap shadow-2xs cursor-pointer shrink-0" :class="ui.isBatchMode ? 'border-red-300 dark:border-red-800/60 bg-red-50 dark:bg-red-950/40 text-red-600 dark:text-red-400' : 'border-border-default bg-surface-3 text-text-primary hover:bg-surface-hover'" :title="ui.isBatchMode ? 'Hủy chế độ chọn nhiều' : 'Bật chế độ chọn nhiều để xóa hàng loạt'" :aria-label="ui.isBatchMode ? 'Hủy chọn' : 'Chọn nhiều'">
+            <i class="fa-solid text-xs" :class="ui.isBatchMode ? 'fa-xmark text-red-500' : 'fa-list-check text-apex-primary'"></i>
             <span class="hidden sm:inline">{{ ui.isBatchMode ? 'Hủy chọn' : 'Chọn nhiều' }}</span>
             <span class="sm:hidden">{{ ui.isBatchMode ? 'Hủy' : 'Chọn' }}</span>
           </button>
         </div>
         
-        <!-- Filter Dropdowns -->
-        <div class="flex gap-2 overflow-x-auto custom-scrollbar pb-1 no-scrollbar items-center">
-          <div class="relative shrink-0">
-            <select v-model="ui.historyFilters.time" class="min-h-[36px] pl-3 pr-7 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 text-xs font-bold outline-none appearance-none cursor-pointer focus:border-blue-500 dark:focus:border-blue-400 transition-colors shadow-xs">
-              <option value="all">Tất cả thời gian</option>
-              <option value="today">Hôm nay</option>
-            </select>
-            <i class="fa-solid fa-chevron-down absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] text-slate-400 dark:text-slate-500 pointer-events-none"></i>
-          </div>
+        <!-- Filter Dropdowns + Compact Summary Chips in a Single Row on Desktop -->
+        <div class="flex flex-wrap items-center justify-between gap-2">
+          <div class="flex gap-1.5 overflow-x-auto no-scrollbar items-center">
+            <div class="relative shrink-0">
+              <select v-model="ui.historyFilters.time" class="h-8 pl-2.5 pr-6 rounded-lg border border-border-default bg-surface-input text-text-primary text-[11px] font-bold outline-none appearance-none cursor-pointer focus:border-border-focus transition-colors">
+                <option value="all">Tất cả ngày</option>
+                <option value="today">Hôm nay</option>
+              </select>
+              <i class="fa-solid fa-chevron-down absolute right-2 top-1/2 -translate-y-1/2 text-[9px] text-text-tertiary pointer-events-none"></i>
+            </div>
 
-          <div class="relative shrink-0">
-            <select v-model="ui.historyFilters.status" class="min-h-[36px] pl-3 pr-7 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 text-xs font-bold outline-none appearance-none cursor-pointer focus:border-blue-500 dark:focus:border-blue-400 transition-colors shadow-xs">
-              <option value="all">Tất cả trạng thái</option>
-              <option value="synced">Đã đồng bộ</option>
-              <option value="syncing">Đang chờ</option>
-            </select>
-            <i class="fa-solid fa-chevron-down absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] text-slate-400 dark:text-slate-500 pointer-events-none"></i>
-          </div>
+            <div class="relative shrink-0">
+              <select v-model="ui.historyFilters.status" class="h-8 pl-2.5 pr-6 rounded-lg border border-border-default bg-surface-input text-text-primary text-[11px] font-bold outline-none appearance-none cursor-pointer focus:border-border-focus transition-colors">
+                <option value="all">Mọi trạng thái</option>
+                <option value="synced">Đã đồng bộ</option>
+                <option value="syncing">Đang chờ</option>
+              </select>
+              <i class="fa-solid fa-chevron-down absolute right-2 top-1/2 -translate-y-1/2 text-[9px] text-text-tertiary pointer-events-none"></i>
+            </div>
 
-          <div class="relative shrink-0">
-            <select v-model="ui.historyFilters.deposit" class="min-h-[36px] pl-3 pr-7 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 text-xs font-bold outline-none appearance-none cursor-pointer focus:border-blue-500 dark:focus:border-blue-400 transition-colors shadow-xs">
-              <option value="all">Tất cả cọc</option>
-              <option value="paid">Đã cọc</option>
-              <option value="unpaid">Chưa cọc</option>
-            </select>
-            <i class="fa-solid fa-chevron-down absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] text-slate-400 dark:text-slate-500 pointer-events-none"></i>
+            <div class="relative shrink-0">
+              <select v-model="ui.historyFilters.deposit" class="h-8 pl-2.5 pr-6 rounded-lg border border-border-default bg-surface-input text-text-primary text-[11px] font-bold outline-none appearance-none cursor-pointer focus:border-border-focus transition-colors">
+                <option value="all">Tất cả cọc</option>
+                <option value="paid">Đã cọc</option>
+                <option value="unpaid">Chưa cọc</option>
+              </select>
+              <i class="fa-solid fa-chevron-down absolute right-2 top-1/2 -translate-y-1/2 text-[9px] text-text-tertiary pointer-events-none"></i>
+            </div>
           </div>
-        </div>
-        
-        <!-- Compact Summary Chip Bar -->
-        <div class="flex items-center gap-2 py-1 overflow-x-auto no-scrollbar font-tabular pr-4">
-          <span class="px-3 py-1.5 rounded-xl bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 font-black text-xs shrink-0 shadow-xs border border-blue-100/50">
-            {{ stats.totalBookings }} booking
-          </span>
-          <span class="px-3 py-1.5 rounded-xl bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 font-black text-xs shrink-0 shadow-xs border border-indigo-100/50">
-            {{ stats.totalPax }} khách
-          </span>
-          <span class="px-3 py-1.5 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 font-black text-xs shrink-0 shadow-xs border border-emerald-100/50">
-            {{ stats.depositRate }}% đã cọc
-          </span>
-          <span v-if="stats.waitingTables > 0" class="px-3 py-1.5 rounded-xl bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-300 font-black text-xs shrink-0 shadow-xs border border-rose-100/50">
-            {{ stats.waitingTables }} chờ bàn
-          </span>
+          
+          <!-- Compact Summary Chip Bar -->
+          <div class="flex items-center gap-1.5 overflow-x-auto no-scrollbar font-tabular">
+            <span class="px-2.5 py-1 rounded-lg bg-blue-500/10 text-blue-600 dark:text-blue-400 font-bold text-[11px] shrink-0 border border-blue-500/20">
+              {{ stats.totalBookings }} đơn
+            </span>
+            <span class="px-2.5 py-1 rounded-lg bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 font-bold text-[11px] shrink-0 border border-indigo-500/20">
+              {{ stats.totalPax }} khách
+            </span>
+            <span class="px-2.5 py-1 rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-bold text-[11px] shrink-0 border border-emerald-500/20">
+              {{ stats.depositRate }}% đã cọc
+            </span>
+            <span v-if="stats.waitingTables > 0" class="px-2.5 py-1 rounded-lg bg-rose-500/10 text-rose-600 dark:text-rose-400 font-bold text-[11px] shrink-0 border border-rose-500/20">
+              {{ stats.waitingTables }} chờ bàn
+            </span>
+          </div>
         </div>
         
         <!-- Batch Delete Action -->
@@ -380,25 +403,29 @@ function isOrderCared(id: string) {
 
           <div class="h-[1px] bg-slate-100 dark:bg-border-subtle w-full mb-1.5"></div>
 
-          <!-- Actions Bottom Bar (Harmonized subtle icons + labels, >=40px touch targets) -->
-          <div class="grid grid-cols-5 gap-1 items-center" @click.stop>
-            <button @click="ui.activeOrderForCare = group.latest; ui.showCustomerCareModal = true" class="min-h-[40px] px-1 rounded-xl hover:bg-slate-100 dark:hover:bg-surface-3 flex flex-col sm:flex-row items-center justify-center gap-0.5 sm:gap-1 text-[10px] sm:text-xs font-bold text-slate-600 dark:text-slate-300 hover:text-rose-500 dark:hover:text-rose-400 transition-colors active:scale-95" title="Chăm sóc khách hàng" aria-label="Chăm sóc khách hàng">
+          <!-- Actions Bottom Bar (Harmonized subtle icons + labels, >=40px touch targets, 6 actions with 1-Click Tin Zalo) -->
+          <div class="grid grid-cols-6 gap-1 items-center" @click.stop>
+            <button @click="copyHistoricZaloMessage(group.latest)" class="min-h-[38px] px-1 rounded-xl hover:bg-emerald-500/10 flex flex-col sm:flex-row items-center justify-center gap-0.5 sm:gap-1 text-[10px] sm:text-xs font-bold text-emerald-600 dark:text-emerald-400 transition-colors active:scale-95 cursor-pointer" title="Copy tin nhắn xác nhận Zalo cho đơn này" aria-label="Copy tin nhắn Zalo">
+              <i class="fa-solid fa-comment-dots text-[11px]"></i>
+              <span>Tin Zalo</span>
+            </button>
+            <button @click="ui.activeOrderForCare = group.latest; ui.showCustomerCareModal = true" class="min-h-[38px] px-1 rounded-xl hover:bg-slate-100 dark:hover:bg-surface-3 flex flex-col sm:flex-row items-center justify-center gap-0.5 sm:gap-1 text-[10px] sm:text-xs font-bold text-slate-600 dark:text-slate-300 hover:text-rose-500 dark:hover:text-rose-400 transition-colors active:scale-95 cursor-pointer" title="Chăm sóc khách hàng" aria-label="Chăm sóc khách hàng">
               <i class="fa-solid fa-heart text-[11px]"></i>
               <span>CSKH</span>
             </button>
-            <button @click="handleEditOrder(group.latest)" class="min-h-[40px] px-1 rounded-xl hover:bg-slate-100 dark:hover:bg-surface-3 flex flex-col sm:flex-row items-center justify-center gap-0.5 sm:gap-1 text-[10px] sm:text-xs font-bold text-slate-600 dark:text-slate-300 hover:text-blue-500 dark:hover:text-blue-400 transition-colors active:scale-95" title="Sửa thông tin phiếu" aria-label="Sửa thông tin phiếu">
+            <button @click="handleEditOrder(group.latest)" class="min-h-[38px] px-1 rounded-xl hover:bg-slate-100 dark:hover:bg-surface-3 flex flex-col sm:flex-row items-center justify-center gap-0.5 sm:gap-1 text-[10px] sm:text-xs font-bold text-slate-600 dark:text-slate-300 hover:text-blue-500 dark:hover:text-blue-400 transition-colors active:scale-95 cursor-pointer" title="Sửa thông tin phiếu" aria-label="Sửa thông tin phiếu">
               <i class="fa-solid fa-pen text-[11px]"></i>
               <span>Sửa</span>
             </button>
-            <button @click="shareBillLink(group.latest.id, group.latest.parsedCustomer?.name)" class="min-h-[40px] px-1 rounded-xl hover:bg-slate-100 dark:hover:bg-surface-3 flex flex-col sm:flex-row items-center justify-center gap-0.5 sm:gap-1 text-[10px] sm:text-xs font-bold text-slate-600 dark:text-slate-300 hover:text-blue-400 dark:hover:text-blue-300 transition-colors active:scale-95" title="Sao chép link phiếu đặt bàn" aria-label="Sao chép link phiếu đặt bàn">
+            <button @click="shareBillLink(group.latest.id, group.latest.parsedCustomer?.name)" class="min-h-[38px] px-1 rounded-xl hover:bg-slate-100 dark:hover:bg-surface-3 flex flex-col sm:flex-row items-center justify-center gap-0.5 sm:gap-1 text-[10px] sm:text-xs font-bold text-slate-600 dark:text-slate-300 hover:text-blue-400 dark:hover:text-blue-300 transition-colors active:scale-95 cursor-pointer" title="Sao chép link phiếu đặt bàn" aria-label="Sao chép link phiếu đặt bàn">
               <i class="fa-solid fa-link text-[11px]"></i>
               <span>Link</span>
             </button>
-            <button @click="ui.selectedBooking = group.latest; ui.showBookingDetailModal = true" class="min-h-[40px] px-1 rounded-xl hover:bg-slate-100 dark:hover:bg-surface-3 flex flex-col sm:flex-row items-center justify-center gap-0.5 sm:gap-1 text-[10px] sm:text-xs font-bold text-slate-600 dark:text-slate-300 hover:text-indigo-400 dark:hover:text-indigo-300 transition-colors active:scale-95" title="Xem chi tiết phiếu đặt" aria-label="Xem chi tiết phiếu đặt">
+            <button @click="ui.selectedBooking = group.latest; ui.showBookingDetailModal = true" class="min-h-[38px] px-1 rounded-xl hover:bg-slate-100 dark:hover:bg-surface-3 flex flex-col sm:flex-row items-center justify-center gap-0.5 sm:gap-1 text-[10px] sm:text-xs font-bold text-slate-600 dark:text-slate-300 hover:text-indigo-400 dark:hover:text-indigo-300 transition-colors active:scale-95 cursor-pointer" title="Xem chi tiết phiếu đặt" aria-label="Xem chi tiết phiếu đặt">
               <i class="fa-solid fa-eye text-[11px]"></i>
               <span>Xem</span>
             </button>
-            <button @click="deleteHistoricOrder(group.latest.id)" class="min-h-[40px] px-1 rounded-xl hover:bg-slate-100 dark:hover:bg-surface-3 flex flex-col sm:flex-row items-center justify-center gap-0.5 sm:gap-1 text-[10px] sm:text-xs font-bold text-slate-400 hover:text-red-600 dark:hover:text-red-400 transition-colors active:scale-95" title="Xóa phiếu đặt bàn" aria-label="Xóa phiếu đặt bàn">
+            <button @click="deleteHistoricOrder(group.latest.id)" class="min-h-[38px] px-1 rounded-xl hover:bg-slate-100 dark:hover:bg-surface-3 flex flex-col sm:flex-row items-center justify-center gap-0.5 sm:gap-1 text-[10px] sm:text-xs font-bold text-slate-400 hover:text-red-600 dark:hover:text-red-400 transition-colors active:scale-95 cursor-pointer" title="Xóa phiếu đặt bàn" aria-label="Xóa phiếu đặt bàn">
               <i class="fa-solid fa-trash-can text-[11px]"></i>
               <span>Xóa</span>
             </button>

@@ -87,6 +87,42 @@ export const useUIStore = defineStore('ui', () => {
   const selectedBooking = ref<any>(null)
   const pendingAction = ref<string | null>(null)
 
+  // --- Active Shift Staff Pinning & Live Bill Studio Dock ---
+  const loadSavedShiftStaff = (): { name: string; phone: string; role?: string } | null => {
+    try {
+      const raw = localStorage.getItem('kg_active_shift_staff')
+      if (!raw) return null
+      const parsed = JSON.parse(raw)
+      if (parsed && typeof parsed.name === 'string' && parsed.name.trim()) {
+        return parsed
+      }
+    } catch {}
+    return null
+  }
+  const activeShiftStaff = ref<{ name: string; phone: string; role?: string } | null>(loadSavedShiftStaff())
+  const pinShiftStaff = ref<boolean>(localStorage.getItem('kg_pin_shift_staff') !== 'false')
+  const showLiveBillDock = ref<boolean>(localStorage.getItem('kg_show_live_bill_dock') !== 'false')
+
+  function setActiveShiftStaff(staff: { name: string; phone: string; role?: string } | null, pin = true) {
+    activeShiftStaff.value = staff
+    pinShiftStaff.value = pin
+    try {
+      if (staff && pin) {
+        localStorage.setItem('kg_active_shift_staff', JSON.stringify(staff))
+      } else {
+        localStorage.removeItem('kg_active_shift_staff')
+      }
+      localStorage.setItem('kg_pin_shift_staff', String(pin))
+    } catch {}
+  }
+
+  function toggleLiveBillDock() {
+    showLiveBillDock.value = !showLiveBillDock.value
+    try {
+      localStorage.setItem('kg_show_live_bill_dock', String(showLiveBillDock.value))
+    } catch {}
+  }
+
   // --- Menu Tab ---
   const menuTab = ref<'select' | 'upload'>('select')
   const isUpdateMode = ref(false)
@@ -268,13 +304,13 @@ export const useUIStore = defineStore('ui', () => {
     showSettingsHub, activeSettingModal, showCommandPalette, showAiConfig, showBankConfig, showMenuManager, showBrandingConfig, showStaffConfig, showStaffSelector, showWebhookConfig, showBookingDetailModal, showVersionModal, showSocialBotModal, showOutboxModal, showBookingConfirmationModal, bookingConfirmationPayload, showFloorPlan, showCustomerCareModal, activeOrderForCare, selectedBooking,
 
 
-    pendingAction, menuTab, isUpdateMode, isDarkMode, showMenuUploadModal,
+    pendingAction, activeShiftStaff, pinShiftStaff, showLiveBillDock, menuTab, isUpdateMode, isDarkMode, showMenuUploadModal,
     historySearch, isBatchMode, selectedIds, historyFilters,
     focusIdx, listening, tempTable,
     toasts, verifyModal, modal, draftConflictModal,
     showToast, removeToast,
     resolveModal, showAlert, showConfirm, showPrompt, promptDraftConflict, resolveDraftConflict,
-    openBookingConfirmation, resolveBookingConfirmation,
+    openBookingConfirmation, resolveBookingConfirmation, setActiveShiftStaff, toggleLiveBillDock,
     openConfig, closeConfig, toggleBatchMode, toggleSelection, toggleDarkMode
   }
 })

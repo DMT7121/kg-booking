@@ -167,20 +167,18 @@ function applySmartRecommendation() {
 </script>
 
 <template>
-  <div class="bg-white dark:bg-[#121B2B] rounded-3xl shadow-sm border p-5 md:p-6 space-y-5 transition-all duration-300 relative overflow-hidden text-slate-800 dark:text-slate-100"
-       :class="hasSoftWarning ? 'border-amber-300 dark:border-amber-700/60 bg-amber-50/10 dark:bg-amber-950/10' : 'border-slate-200 dark:border-[#223147]'">
-    <!-- Top Decorative Line -->
-    <div class="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-blue-500 via-indigo-500 to-purple-500"></div>
+  <div id="customer-form-card" class="bg-surface-2 dark:bg-surface-2 rounded-2xl shadow-sm border p-4 md:p-5 space-y-4 transition-all duration-200 relative overflow-hidden text-text-primary"
+       :class="hasSoftWarning ? 'border-amber-300 dark:border-amber-700/60 bg-amber-50/10 dark:bg-amber-950/10' : 'border-border-default dark:border-border-subtle'">
 
     <!-- Header -->
-    <div class="flex items-center justify-between border-b border-slate-100 dark:border-[#223147] pb-3">
+    <div class="flex items-center justify-between border-b border-border-subtle pb-3">
       <div class="flex items-center gap-2.5">
-        <div class="w-8 h-8 rounded-xl bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-[#62A5FF] flex items-center justify-center text-sm shadow-sm border border-blue-100 dark:border-blue-800/50">
+        <div class="w-8 h-8 rounded-xl bg-primary/10 text-apex-primary flex items-center justify-center text-sm shadow-xs border border-primary/20">
           <i class="fa-solid fa-user-tag"></i>
         </div>
         <div>
-          <h3 class="font-black text-slate-800 dark:text-slate-100 text-xs uppercase tracking-widest">Thông tin khách hàng & Bàn</h3>
-          <p class="text-[10px] font-bold text-slate-400 dark:text-slate-500">Nhập trực tiếp hoặc nạp tự động qua AI</p>
+          <h3 class="font-bold text-text-primary text-xs uppercase tracking-wider">1. Thông tin khách hàng & Bàn</h3>
+          <p class="text-[11px] font-medium text-text-secondary">Nhập trực tiếp hoặc nạp tự động qua AI</p>
         </div>
       </div>
       <div v-if="formStore.customer.phone && crmStatus" :class="['crm-badge', crmStatus === 'VIP' ? 'crm-vip' : 'crm-new']">
@@ -188,27 +186,30 @@ function applySmartRecommendation() {
       </div>
     </div>
 
-    <!-- Row 1: Name -->
-    <div class="space-y-1.5 w-full">
-      <label for="cust-name" class="text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-wider ml-1 flex items-center">
-        Người đặt <span class="text-red-500 ml-0.5">*</span>
-        <span v-if="formStore.aiMetadata?.confidences?.name?.needs_review" class="text-amber-600 dark:text-amber-400 text-[9px] font-bold bg-amber-100/60 dark:bg-amber-950/60 px-1.5 py-0.5 rounded ml-2 animate-pulse"><i class="fa-solid fa-triangle-exclamation"></i> Cần kiểm tra</span>
-      </label>
-      <div class="relative">
-        <i class="fa-regular fa-user absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500"></i>
-        <input id="cust-name" v-model="formStore.customer.name" autocomplete="name" enterkeyhint="next" @focus="handleInputFocus" @blur="handleInputBlur" class="w-full border rounded-xl pl-10 pr-4 py-3 text-[16px] font-semibold text-slate-800 dark:text-slate-100 bg-white dark:bg-[#0B1220] focus:border-blue-500 dark:focus:border-[#78A6FF] focus:ring-4 focus:ring-blue-50 dark:focus:ring-[#2F67E8]/20 outline-none transition-all placeholder-slate-400 dark:placeholder-slate-500" :class="formStore.aiMetadata?.confidences?.name?.needs_review ? 'border-amber-400 bg-amber-50/10 focus:border-amber-500 focus:ring-amber-100' : 'border-slate-200 dark:border-[#293954]'" placeholder="Nhập tên khách hàng">
+    <!-- Row 1 & 2: Name & Phone side-by-side on sm+ screens for faster scanning -->
+    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3.5 w-full">
+      <!-- Name -->
+      <div class="space-y-1.5 w-full">
+        <label for="cust-name" class="text-[11px] font-bold text-text-secondary ml-0.5 flex items-center">
+          Người đặt <span class="text-red-500 ml-0.5">*</span>
+          <span v-if="formStore.aiMetadata?.confidences?.name?.needs_review" class="text-amber-600 dark:text-amber-400 text-[9px] font-bold bg-amber-100/60 dark:bg-amber-950/60 px-1.5 py-0.5 rounded ml-2 animate-pulse"><i class="fa-solid fa-triangle-exclamation"></i> Cần kiểm tra</span>
+        </label>
+        <div class="relative">
+          <i class="fa-regular fa-user absolute left-3.5 top-1/2 -translate-y-1/2 text-text-tertiary text-xs"></i>
+          <input id="cust-name" v-model="formStore.customer.name" autocomplete="name" enterkeyhint="next" @focus="handleInputFocus" @blur="handleInputBlur" class="w-full border rounded-xl pl-9 pr-3.5 py-2.5 text-[15px] font-semibold text-text-primary bg-surface-input focus:border-border-focus focus:ring-2 focus:ring-border-focus/20 outline-none transition-all placeholder-text-tertiary" :class="formStore.aiMetadata?.confidences?.name?.needs_review ? 'border-amber-400 bg-amber-50/10 focus:border-amber-500' : 'border-border-default'" placeholder="Nhập tên khách hàng">
+        </div>
       </div>
-    </div>
 
-    <!-- Row 2: Phone -->
-    <div class="space-y-1.5 w-full">
-      <label for="cust-phone" class="text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-wider ml-1 flex items-center">
-        SĐT / Zalo <span class="text-red-500 ml-0.5">*</span>
-        <span v-if="formStore.aiMetadata?.confidences?.phone?.needs_review" class="text-amber-600 dark:text-amber-400 text-[9px] font-bold bg-amber-100/60 dark:bg-amber-950/60 px-1.5 py-0.5 rounded ml-2 animate-pulse"><i class="fa-solid fa-triangle-exclamation"></i> Cần kiểm tra</span>
-      </label>
-      <div class="relative">
-        <i class="fa-solid fa-phone absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500"></i>
-        <input id="cust-phone" v-model="formStore.customer.phone" autocomplete="tel" inputmode="tel" enterkeyhint="next" @focus="handleInputFocus" @blur="(e) => { handleInputBlur(); checkCRM(); }" class="w-full border rounded-xl pl-10 pr-4 py-3 text-[16px] font-semibold text-slate-800 dark:text-slate-100 bg-white dark:bg-[#0B1220] focus:border-blue-500 dark:focus:border-[#78A6FF] focus:ring-4 focus:ring-blue-50 dark:focus:ring-[#2F67E8]/20 outline-none transition-all placeholder-slate-400 dark:placeholder-slate-500" :class="formStore.aiMetadata?.confidences?.phone?.needs_review ? 'border-amber-400 bg-amber-50/10 focus:border-amber-500 focus:ring-amber-100' : 'border-slate-200 dark:border-[#293954]'" placeholder="09xxxxxxx">
+      <!-- Phone -->
+      <div class="space-y-1.5 w-full">
+        <label for="cust-phone" class="text-[11px] font-bold text-text-secondary ml-0.5 flex items-center">
+          SĐT / Zalo <span class="text-red-500 ml-0.5">*</span>
+          <span v-if="formStore.aiMetadata?.confidences?.phone?.needs_review" class="text-amber-600 dark:text-amber-400 text-[9px] font-bold bg-amber-100/60 dark:bg-amber-950/60 px-1.5 py-0.5 rounded ml-2 animate-pulse"><i class="fa-solid fa-triangle-exclamation"></i> Cần kiểm tra</span>
+        </label>
+        <div class="relative">
+          <i class="fa-solid fa-phone absolute left-3.5 top-1/2 -translate-y-1/2 text-text-tertiary text-xs"></i>
+          <input id="cust-phone" v-model="formStore.customer.phone" autocomplete="tel" inputmode="tel" enterkeyhint="next" @focus="handleInputFocus" @blur="(e) => { handleInputBlur(); checkCRM(); }" class="w-full border rounded-xl pl-9 pr-3.5 py-2.5 text-[15px] font-semibold text-text-primary bg-surface-input focus:border-blue-500 focus:ring-2 focus:ring-border-focus/20 outline-none transition-all placeholder-text-tertiary font-mono" :class="formStore.aiMetadata?.confidences?.phone?.needs_review ? 'border-amber-400 bg-amber-50/10 focus:border-amber-500' : 'border-border-default'" placeholder="09xxxxxxx">
+        </div>
       </div>
     </div>
 

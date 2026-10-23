@@ -787,16 +787,19 @@ function onFieldFocus(e: FocusEvent) {
             <div class="sticky bottom-3 z-30 pb-[max(0.5rem,env(safe-area-inset-bottom))]">
               <div class="bg-white/95 border border-slate-200/90 rounded-3xl p-3 sm:p-4 shadow-2xl backdrop-blur-xl flex flex-col gap-2">
                 <!-- Live Summary Bar -->
-                <div class="flex items-center justify-between px-2 text-xs text-slate-600 font-medium">
-                  <div class="flex items-center gap-2 flex-wrap">
-                    <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                <div class="flex items-center justify-between px-2 text-xs text-slate-600 font-medium gap-2">
+                  <div class="flex items-center gap-1.5 flex-wrap min-w-0">
+                    <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse shrink-0"></span>
+                    <span v-if="form.bookerName" class="font-bold text-slate-800 truncate max-w-[110px]">{{ form.bookerName }}</span>
+                    <span v-if="form.bookerName" class="text-slate-300">•</span>
                     <span class="font-black text-blue-700">{{ totalGuestsCount || '—' }} khách</span>
                     <span class="text-slate-300">•</span>
-                    <span>{{ form.time || 'Chưa chọn giờ' }}</span>
+                    <span class="font-semibold">{{ form.time || 'Chưa chọn giờ' }}</span>
                     <span class="text-slate-300">•</span>
-                    <span>{{ displayDate || 'Chưa chọn ngày' }}</span>
+                    <span class="font-semibold">{{ displayDate || 'Chưa chọn ngày' }}</span>
+                    <span v-if="form.partyType" class="px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 text-[10px] font-bold border border-blue-200">{{ form.partyType }}</span>
                   </div>
-                  <span class="text-[11px] text-slate-400 font-bold">Bước 1 / 3</span>
+                  <span class="text-[11px] text-slate-400 font-bold shrink-0">Bước 1 / 3</span>
                 </div>
 
                 <!-- Button CTA -->

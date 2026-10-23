@@ -80,17 +80,29 @@ function _createBillRender() {
     if (!isConfirmed) return
 
     uiStore.pendingAction = type
-    uiStore.showStaffSelector = true
+    if (uiStore.pinShiftStaff && uiStore.activeShiftStaff?.name && uiStore.activeShiftStaff?.phone) {
+      await confirmStaffAndSave(uiStore.activeShiftStaff)
+    } else {
+      uiStore.showStaffSelector = true
+    }
   }
 
   // --- Confirm Staff & Save ---
-  async function confirmStaffAndSave(staff: { name: string; phone: string }) {
+  async function confirmStaffAndSave(staff: { name: string; phone: string; role?: string }) {
     if (uiStore.loading.is) return
     formStore.staff.name = staff.name
     formStore.staff.phone = staff.phone
+    if (uiStore.pinShiftStaff) {
+      uiStore.setActiveShiftStaff(staff, true)
+    }
     await nextTick()
     uiStore.showStaffSelector = false
+    if (!uiStore.pendingAction) {
+      uiStore.showToast(`👤 Đã chọn nhân viên trực ca: ${staff.name}`, 'success')
+      return
+    }
     formStore.saveType = uiStore.pendingAction || ''
+    uiStore.pendingAction = null
     await performOptimisticSave()
   }
 

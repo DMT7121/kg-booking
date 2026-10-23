@@ -1181,27 +1181,66 @@ const ambientTheme = computed(() => {
       </div>
     </div>
 
-    <!-- STAFF SELECTOR MODAL (ON SAVE) -->
+    <!-- STAFF SELECTOR MODAL (ON SAVE / SHIFT SWITCH) -->
     <transition name="modal">
-    <div v-if="ui.showStaffSelector" class="fixed inset-0 bg-slate-950/60 z-[10002] flex justify-center items-center p-4 backdrop-blur-sm" @click.self="ui.showStaffSelector = false">
-      <div class="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl p-6 md:p-7 max-w-sm w-[95%] md:w-full flex flex-col relative overflow-hidden border border-slate-200 dark:border-slate-800">
-        <div class="flex justify-center items-center mb-5 flex-col gap-2.5">
-          <div class="w-12 h-12 bg-blue-50 dark:bg-blue-950/50 rounded-2xl flex items-center justify-center text-blue-600 dark:text-blue-400 text-xl shadow-sm border border-blue-100 dark:border-blue-900/50">
+    <div v-if="ui.showStaffSelector" class="fixed inset-0 bg-slate-950/60 z-[10002] flex justify-center items-center p-4 backdrop-blur-sm" @click.self="ui.showStaffSelector = false; ui.pendingAction = null">
+      <div class="bg-surface-2 dark:bg-surface-3 rounded-2xl shadow-2xl p-6 max-w-md w-[95%] md:w-full flex flex-col relative overflow-hidden border border-border-default">
+        <div class="flex justify-center items-center mb-4 flex-col gap-2">
+          <div class="w-11 h-11 bg-primary/10 rounded-2xl flex items-center justify-center text-apex-primary text-lg shadow-xs border border-primary/20">
             <i class="fa-solid fa-user-tag"></i>
           </div>
-          <h3 class="text-lg font-black text-slate-900 dark:text-slate-100 uppercase tracking-tight text-center">CHỌN NGƯỜI TẠO PHIẾU</h3>
+          <h3 class="text-base font-black text-text-primary uppercase tracking-tight text-center">
+            {{ ui.pendingAction ? 'CHỌN NGƯỜI TẠO PHIẾU' : 'CHỌN NHÂN VIÊN TRỰC CA' }}
+          </h3>
+          <p class="text-[11px] font-medium text-text-secondary text-center">
+            Chọn tên nhân viên để ký tên lên phiếu & đồng bộ lịch sử
+          </p>
         </div>
-        <div class="grid grid-cols-2 gap-2.5 max-h-[50vh] overflow-y-auto custom-scrollbar p-1">
-          <button v-for="(staff, idx) in appStore.staffList" :key="idx"
+
+        <!-- Shift Staff Pinning Option -->
+        <label class="mb-3.5 px-3 py-2.5 rounded-xl bg-surface-3 dark:bg-surface-4 border border-border-subtle flex items-center justify-between gap-2.5 cursor-pointer select-none hover:border-primary/40 transition-colors">
+          <div class="flex items-center gap-2 min-w-0">
+            <i class="fa-solid fa-thumbtack text-xs text-apex-primary shrink-0"></i>
+            <div class="min-w-0">
+              <div class="text-xs font-bold text-text-primary leading-tight">Ghim làm nhân viên trực ca</div>
+              <div class="text-[10px] text-text-tertiary leading-tight mt-0.5">Tự động chọn cho các đơn tiếp theo (không hỏi lại)</div>
+            </div>
+          </div>
+          <input
+            type="checkbox"
+            v-model="ui.pinShiftStaff"
+            @change="ui.setActiveShiftStaff(ui.activeShiftStaff, ui.pinShiftStaff)"
+            class="w-4 h-4 rounded text-blue-600 focus:ring-blue-500 cursor-pointer shrink-0"
+          />
+        </label>
+
+        <div class="grid grid-cols-2 gap-2.5 max-h-[46vh] overflow-y-auto custom-scrollbar p-0.5">
+          <button v-for="(staff, idx) in appStore.staffList.filter((s: any) => s.isActive !== false)" :key="idx"
             @click="confirmStaffAndSave(staff)"
-            class="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 hover:border-blue-500 dark:hover:border-blue-500 hover:bg-blue-50/50 dark:hover:bg-blue-950/30 transition-all active:scale-95 flex flex-col items-center justify-center gap-1 group min-h-[76px]">
-            <i class="fa-solid fa-user-check text-xl text-slate-400 dark:text-slate-500 group-hover:text-blue-600 dark:group-hover:text-blue-400 mb-0.5 transition-colors"></i>
-            <span class="font-black text-xs uppercase text-slate-800 dark:text-slate-200 text-center leading-tight">{{ staff.name }}</span>
-            <span class="text-[9px] font-mono font-bold text-slate-400 dark:text-slate-500">{{ staff.phone }}</span>
+            :class="[
+              'p-3 rounded-xl border transition-all active:scale-95 flex flex-col items-center justify-center gap-1 group min-h-[76px] relative cursor-pointer',
+              ui.activeShiftStaff?.name === staff.name
+                ? 'bg-primary/10 border-primary text-text-primary ring-1 ring-primary/30'
+                : 'bg-surface-1 dark:bg-surface-2 border-border-default hover:border-primary hover:bg-primary/5'
+            ]">
+            <span v-if="ui.activeShiftStaff?.name === staff.name" class="absolute top-1.5 right-1.5 px-1.5 py-0.5 rounded-full bg-apex-primary text-white text-[8px] font-black uppercase tracking-wider">Đang trực</span>
+            <i class="fa-solid fa-user-check text-lg transition-colors mb-0.5" :class="ui.activeShiftStaff?.name === staff.name ? 'text-apex-primary' : 'text-text-tertiary group-hover:text-apex-primary'"></i>
+            <span class="font-bold text-xs uppercase text-text-primary text-center leading-tight">{{ staff.name }}</span>
+            <span class="text-[10px] font-mono font-semibold text-text-secondary">{{ staff.phone }}</span>
           </button>
         </div>
-        <div class="mt-5">
-          <button @click="ui.showStaffSelector = false" class="w-full py-3 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-xl font-bold uppercase tracking-wider text-xs active:scale-98 transition-all border border-slate-200 dark:border-slate-700">HỦY BỎ</button>
+
+        <div class="mt-4 flex items-center gap-2">
+          <button
+            v-if="ui.activeShiftStaff"
+            @click="ui.setActiveShiftStaff(null, false); ui.showToast('Đã bỏ ghim nhân viên trực ca', 'info')"
+            type="button"
+            class="px-3.5 py-2.5 bg-surface-3 hover:bg-rose-500/10 text-text-secondary hover:text-apex-danger rounded-xl font-bold text-xs transition-all border border-border-subtle cursor-pointer shrink-0"
+            title="Bỏ ghim nhân viên đang trực"
+          >
+            Bỏ ghim
+          </button>
+          <button @click="ui.showStaffSelector = false; ui.pendingAction = null" class="flex-1 py-2.5 bg-surface-3 hover:bg-surface-hover text-text-secondary rounded-xl font-bold uppercase tracking-wider text-xs active:scale-98 transition-all border border-border-subtle cursor-pointer">Đóng</button>
         </div>
       </div>
     </div>

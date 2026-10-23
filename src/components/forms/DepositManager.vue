@@ -187,8 +187,9 @@ function onDrop(e: DragEvent) {
 
 <template>
   <div 
-    class="bg-white dark:bg-surface-2 p-5 md:p-6 rounded-3xl border border-slate-100 dark:border-border-subtle shadow-sm relative overflow-hidden transition-all duration-300" 
-    :class="{'ring-4 ring-emerald-500/20 bg-emerald-50/20 dark:bg-emerald-950/20 border-emerald-200 dark:border-emerald-800/40': formStore.deposit.isPaid, 'ring-8 ring-indigo-500/20 bg-indigo-50/50 dark:bg-indigo-950/40 scale-[1.02]': isDragging}"
+    id="deposit-manager-card"
+    class="bg-surface-2 dark:bg-surface-2 p-4 md:p-5 rounded-2xl border border-border-default dark:border-border-subtle shadow-sm relative overflow-hidden transition-all duration-200" 
+    :class="{'ring-2 ring-emerald-500/30 bg-emerald-50/20 dark:bg-emerald-950/20 border-emerald-300 dark:border-emerald-800/50': formStore.deposit.isPaid, 'ring-4 ring-indigo-500/20 bg-indigo-50/50 dark:bg-indigo-950/40 scale-[1.01]': isDragging}"
     @dragover="onDragOver"
     @dragleave="onDragLeave"
     @drop="onDrop"

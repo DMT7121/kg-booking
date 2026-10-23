@@ -34,6 +34,41 @@ const bookingDate = computed(() => {
   return todayStr.value
 })
 
+// Interactive Time-Slot Scrubber for Floor Plan 2.0
+const TIME_SCRUBBER_SLOTS = [
+  { id: 'FORM', label: 'Theo giờ đơn' },
+  { id: 'NOW', label: 'Hiện tại' },
+  { id: '11:30', label: '11:30' },
+  { id: '12:30', label: '12:30' },
+  { id: '17:30', label: '17:30' },
+  { id: '18:00', label: '18:00' },
+  { id: '18:30', label: '18:30' },
+  { id: '19:00', label: '19:00' },
+  { id: '19:30', label: '19:30' },
+  { id: '20:00', label: '20:00' }
+]
+const inspectTimeMode = ref<string>('FORM')
+const activeZoneFilter = ref<string>('ALL')
+
+const effectiveInspectTime = computed(() => {
+  if (inspectTimeMode.value === 'NOW') {
+    const now = new Date()
+    return `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`
+  }
+  if (inspectTimeMode.value === 'FORM') {
+    const formTime = (formStore.customer.time || '').trim()
+    if (/^\d{1,2}:\d{2}$/.test(formTime)) return formTime
+    const now = new Date()
+    return `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`
+  }
+  return inspectTimeMode.value
+})
+
+const filteredFloorPlan = computed(() => {
+  if (activeZoneFilter.value === 'ALL') return floorPlan
+  return floorPlan.filter(z => z.zone === activeZoneFilter.value)
+})
+
 // Parse table string to array
 function parseTables(tablesStr: string | undefined): string[] {
   if (!tablesStr) return []
@@ -47,11 +82,11 @@ function isTableMatch(tablesStr: string | undefined, tableName: string): boolean
   return tables.includes(tableName.toUpperCase())
 }
 
-// Calculate Table Status
+// Calculate Table Status at effectiveInspectTime
 function getTableStatus(tableName: string) {
   if (!appStore.historyList) return 'available'
   
-  // Find orders for today that include this table (excluding the booking currently being edited)
+  // Find orders for target date that include this table (excluding the booking currently being edited)
   const todayOrders = appStore.historyList.filter(o => 
     o.id !== formStore.id &&
     o.parsedCustomer?.date === bookingDate.value && 
@@ -60,7 +95,9 @@ function getTableStatus(tableName: string) {
 
   if (todayOrders.length === 0) return 'available'
 
-  const now = new Date()
+  const [refH, refM] = effectiveInspectTime.value.split(':').map(Number)
+  const refTime = new Date()
+  refTime.setHours(refH || 18, refM || 0, 0, 0)
   
   for (const order of todayOrders) {
     const time = order.parsedCustomer?.time
@@ -70,18 +107,22 @@ function getTableStatus(tableName: string) {
     const orderTime = new Date()
     orderTime.setHours(hh, mm, 0, 0)
     
-    const diffMs = orderTime.getTime() - now.getTime()
+    const diffMs = orderTime.getTime() - refTime.getTime()
     const diffMins = diffMs / (1000 * 60)
 
-    // If within past 2 hours and future 1 hour, it's occupied or reserved
-    if (diffMins > -120 && diffMins <= 0) {
-      return 'occupied' // They are probably eating right now
-    } else if (diffMins > 0 && diffMins < 120) {
-      return 'reserved' // They are coming soon
+    // If within past 2 hours and future 2 hours around reference time
+    if (diffMins > -120 && diffMins <= 15) {
+      return 'occupied'
+    } else if (diffMins > 15 && diffMins < 120) {
+      return 'reserved'
     }
   }
 
   return 'available'
+}
+
+function getZoneAvailableCount(tables: string[]): number {
+  return tables.filter(t => getTableStatus(t) === 'available').length
 }
 
 // Get occupying customer details (name and time)
@@ -379,25 +420,69 @@ function applySmartAllocation() {
           </div>
         </div>
 
-        <!-- Legend -->
-        <div class="flex justify-center gap-4 py-3 bg-white dark:bg-surface-3/90 border-b border-slate-200 dark:border-border-subtle shrink-0 text-[10px] font-black uppercase tracking-widest shadow-sm relative z-10">
-          <div class="flex items-center gap-1.5"><div class="w-3 h-3 rounded bg-emerald-50 dark:bg-emerald-950/50 border border-emerald-200 dark:border-emerald-800"></div> <span class="text-emerald-600 dark:text-emerald-400">Trống</span></div>
-          <div class="flex items-center gap-1.5"><div class="w-3 h-3 rounded bg-amber-100 dark:bg-amber-950/50 border border-amber-300 dark:border-amber-800"></div> <span class="text-amber-600 dark:text-amber-400">Sắp đến</span></div>
-          <div class="flex items-center gap-1.5"><div class="w-3 h-3 rounded bg-rose-100 dark:bg-rose-950/50 border border-rose-300 dark:border-rose-800"></div> <span class="text-rose-600 dark:text-rose-400">Đang dùng</span></div>
-          <div class="flex items-center gap-1.5"><div class="w-3 h-3 rounded bg-blue-500 border border-blue-600 shadow-inner"></div> <span class="text-blue-700 dark:text-blue-400">Đang chọn</span></div>
+        <!-- Interactive Time-Slot Scrubber & Zone Filter Bar -->
+        <div class="px-4 py-2.5 bg-surface-2 dark:bg-surface-3 border-b border-border-subtle shrink-0 space-y-2 relative z-10">
+          <!-- Row 1: Time Scrubber Chips -->
+          <div class="flex items-center gap-1.5 overflow-x-auto no-scrollbar">
+            <span class="text-[10px] font-bold uppercase tracking-wider text-text-tertiary shrink-0 mr-1 flex items-center gap-1">
+              <i class="fa-regular fa-clock text-apex-primary"></i>
+              <span>Khung giờ ({{ effectiveInspectTime }}):</span>
+            </span>
+            <button
+              v-for="slot in TIME_SCRUBBER_SLOTS"
+              :key="slot.id"
+              type="button"
+              @click="inspectTimeMode = slot.id"
+              class="px-2.5 py-1 rounded-lg text-[10px] font-bold transition-all shrink-0 cursor-pointer border"
+              :class="inspectTimeMode === slot.id ? 'bg-apex-primary text-white border-apex-primary shadow-2xs' : 'bg-surface-1 dark:bg-surface-4 text-text-secondary border-border-subtle hover:text-text-primary'"
+            >
+              {{ slot.label }}
+            </button>
+          </div>
+
+          <!-- Row 2: Zone Filter Pills + Legend -->
+          <div class="flex flex-wrap items-center justify-between gap-2 pt-1 border-t border-border-subtle/60">
+            <div class="flex items-center gap-1 overflow-x-auto no-scrollbar">
+              <button
+                type="button"
+                @click="activeZoneFilter = 'ALL'"
+                class="px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase transition-all cursor-pointer"
+                :class="activeZoneFilter === 'ALL' ? 'bg-slate-800 dark:bg-slate-100 text-white dark:text-slate-900' : 'text-text-secondary hover:bg-surface-3'"
+              >Tất cả khu</button>
+              <button
+                v-for="z in floorPlan"
+                :key="z.zone"
+                type="button"
+                @click="activeZoneFilter = z.zone"
+                class="px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase transition-all cursor-pointer"
+                :class="activeZoneFilter === z.zone ? 'bg-slate-800 dark:bg-slate-100 text-white dark:text-slate-900' : 'text-text-secondary hover:bg-surface-3'"
+              >{{ z.name }} ({{ getZoneAvailableCount(z.tables) }}/{{ z.tables.length }})</button>
+            </div>
+
+            <div class="flex items-center gap-3 text-[10px] font-bold uppercase tracking-wider">
+              <div class="flex items-center gap-1"><div class="w-2.5 h-2.5 rounded bg-emerald-500/20 border border-emerald-500"></div> <span class="text-emerald-600 dark:text-emerald-400">Trống</span></div>
+              <div class="flex items-center gap-1"><div class="w-2.5 h-2.5 rounded bg-amber-500/20 border border-amber-500"></div> <span class="text-amber-600 dark:text-amber-400">Sắp đến</span></div>
+              <div class="flex items-center gap-1"><div class="w-2.5 h-2.5 rounded bg-rose-500/20 border border-rose-500"></div> <span class="text-rose-600 dark:text-rose-400">Đang dùng</span></div>
+              <div class="flex items-center gap-1"><div class="w-2.5 h-2.5 rounded bg-blue-600"></div> <span class="text-blue-600 dark:text-blue-400">Đang chọn</span></div>
+            </div>
+          </div>
         </div>
 
         <!-- Content (Split Layout for desktop) -->
         <div class="flex-1 flex flex-col lg:flex-row min-h-0 overflow-hidden">
           
           <!-- Left side: Interactive Floor Plan -->
-          <div class="flex-1 overflow-y-auto custom-scrollbar p-4 md:p-6 space-y-6 bg-slate-100/50 dark:bg-surface-canvas/60">
-            <div v-for="zone in floorPlan" :key="zone.zone" class="bg-white dark:bg-surface-2 p-4 md:p-5 rounded-3xl shadow-sm border border-slate-200 dark:border-border-subtle relative overflow-hidden">
-              <div class="absolute top-0 left-0 w-1.5 h-full bg-slate-200 dark:bg-surface-3 rounded-l-3xl"></div>
-              
-              <h3 class="text-xs font-black text-slate-500 dark:text-slate-300 uppercase tracking-widest mb-4 ml-2 flex items-center gap-2">
-                <i class="fa-solid fa-layer-group text-slate-400 dark:text-slate-500"></i> {{ zone.name }}
-              </h3>
+          <div class="flex-1 overflow-y-auto custom-scrollbar p-4 md:p-5 space-y-5 bg-slate-100/50 dark:bg-surface-canvas/60">
+            <div v-for="zone in filteredFloorPlan" :key="zone.zone" class="bg-white dark:bg-surface-2 p-4 rounded-2xl shadow-xs border border-slate-200 dark:border-border-subtle relative overflow-hidden">
+              <div class="flex items-center justify-between mb-3">
+                <h3 class="text-xs font-black text-text-primary uppercase tracking-wider flex items-center gap-2">
+                  <i class="fa-solid fa-layer-group text-apex-primary"></i>
+                  <span>{{ zone.name }}</span>
+                </h3>
+                <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+                  Trống {{ getZoneAvailableCount(zone.tables) }}/{{ zone.tables.length }} bàn
+                </span>
+              </div>
               
               <div class="grid grid-cols-4 gap-3 md:gap-4 ml-2">
                 <button 
@@ -480,9 +565,19 @@ function applySmartAllocation() {
         </div>
 
         <!-- Footer -->
-        <div class="px-5 py-4 border-t border-slate-200 dark:border-border-subtle bg-white dark:bg-surface-3 shrink-0 shadow-[0_-4px_20px_rgba(0,0,0,0.02)]">
-          <button @click="closeFloorPlan" class="w-full py-4 bg-blue-900 hover:bg-blue-800 dark:bg-blue-600 dark:hover:bg-blue-500 text-white rounded-2xl font-black uppercase tracking-widest text-xs shadow-lg shadow-blue-900/20 active:scale-95 transition-all flex items-center justify-center gap-2">
-            <i class="fa-solid fa-check"></i> XÁC NHẬN BÀN: {{ formStore.customer.tables || 'CHƯA CHỌN' }}
+        <div class="px-5 py-3.5 border-t border-slate-200 dark:border-border-subtle bg-white dark:bg-surface-3 shrink-0 shadow-[0_-4px_20px_rgba(0,0,0,0.02)] flex items-center gap-2.5">
+          <button
+            v-if="formStore.customer.tables"
+            type="button"
+            @click="formStore.customer.tables = ''"
+            class="px-4 py-3.5 rounded-xl bg-surface-2 hover:bg-rose-500/10 text-text-secondary hover:text-rose-500 border border-border-default font-bold text-xs uppercase tracking-wider transition-all active:scale-95 cursor-pointer shrink-0"
+            title="Xóa toàn bộ bàn đã chọn"
+          >
+            Xóa chọn
+          </button>
+          <button @click="closeFloorPlan" class="flex-1 py-3.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-black uppercase tracking-widest text-xs shadow-md shadow-blue-600/20 active:scale-95 transition-all flex items-center justify-center gap-2 cursor-pointer">
+            <i class="fa-solid fa-check"></i>
+            <span>XÁC NHẬN BÀN: {{ formStore.customer.tables || 'CHƯA CHỌN' }}</span>
           </button>
         </div>
       </div>

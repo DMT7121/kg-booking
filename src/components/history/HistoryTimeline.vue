@@ -373,22 +373,10 @@ async function handleDrop(e: DragEvent, hour: string, table: string) {
 </script>
 
 <template>
-  <div class="flex-grow flex flex-col bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-100 text-[13px] overflow-hidden">
-    
-    <!-- Header Title -->
-    <div class="bg-slate-50 dark:bg-slate-900 px-4 py-4 flex items-center justify-between sticky top-0 z-20 shadow-sm border-b border-slate-100 dark:border-slate-800 shrink-0">
-      <button @click="ui.tab = 'create'" class="w-10 h-10 flex items-center justify-center text-blue-900 dark:text-blue-300 text-xl active:scale-95 transition-transform" aria-label="Quay lại">
-        <i class="fa-solid fa-arrow-left"></i>
-      </button>
-      <div class="text-center flex-1">
-        <h2 class="text-xl font-black text-blue-900 dark:text-blue-400">Lịch Đặt Bàn</h2>
-        <p class="text-[10px] font-bold text-slate-400 dark:text-slate-500 mt-0.5">Sơ đồ tình trạng bàn theo thời gian</p>
-      </div>
-      <div class="w-10"></div> <!-- Placeholder to balance header -->
-    </div>
+  <div class="flex-grow flex flex-col bg-surface-canvas text-text-primary text-[13px] overflow-hidden">
 
-    <!-- Top Controls: Responsive 2-tier on mobile (< sm), 1-row on desktop (>= sm) -->
-    <div class="p-2.5 sm:p-3 md:p-4 bg-white dark:bg-slate-900 border-b border-slate-100 dark:border-slate-800 flex flex-col sm:flex-row gap-2 sm:gap-3 z-10 shadow-sm">
+    <!-- Unified Compact Top Controls (Reclaims 72px vertical viewport for Timeline Matrix) -->
+    <div class="p-2.5 sm:px-4 sm:py-3 bg-surface-2 dark:bg-surface-2 border-b border-border-default dark:border-border-subtle flex flex-col sm:flex-row gap-2 sm:gap-3 z-10 shadow-2xs shrink-0">
       <!-- Row 1: Date picker & Primary Create Action -->
       <div class="flex items-center gap-2 w-full sm:w-auto sm:flex-grow">
         <!-- Date input card -->
