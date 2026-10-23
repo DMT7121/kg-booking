@@ -213,9 +213,9 @@ const copyTemplates = [
 ]
 
 const qualities = [
-  { id: 'standard', name: 'Tiêu chuẩn', scale: '1.5x', tag: '~350KB', desc: 'Gửi nhanh Zalo/3G', icon: 'fa-bolt' },
-  { id: 'hd', name: 'Sắc nét HD', scale: '2.0x', tag: '~800KB', desc: 'Chuẩn Retina / 2K', icon: 'fa-star' },
-  { id: 'ultra', name: 'Siêu nét Ultra', scale: '3.0x', tag: '~1.8MB', desc: 'Lưu trữ & In ấn 4K', icon: 'fa-gem' }
+  { id: 'standard', name: 'Tiêu chuẩn (PNG)', scale: '1.5x', tag: 'PNG ~250KB', desc: 'Gửi nhanh 3G/4G', icon: 'fa-bolt' },
+  { id: 'hd', name: 'Sắc nét HD (PNG)', scale: '2.0x', tag: 'PNG Chuẩn Zalo', desc: 'Chống bể ảnh Zalo / Messenger', icon: 'fa-star' },
+  { id: 'ultra', name: 'Siêu nét Ultra (PNG)', scale: '3.0x', tag: 'PNG 4K', desc: 'Lưu trữ & In ấn siêu nét', icon: 'fa-gem' }
 ] as const
 
 const templates = [
@@ -390,15 +390,15 @@ function toggleHidePrice() {
           <button 
             @click="triggerSave('image')" 
             class="bg-indigo-600 hover:bg-indigo-700 text-white pl-3 pr-2 py-1.5 rounded-l-xl font-black text-[10px] uppercase flex items-center gap-1 shadow-md transition-all active:scale-95 cursor-pointer"
-            title="Tải ảnh phiếu đặt bàn"
+            title="Tải ảnh PNG sắc nét (tự động copy vào bộ nhớ tạm trên máy tính)"
           >
             <i class="fa-solid fa-image"></i>
-            <span>Tải Ảnh ({{ qualities.find(q => q.id === configStore.billPreferences.quality)?.scale || '2x' }})</span>
+            <span>Tải PNG ({{ qualities.find(q => q.id === configStore.billPreferences.quality)?.scale || '2x' }})</span>
           </button>
           <button 
             @click="showQualityMenu = !showQualityMenu" 
             class="bg-indigo-700 hover:bg-indigo-800 text-white px-2 py-1.5 rounded-r-xl border-l border-indigo-500 font-bold text-[10px] transition-all cursor-pointer"
-            title="Tùy chọn độ phân giải ảnh"
+            title="Tùy chọn độ phân giải PNG & Copy nhanh"
           >
             <i class="fa-solid fa-chevron-down text-[9px]"></i>
           </button>
@@ -412,7 +412,7 @@ function toggleHidePrice() {
             class="absolute right-0 top-full mt-2 w-64 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl z-50 p-2 text-left space-y-1 animate-in fade-in slide-in-from-top-2 duration-150"
           >
             <div class="px-2 py-1 text-[10px] font-black uppercase tracking-wider text-slate-400 border-b border-slate-100 dark:border-slate-800">
-              Độ phân giải & Chất lượng ảnh:
+              Độ phân giải PNG Lossless:
             </div>
             <button 
               v-for="q in qualities" 
@@ -436,6 +436,19 @@ function toggleHidePrice() {
                 <div class="text-[10px] text-slate-400 mt-0.5 leading-snug">{{ q.desc }}</div>
               </div>
               <i v-if="configStore.billPreferences.quality === q.id" class="fa-solid fa-check text-indigo-600 text-xs self-center"></i>
+            </button>
+            <div class="h-[1px] bg-slate-100 dark:bg-slate-800 my-1"></div>
+            <button
+              @click="triggerSave('copy'); showQualityMenu = false"
+              class="w-full p-2 rounded-xl text-left flex items-center gap-2.5 hover:bg-indigo-50 dark:hover:bg-indigo-950/50 text-indigo-700 dark:text-indigo-300 font-extrabold text-xs transition-all cursor-pointer"
+            >
+              <div class="w-6 h-6 rounded-lg bg-indigo-100 dark:bg-indigo-900/60 text-indigo-600 dark:text-indigo-400 flex items-center justify-center shrink-0">
+                <i class="fa-solid fa-copy text-xs"></i>
+              </div>
+              <div>
+                <div>Copy Ảnh PNG (Ctrl+V Zalo)</div>
+                <div class="text-[10px] font-normal text-slate-400">Dán trực tiếp vào khung chat</div>
+              </div>
             </button>
           </div>
         </div>
@@ -489,7 +502,7 @@ function toggleHidePrice() {
             <!-- Mobile Quality Selector -->
             <div class="px-3 py-2 border-b border-slate-100 dark:border-slate-800">
               <div class="text-[10px] font-black uppercase text-slate-400 mb-1.5 flex items-center justify-between">
-                <span>Chất lượng ảnh xuất:</span>
+                <span>Chất lượng PNG xuất:</span>
                 <span class="font-mono text-indigo-600 dark:text-indigo-400">{{ qualities.find(q => q.id === configStore.billPreferences.quality)?.scale }}</span>
               </div>
               <div class="grid grid-cols-3 gap-1">
@@ -509,6 +522,9 @@ function toggleHidePrice() {
               </div>
             </div>
 
+            <button @click="triggerSave('copy'); showMoreMenu = false" class="w-full px-4 py-2.5 text-left text-xs font-black uppercase tracking-wider hover:bg-slate-50 dark:hover:bg-slate-800 active:bg-slate-100 flex items-center gap-2.5 text-indigo-700 dark:text-indigo-300 min-h-[42px]">
+              <i class="fa-solid fa-copy text-indigo-500 w-4 text-center text-sm"></i> Copy Ảnh PNG (Dán Zalo)
+            </button>
             <button @click="copyBookingConfirmation('quote_deposit'); showMoreMenu = false" class="w-full px-4 py-2.5 text-left text-xs font-black uppercase tracking-wider hover:bg-slate-50 dark:hover:bg-slate-800 active:bg-slate-100 flex items-center gap-2.5 min-h-[42px]">
               <i class="fa-solid fa-file-invoice-dollar text-amber-500 w-4 text-center text-sm"></i> Copy Báo giá & Xin cọc
             </button>

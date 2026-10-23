@@ -1,6 +1,48 @@
+import { ref, watchEffect, type Ref } from 'vue'
+import QRCode from 'qrcode'
 import { formatVND, formatShortVND } from '@/utils'
 
 export { formatVND, formatShortVND }
+
+const _qrCache = new Map<string, string>()
+
+export async function getCachedQRCodeDataURL(text: string, width = 240): Promise<string> {
+  const key = `${width}:${text}`
+  const cached = _qrCache.get(key)
+  if (cached) return cached
+  try {
+    const dataUrl = await QRCode.toDataURL(text, {
+      margin: 1,
+      width,
+      errorCorrectionLevel: 'M',
+      color: {
+        dark: '#0f172a',
+        light: '#ffffff'
+      }
+    })
+    _qrCache.set(key, dataUrl)
+    return dataUrl
+  } catch {
+    return ''
+  }
+}
+
+export function useVerificationQr(linkSource: () => string, width = 240): Ref<string> {
+  const qrDataUrl = ref('')
+  watchEffect(() => {
+    const raw = linkSource() || 'https://kg-booking.pages.dev'
+    const key = `${width}:${raw}`
+    const cached = _qrCache.get(key)
+    if (cached) {
+      qrDataUrl.value = cached
+      return
+    }
+    getCachedQRCodeDataURL(raw, width).then((url) => {
+      if (url) qrDataUrl.value = url
+    })
+  })
+  return qrDataUrl
+}
 
 export function getDayOfWeek(dateStr?: string): string {
   if (!dateStr) return ''

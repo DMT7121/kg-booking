@@ -3,23 +3,26 @@ import { useFormStore } from '@/stores/useFormStore'
 import { useAppStore } from '@/stores/useAppStore'
 import { useUIStore } from '@/stores/useUIStore'
 import { useConfigStore } from '@/stores/useConfigStore'
-import { stripAccents, resizeImage, loadLibrary, isIOS, isAndroid, isDesktop, generateBookingId } from '@/utils'
-import { fetchWithRetry, updateOrderImages } from '@/services/api'
+import { stripAccents, resizeImage, isIOS, isDesktop, generateBookingId } from '@/utils'
+import { updateOrderImages } from '@/services/api'
 import { smartUploadImage } from '@/services/r2'
 import { useAI } from '@/composables/useAI'
-import { cacheBillImage, addToOfflineQueue } from '@/services/cache'
+import { cacheBillImage } from '@/services/cache'
 import { addToOutbox } from '@/infrastructure/outbox/outbox'
-let _html2canvasPromise: Promise<any> | null = null
-async function getHtml2Canvas(): Promise<any> {
-  if (!_html2canvasPromise) {
-    _html2canvasPromise = import('html2canvas').then(m => m.default || m)
-  }
-  return _html2canvasPromise
-}
+import {
+  prewarmBillExportAssets,
+  renderBillElementToCanvas,
+  canvasToPngBlob,
+  canvasToOptimizedWebpDataUrl,
+  copyCanvasPngToClipboard,
+  savePngBlobToDevice,
+  exportCanvasToPdf,
+  type BillQualityPreset
+} from '@/utils/billExportEngine'
 
 /**
  * Bill rendering composable (SINGLETON)
- * Handles html2canvas rendering, save/export pipeline, and responsive scaling
+ * Handles high-precision PNG/PDF export pipeline, clipboard copy, and responsive scaling
  */
 let _billInstance: ReturnType<typeof _createBillRender> | null = null
 
@@ -34,6 +37,9 @@ function _createBillRender() {
   const uiStore = useUIStore()
   const configStore = useConfigStore()
   const { checkAndLogAiCorrections } = useAI()
+
+  // Pre-warm static bill stamps & logos during idle time for 0ms network wait on first export
+  prewarmBillExportAssets()
 
   const billRef = ref<HTMLElement | null>(null)
   const isRendering = ref(false)
@@ -92,10 +98,9 @@ function _createBillRender() {
   async function performOptimisticSave() {
     uiStore.loading.is = true
     uiStore.loading.msg = 'ĐANG XỬ LÝ...'
-    uiStore.loading.subMsg = 'Rendering High-Res...'
+    uiStore.loading.subMsg = 'Đang kết xuất phiếu sắc nét...'
     uiStore.connectionStatus = 'syncing'
     await nextTick()
-    await new Promise(r => setTimeout(r, isIOS ? 150 : 50))
 
     const currentSnapshot = formStore.getDataSnapshot()
     const hasChanges = formStore.originalState !== currentSnapshot
@@ -107,8 +112,8 @@ function _createBillRender() {
         uiStore.loading.is = false
         return uiStore.showToast('Dữ liệu đã đồng bộ - Không có thay đổi mới.', 'info')
       }
-      if (formStore.saveType === 'image') {
-        uiStore.loading.subMsg = 'Local Render (No Sync)...'
+      if (formStore.saveType === 'image' || formStore.saveType === 'copy') {
+        uiStore.loading.subMsg = 'Đang xuất ảnh PNG sắc nét...'
       }
     }
 
@@ -117,8 +122,9 @@ function _createBillRender() {
     }
 
     const dynamicFileName = constructFileName()
-    const isSaveOnly = formStore.saveType === 'save'
-    let highResBase64 = ""
+    const saveType = formStore.saveType
+    const needsForegroundRender = saveType === 'image' || saveType === 'copy' || saveType === 'pdf'
+    let renderedCanvas: HTMLCanvasElement | null = null
     let billClone: HTMLElement | null = null
 
     // Clone the bill-render element synchronously before any UI/tab/state changes
@@ -132,121 +138,22 @@ function _createBillRender() {
     }
 
     try {
-      // ONLY run synchronous rendering if it is NOT a save-only operation (i.e. user wants to export PDF, Image, Print, or Copy)
-      if (!isSaveOnly) {
-        try {
-          await document.fonts.ready
-
-          const currentScrollX = window.scrollX
-          const currentScrollY = window.scrollY
-          window.scrollTo(0, 0)
-
-          const originalElement = document.getElementById('bill-render')
-          if (!originalElement) throw new Error('Không tìm thấy phiếu đặt. Vui lòng thử lại.')
-
-          // ALWAYS clone bill to avoid any scroll offset, transform clipping, or hidden state issues
-          const container = document.createElement('div')
-          container.id = 'sandbox-container'
-          // FIX iOS SAFARI BUG: Do not use left:-9999px. Use opacity:0.01 instead to force WebKit rendering
-          container.style.cssText = 'position:fixed;top:0;left:0;width:800px;z-index:-9999;visibility:visible;opacity:0.01;pointer-events:none;'
-          const clone = billClone ? (billClone.cloneNode(true) as HTMLElement) : (originalElement.cloneNode(true) as HTMLElement)
-          clone.id = 'bill-render' // Keep ID so all #bill-render CSS rules apply to the clone
-          clone.style.cssText = 'position:static !important;transform:none !important;margin:0;width:800px;min-height:100px;left:auto !important;top:auto !important;'
-          
-          const originalId = originalElement.id
-          originalElement.id = 'bill-render-original' // Temporarily rename original to avoid ID collision
-
-          container.appendChild(clone)
-          document.body.appendChild(container)
-          const elementToRender = clone
-          
-          // Wait for fonts, images, and layout to settle
-          await new Promise(r => setTimeout(r, isIOS ? 150 : 50))
-
-          // Inline all images to avoid CORS/taint issues which crash the render on PC
-          try {
-            const imgs = Array.from(elementToRender.querySelectorAll('img'))
-            await Promise.all(imgs.map(async (img) => {
-              if (!img.src || img.src.startsWith('data:')) return
-              try {
-                let fetchUrl = img.src
-                // Use our Cloudflare worker as a proxy, or fall back to wsrv.nl
-                if (img.src.startsWith('http') && !img.src.includes(window.location.host)) {
-                  const r2Url = import.meta.env.VITE_R2_URL || ''
-                  if (r2Url) {
-                    fetchUrl = `${r2Url}/proxy?url=${encodeURIComponent(img.src)}`
-                  } else {
-                    fetchUrl = `https://wsrv.nl/?url=${encodeURIComponent(img.src)}`
-                  }
-                }
-                const r = await fetch(fetchUrl)
-                const blob = await r.blob()
-                const base64 = await new Promise<string>((res) => {
-                  const reader = new FileReader()
-                  reader.onloadend = () => res(reader.result as string)
-                  reader.readAsDataURL(blob)
-                })
-                img.src = base64
-              } catch (e) {
-                console.warn('[useBillRender] Failed to inline image:', img.src, e)
-                img.style.display = 'none'
-              }
-            }))
-          } catch (e) {}
-
-          let canvas: HTMLCanvasElement | null = null
-
-          // Wait for rendering pipeline
-          await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)))
-
-          // Render based on user chosen quality (standard: 1.5x, hd: 2.0x, ultra: 3.0x)
-          const qualitySetting = configStore.billPreferences?.quality || 'hd'
-          let renderScale = 2.0
-          let qualityNumber = 0.92
-
-          if (qualitySetting === 'standard') {
-            renderScale = 1.5
-            qualityNumber = 0.88
-          } else if (qualitySetting === 'ultra') {
-            renderScale = 3.0
-            qualityNumber = 0.96
-          }
-
-          // Mobile safety guard: cap scale if needed to prevent Safari canvas out-of-memory
-          if (isIOS && renderScale > 2.0) {
-            renderScale = 2.0
-          }
-
-          try {
-            const h2c = await getHtml2Canvas()
-            canvas = await h2c(elementToRender, {
-              scale: renderScale,
-              useCORS: true,
-              logging: false,
-              backgroundColor: '#ffffff',
-              width: 800,
-              windowWidth: 800,
-              imageTimeout: 15000,
-              ignoreElements: (el: Element) => el.classList.contains('no-print') || (el as HTMLElement).style?.display === 'none'
-            })
-          } catch (e) {
-            console.error('H2C Error', e)
-            canvas = null
-          }
-
-          if (container) document.body.removeChild(container)
-          originalElement.id = originalId // restore original ID
-          window.scrollTo(currentScrollX, currentScrollY)
-
-          if (!canvas) throw new Error('Render ảnh thất bại. Vui lòng chuyển sang tab Bill rồi thử lại.')
-
-          highResBase64 = canvas.toDataURL('image/jpeg', qualityNumber)
-
-          if (highResBase64.length < 500) throw new Error('Render ảnh thất bại (File quá nhỏ). Vui lòng thử lại.')
-        } catch (renderErr: any) {
-          console.warn('[useBillRender] Canvas rendering failed:', renderErr.message)
-          throw renderErr
+      // ONLY run synchronous foreground rendering when user requested PNG, Copy, or PDF export
+      if (needsForegroundRender) {
+        const originalElement = document.getElementById('bill-render')
+        if (!originalElement && !billClone) {
+          throw new Error('Không tìm thấy phiếu đặt. Vui lòng thử lại.')
         }
+
+        const qualitySetting = (configStore.billPreferences?.quality || 'hd') as BillQualityPreset
+        const renderResult = await renderBillElementToCanvas({
+          element: (originalElement || billClone) as HTMLElement,
+          preClonedElement: billClone,
+          width: 800,
+          quality: qualitySetting,
+          backgroundColor: '#ffffff'
+        })
+        renderedCanvas = renderResult.canvas
       }
 
       // Capture all formStore state locally before releasing UI / running background sync
@@ -264,29 +171,43 @@ function _createBillRender() {
       const oldBillFileId = formStore.oldBillFileId
       const activeSheet = appStore.activeSheet
       const aiEngine = formStore.aiMetadata ? formStore.aiMetadata.model_used : ''
-      const saveType = formStore.saveType
 
       // ══════════════════════════════════════════════════════════════
-      //  INSTANT ACTION: Save image/PDF/Print immediately (don't wait for cloud)
+      //  INSTANT ACTION: Save PNG / Copy / PDF / Print immediately
       // ══════════════════════════════════════════════════════════════
-      if (saveType === 'image' || saveType === 'copy') {
-        // Release UI immediately — user gets their file NOW
+      if (saveType === 'image' && renderedCanvas) {
+        // Release UI immediately — user gets their lossless PNG file NOW
         uiStore.loading.is = false
-        await universalSaveImage(highResBase64, `${dynamicFileName}.jpg`)
-        uiStore.showToast('✅ Xuất ảnh tức thì!', 'success')
-      } else if (saveType === 'pdf') {
-        uiStore.loading.subMsg = 'Generating PDF...'
-        if (typeof (window as any).jspdf === 'undefined') {
-          await loadLibrary('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js')
+        const [pngBlob, copiedToClipboard] = await Promise.all([
+          canvasToPngBlob(renderedCanvas),
+          isDesktop ? copyCanvasPngToClipboard(renderedCanvas) : Promise.resolve(false)
+        ])
+        await savePngBlobToDevice(pngBlob, `${dynamicFileName}.png`, (infoMsg) => {
+          uiStore.showToast(infoMsg, 'info', 4000)
+        })
+        uiStore.showToast(
+          copiedToClipboard
+            ? '✅ Đã tải PNG sắc nét & copy sẵn vào bộ nhớ tạm (Ctrl+V dán Zalo)!'
+            : '✅ Xuất ảnh PNG sắc nét tức thì!',
+          'success',
+          3500
+        )
+      } else if (saveType === 'copy' && renderedCanvas) {
+        uiStore.loading.is = false
+        const copied = await copyCanvasPngToClipboard(renderedCanvas)
+        if (copied) {
+          uiStore.showToast('📋 Đã copy ảnh PNG sắc nét! Bấm Ctrl+V để dán vào Zalo / Messenger.', 'success', 3500)
+        } else {
+          const pngBlob = await canvasToPngBlob(renderedCanvas)
+          await savePngBlobToDevice(pngBlob, `${dynamicFileName}.png`, (infoMsg) => {
+            uiStore.showToast(infoMsg, 'info', 4000)
+          })
+          uiStore.showToast('✅ Đã xuất ảnh PNG sắc nét!', 'success')
         }
-        const { jsPDF } = (window as any).jspdf
-        const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' })
-        const pdfWidth = doc.internal.pageSize.getWidth()
-        const imgProps = doc.getImageProperties(highResBase64)
-        const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width
-        doc.addImage(highResBase64, 'JPEG', 0, 0, pdfWidth, pdfHeight)
-        doc.save(`${dynamicFileName}.pdf`)
-        uiStore.showToast('Xuất PDF tức thì thành công!', 'success')
+      } else if (saveType === 'pdf' && renderedCanvas) {
+        uiStore.loading.subMsg = 'Đang đóng gói PDF sắc nét...'
+        await exportCanvasToPdf(renderedCanvas, `${dynamicFileName}.pdf`)
+        uiStore.showToast('✅ Xuất PDF sắc nét thành công!', 'success')
         uiStore.loading.is = false
       } else if (saveType === 'print') {
         uiStore.loading.is = false
@@ -348,84 +269,32 @@ function _createBillRender() {
           try {
             // Task 1: Uploading images (in parallel with saving order)
             const uploadPromise = (async () => {
-              let billUploadUrl = ""
-              let billUploadSource = "base64"
+              let billUploadUrl = ''
+              let billUploadSource = 'base64'
               let uploadedReceiptUrl = depositImage
 
-              let currentHighRes = highResBase64
+              let bgCanvas: HTMLCanvasElement | null = renderedCanvas
 
-              // If it's a save-only operation, render the canvas fully in the background
-              if (!currentHighRes && billClone) {
+              // If it's a save-only or print operation, render the canvas in the background
+              if (!bgCanvas && billClone) {
                 try {
-                  await document.fonts.ready
-
-                  // Append clone to body sandbox container
-                  const container = document.createElement('div')
-                  container.id = 'sandbox-container-bg'
-                  container.style.cssText = 'position:fixed;top:0;left:0;width:800px;z-index:-9999;visibility:visible;opacity:0.01;pointer-events:none;'
-                  
-                  const clone = billClone.cloneNode(true) as HTMLElement
-                  clone.id = 'bill-render'
-                  clone.style.cssText = 'position:static !important;transform:none !important;margin:0;width:800px;min-height:100px;left:auto !important;top:auto !important;'
-                  
-                  container.appendChild(clone)
-                  document.body.appendChild(container)
-
-                  // Wait for fonts and inline images
-                  await new Promise(r => setTimeout(r, 100))
-
-                  // Inline images inside the clone
-                  try {
-                    const imgs = Array.from(clone.querySelectorAll('img'))
-                    await Promise.all(imgs.map(async (img) => {
-                      if (!img.src || img.src.startsWith('data:')) return
-                      try {
-                        let fetchUrl = img.src
-                        if (img.src.startsWith('http') && !img.src.includes(window.location.host)) {
-                          const r2Url = import.meta.env.VITE_R2_URL || ''
-                          if (r2Url) {
-                            fetchUrl = `${r2Url}/proxy?url=${encodeURIComponent(img.src)}`
-                          } else {
-                            fetchUrl = `https://wsrv.nl/?url=${encodeURIComponent(img.src)}`
-                          }
-                        }
-                        const r = await fetch(fetchUrl)
-                        const blob = await r.blob()
-                        const base64 = await new Promise<string>((res) => {
-                          const reader = new FileReader()
-                          reader.onloadend = () => res(reader.result as string)
-                          reader.readAsDataURL(blob)
-                        })
-                        img.src = base64
-                      } catch (e) {
-                        img.style.display = 'none'
-                      }
-                    }))
-                  } catch (e) {}
-
-                  // Render fixed high-quality scale 3 (2400px siêu nét)
-                  const h2c = await getHtml2Canvas()
-                  const canvas = await h2c(clone, {
-                    scale: 3, useCORS: true, logging: false,
-                    backgroundColor: '#ffffff', width: 800, windowWidth: 800,
-                    imageTimeout: 15000,
-                    ignoreElements: (el: Element) => el.classList.contains('no-print') || (el as HTMLElement).style?.display === 'none'
+                  const bgResult = await renderBillElementToCanvas({
+                    element: billClone,
+                    preClonedElement: billClone,
+                    width: 800,
+                    quality: 'hd',
+                    backgroundColor: '#ffffff'
                   })
-
-                  if (container) document.body.removeChild(container)
-
-                  if (canvas) {
-                    currentHighRes = canvas.toDataURL('image/jpeg', 0.95)
-                  }
+                  bgCanvas = bgResult.canvas
                 } catch (err: any) {
-                  console.warn('[BG Sync] Failed to render html2canvas in background:', err.message)
+                  console.warn('[BG Sync] Failed to render bill canvas in background:', err.message)
                 }
               }
 
-              // 1. Process bill image optimization & upload in background (WebP 1800px 0.94 ultra-crisp & lightweight)
-              if (currentHighRes) {
+              // 1. Process bill image optimization & upload in background (Direct Canvas -> WebP 1800px 0.94)
+              if (bgCanvas) {
                 try {
-                  const lowResBase64 = await resizeImage(currentHighRes, 1800, 0.94, 'image/webp')
+                  const lowResBase64 = canvasToOptimizedWebpDataUrl(bgCanvas, 1800, 0.94)
                   const billUpload = await smartUploadImage(
                     lowResBase64,
                     `${dynamicFileName}.webp`,
@@ -598,93 +467,20 @@ function _createBillRender() {
   }
 
   /**
-   * Universal Image Save - Works on ALL devices/browsers
-   * Strategy:
-   *  1. Web Share API (mobile native share sheet - best UX)
-   *  2. iOS Safari: open blob in new tab (user long-presses to save)
-   *  3. Desktop / fallback: classic <a download> click
+   * Universal Image Save - Preserved for backward compatibility
    */
   async function universalSaveImage(base64Data: string, filename: string) {
+    const isPng = base64Data.startsWith('data:image/png') || filename.toLowerCase().endsWith('.png')
+    const mimeType = isPng ? 'image/png' : 'image/jpeg'
     const binStr = atob(base64Data.split(',')[1])
     const len = binStr.length
     const arr = new Uint8Array(len)
     for (let i = 0; i < len; i++) arr[i] = binStr.charCodeAt(i)
-    const blob = new Blob([arr], { type: 'image/jpeg' })
+    const blob = new Blob([arr], { type: mimeType })
 
-    // --- Strategy 1: Web Share API (works great on mobile) ---
-    if ((isIOS || isAndroid) && navigator.share && navigator.canShare) {
-      try {
-        const file = new File([blob], filename, { type: 'image/jpeg' })
-        const shareData = { files: [file], title: filename }
-        if (navigator.canShare(shareData)) {
-          await navigator.share(shareData)
-          return // success
-        }
-      } catch (e: any) {
-        // User cancelled share or API not supported for files
-        if (e.name === 'AbortError') return // user cancelled, that's OK
-        console.warn('[Save] Share API failed, trying fallback:', e.message)
-      }
-    }
-
-    // --- Strategy 2: iOS Safari fallback (open in new tab) ---
-    if (isIOS) {
-      try {
-        const blobUrl = URL.createObjectURL(blob)
-        const newTab = window.open(blobUrl, '_blank')
-        if (newTab) {
-          // Cleanup after some time
-          setTimeout(() => URL.revokeObjectURL(blobUrl), 60000)
-          uiStore.showToast('📱 Ảnh đã mở — nhấn giữ để lưu về máy!', 'info', 4000)
-          return
-        }
-        URL.revokeObjectURL(blobUrl)
-      } catch (e) {
-        console.warn('[Save] iOS fallback failed:', e)
-      }
-    }
-
-    // --- Strategy 3: Android WebView / in-app browser fallback ---
-    if (isAndroid) {
-      try {
-        // Try download via <a> with download attribute first
-        const blobUrl = URL.createObjectURL(blob)
-        const link = document.createElement('a')
-        link.href = blobUrl
-        link.download = filename
-        link.style.display = 'none'
-        document.body.appendChild(link)
-
-        // Use both click methods for max compatibility
-        link.click()
-        // Some Android WebViews need a timeout
-        await new Promise(r => setTimeout(r, 500))
-        document.body.removeChild(link)
-
-        // Verify download started by checking if blob URL is still valid
-        setTimeout(() => URL.revokeObjectURL(blobUrl), 30000)
-        return
-      } catch (e) {
-        console.warn('[Save] Android download failed, opening in new tab:', e)
-        // Fallback: open in new tab
-        const blobUrl = URL.createObjectURL(blob)
-        window.open(blobUrl, '_blank')
-        setTimeout(() => URL.revokeObjectURL(blobUrl), 60000)
-        uiStore.showToast('📱 Ảnh đã mở — nhấn giữ hoặc nhấn ⋮ → Tải về!', 'info', 4000)
-        return
-      }
-    }
-
-    // --- Strategy 4: Desktop classic download ---
-    const blobUrl = URL.createObjectURL(blob)
-    const link = document.createElement('a')
-    link.href = blobUrl
-    link.download = filename
-    link.style.display = 'none'
-    document.body.appendChild(link)
-    link.click()
-    document.body.removeChild(link)
-    setTimeout(() => URL.revokeObjectURL(blobUrl), 10000)
+    await savePngBlobToDevice(blob, filename, (infoMsg) => {
+      uiStore.showToast(infoMsg, 'info', 4000)
+    })
   }
 
   // --- Responsive Preview Scaling ---
@@ -724,8 +520,8 @@ function _createBillRender() {
     // Only enforce minScale if zoomMode is NOT 'fit-width' and NOT 'fit-screen'
     // (If in fit modes, we must allow it to scale down to fit the container perfectly without horizontal scroll)
     if (zoomMode.value === 'manual') {
-      const isDesktop = window.innerWidth >= 1024
-      const minScale = isDesktop ? 0.5 : 0.25
+      const isDesktopView = window.innerWidth >= 1024
+      const minScale = isDesktopView ? 0.5 : 0.25
       if (s < minScale) s = minScale
     }
     if (s > 2.0) s = 2.0

@@ -228,7 +228,7 @@ const dayOfWeek = computed(() => getDayOfWeek(props.formStore?.customer?.date))
       <div class="flex gap-4 md:gap-8 items-center justify-center flex-wrap md:flex-nowrap">
         <!-- QR Code -->
         <div class="flex-shrink-0">
-          <img :src="qrImageUrl" class="w-60 h-60 object-contain rounded-2xl shadow-md border border-slate-200" alt="QR Code" loading="lazy">
+          <img :src="qrImageUrl" class="w-60 h-60 object-contain rounded-2xl shadow-md border border-slate-200" alt="QR Code" loading="eager" decoding="sync">
         </div>
         
         <!-- Bank Details -->

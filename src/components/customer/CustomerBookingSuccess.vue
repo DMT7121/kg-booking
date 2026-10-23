@@ -6,7 +6,14 @@ import {
   RESTAURANT_ZALO_URL
 } from '@/domain/customerBooking/types'
 import type { SubmittedCustomerDetails } from '@/domain/customerBooking/types'
-import html2canvas from 'html2canvas'
+import {
+  prewarmBillExportAssets,
+  renderBillElementToCanvas,
+  canvasToPngBlob,
+  savePngBlobToDevice
+} from '@/utils/billExportEngine'
+
+prewarmBillExportAssets()
 
 const props = defineProps<{
   bookingId: string
@@ -49,27 +56,17 @@ async function downloadTicketImage() {
 
   isDownloading.value = true
   try {
-    const canvas = await html2canvas(el, {
-      scale: 3,
-      useCORS: true,
+    const { canvas } = await renderBillElementToCanvas({
+      element: el,
+      width: 640,
+      quality: 'hd',
       backgroundColor: '#ffffff',
-      logging: false,
-      onclone: (clonedDoc) => {
-        const clonedEl = clonedDoc.getElementById('booking-ticket-card')
-        if (clonedEl) {
-          clonedEl.style.width = '640px'
-          clonedEl.style.maxWidth = '640px'
-          clonedEl.style.margin = '0 auto'
-          clonedEl.style.borderRadius = '24px'
-          clonedEl.style.boxShadow = 'none'
-        }
-      }
+      borderRadius: 24
     })
 
-    const link = document.createElement('a')
-    link.download = `Phieu-Dat-Ban-Kings-Grill-${props.bookingId.slice(0, 8).toUpperCase()}.png`
-    link.href = canvas.toDataURL('image/png')
-    link.click()
+    const pngBlob = await canvasToPngBlob(canvas)
+    const fileName = `Phieu-Dat-Ban-Kings-Grill-${props.bookingId.slice(0, 8).toUpperCase()}.png`
+    await savePngBlobToDevice(pngBlob, fileName)
   } catch (err) {
     console.error('Lỗi khi tải ảnh phiếu:', err)
   } finally {

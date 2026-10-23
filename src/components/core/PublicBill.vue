@@ -1,10 +1,16 @@
 <script setup lang="ts">
-import { ref, onMounted, computed, onUnmounted, watch } from 'vue'
+import { ref, onMounted, computed, onUnmounted } from 'vue'
 import { getOrderById, getConfig } from '@/services/api'
 import LuckyWheel from './LuckyWheel.vue'
 import { stripAccents, formatShortVND } from '@/utils'
 import { ALCOHOL_KEYS } from '@/utils/constants'
-import html2canvas from 'html2canvas'
+import { useVerificationQr } from '@/components/bills/billHelpers'
+import {
+  prewarmBillExportAssets,
+  renderBillElementToCanvas,
+  canvasToPngBlob,
+  savePngBlobToDevice
+} from '@/utils/billExportEngine'
 
 const showLuckyWheel = ref(false)
 const showPortalMinigames = ref(localStorage.getItem('showPortalMinigames') === 'true')
@@ -15,65 +21,26 @@ const error = ref('')
 const activeBank = ref<any>(null)
 const downloading = ref(false)
 
+const loyaltyQrDataUrl = useVerificationQr(() => order.value?.id || 'KG-VIP')
+prewarmBillExportAssets()
+
 async function downloadBillImage() {
   const el = document.getElementById('bill-render')
   if (!el) return
   downloading.value = true
   try {
-    await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)))
-    
-    // Inline images if any to avoid CORS taint (like favicon.svg)
-    const imgs = Array.from(el.querySelectorAll('img'))
-    await Promise.all(imgs.map(async (img) => {
-      if (!img.src || img.src.startsWith('data:')) return
-      try {
-        let fetchUrl = img.src
-        if (img.src.startsWith('http') && !img.src.includes(window.location.host)) {
-          const r2Url = import.meta.env.VITE_R2_URL || ''
-          if (r2Url) {
-            fetchUrl = `${r2Url}/proxy?url=${encodeURIComponent(img.src)}`
-          } else {
-            fetchUrl = `https://wsrv.nl/?url=${encodeURIComponent(img.src)}`
-          }
-        }
-        const r = await fetch(fetchUrl)
-        const blob = await r.blob()
-        const base64 = await new Promise<string>((res) => {
-          const reader = new FileReader()
-          reader.onloadend = () => res(reader.result as string)
-          reader.readAsDataURL(blob)
-        })
-        img.src = base64
-      } catch (e) {
-        // Silently skip image inline if CORS blocked
-        console.warn('[PublicBill] Failed to inline image:', img.src, e)
-      }
-    }))
-
-    const originalStyle = el.getAttribute('style') || ''
-    el.style.width = '600px'
-    el.style.maxWidth = 'none'
-    await new Promise(r => setTimeout(r, 100))
-
-    const canvas = await html2canvas(el, {
-      scale: 3,
-      useCORS: true,
-      logging: false,
+    const { canvas } = await renderBillElementToCanvas({
+      element: el,
+      width: 600,
+      quality: 'hd',
       backgroundColor: '#ffffff',
-      ignoreElements: (element: Element) => element.classList.contains('no-print')
+      borderRadius: 16
     })
-    
-    el.setAttribute('style', originalStyle)
-    
-    const dataUrl = canvas.toDataURL('image/png')
-    const link = document.createElement('a')
+
+    const pngBlob = await canvasToPngBlob(canvas)
     const customerName = order.value?.customer?.name || 'Phieu_Dat_Ban'
     const fileName = `KingsGrill_PhieuDat_${stripAccents(customerName).replace(/\s+/g, '_')}.png`
-    link.download = fileName
-    link.href = dataUrl
-    document.body.appendChild(link)
-    link.click()
-    document.body.removeChild(link)
+    await savePngBlobToDevice(pngBlob, fileName)
   } catch (err: any) {
     console.error('Failed to download bill image:', err)
     alert('Lỗi tải phiếu: ' + err.message)
@@ -342,7 +309,7 @@ onUnmounted(() => { if (timer) clearInterval(timer) })
             <div class="text-[9px] font-bold text-slate-500 mt-1.5">Hạng: <span class="text-amber-400">VIP MEMBER</span></div>
           </div>
           <div class="bg-white p-1 rounded-xl shrink-0">
-            <img :src="'https://quickchart.io/qr?text=' + order.id + '&size=60&margin=0'" alt="QR" class="w-14 h-14 rounded-lg">
+            <img :src="loyaltyQrDataUrl" alt="QR" class="w-14 h-14 rounded-lg" loading="eager" decoding="sync">
           </div>
         </div>
         
@@ -560,7 +527,7 @@ onUnmounted(() => { if (timer) clearInterval(timer) })
             <div class="flex flex-col items-center gap-3">
               <div class="flex-shrink-0 relative">
                 <img :src="qrImageUrl"
-                  class="w-52 h-52 object-contain rounded-2xl shadow-md border border-slate-200" alt="QR Code" loading="lazy">
+                  class="w-52 h-52 object-contain rounded-2xl shadow-md border border-slate-200" alt="QR Code" loading="eager" decoding="sync">
               </div>
               <div class="w-full text-center">
                 <span class="text-[9px] font-bold text-blue-600 uppercase block mb-0.5">Nội dung chuyển khoản (bắt buộc)</span>

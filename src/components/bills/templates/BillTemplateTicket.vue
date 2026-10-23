@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import { formatVND, formatShortVND, getDayOfWeek, formatDepositTime, parseBillItemNote } from '../billHelpers'
+import { formatVND, formatShortVND, getDayOfWeek, formatDepositTime, parseBillItemNote, useVerificationQr } from '../billHelpers'
 
 const props = defineProps<{
   formStore: any
@@ -19,6 +19,8 @@ const qrLink = computed(() => {
   const id = props.formStore?.id
   return id ? `${window.location.origin}${window.location.pathname}#/bill/${id}` : ''
 })
+
+const verificationQrUrl = useVerificationQr(() => qrLink.value || 'https://kg-booking.pages.dev', 240)
 </script>
 
 <template>
@@ -177,7 +179,8 @@ const qrLink = computed(() => {
           <!-- Left: Policy / Check-in QR -->
           <div class="flex items-center gap-4 text-xs text-slate-500">
             <img 
-              :src="`https://api.qrserver.com/v1/create-qr-code/?size=120x120&data=${encodeURIComponent(qrLink || 'https://kg-booking.pages.dev')}`" 
+              v-if="verificationQrUrl"
+              :src="verificationQrUrl" 
               class="w-16 h-16 object-contain rounded-xl border border-slate-200 p-1 shrink-0" 
               alt="Check-in QR"
             />

@@ -1433,47 +1433,202 @@ html.dark .custom-scrollbar::-webkit-scrollbar-thumb:hover {
   background: var(--border-default);
 }
 
-/* STRICT PRESERVATION: K80 Thermal Receipt Paper (Real white paper in dark workstation) */
+/* STRICT PRESERVATION: Receipt Paper (Real white paper in dark workstation — 100% identical to Light Mode) */
+html.dark-theme #bill-render,
+html.dark #bill-render,
+html.dark-theme .bill-preview-container,
+html.dark .bill-preview-container,
+html.dark-theme #booking-ticket-card,
+html.dark #booking-ticket-card {
+  color-scheme: light !important;
+  background-color: #ffffff !important;
+  color: #1e293b !important;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: geometricPrecision;
+}
 html.dark-theme .bill-preview-container,
 html.dark .bill-preview-container {
-  background-color: #ffffff !important;
-  color: #1e293b !important;
   box-shadow: 0 16px 48px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(255, 255, 255, 0.05) !important;
 }
-html.dark-theme .bill-preview-container .bg-white,
-html.dark .bill-preview-container .bg-white {
+html.dark-theme #bill-render .bg-white,
+html.dark #bill-render .bg-white,
+html.dark-theme #booking-ticket-card .bg-white,
+html.dark #booking-ticket-card .bg-white {
   background-color: #ffffff !important;
 }
-html.dark-theme .bill-preview-container th,
-html.dark .bill-preview-container th {
-  background-color: #1e293b !important;
-  color: #ffffff !important;
+html.dark-theme #bill-render .bg-white\/95,
+html.dark #bill-render .bg-white\/95 {
+  background-color: rgba(255, 255, 255, 0.95) !important;
 }
-html.dark-theme .bill-preview-container td,
-html.dark .bill-preview-container td {
-  color: #1e293b !important;
-  border-bottom-color: #e2e8f0 !important;
-}
-html.dark-theme .bill-preview-container tr:nth-child(even),
-html.dark .bill-preview-container tr:nth-child(even) {
+html.dark-theme #bill-render .bg-slate-50,
+html.dark #bill-render .bg-slate-50,
+html.dark-theme #booking-ticket-card .bg-slate-50,
+html.dark #booking-ticket-card .bg-slate-50 {
   background-color: #f8fafc !important;
 }
-html.dark-theme .bill-preview-container .text-slate-900,
-html.dark-theme .bill-preview-container .text-gray-900,
-html.dark-theme .bill-preview-container .text-slate-700,
-html.dark-theme .bill-preview-container .text-gray-700,
-html.dark .bill-preview-container .text-slate-900,
-html.dark .bill-preview-container .text-gray-900 {
+html.dark-theme #bill-render .bg-slate-50\/40,
+html.dark #bill-render .bg-slate-50\/40,
+html.dark-theme #bill-render .bg-slate-50\/50,
+html.dark #bill-render .bg-slate-50\/50,
+html.dark-theme #bill-render .bg-slate-50\/60,
+html.dark #bill-render .bg-slate-50\/60,
+html.dark-theme #bill-render .bg-slate-50\/70,
+html.dark #bill-render .bg-slate-50\/70 {
+  background-color: rgba(248, 250, 252, 0.65) !important;
+}
+html.dark-theme #bill-render .bg-slate-100,
+html.dark #bill-render .bg-slate-100,
+html.dark-theme #booking-ticket-card .bg-slate-100,
+html.dark #booking-ticket-card .bg-slate-100 {
+  background-color: #f1f5f9 !important;
+}
+html.dark-theme #bill-render .bg-blue-50,
+html.dark #bill-render .bg-blue-50,
+html.dark-theme #booking-ticket-card .bg-blue-50,
+html.dark #booking-ticket-card .bg-blue-50 {
+  background-color: #eff6ff !important;
+}
+html.dark-theme #bill-render .bg-blue-50\/30,
+html.dark #bill-render .bg-blue-50\/30,
+html.dark-theme #bill-render .bg-blue-50\/40,
+html.dark #bill-render .bg-blue-50\/40,
+html.dark-theme #bill-render .bg-blue-50\/60,
+html.dark #bill-render .bg-blue-50\/60 {
+  background-color: rgba(239, 246, 255, 0.45) !important;
+}
+html.dark-theme #bill-render .bg-blue-100,
+html.dark #bill-render .bg-blue-100,
+html.dark-theme #bill-render .bg-blue-100\/80,
+html.dark #bill-render .bg-blue-100\/80 {
+  background-color: #dbeafe !important;
+}
+html.dark-theme #bill-render .bg-emerald-50,
+html.dark #bill-render .bg-emerald-50,
+html.dark-theme #bill-render .bg-emerald-50\/70,
+html.dark #bill-render .bg-emerald-50\/70,
+html.dark-theme #booking-ticket-card .bg-emerald-50,
+html.dark #booking-ticket-card .bg-emerald-50 {
+  background-color: #ecfdf5 !important;
+}
+html.dark-theme #bill-render .bg-amber-50,
+html.dark #bill-render .bg-amber-50,
+html.dark-theme #bill-render .bg-amber-50\/60,
+html.dark #bill-render .bg-amber-50\/60,
+html.dark-theme #bill-render .bg-amber-50\/70,
+html.dark #bill-render .bg-amber-50\/70,
+html.dark-theme #booking-ticket-card .bg-amber-50,
+html.dark #booking-ticket-card .bg-amber-50 {
+  background-color: #fffbeb !important;
+}
+html.dark-theme #bill-render .bg-amber-100,
+html.dark #bill-render .bg-amber-100 {
+  background-color: #fef3c7 !important;
+}
+html.dark-theme #bill-render .bg-blue-900,
+html.dark #bill-render .bg-blue-900 {
+  background-color: #1e3a8a !important;
+  color: #ffffff !important;
+}
+html.dark-theme #bill-render .bg-blue-950,
+html.dark #bill-render .bg-blue-950 {
+  background-color: #172554 !important;
+  color: #ffffff !important;
+}
+html.dark-theme #bill-render .text-slate-900,
+html.dark #bill-render .text-slate-900,
+html.dark-theme #booking-ticket-card .text-slate-900,
+html.dark #booking-ticket-card .text-slate-900 {
+  color: #0f172a !important;
+}
+html.dark-theme #bill-render .text-slate-800,
+html.dark #bill-render .text-slate-800,
+html.dark-theme #booking-ticket-card .text-slate-800,
+html.dark #booking-ticket-card .text-slate-800 {
   color: #1e293b !important;
 }
-html.dark-theme .bill-preview-container .text-slate-500,
-html.dark-theme .bill-preview-container .text-slate-400,
-html.dark .bill-preview-container .text-slate-500 {
+html.dark-theme #bill-render .text-slate-700,
+html.dark #bill-render .text-slate-700,
+html.dark-theme #booking-ticket-card .text-slate-700,
+html.dark #booking-ticket-card .text-slate-700 {
+  color: #334155 !important;
+}
+html.dark-theme #bill-render .text-slate-600,
+html.dark #bill-render .text-slate-600,
+html.dark-theme #booking-ticket-card .text-slate-600,
+html.dark #booking-ticket-card .text-slate-600 {
+  color: #475569 !important;
+}
+html.dark-theme #bill-render .text-slate-500,
+html.dark #bill-render .text-slate-500,
+html.dark-theme #booking-ticket-card .text-slate-500,
+html.dark #booking-ticket-card .text-slate-500 {
   color: #64748b !important;
 }
-html.dark-theme .bill-preview-container .border-slate-200,
-html.dark .bill-preview-container .border-slate-200 {
+html.dark-theme #bill-render .text-slate-400,
+html.dark #bill-render .text-slate-400,
+html.dark-theme #booking-ticket-card .text-slate-400,
+html.dark #booking-ticket-card .text-slate-400 {
+  color: #94a3b8 !important;
+}
+html.dark-theme #bill-render .text-blue-950,
+html.dark #bill-render .text-blue-950 {
+  color: #172554 !important;
+}
+html.dark-theme #bill-render .text-blue-900,
+html.dark #bill-render .text-blue-900 {
+  color: #1e3a8a !important;
+}
+html.dark-theme #bill-render .text-blue-800,
+html.dark #bill-render .text-blue-800 {
+  color: #1e40af !important;
+}
+html.dark-theme #bill-render .text-blue-700,
+html.dark #bill-render .text-blue-700,
+html.dark-theme #booking-ticket-card .text-blue-700,
+html.dark #booking-ticket-card .text-blue-700 {
+  color: #1d4ed8 !important;
+}
+html.dark-theme #bill-render .text-blue-600,
+html.dark #bill-render .text-blue-600,
+html.dark-theme #booking-ticket-card .text-blue-600,
+html.dark #booking-ticket-card .text-blue-600 {
+  color: #2563eb !important;
+}
+html.dark-theme #bill-render .border-slate-100,
+html.dark #bill-render .border-slate-100,
+html.dark-theme #booking-ticket-card .border-slate-100,
+html.dark #booking-ticket-card .border-slate-100 {
+  border-color: #f1f5f9 !important;
+}
+html.dark-theme #bill-render .border-slate-200,
+html.dark #bill-render .border-slate-200,
+html.dark-theme #bill-render .border-slate-200\/60,
+html.dark #bill-render .border-slate-200\/60,
+html.dark-theme #bill-render .border-slate-200\/80,
+html.dark #bill-render .border-slate-200\/80,
+html.dark-theme #booking-ticket-card .border-slate-200,
+html.dark #booking-ticket-card .border-slate-200,
+html.dark-theme #booking-ticket-card .border-slate-200\/80,
+html.dark #booking-ticket-card .border-slate-200\/80 {
   border-color: #e2e8f0 !important;
+}
+html.dark-theme #bill-render .border-slate-300,
+html.dark #bill-render .border-slate-300 {
+  border-color: #cbd5e1 !important;
+}
+html.dark-theme #bill-render .border-blue-100,
+html.dark #bill-render .border-blue-100 {
+  border-color: #dbeafe !important;
+}
+html.dark-theme #bill-render .border-blue-200,
+html.dark #bill-render .border-blue-200,
+html.dark-theme #booking-ticket-card .border-blue-200,
+html.dark #booking-ticket-card .border-blue-200 {
+  border-color: #bfdbfe !important;
+}
+html.dark-theme #bill-render .divide-slate-100 > :not([hidden]) ~ :not([hidden]),
+html.dark #bill-render .divide-slate-100 > :not([hidden]) ~ :not([hidden]) {
+  border-color: #f1f5f9 !important;
 }
 
 /* Modals & Dialogs Surface 4 Overlays */

@@ -17,7 +17,9 @@
   "dependencies": {
     "html2canvas": "^1.4.1",
     "idb-keyval": "^6.2.2",
+    "jspdf": "^4.2.1",
     "minisearch": "^6.3.0",
+    "modern-screenshot": "^4.7.0",
     "pinia": "^2.1.7",
     "qrcode": "^1.5.4",
     "vue": "^3.4.0"
