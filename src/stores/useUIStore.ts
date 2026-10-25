@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia'
-import { reactive, ref, computed } from 'vue'
+import { reactive, ref, computed, watch } from 'vue'
 import { sound } from '@/utils/audio'
 
 export interface Toast {
@@ -252,7 +252,14 @@ export const useUIStore = defineStore('ui', () => {
 
   function closeConfig() {
     activeSettingModal.value = null
+    showMenuManager.value = false
   }
+
+  watch(showMenuManager, (val) => {
+    if (val) {
+      openConfig('menu')
+    }
+  })
 
   // --- Batch Mode ---
   function toggleBatchMode() {

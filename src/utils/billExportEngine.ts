@@ -1,5 +1,13 @@
-import { domToCanvas } from 'modern-screenshot'
 import { isIOS, isAndroid, loadLibrary } from '@/utils'
+
+// Lazy loader for modern-screenshot so initial startup bundle stays lightweight
+let _domToCanvasPromise: Promise<typeof import('modern-screenshot').domToCanvas> | null = null
+function getDomToCanvas() {
+  if (!_domToCanvasPromise) {
+    _domToCanvasPromise = import('modern-screenshot').then((m) => m.domToCanvas)
+  }
+  return _domToCanvasPromise
+}
 
 export type BillQualityPreset = 'standard' | 'hd' | 'ultra'
 
@@ -121,9 +129,10 @@ export function prewarmBillExportAssets(): void {
   _prewarmed = true
 
   const runPrewarm = () => {
+    getDomToCanvas().catch(() => {})
     const staticAssets = [
-      '/images/stamps/paid.png',
-      '/images/stamps/pending.png',
+      '/images/stamps/paid.png?v=2',
+      '/images/stamps/pending.png?v=2',
       '/images/brand-logo.svg',
       '/favicon.svg'
     ]
@@ -306,6 +315,7 @@ export async function renderBillElementToCanvas(
 
     // Primary Engine: modern-screenshot (Browser-native SVG foreignObject rasterizer — 100% faithful to Preview)
     try {
+      const domToCanvas = await getDomToCanvas()
       canvas = await domToCanvas(clone, {
         width,
         height: measuredHeight,

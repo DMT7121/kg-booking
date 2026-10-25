@@ -33,8 +33,16 @@ function _createForm() {
 
   watch(() => appStore.menuList, (nl) => {
     miniSearch.removeAll()
-    if (nl.length) miniSearch.addAll(nl.map((i: any, idx: number) => ({ id: idx, ...i })))
-  }, { deep: true })
+    if (Array.isArray(nl) && nl.length > 0) {
+      miniSearch.addAll(
+        nl.map((i: any, idx: number) => {
+          const cleanName = i.cleanName || stripAccents(i.name || '').toLowerCase().trim()
+          const acronym = i.acronym || cleanName.split(/\s+/).filter(Boolean).map((w: string) => w[0]).join('')
+          return { id: idx, ...i, cleanName, acronym }
+        })
+      )
+    }
+  }, { immediate: true })
 
   function onSearchInput(idx: number) {
     uiStore.focusIdx = idx

@@ -117,17 +117,26 @@ export async function triggerSync(forceRetryAll = false): Promise<{ processed: n
     } catch {}
 
     const mode = getBackendMode()
+    const processedItemKeys = new Set<string>()
 
+    // Load & decrypt pending items once per pass instead of O(M^2) per-item decryption;
+    // re-check once at the end in case new items were enqueued while syncing.
     while (true) {
       const allPending = await outbox.getPendingItems(forceRetryAll)
-      const candidate = allPending.find(it => !failedItemIds.has(`${it.id}:${it.action}`))
-      if (!candidate) break // No more eligible candidates in this pass
+      const batchCandidates = allPending.filter((it) => {
+        const key = `${it.id}:${it.action}`
+        return !failedItemIds.has(key) && !processedItemKeys.has(key)
+      })
+      if (batchCandidates.length === 0) break
 
-      const item = candidate
-      let success = false
-      
-      try {
-        if (item.action === 'upsert') {
+      let abortedOffline = false
+      for (const item of batchCandidates) {
+        const itemKey = `${item.id}:${item.action}`
+        let success = false
+        let partialUpdateOnFailure: outbox.PartialSyncStatus | undefined
+
+        try {
+          if (item.action === 'upsert') {
           // 1. Conflict detection before saving (only if Pinia is active)
           let conflictType: string | null = null
           let existingServerBooking: any = null
@@ -212,53 +221,63 @@ export async function triggerSync(forceRetryAll = false): Promise<{ processed: n
             throw new Error(res?.message || 'Postgres operation failed')
           }
         } else if (mode === 'dual_write') {
-          // Dual Write mode: sync selectively to missing targets
-          let pgOk = !!item.syncedToPg
-          if (!pgOk) {
-            let res = { ok: false, message: '' }
+          // Dual Write mode: run missing PG & Google Sheets targets CONCURRENTLY instead of serially
+          const needPg = !item.syncedToPg
+          const needSheets = !item.syncedToSheets
+
+          const runPgTarget = async (): Promise<{ ok: boolean; message?: string }> => {
+            if (!needPg) return { ok: true }
             if (item.action === 'upsert') {
               const cleanPayload = JSON.parse(JSON.stringify(item.payload))
               if (cleanPayload && cleanPayload.deposit && cleanPayload.deposit.image === '__OFFLINE_IMAGE_BUFFER_REF__') {
                 cleanPayload.deposit.image = ''
               }
               const payload = { ...cleanPayload, idempotencyKey: item.idempotencyKey }
-              res = await pgRepo.saveOrder(payload, token)
-            } else if (item.action === 'delete') {
-              res = await pgRepo.deleteOrder(item.id, item.payload?.password, token || item.payload?.token)
+              return pgRepo.saveOrder(payload, token)
             }
-            pgOk = !!(res && res.ok)
-            if (pgOk) {
-              await outbox.updateTargetSyncStatus(item.id, item.action, { syncedToPg: true })
-              item.syncedToPg = true
-            } else {
-              throw new Error(res?.message || 'PostgreSQL write failed in dual_write mode')
+            if (item.action === 'delete') {
+              return pgRepo.deleteOrder(item.id, item.payload?.password, token || item.payload?.token)
             }
+            return { ok: false, message: 'Unknown action' }
           }
 
-          let sheetsOk = !!item.syncedToSheets
-          if (!sheetsOk) {
-            sheetsOk = await syncToSheets(item)
-            if (sheetsOk) {
-              await outbox.updateTargetSyncStatus(item.id, item.action, { syncedToSheets: true })
-              item.syncedToSheets = true
-            } else {
-              throw new Error('Google Sheets write failed in dual_write mode')
-            }
+          const runSheetsTarget = async (): Promise<boolean> => {
+            if (!needSheets) return true
+            return syncToSheets(item)
           }
+
+          const [pgSettled, sheetsSettled] = await Promise.allSettled([
+            runPgTarget(),
+            runSheetsTarget()
+          ])
+
+          const pgRes = pgSettled.status === 'fulfilled' ? pgSettled.value : { ok: false, message: pgSettled.reason?.message }
+          const pgOk = !!(pgRes && pgRes.ok)
+          const sheetsOk = sheetsSettled.status === 'fulfilled' ? Boolean(sheetsSettled.value) : false
+
+          item.syncedToPg = pgOk
+          item.syncedToSheets = sheetsOk
 
           if (pgOk && sheetsOk) {
             success = true
+          } else {
+            partialUpdateOnFailure = { syncedToPg: pgOk, syncedToSheets: sheetsOk }
+            if (!pgOk) {
+              throw new Error(pgRes?.message || 'PostgreSQL write failed in dual_write mode')
+            }
+            throw new Error('Google Sheets write failed in dual_write mode')
           }
         }
       } catch (err: any) {
         console.error(`[Outbox Sync] Failed to sync item ${item.id}:`, err.message)
-        failedItemIds.add(`${item.id}:${item.action}`)
+        failedItemIds.add(itemKey)
         failureCount++
-        await outbox.recordAttemptFailure(item.id, item.action, err.message)
-        
+        await outbox.recordAttemptFailure(item.id, item.action, err.message, partialUpdateOnFailure)
+
         // If device is confirmed offline, stop queue to avoid excessive CPU cycles
         if (typeof navigator !== 'undefined' && !navigator.onLine) {
           console.warn('[Outbox Sync] Device is offline — halting current sync run.')
+          abortedOffline = true
           break
         }
 
@@ -266,11 +285,12 @@ export async function triggerSync(forceRetryAll = false): Promise<{ processed: n
         // Continue to the next item so other bookings can sync freely!
         continue
       }
-      
+
       if (success) {
+        processedItemKeys.add(itemKey)
         await outbox.markAsSynced(item.id, item.action)
         processedCount++
-        
+
         // Update in-memory store order sync status immediately without network reload
         try {
           const store = _storeDelegate?.getStore ? _storeDelegate.getStore() : null
@@ -284,6 +304,8 @@ export async function triggerSync(forceRetryAll = false): Promise<{ processed: n
           uploadImageInBackground(item.id, item.payload, mode, token).catch(() => {})
         }
       }
+      }
+      if (abortedOffline) break
     }
   } catch (e: any) {
     console.error('[Outbox Sync] Sync runner error:', e.message)

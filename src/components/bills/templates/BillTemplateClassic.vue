@@ -19,10 +19,10 @@ const dayOfWeek = computed(() => getDayOfWeek(props.formStore?.customer?.date))
   <div class="w-full px-12 pt-7 pb-12 bg-white relative mx-auto select-text text-slate-800 font-sans">
     <!-- HEADER -->
     <div class="text-center mb-8 pb-6 border-b border-slate-100 mt-0">
-      <div class="flex justify-center mb-2">
+      <div class="flex justify-center mb-3">
         <img 
           :src="configStore?.branding?.logo || '/images/brand-logo.svg'" 
-          class="h-[108px] w-auto mx-auto object-contain" 
+          class="h-[216px] w-auto mx-auto object-contain" 
           alt="Logo"
           loading="eager"
         >
@@ -45,7 +45,7 @@ const dayOfWeek = computed(() => getDayOfWeek(props.formStore?.customer?.date))
     <!-- INFO & STAMP SECTION -->
     <div class="relative mb-10">
       <!-- Customer Info Grid -->
-      <div class="grid gap-y-3.5 text-[16px] w-[68%]" style="grid-template-columns: 140px 1fr;">
+      <div class="grid gap-y-3.5 text-[16px] w-[66%]" style="grid-template-columns: 140px 1fr;">
         <div class="flex items-center gap-3 text-slate-500 font-bold uppercase text-[12px] tracking-wider">
           <i class="fa-solid fa-user-tie w-4 text-center text-[13px]"></i> Khách hàng
         </div>
@@ -81,19 +81,19 @@ const dayOfWeek = computed(() => getDayOfWeek(props.formStore?.customer?.date))
 
       <!-- Stamp -->
       <div 
-        class="absolute -top-3 right-0 z-20 pointer-events-none" 
+        class="absolute -top-4 right-0 z-20 pointer-events-none" 
         :style="{ transform: `rotate(-4deg) translate(${stampParallax?.x || 0}px, ${stampParallax?.y || 0}px)` }"
       >
-        <div class="relative w-[215px] flex flex-col items-center justify-center">
+        <div class="relative w-[228px] flex flex-col items-center justify-center">
           <img 
-            :src="formStore.deposit.isPaid ? '/images/stamps/paid.png' : '/images/stamps/pending.png'" 
-            class="w-full object-contain filter drop-shadow-sm" 
-            style="image-rendering: -webkit-optimize-contrast; image-rendering: crisp-edges;" 
+            :src="formStore.deposit.isPaid ? '/images/stamps/paid.png?v=2' : '/images/stamps/pending.png?v=2'" 
+            class="w-full object-contain" 
+            style="filter: contrast(1.06) saturate(1.1) drop-shadow(0 4px 10px rgba(15, 23, 42, 0.14));" 
             alt="Stamp" 
           />
           <div 
             v-if="formStore.deposit.isPaid" 
-            class="mt-2 px-3 py-1 bg-white/95 border border-red-200/90 rounded-full shadow-xs text-center text-[#961825] font-black tracking-widest whitespace-nowrap font-tabular font-deposit-meta" 
+            class="mt-2 px-3.5 py-1 bg-white/95 border border-red-300 rounded-full shadow-sm text-center text-[#B41222] font-black tracking-widest whitespace-nowrap font-tabular font-deposit-meta" 
             style="font-family: 'Google Sans Flex', 'Be Vietnam Pro', sans-serif; font-size: 13px;"
           >
             {{ formatDepositTime(formStore.deposit.time) }}

@@ -3,6 +3,7 @@ import { ref, computed, watch } from 'vue'
 import { useAppStore } from '@/stores/useAppStore'
 import { useUIStore } from '@/stores/useUIStore'
 import { formatVND } from '@/utils'
+import { useVirtualList } from '@/composables/useVirtualList'
 
 const appStore = useAppStore()
 const ui = useUIStore()
@@ -98,15 +99,18 @@ const stats = computed(() => {
   const staffKPIs: Record<string, { bookings: number, revenue: number, pax: number }> = {}
 
   const last7Days: { date: string, display: string, revenue: number }[] = []
+  const last7DaysMap = new Map<string, { date: string, display: string, revenue: number }>()
   for (let i = 6; i >= 0; i--) {
     const d = new Date()
     d.setDate(d.getDate() - i)
-    const isoDate = new Date(d.getTime() - (d.getTimezoneOffset() * 60000)).toISOString().split('T')[0]
-    last7Days.push({
+    const isoDate = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+    const entry = {
       date: isoDate,
       display: `${d.getDate()}/${d.getMonth()+1}`,
       revenue: 0
-    })
+    }
+    last7Days.push(entry)
+    last7DaysMap.set(isoDate, entry)
   }
 
   keys.forEach(key => {
@@ -118,10 +122,13 @@ const stats = computed(() => {
     }
     
     if (order.timestamp) {
-      const orderDate = new Date(new Date(order.timestamp).getTime() - (new Date(order.timestamp).getTimezoneOffset() * 60000)).toISOString().split('T')[0]
-      const dayStat = last7Days.find(d => d.date === orderDate)
-      if (dayStat) {
-        dayStat.revenue += (order.totalAmount || 0)
+      const tsDate = new Date(order.timestamp)
+      if (!isNaN(tsDate.getTime())) {
+        const orderDate = `${tsDate.getFullYear()}-${String(tsDate.getMonth() + 1).padStart(2, '0')}-${String(tsDate.getDate()).padStart(2, '0')}`
+        const dayStat = last7DaysMap.get(orderDate)
+        if (dayStat) {
+          dayStat.revenue += (order.totalAmount || 0)
+        }
       }
     }
 
@@ -320,9 +327,11 @@ const crmProfiles = computed(() => {
     }
     
     if (order.parsedCustomer.date) {
-      const d1 = new Date(order.parsedCustomer.date.split('/').reverse().join('-')).getTime()
-      const d2 = p.lastDate ? new Date(p.lastDate.split('/').reverse().join('-')).getTime() : 0
-      if (d1 > d2) p.lastDate = order.parsedCustomer.date
+      const p1 = order.parsedCustomer.date.split('/')
+      const p2 = p.lastDate ? p.lastDate.split('/') : []
+      const k1 = p1.length === 3 ? (Number(p1[2]) * 10000 + Number(p1[1]) * 100 + Number(p1[0])) : 0
+      const k2 = p2.length === 3 ? (Number(p2[2]) * 10000 + Number(p2[1]) * 100 + Number(p2[0])) : 0
+      if (k1 > k2) p.lastDate = order.parsedCustomer.date
     }
   })
 
@@ -340,6 +349,51 @@ const crmProfiles = computed(() => {
   }
 
   return list.sort((a, b) => b.spend - a.spend)
+})
+
+// --- VIRTUAL SCROLLING FOR LARGE ANALYTICS TABLES (Dishes & CRM) ---
+const {
+  containerRef: dishesScrollRef,
+  virtualItems: virtualDishes,
+  topSpacer: dishesTopSpacer,
+  bottomSpacer: dishesBottomSpacer,
+  visibleDisplayRange: dishesDisplayRange,
+  isScrolledDown: isDishesScrolledDown,
+  measureItem: measureDishRow,
+  scrollToTop: scrollDishesToTop,
+  handleKeydown: handleDishesKeydown
+} = useVirtualList({
+  items: detailedDishes,
+  estimateSize: 48,
+  overscan: 8,
+  getKey: (d) => d.name,
+  initialViewportHeight: 480
+})
+
+watch([dishSearchQuery, dishCategoryFilter], () => {
+  scrollDishesToTop(false)
+})
+
+const {
+  containerRef: crmScrollRef,
+  virtualItems: virtualCrmProfiles,
+  topSpacer: crmTopSpacer,
+  bottomSpacer: crmBottomSpacer,
+  visibleDisplayRange: crmDisplayRange,
+  isScrolledDown: isCrmScrolledDown,
+  measureItem: measureCrmRow,
+  scrollToTop: scrollCrmToTop,
+  handleKeydown: handleCrmKeydown
+} = useVirtualList({
+  items: crmProfiles,
+  estimateSize: 48,
+  overscan: 8,
+  getKey: (p) => p.phone,
+  initialViewportHeight: 480
+})
+
+watch([crmSearchQuery, crmClassFilter], () => {
+  scrollCrmToTop(false)
 })
 
 // --- EXPORT TO CSV HELPERS ---
@@ -608,12 +662,31 @@ function triggerKitchenPrint() {
           </div>
         </div>
 
-        <!-- Table -->
-        <div class="bg-white dark:bg-slate-900 rounded-3xl p-6 shadow-sm border border-slate-100 dark:border-slate-800">
-          <div class="overflow-x-auto w-full custom-scrollbar">
+        <!-- Table (Bounded Virtual Scroll Viewport + Sticky Header) -->
+        <div class="bg-white dark:bg-slate-900 rounded-3xl p-4 sm:p-6 shadow-sm border border-slate-100 dark:border-slate-800">
+          <div class="flex items-center justify-between gap-2 pb-2.5 text-[11px] font-bold text-slate-400 dark:text-slate-500 font-tabular">
+            <span v-if="detailedDishes.length > 0">
+              Hiển thị {{ dishesDisplayRange.first }}–{{ dishesDisplayRange.last }} / {{ detailedDishes.length }} món
+            </span>
+            <span v-else>0 món</span>
+            <button
+              v-if="isDishesScrolledDown"
+              type="button"
+              @click="scrollDishesToTop(true)"
+              class="px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-slate-700 font-black text-[10px] uppercase tracking-wider transition-colors cursor-pointer"
+            >
+              <i class="fa-solid fa-arrow-up mr-1"></i> Đầu bảng
+            </button>
+          </div>
+          <div
+            ref="dishesScrollRef"
+            tabindex="0"
+            class="max-h-[58dvh] sm:max-h-[62dvh] lg:max-h-[calc(100dvh-310px)] min-h-[240px] overflow-auto overscroll-contain w-full custom-scrollbar focus:outline-none"
+            @keydown="handleDishesKeydown"
+          >
             <table class="w-full text-left border-collapse min-w-[500px]">
-              <thead>
-                <tr class="border-b border-slate-200 dark:border-slate-800">
+              <thead class="sticky top-0 z-10 bg-white/95 dark:bg-slate-900/95 backdrop-blur-xs shadow-[0_1px_0_rgba(148,163,184,0.2)]">
+                <tr>
                   <th class="py-3 px-2 text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Tên Món Ăn</th>
                   <th class="py-3 px-2 text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest text-center">Phân Loại</th>
                   <th class="py-3 px-2 text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest text-center">Số Lượng Đã Bán</th>
@@ -622,7 +695,15 @@ function triggerKitchenPrint() {
                 </tr>
               </thead>
               <tbody class="divide-y divide-slate-100 dark:divide-slate-800">
-                <tr v-for="dish in detailedDishes" :key="dish.name" class="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
+                <tr v-if="dishesTopSpacer > 0" aria-hidden="true">
+                  <td colspan="5" :style="{ height: dishesTopSpacer + 'px', padding: 0, border: 'none' }"></td>
+                </tr>
+                <tr
+                  v-for="{ item: dish, key: dKey } in virtualDishes"
+                  :key="dKey"
+                  :ref="(el) => measureDishRow(dKey, el)"
+                  class="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors"
+                >
                   <td class="py-3 px-2 font-bold text-slate-800 dark:text-slate-100">{{ dish.name }}</td>
                   <td class="py-3 px-2 text-center">
                     <span :class="['px-2.5 py-0.5 rounded text-[9px] font-black uppercase tracking-wider', 
@@ -631,9 +712,12 @@ function triggerKitchenPrint() {
                       {{ dish.category === 'set' ? 'Combo/Set' : dish.category === 'drink' ? 'Đồ uống' : 'Món ăn' }}
                     </span>
                   </td>
-                  <td class="py-3 px-2 text-center font-black text-slate-700 dark:text-slate-300">{{ dish.qty }}</td>
-                  <td class="py-3 px-2 text-right text-slate-500 dark:text-slate-400 font-bold">{{ formatVND(dish.price) }}</td>
-                  <td class="py-3 px-2 text-right font-black text-blue-900 dark:text-blue-400">{{ formatVND(dish.revenue) }}</td>
+                  <td class="py-3 px-2 text-center font-black text-slate-700 dark:text-slate-300 font-tabular">{{ dish.qty }}</td>
+                  <td class="py-3 px-2 text-right text-slate-500 dark:text-slate-400 font-bold font-tabular">{{ formatVND(dish.price) }}</td>
+                  <td class="py-3 px-2 text-right font-black text-blue-900 dark:text-blue-400 font-tabular">{{ formatVND(dish.revenue) }}</td>
+                </tr>
+                <tr v-if="dishesBottomSpacer > 0" aria-hidden="true">
+                  <td colspan="5" :style="{ height: dishesBottomSpacer + 'px', padding: 0, border: 'none' }"></td>
                 </tr>
                 <tr v-if="detailedDishes.length === 0">
                   <td colspan="5" class="py-10 text-center text-slate-400 dark:text-slate-500 font-bold">Không tìm thấy món ăn nào khớp với bộ lọc</td>
@@ -806,12 +890,31 @@ function triggerKitchenPrint() {
           </div>
         </div>
 
-        <!-- CRM Table -->
-        <div class="bg-white dark:bg-slate-900 rounded-3xl p-6 shadow-sm border border-slate-100 dark:border-slate-800">
-          <div class="overflow-x-auto w-full custom-scrollbar">
-            <table class="w-full text-left border-collapse min-w-[500px]">
-              <thead>
-                <tr class="border-b border-slate-200 dark:border-slate-800">
+        <!-- CRM Table (Bounded Virtual Scroll Viewport + Sticky Header) -->
+        <div class="bg-white dark:bg-slate-900 rounded-3xl p-4 sm:p-6 shadow-sm border border-slate-100 dark:border-slate-800">
+          <div class="flex items-center justify-between gap-2 pb-2.5 text-[11px] font-bold text-slate-400 dark:text-slate-500 font-tabular">
+            <span v-if="crmProfiles.length > 0">
+              Hiển thị {{ crmDisplayRange.first }}–{{ crmDisplayRange.last }} / {{ crmProfiles.length }} khách hàng
+            </span>
+            <span v-else>0 khách hàng</span>
+            <button
+              v-if="isCrmScrolledDown"
+              type="button"
+              @click="scrollCrmToTop(true)"
+              class="px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-slate-700 font-black text-[10px] uppercase tracking-wider transition-colors cursor-pointer"
+            >
+              <i class="fa-solid fa-arrow-up mr-1"></i> Đầu bảng
+            </button>
+          </div>
+          <div
+            ref="crmScrollRef"
+            tabindex="0"
+            class="max-h-[58dvh] sm:max-h-[62dvh] lg:max-h-[calc(100dvh-310px)] min-h-[260px] overflow-auto overscroll-contain w-full custom-scrollbar focus:outline-none"
+            @keydown="handleCrmKeydown"
+          >
+            <table class="w-full text-left border-collapse min-w-[560px]">
+              <thead class="sticky top-0 z-10 bg-white/95 dark:bg-slate-900/95 backdrop-blur-xs shadow-[0_1px_0_rgba(148,163,184,0.2)]">
+                <tr>
                   <th class="py-3 px-2 text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Họ & Tên</th>
                   <th class="py-3 px-2 text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Số Điện Thoại</th>
                   <th class="py-3 px-2 text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest text-center">Phân Hạng</th>
@@ -822,9 +925,17 @@ function triggerKitchenPrint() {
                 </tr>
               </thead>
               <tbody class="divide-y divide-slate-100 dark:divide-slate-800">
-                <tr v-for="profile in crmProfiles" :key="profile.phone" class="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
+                <tr v-if="crmTopSpacer > 0" aria-hidden="true">
+                  <td colspan="7" :style="{ height: crmTopSpacer + 'px', padding: 0, border: 'none' }"></td>
+                </tr>
+                <tr
+                  v-for="{ item: profile, key: pKey } in virtualCrmProfiles"
+                  :key="pKey"
+                  :ref="(el) => measureCrmRow(pKey, el)"
+                  class="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors"
+                >
                   <td class="py-3 px-2 font-black text-slate-800 dark:text-slate-100">{{ profile.name }}</td>
-                  <td class="py-3 px-2 font-bold text-slate-600 dark:text-slate-300">{{ profile.phone }}</td>
+                  <td class="py-3 px-2 font-bold text-slate-600 dark:text-slate-300 font-tabular">{{ profile.phone }}</td>
                   <td class="py-3 px-2 text-center">
                     <span :class="['px-2.5 py-0.5 rounded text-[9px] font-black uppercase tracking-wider', 
                       profile.vipStatus === 'VIP' ? 'bg-amber-100 text-amber-800 border border-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800/50' : 
@@ -832,15 +943,18 @@ function triggerKitchenPrint() {
                       {{ profile.vipStatus }}
                     </span>
                   </td>
-                  <td class="py-3 px-2 text-center font-black text-slate-700 dark:text-slate-300">{{ profile.visits }}</td>
+                  <td class="py-3 px-2 text-center font-black text-slate-700 dark:text-slate-300 font-tabular">{{ profile.visits }}</td>
                   <td class="py-3 px-2 text-center">
-                    <span v-if="profile.noshows > 0" class="bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-300 border border-rose-100 dark:border-rose-900/50 px-2 py-0.5 rounded font-black">
+                    <span v-if="profile.noshows > 0" class="bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-300 border border-rose-100 dark:border-rose-900/50 px-2 py-0.5 rounded font-black font-tabular">
                       {{ profile.noshows }} lần
                     </span>
                     <span v-else class="text-slate-300 dark:text-slate-600 font-bold text-xs">-</span>
                   </td>
-                  <td class="py-3 px-2 text-right font-black text-blue-900 dark:text-blue-400">{{ formatVND(profile.spend) }}</td>
-                  <td class="py-3 px-2 text-right font-bold text-slate-400 dark:text-slate-500">{{ profile.lastDate }}</td>
+                  <td class="py-3 px-2 text-right font-black text-blue-900 dark:text-blue-400 font-tabular">{{ formatVND(profile.spend) }}</td>
+                  <td class="py-3 px-2 text-right font-bold text-slate-400 dark:text-slate-500 font-tabular">{{ profile.lastDate }}</td>
+                </tr>
+                <tr v-if="crmBottomSpacer > 0" aria-hidden="true">
+                  <td colspan="7" :style="{ height: crmBottomSpacer + 'px', padding: 0, border: 'none' }"></td>
                 </tr>
                 <tr v-if="crmProfiles.length === 0">
                   <td colspan="7" class="py-10 text-center text-slate-400 dark:text-slate-500 font-bold">Không tìm thấy khách hàng nào khớp với bộ lọc</td>

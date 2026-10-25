@@ -2,6 +2,14 @@ import { defineStore } from 'pinia'
 import { ref, reactive, computed, shallowRef } from 'vue'
 import { stripAccents, formatVND, cleanPhoneNumber, formatDateStr } from '@/utils'
 import { CACHE_KEYS, DEFAULTS, DEFAULT_FALLBACK_MENU_ITEMS, SETS } from '@/utils/constants'
+import { CANONICAL_SET_AND_COMBO_ITEMS } from '@/domain/menu/menuMatcher'
+import {
+  PRIMARY_MENU_SHEET,
+  isValidMenuSheetName,
+  normalizeMenuSheetName,
+  prioritizeMenuSheets,
+  isValidMenuItemsDataset
+} from '@/domain/menu/menuSheetGuard'
 import { parseTimeToMinutes } from '@/utils/time'
 import { useUIStore } from './useUIStore'
 import {
@@ -276,9 +284,16 @@ export const useAppStore = defineStore('app', () => {
   const menuDetails = ref<Record<string, string>>({})
   const menuImages = ref<Record<string, string>>({})
   const dishImages = ref<Record<string, string>>({})
-  const menuSheets = ref<string[]>([])
+  const menuSheets = ref<string[]>([PRIMARY_MENU_SHEET])
+  // One-time migration ensuring official MENU2026 is prioritized as default over any stale localStorage sheet
+  const MENU2026_DEFAULT_MIGRATION_KEY = 'kg_default_menu_2026_v1'
+  if (localStorage.getItem(MENU2026_DEFAULT_MIGRATION_KEY) !== '1') {
+    localStorage.setItem(CACHE_KEYS.MENU_SHEET, PRIMARY_MENU_SHEET)
+    localStorage.setItem('default_menu_profile_id', PRIMARY_MENU_SHEET)
+    localStorage.setItem(MENU2026_DEFAULT_MIGRATION_KEY, '1')
+  }
   const savedSheet = localStorage.getItem(CACHE_KEYS.MENU_SHEET)
-  const initialSheet = (!savedSheet || savedSheet === 'Menu' || savedSheet === 'Thực đơn') ? 'MENU2026' : savedSheet
+  const initialSheet = isValidMenuSheetName(savedSheet) ? normalizeMenuSheetName(savedSheet!) : PRIMARY_MENU_SHEET
   if (savedSheet !== initialSheet) {
     localStorage.setItem(CACHE_KEYS.MENU_SHEET, initialSheet)
   }
@@ -288,7 +303,7 @@ export const useAppStore = defineStore('app', () => {
   const adminToken = ref(sessionStorage.getItem('kg_admin_token') || '')
   const adminExpiresAt = ref(parseInt(sessionStorage.getItem('kg_admin_expires_at') || '0'))
   const savedDefaultProfile = localStorage.getItem('default_menu_profile_id')
-  const initialDefaultProfile = (!savedDefaultProfile || savedDefaultProfile === 'Menu' || savedDefaultProfile === 'Thực đơn') ? 'MENU2026' : savedDefaultProfile
+  const initialDefaultProfile = isValidMenuSheetName(savedDefaultProfile) ? normalizeMenuSheetName(savedDefaultProfile!) : PRIMARY_MENU_SHEET
   if (savedDefaultProfile !== initialDefaultProfile) {
     localStorage.setItem('default_menu_profile_id', initialDefaultProfile)
   }
@@ -334,33 +349,49 @@ export const useAppStore = defineStore('app', () => {
       canonicalSetsMap.set(stripAccents(k).toLowerCase().trim(), v)
     }
 
-    const list: MenuListItem[] = (Array.isArray(items) ? items : []).map((raw: any) => {
-      const item = { ...raw }
-      const normName = stripAccents(String(item.name || '')).toLowerCase().trim()
-      const canonicalDesc = canonicalSetsMap.get(normName)
-      const currentDesc = typeof item.desc === 'string' ? item.desc.trim() : ''
+    const list: MenuListItem[] = (Array.isArray(items) ? items : [])
+      .filter((raw: any) => raw && String(raw.name || '').trim().length > 0)
+      .map((raw: any) => {
+        const item = { ...raw }
+        item.name = String(item.name).trim()
+        item.price = Number(item.price) || 0
+        const normName = stripAccents(item.name).toLowerCase().trim()
+        item.cleanName = normName
 
-      // Repair missing or corrupted 1-char descriptions (e.g. "T" on Set menu 2 from GAS)
-      if (canonicalDesc && currentDesc.length < 5) {
-        item.desc = canonicalDesc
-      }
-      // Repair truncated acronyms for Set menu 10..15 (SM1 -> SM10..15) & Combo couple 10..11 (CC1 -> CC10..11)
-      const smMatch = normName.match(/^set\s+menu\s+(\d+)$/)
-      if (smMatch) {
-        item.acronym = `SM${smMatch[1]}`
-      }
-      const ccMatch = normName.match(/^combo\s+couple\s+(\d+)$/)
-      if (ccMatch) {
-        item.acronym = `CC${ccMatch[1]}`
-      }
+        const canonicalDesc = canonicalSetsMap.get(normName)
+        const currentDesc = typeof item.desc === 'string'
+          ? item.desc.trim()
+          : (typeof item.category === 'string' ? item.category.trim() : '')
 
-      if (item.desc && String(item.desc).trim().length >= 5) {
-        details[item.name] = String(item.desc).trim()
-      } else if (canonicalDesc) {
-        details[item.name] = canonicalDesc
-      }
-      return item
-    })
+        // Repair missing or corrupted 1-char descriptions (e.g. "T" on Set menu 2 from GAS)
+        if (canonicalDesc && currentDesc.length < 5) {
+          item.desc = canonicalDesc
+        } else if (!item.desc && currentDesc) {
+          item.desc = currentDesc
+        }
+
+        // Repair or generate acronyms (Set menu 1..15 -> SM1..15, Combo couple 1..11 -> CC1..11, or word initials)
+        const smMatch = normName.match(/^set\s+menu\s+(\d+)$/)
+        const ccMatch = normName.match(/^combo\s+couple\s+(\d+)$/)
+        if (smMatch) {
+          item.acronym = `SM${smMatch[1]}`
+        } else if (ccMatch) {
+          item.acronym = `CC${ccMatch[1]}`
+        } else if (!item.acronym || typeof item.acronym !== 'string' || !item.acronym.trim()) {
+          item.acronym = normName
+            .split(/\s+/)
+            .filter(Boolean)
+            .map((w: string) => w[0])
+            .join('')
+        }
+
+        if (item.desc && String(item.desc).trim().length >= 5) {
+          details[item.name] = String(item.desc).trim()
+        } else if (canonicalDesc) {
+          details[item.name] = canonicalDesc
+        }
+        return item
+      })
 
     return { list, details }
   }
@@ -410,21 +441,34 @@ export const useAppStore = defineStore('app', () => {
   }
 
   async function fetchSheets() {
-    let sheets: string[] = ['MENU2026']
+    // Proactively purge any legacy poisoned cache for system alias sheet
+    deleteCachedMenu('Menu_Aliases').catch(() => {})
+
+    let sheets: string[] = [PRIMARY_MENU_SHEET]
     const cached = await getCachedMenuSheets()
     if (cached && Array.isArray(cached) && cached.length > 0) {
-      const filtered = cached.filter((s: string) => s !== 'Menu' && s !== 'Thực đơn')
-      if (!filtered.includes('MENU2026')) filtered.unshift('MENU2026')
-      sheets = filtered
+      const invalidCached = (cached as string[]).filter((s: string) => !isValidMenuSheetName(s))
+      for (const bad of invalidCached) {
+        deleteCachedMenu(bad).catch(() => {})
+      }
+      sheets = prioritizeMenuSheets(cached, true)
+      if (invalidCached.length > 0 || cached[0] !== PRIMARY_MENU_SHEET) {
+        cacheMenuSheets(sheets).catch(() => {})
+      }
     }
     menuSheets.value = sheets
+    try { useMenuStore().setMenuSheets(sheets) } catch {}
     scheduleMenusPrecache(sheets, { reason: 'app-startup-cache' })
 
     try {
       const data = await menuRepo.getMenuSheets()
       if (data.ok && Array.isArray(data.sheets)) {
-        const remoteFiltered = data.sheets.filter((s: string) => s !== 'Menu' && s !== 'Thực đơn')
-        if (!remoteFiltered.includes('MENU2026')) remoteFiltered.unshift('MENU2026')
+        for (const s of data.sheets as string[]) {
+          if (!isValidMenuSheetName(s)) {
+            deleteCachedMenu(s).catch(() => {})
+          }
+        }
+        const remoteFiltered = prioritizeMenuSheets(data.sheets, true)
         menuSheets.value = remoteFiltered
         await cacheMenuSheets(remoteFiltered)
         scheduleMenusPrecache(remoteFiltered, { reason: 'app-startup-network' })
@@ -434,9 +478,13 @@ export const useAppStore = defineStore('app', () => {
       console.error('Fetch Sheets Error', e)
     }
 
-    if (!menuSheets.value.includes(activeSheet.value)) {
-      activeSheet.value = 'MENU2026'
-      localStorage.setItem(CACHE_KEYS.MENU_SHEET, 'MENU2026')
+    if (!isValidMenuSheetName(activeSheet.value) || !menuSheets.value.includes(activeSheet.value)) {
+      const nextSheet = menuSheets.value.includes(PRIMARY_MENU_SHEET)
+        ? PRIMARY_MENU_SHEET
+        : (menuSheets.value[0] || PRIMARY_MENU_SHEET)
+      activeSheet.value = nextSheet
+      localStorage.setItem(CACHE_KEYS.MENU_SHEET, nextSheet)
+      await fetchMenu(nextSheet)
     }
 
     triggerOutboxSync()
@@ -454,6 +502,15 @@ export const useAppStore = defineStore('app', () => {
   // --- Computed: Current Bank ---
   const currentBank = computed(() => bankList.value[selectedBankIndex.value] || bankList.value[0])
 
+  function getOrderEpochMs(order: any): number {
+    if (!order) return 0
+    if (typeof order._epochMs === 'number') return order._epochMs
+    const parsed = order.timestamp ? Date.parse(order.timestamp) : 0
+    const ms = Number.isNaN(parsed) ? 0 : parsed
+    order._epochMs = ms
+    return ms
+  }
+
   // --- Computed: Grouped History ---
   const groupedHistory = computed(() => {
     const groups: Record<string, { latest: HistoryOrder; versions: HistoryOrder[] }> = {}
@@ -467,7 +524,7 @@ export const useAppStore = defineStore('app', () => {
       const latestVers = groups[key].latest.version ?? 0
       const isNewer = currVers && latestVers
         ? currVers > latestVers
-        : new Date(order.timestamp || 0).getTime() > new Date(groups[key].latest.timestamp || 0).getTime()
+        : getOrderEpochMs(order) > getOrderEpochMs(groups[key].latest)
       if (isNewer) groups[key].latest = order
     })
     return groups
@@ -479,6 +536,7 @@ export const useAppStore = defineStore('app', () => {
     const query = uiStore.historySearch.trim().toLowerCase()
     const normQuery = query ? stripAccents(query) : ''
     const { time, status, deposit, sort } = uiStore.historyFilters
+    const todayStr = time === 'today' ? formatDateStr(new Date().toISOString()) : ''
 
     let entries = Object.entries(groups)
 
@@ -500,8 +558,8 @@ export const useAppStore = defineStore('app', () => {
       
       // Time filter (simple logic for today)
       if (time === 'today') {
-        const todayStr = formatDateStr(new Date().toISOString())
-        const orderDateNorm = formatDateStr(customer.date || '')
+        const rawDate = customer.date || ''
+        const orderDateNorm = rawDate === todayStr ? rawDate : formatDateStr(rawDate)
         if (orderDateNorm !== todayStr) return false
       }
       
@@ -512,10 +570,10 @@ export const useAppStore = defineStore('app', () => {
       return true
     })
 
-    // Sort
+    // Sort using cached numeric epoch ms (zero Date allocations in O(N log N) comparator)
     entries.sort((a, b) => {
-      const tA = new Date(a[1].latest.timestamp || 0).getTime()
-      const tB = new Date(b[1].latest.timestamp || 0).getTime()
+      const tA = getOrderEpochMs(a[1].latest)
+      const tB = getOrderEpochMs(b[1].latest)
       return sort === 'newest' ? tB - tA : tA - tB
     })
 
@@ -524,11 +582,28 @@ export const useAppStore = defineStore('app', () => {
     return filtered
   })
 
-  // --- CRM Status ---
+  // --- CRM Status (O(1) Indexed Lookup instead of O(N) scan per call) ---
+  const crmPhoneCounts = computed(() => {
+    const counts = new Map<string, number>()
+    const list = historyList.value
+    if (!Array.isArray(list)) return counts
+    for (let i = 0; i < list.length; i++) {
+      const h = list[i]
+      const rawPhone = h?.parsedCustomer?.phone
+      if (!rawPhone) continue
+      const cleaned = (h as any)._cleanPhone ?? ((h as any)._cleanPhone = cleanPhoneNumber(rawPhone))
+      if (cleaned) {
+        counts.set(cleaned, (counts.get(cleaned) || 0) + 1)
+      }
+    }
+    return counts
+  })
+
   function getCrmStatus(phone: string): string | null {
     if (!phone) return null
     const cleanedPhone = cleanPhoneNumber(phone)
-    const historyCount = historyList.value.filter(h => cleanPhoneNumber(h.parsedCustomer.phone) === cleanedPhone).length
+    if (!cleanedPhone) return 'Khách mới'
+    const historyCount = crmPhoneCounts.value.get(cleanedPhone) || 0
     if (historyCount >= 5) return 'VIP'
     if (historyCount >= 1) return 'Khách quen'
     return 'Khách mới'
@@ -599,12 +674,16 @@ export const useAppStore = defineStore('app', () => {
   function normalizeHistoryOrder(order: any): any {
     if (!order) return order
     const pc = order.parsedCustomer || {}
+    const cleanPhone = cleanPhoneNumber(pc.phone || '')
+    const parsedTs = order.timestamp ? Date.parse(order.timestamp) : 0
     return {
       ...order,
+      _epochMs: Number.isNaN(parsedTs) ? 0 : parsedTs,
+      _cleanPhone: cleanPhone,
       parsedCustomer: {
         ...pc,
         name: pc.name || 'Khách hàng',
-        phone: cleanPhoneNumber(pc.phone || ''),
+        phone: cleanPhone,
         date: formatDateStr(pc.date || ''),
         time: pc.time || '',
         pax: pc.pax || pc.guest_count || null,
@@ -651,24 +730,26 @@ export const useAppStore = defineStore('app', () => {
       uiStore.connectionStatus = 'syncing'
     }
 
+    let appliedHistoryDataRef: any = null
+    const applyFreshHistory = (rawRows: any[]) => {
+      if (appliedHistoryDataRef === rawRows) return
+      appliedHistoryDataRef = rawRows
+      const normData = mergeWithPendingOutbox(normalizeHistoryList(rawRows), pending)
+      historyList.value = normData
+      rebuildBookingTimeIndex(normData)
+      uiStore.connectionStatus = 'online'
+      cacheHistory(normData)
+      try { useBookingStore().setHistory(normData) } catch {}
+    }
+
     try {
       const data = await orderRepo.getHistory((freshData) => {
         if (freshData && freshData.ok && Array.isArray(freshData.data)) {
-          const normFresh = mergeWithPendingOutbox(normalizeHistoryList(freshData.data), pending)
-          historyList.value = normFresh
-          rebuildBookingTimeIndex(normFresh)
-          uiStore.connectionStatus = 'online'
-          cacheHistory(normFresh)
-          try { useBookingStore().setHistory(normFresh) } catch {}
+          applyFreshHistory(freshData.data)
         }
       })
       if (data && data.ok && Array.isArray(data.data)) {
-        const normData = mergeWithPendingOutbox(normalizeHistoryList(data.data), pending)
-        historyList.value = normData
-        rebuildBookingTimeIndex(normData)
-        uiStore.connectionStatus = 'online'
-        cacheHistory(normData)
-        try { useBookingStore().setHistory(normData) } catch {}
+        applyFreshHistory(data.data)
       } else {
         uiStore.connectionStatus = hasCache ? 'online' : 'error'
         if (hasCache && cached) {
@@ -693,63 +774,119 @@ export const useAppStore = defineStore('app', () => {
     if (options?.forceReloadCache) {
       await clearAIResponseCache('manual_menu_reload')
     }
-    const targetSheet = sheetName || activeSheet.value
+    const requestedSheet = sheetName || activeSheet.value || PRIMARY_MENU_SHEET
+    const targetSheet = isValidMenuSheetName(requestedSheet)
+      ? normalizeMenuSheetName(requestedSheet)
+      : PRIMARY_MENU_SHEET
+    const isSwitchingSheet = Boolean(sheetName && targetSheet !== activeSheet.value)
 
-    const cached = await getCachedMenu(targetSheet)
-    if (cached && cached.length > 0) {
-      const hydrated = hydrateMenuItemsAndDetails(cached)
+    const applyMenuState = (items: any[], resolvedSheet: string) => {
+      const hydrated = hydrateMenuItemsAndDetails(items)
       menuList.value = hydrated.list
       menuDetails.value = hydrated.details
       menuAliases.value = sanitizeAliasesList(menuAliases.value, hydrated.list)
       computeMenuFingerprint()
-      activeSheet.value = targetSheet
+      activeSheet.value = resolvedSheet
+      localStorage.setItem(CACHE_KEYS.MENU_SHEET, resolvedSheet)
+      try {
+        useMenuStore().setMenuList(hydrated.list)
+        useMenuStore().setActiveMenuSheet(resolvedSheet)
+      } catch {}
+      return hydrated
+    }
 
-      // Revalidate in the background
-      menuRepo.getMenu(targetSheet).then((data) => {
-        if (data.ok) {
-          const freshHydrated = hydrateMenuItemsAndDetails(data.data || [])
-          menuList.value = freshHydrated.list
-          menuDetails.value = freshHydrated.details
-          menuAliases.value = sanitizeAliasesList(menuAliases.value, freshHydrated.list)
-          computeMenuFingerprint()
-          cacheMenu(targetSheet, freshHydrated.list)
+    let lastAppliedMenuDataRef: any = null
+    const handleBgRevalidate = (bgSheet: string) => (bgData: any) => {
+      if (bgData && bgData.ok && isValidMenuItemsDataset(bgData.data)) {
+        if (lastAppliedMenuDataRef === bgData.data) return
+        lastAppliedMenuDataRef = bgData.data
+        const freshHydrated = hydrateMenuItemsAndDetails(bgData.data)
+        if (freshHydrated.list.length > 0) {
+          if (activeSheet.value === bgSheet) {
+            menuList.value = freshHydrated.list
+            menuDetails.value = freshHydrated.details
+            menuAliases.value = sanitizeAliasesList(menuAliases.value, freshHydrated.list)
+            computeMenuFingerprint()
+            try {
+              useMenuStore().setMenuList(freshHydrated.list)
+              useMenuStore().setActiveMenuSheet(bgSheet)
+            } catch {}
+          }
+          cacheMenu(bgSheet, freshHydrated.list)
         }
-      }).catch((e) => {
-        console.warn('[Menu Revalidation Failed]', e)
-      })
-      
-      return
+      }
+    }
+
+    let cached = await getCachedMenu(targetSheet)
+    if (cached && Array.isArray(cached) && cached.length > 0 && !isValidMenuItemsDataset(cached)) {
+      // Purge poisoned 0-price alias cache (e.g. legacy Menu_Aliases data cached under MENU2026)
+      await deleteCachedMenu(targetSheet).catch(() => {})
+      cached = null
+    }
+
+    if (!options?.forceReloadCache && cached && isValidMenuItemsDataset(cached)) {
+      const hydrated = applyMenuState(cached, targetSheet)
+      if (hydrated.list.length > 0) {
+        // Revalidate in the background — NEVER wipe existing active menu or cache with empty/poisoned data
+        menuRepo.getMenu(targetSheet, handleBgRevalidate(targetSheet))
+          .then(handleBgRevalidate(targetSheet))
+          .catch((e) => {
+            console.warn('[Menu Revalidation Failed]', e)
+          })
+        return
+      }
     }
 
     try {
-      const data = await menuRepo.getMenu(targetSheet)
-      if (data.ok && Array.isArray(data.data) && data.data.length > 0) {
-        const hydrated = hydrateMenuItemsAndDetails(data.data)
-        menuList.value = hydrated.list
-        menuDetails.value = hydrated.details
-        menuAliases.value = sanitizeAliasesList(menuAliases.value, hydrated.list)
-        computeMenuFingerprint()
-        activeSheet.value = targetSheet
-        await cacheMenu(targetSheet, hydrated.list)
-        try {
-          useMenuStore().setMenuList(hydrated.list)
-          useMenuStore().setActiveMenuSheet(targetSheet)
-        } catch {}
-      } else if (menuList.value.length === 0) {
-        const fallbackHydrated = hydrateMenuItemsAndDetails(DEFAULT_FALLBACK_MENU_ITEMS)
-        menuList.value = fallbackHydrated.list
-        menuDetails.value = fallbackHydrated.details
-        computeMenuFingerprint()
+      const data = await menuRepo.getMenu(targetSheet, handleBgRevalidate(targetSheet))
+      if (data && data.ok && isValidMenuItemsDataset(data.data)) {
+        if (lastAppliedMenuDataRef === data.data && activeSheet.value === targetSheet && menuList.value.length > 0) {
+          return
+        }
+        lastAppliedMenuDataRef = data.data
+        const hydrated = applyMenuState(data.data, targetSheet)
+        if (hydrated.list.length > 0) {
+          await cacheMenu(targetSheet, hydrated.list)
+          return
+        }
+      }
+
+      // Network returned 0 items: preserve valid cached copy of targetSheet if available
+      if (cached && isValidMenuItemsDataset(cached)) {
+        applyMenuState(cached, targetSheet)
+        return
+      }
+
+      // Always fall back to official primary MENU2026 if a secondary/stale sheet had 0 dishes
+      if (targetSheet !== PRIMARY_MENU_SHEET && !isSwitchingSheet && menuList.value.length === 0) {
+        const primaryCached = await getCachedMenu(PRIMARY_MENU_SHEET)
+        if (primaryCached && isValidMenuItemsDataset(primaryCached)) {
+          applyMenuState(primaryCached, PRIMARY_MENU_SHEET)
+          return
+        }
+        const primaryData = await menuRepo.getMenu(PRIMARY_MENU_SHEET, handleBgRevalidate(PRIMARY_MENU_SHEET))
+        if (primaryData && primaryData.ok && isValidMenuItemsDataset(primaryData.data)) {
+          const hydratedPrimary = applyMenuState(primaryData.data, PRIMARY_MENU_SHEET)
+          if (hydratedPrimary.list.length > 0) {
+            await cacheMenu(PRIMARY_MENU_SHEET, hydratedPrimary.list)
+            return
+          }
+        }
+      }
+
+      if (menuList.value.length === 0 || isSwitchingSheet) {
+        applyMenuState([...CANONICAL_SET_AND_COMBO_ITEMS, ...DEFAULT_FALLBACK_MENU_ITEMS], targetSheet)
       }
     } catch (e) {
       console.error(e)
-      if (menuList.value.length === 0) {
-        const fallbackHydrated = hydrateMenuItemsAndDetails(DEFAULT_FALLBACK_MENU_ITEMS)
-        menuList.value = fallbackHydrated.list
-        menuDetails.value = fallbackHydrated.details
-        computeMenuFingerprint()
+      if (cached && isValidMenuItemsDataset(cached)) {
+        applyMenuState(cached, targetSheet)
+        return
       }
-      uiStore.showToast('Đã nạp thực đơn mặc định', 'info')
+      if (menuList.value.length === 0 || isSwitchingSheet) {
+        applyMenuState([...CANONICAL_SET_AND_COMBO_ITEMS, ...DEFAULT_FALLBACK_MENU_ITEMS], targetSheet)
+      }
+      uiStore.showToast('Đã nạp thực đơn dự phòng để tiếp tục lên phiếu', 'info')
     }
   }
 
@@ -802,7 +939,11 @@ export const useAppStore = defineStore('app', () => {
     sheetName: string,
     options?: { reason?: string; priority?: 'background' | 'high' }
   ): Promise<void> {
-    const key = `kg_menu_${sheetName}`
+    if (!isValidMenuSheetName(sheetName)) {
+      return Promise.resolve()
+    }
+    const cleanSheet = normalizeMenuSheetName(sheetName)
+    const key = `kg_menu_${cleanSheet}`
 
     if (menuPrefetchInFlight.has(key)) {
       return menuPrefetchInFlight.get(key)!
@@ -810,22 +951,28 @@ export const useAppStore = defineStore('app', () => {
 
     const task = runInBackground(async () => {
       try {
-        const cached = await getCachedMenu(sheetName)
-        const fresh = await cacheIsFresh(key, 3600000)
-
-        if (cached && cached.length > 0 && fresh) {
-          console.debug(`[Prefetch] Cache hit & fresh for: ${sheetName}`)
-          return
+        const cached = await getCachedMenu(cleanSheet)
+        if (cached && Array.isArray(cached) && cached.length > 0 && !isValidMenuItemsDataset(cached)) {
+          await deleteCachedMenu(cleanSheet).catch(() => {})
+        } else {
+          const fresh = await cacheIsFresh(key, 3600000)
+          if (cached && isValidMenuItemsDataset(cached) && fresh) {
+            console.debug(`[Prefetch] Cache hit & fresh for: ${cleanSheet}`)
+            return
+          }
         }
 
-        console.debug(`[Prefetch] Cache miss or stale for: ${sheetName}. Fetching from network...`)
-        const res = await menuRepo.getMenu(sheetName)
-        if (res.ok && res.data) {
-          await cacheMenu(sheetName, res.data)
-          console.debug(`[Prefetch] Success for: ${sheetName}. Items: ${res.data.length}`)
+        console.debug(`[Prefetch] Cache miss or stale for: ${cleanSheet}. Fetching from network...`)
+        const res = await menuRepo.getMenu(cleanSheet)
+        if (res && res.ok && isValidMenuItemsDataset(res.data)) {
+          const hydrated = hydrateMenuItemsAndDetails(res.data)
+          if (hydrated.list.length > 0) {
+            await cacheMenu(cleanSheet, hydrated.list)
+            console.debug(`[Prefetch] Success for: ${cleanSheet}. Items: ${hydrated.list.length}`)
+          }
         }
       } catch (error) {
-        console.warn(`[Prefetch] Failed for: ${sheetName}`, error)
+        console.warn(`[Prefetch] Failed for: ${cleanSheet}`, error)
       } finally {
         menuPrefetchInFlight.delete(key)
       }
@@ -839,25 +986,37 @@ export const useAppStore = defineStore('app', () => {
     sheets: string[],
     options?: { reason?: string; priority?: 'background' | 'high' }
   ) {
+    const orderedSheets = prioritizeMenuSheets(sheets, false)
     const start = performance.now()
-    console.debug(`[Pre-cache] Starting pre-cache for ${sheets.length} menus. Reason: ${options?.reason || 'unknown'}`)
+    console.debug(`[Pre-cache] Starting pre-cache for ${orderedSheets.length} menus. Reason: ${options?.reason || 'unknown'}`)
 
     runInBackground(async () => {
-      await runWithConcurrencyLimit(sheets, 3, async (sheet) => {
-        await scheduleMenuPrefetch(sheet, options)
-      })
+      if (orderedSheets[0] === PRIMARY_MENU_SHEET) {
+        await scheduleMenuPrefetch(PRIMARY_MENU_SHEET, { ...options, priority: 'high' })
+      }
+      const secondarySheets = orderedSheets.filter(s => s !== PRIMARY_MENU_SHEET)
+      if (secondarySheets.length > 0) {
+        await runWithConcurrencyLimit(secondarySheets, 3, async (sheet) => {
+          await scheduleMenuPrefetch(sheet, options)
+        })
+      }
       console.debug(`[Pre-cache] Finished pre-cache for all menus in ${(performance.now() - start).toFixed(1)}ms`)
     })
   }
 
   async function switchMenu(sheetName: string) {
+    if (!isValidMenuSheetName(sheetName)) {
+      console.warn(`[AppStore] Blocked switching to non-menu sheet: "${sheetName}"`)
+      return
+    }
+    const target = normalizeMenuSheetName(sheetName)
     try {
-      activeSheet.value = sheetName
-      localStorage.setItem(CACHE_KEYS.MENU_SHEET, sheetName)
+      activeSheet.value = target
+      localStorage.setItem(CACHE_KEYS.MENU_SHEET, target)
       uiStore.showMenuManager = false
-      try { useMenuStore().setActiveMenuSheet(sheetName) } catch {}
-      await fetchMenu(sheetName)
-      broadcastSyncEvent('MENU_UPDATED', { sheet: sheetName })
+      try { useMenuStore().setActiveMenuSheet(target) } catch {}
+      await fetchMenu(target)
+      broadcastSyncEvent('MENU_UPDATED', { sheet: target })
     } catch (e: any) {
       console.error(e)
     }
@@ -866,6 +1025,9 @@ export const useAppStore = defineStore('app', () => {
   async function uploadNewMenu() {
     if (!newMenuName.value || !newMenuContent.value) {
       return uiStore.showToast('Vui lòng nhập tên và nội dung menu!', 'warning')
+    }
+    if (!isValidMenuSheetName(newMenuName.value)) {
+      return uiStore.showToast('Tên thực đơn trùng với bảng cấu hình hệ thống, vui lòng chọn tên khác!', 'warning')
     }
     
     const isAuth = await verifyAdminSession()
@@ -900,6 +1062,12 @@ export const useAppStore = defineStore('app', () => {
   }
 
   async function deleteMenu(sheetName: string) {
+    if (!isValidMenuSheetName(sheetName)) {
+      return uiStore.showToast('Không thể xóa bảng cấu hình hệ thống!', 'warning')
+    }
+    if (normalizeMenuSheetName(sheetName) === PRIMARY_MENU_SHEET) {
+      return uiStore.showToast(`Không thể xóa thực đơn chính thức "${PRIMARY_MENU_SHEET}"!`, 'warning')
+    }
     const confirm = await uiStore.showConfirm('Xóa Bộ Thực Đơn', `Bạn có chắc chắn muốn xóa bộ thực đơn "${sheetName}"?`)
     if (!confirm) return
 
@@ -1017,31 +1185,49 @@ export const useAppStore = defineStore('app', () => {
   }
 
   // --- Remote Config Sync ---
+  let _remoteConfigInFlight: Promise<void> | null = null
+  let _lastRemoteConfigSyncAt = 0
+
   async function fetchRemoteConfig() {
-    const hasCachedConfig = localStorage.getItem('kg_v400_webhookUrl') || localStorage.getItem('showPortalMinigames')
-    if (!hasCachedConfig) {
-      uiStore.connectionStatus = 'syncing'
-    }
-    try {
-      const result = await settingsRepo.getConfig((freshConfig) => {
-        if (freshConfig && freshConfig.ok && freshConfig.data) {
-          processRemoteConfigPayload(freshConfig.data)
+    if (_remoteConfigInFlight) return _remoteConfigInFlight
+    if (Date.now() - _lastRemoteConfigSyncAt < 1500) return
+
+    _remoteConfigInFlight = (async () => {
+      const hasCachedConfig = localStorage.getItem('kg_v400_webhookUrl') || localStorage.getItem('showPortalMinigames')
+      if (!hasCachedConfig) {
+        uiStore.connectionStatus = 'syncing'
+      }
+      let appliedConfigDataRef: any = null
+      try {
+        const result = await settingsRepo.getConfig((freshConfig) => {
+          if (freshConfig && freshConfig.ok && freshConfig.data && freshConfig.data !== appliedConfigDataRef) {
+            appliedConfigDataRef = freshConfig.data
+            processRemoteConfigPayload(freshConfig.data)
+          }
+        })
+        if (result.ok && result.data) {
+          uiStore.connectionStatus = 'online'
+          _lastRemoteConfigSyncAt = Date.now()
+          if (result.data !== appliedConfigDataRef) {
+            appliedConfigDataRef = result.data
+            processRemoteConfigPayload(result.data)
+          }
+        } else {
+          if (!hasCachedConfig) {
+            uiStore.connectionStatus = 'error'
+          }
         }
-      })
-      if (result.ok && result.data) {
-        uiStore.connectionStatus = 'online'
-        processRemoteConfigPayload(result.data)
-      } else {
+      } catch (e) {
+        console.warn('Config Sync Failed (Offline Mode)', e)
         if (!hasCachedConfig) {
           uiStore.connectionStatus = 'error'
         }
+      } finally {
+        _remoteConfigInFlight = null
       }
-    } catch (e) {
-      console.warn('Config Sync Failed (Offline Mode)', e)
-      if (!hasCachedConfig) {
-        uiStore.connectionStatus = 'error'
-      }
-    }
+    })()
+
+    return _remoteConfigInFlight
   }
 
   function processRemoteConfigPayload(data: Record<string, any>) {
@@ -1091,13 +1277,17 @@ export const useAppStore = defineStore('app', () => {
         localStorage.setItem(CACHE_KEYS.SELECTED_BANK, String(index))
       }
     }
-    if (data.default_menu_profile_id) {
-      defaultMenuProfileId.value = data.default_menu_profile_id
-      localStorage.setItem('default_menu_profile_id', data.default_menu_profile_id)
+    if (data.default_menu_profile_id && isValidMenuSheetName(data.default_menu_profile_id)) {
+      const profileSheet = normalizeMenuSheetName(String(data.default_menu_profile_id))
+      defaultMenuProfileId.value = profileSheet
+      localStorage.setItem('default_menu_profile_id', profileSheet)
       if (!localStorage.getItem(CACHE_KEYS.MENU_SHEET)) {
-        activeSheet.value = data.default_menu_profile_id
-        localStorage.setItem(CACHE_KEYS.MENU_SHEET, data.default_menu_profile_id)
+        activeSheet.value = profileSheet
+        localStorage.setItem(CACHE_KEYS.MENU_SHEET, profileSheet)
       }
+    } else {
+      defaultMenuProfileId.value = PRIMARY_MENU_SHEET
+      localStorage.setItem('default_menu_profile_id', PRIMARY_MENU_SHEET)
     }
     
     // --- OPTIMIZED IMAGE RESOLVING ---
@@ -1494,16 +1684,21 @@ export const useAppStore = defineStore('app', () => {
   }
 
   async function setDefaultMenuProfile(menuId: string) {
+    if (!isValidMenuSheetName(menuId)) {
+      return uiStore.showToast('Không thể đặt bảng hệ thống làm thực đơn mặc định!', 'warning')
+    }
+    const cleanMenuId = normalizeMenuSheetName(menuId)
     const isAuth = await verifyAdminSession()
     if (!isAuth) return
     
     uiStore.showToast('Đang đặt thực đơn mặc định...', 'info')
     try {
-      const res = await settingsRepo.upsertSystemConfig('default_menu_profile_id', menuId, {
+      const res = await settingsRepo.upsertSystemConfig('default_menu_profile_id', cleanMenuId, {
         type: 'string', scope: 'global', isProtected: false, description: 'Default menu profile ID/sheet name'
       }, adminToken.value)
       if (res.ok) {
-        defaultMenuProfileId.value = menuId
+        defaultMenuProfileId.value = cleanMenuId
+        localStorage.setItem('default_menu_profile_id', cleanMenuId)
         uiStore.showToast('Đã đặt thực đơn mặc định thành công!', 'success')
       } else {
         uiStore.showToast(res.message || 'Lỗi đặt thực đơn mặc định', 'error')

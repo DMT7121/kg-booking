@@ -558,18 +558,28 @@ export function cleanBookingNotes(noteText: string, customer: any, booking: any,
 
 export function normalizePartyType(typeStr: string): string {
   if (!typeStr) return 'Ăn thường'
-  const s = stripAccents(typeStr).toLowerCase().trim()
-  if (/sinh nhat|sn|hpbd|happy birthday|cmsn|mung tho|mung sinh nhat/i.test(s)) return 'Sinh nhật'
+  const raw = typeStr.trim()
+  const s = stripAccents(raw).toLowerCase().trim()
+  if (/sinh nhat|\bsn\b|hpbd|happy birthday|cmsn|mung tho|mung sinh nhat/i.test(s)) return 'Sinh nhật'
   if (/thoi noi|1st/i.test(s)) return 'Thôi nôi (1st)'
   if (/day thang/i.test(s)) return 'Đầy tháng'
+  if (/cuoi\/bao hy/i.test(s)) return 'Cưới/Báo hỷ'
   if (/cuoi|bao hy|dam cuoi|tiec cuoi/i.test(s)) return 'Báo hỷ'
   if (/hop mat|gap mat|hop lop|ban be/i.test(s)) return 'Họp mặt'
+  if (/^farewell\s*\(tiec chia tay\)$/i.test(s)) return 'Farewell (Tiệc chia tay)'
   if (/farewell|chia tay|tiec chia tay/i.test(s)) return 'Tiệc chia tay (Farewell)'
-  if (/tat nien|year end|yep/i.test(s)) return 'Tất niên'
+  if (/tat nien|year end|\byep\b/i.test(s)) return 'Tất niên'
   if (/tan nien|khai xuan/i.test(s)) return 'Tân niên'
   if (/ky niem|ki niem|anniversary/i.test(s)) return 'Kỉ niệm'
+  if (/cau hon|proposal/i.test(s)) return 'Cầu hôn (Proposal)'
+  if (/gender reveal|tiet lo gioi tinh/i.test(s)) return 'Gender Reveal (Tiết lộ giới tính)'
+  if (/tiec doc than|bachelor|bachelorette/i.test(s)) return 'Tiệc độc thân'
+  if (/tiep khach|doi tac|vip guest/i.test(s)) return 'Tiếp khách / Đối tác'
+  if (/workshop|offline|hoi thao|hop team/i.test(s)) return 'Workshop / Họp nhóm'
+  if (/gia dinh|sum hop|am cung/i.test(s)) return 'Gia đình'
   if (/lien hoan|party/i.test(s)) return 'Liên hoan'
-  if (/cong ty|cty|doanh nghiep|doan|ortholite/i.test(s)) return 'Công ty'
+  if (/cong ty|\bcty\b|doanh nghiep|\bdoan\b|ortholite/i.test(s)) return 'Công ty'
+  if (/^khac$/i.test(s)) return 'Khác'
   return 'Ăn thường'
 }
 

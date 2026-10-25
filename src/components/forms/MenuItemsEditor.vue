@@ -4,7 +4,7 @@ import { useUIStore } from '@/stores/useUIStore'
 import { useFormStore } from '@/stores/useFormStore'
 import { useAppStore } from '@/stores/useAppStore'
 import { useForm } from '@/composables/useForm'
-import { formatVND, mergeSetComponentNote } from '@/utils'
+import { formatVND, mergeSetComponentNote, stripAccents } from '@/utils'
 import { SETS } from '@/utils/constants'
 import { CANONICAL_SET_AND_COMBO_ITEMS, normalizeSetOrComboName, resolveSetMenuDescription } from '@/domain/menu/menuMatcher'
 
@@ -19,6 +19,10 @@ const expandedNotes = ref<Record<number, boolean>>({})
 const expandedItems = ref<Record<number, boolean>>({})
 const showQuickSetPicker = ref(false)
 const quickSetTab = ref<'set' | 'combo'>('set')
+const showActiveMenuBrowser = ref(false)
+const activeMenuSearchQuery = ref('')
+const activeMenuCategoryFilter = ref('TẤT CẢ')
+const isReloadingMenu = ref(false)
 
 const QUICK_NOTE_CHIPS = [
   'Không cay',
@@ -124,27 +128,109 @@ const quickSetOptions = computed(() => {
   const prefix = quickSetTab.value === 'set' ? 'Set menu ' : 'Combo couple '
   return CANONICAL_SET_AND_COMBO_ITEMS.filter(item => item.name.startsWith(prefix)).map(preset => {
     const liveItem = appStore.menuList.find((m: any) => m.name.toLowerCase() === preset.name.toLowerCase())
+    const resolvedDesc = (liveItem?.desc && String(liveItem.desc).trim().length >= 5)
+      ? String(liveItem.desc).trim()
+      : preset.desc
     return {
       ...preset,
       price: liveItem?.price || preset.price,
-      dishCount: (preset.desc || '').split('\n').filter(Boolean).length
+      desc: resolvedDesc,
+      dishCount: (resolvedDesc || '').split('\n').filter(Boolean).length
     }
   })
 })
 
 function triggerCreateMenu() {
-  ui.activeSettingModal = 'menu'
+  ui.openConfig('menu')
   ui.showMenuUploadModal = true
 }
 
 function triggerPasteMenu() {
-  ui.activeSettingModal = 'menu'
+  ui.openConfig('menu')
   ui.showMenuUploadModal = true
 }
 
 function triggerUploadMenuImg() {
-  ui.activeSettingModal = 'menu'
+  ui.openConfig('menu')
   ui.showMenuUploadModal = true
+}
+
+const dishQtyOnSlipMap = computed(() => {
+  const map = new Map<string, number>()
+  for (const it of formStore.items) {
+    const norm = stripAccents(it?.name || '').toLowerCase().trim()
+    if (!norm) continue
+    map.set(norm, (map.get(norm) || 0) + (Number(it.qty) || 1))
+  }
+  return map
+})
+
+function getDishQtyOnSlip(dishName: string): number {
+  const norm = stripAccents(dishName || '').toLowerCase().trim()
+  return dishQtyOnSlipMap.value.get(norm) || 0
+}
+
+function quickAddMenuDish(dish: any) {
+  if (!dish?.name) return
+  const normTarget = stripAccents(dish.name).toLowerCase().trim()
+  const existingIdx = formStore.items.findIndex(
+    i => stripAccents(i?.name || '').toLowerCase().trim() === normTarget
+  )
+  if (existingIdx !== -1) {
+    formStore.items[existingIdx].qty = (Number(formStore.items[existingIdx].qty) || 1) + 1
+    if (!formStore.items[existingIdx].price && dish.price) {
+      formStore.items[existingIdx].price = dish.price
+    }
+    ui.showToast(`➕ Đã tăng x${formStore.items[existingIdx].qty} ${dish.name}`, 'success')
+    return
+  }
+
+  const resolvedDesc = resolveSetMenuDescription(dish.name, appStore.menuList, appStore.menuDetails || {})
+  const rawSetNote = resolvedDesc || SETS[dish.name] || ''
+  const formattedNote = rawSetNote ? mergeSetComponentNote('', rawSetNote) : ''
+
+  const emptyIdx = formStore.items.findIndex(i => !i.name || !i.name.trim())
+  if (emptyIdx !== -1) {
+    formStore.items[emptyIdx].name = dish.name
+    formStore.items[emptyIdx].price = Number(dish.price) || 0
+    formStore.items[emptyIdx].qty = formStore.items[emptyIdx].qty || 1
+    formStore.items[emptyIdx].note = formattedNote
+  } else {
+    formStore.items.push({
+      name: dish.name,
+      qty: 1,
+      price: Number(dish.price) || 0,
+      note: formattedNote
+    })
+  }
+  ui.showToast(`🍽️ Đã lên phiếu: ${dish.name} (${formatVND(Number(dish.price) || 0)})`, 'success')
+}
+
+function sendDishToAiInput(dish: any) {
+  if (!dish?.name) return
+  const line = `1 ${dish.name}`
+  formStore.rawInput = formStore.rawInput && formStore.rawInput.trim()
+    ? `${formStore.rawInput.trim()}\n${line}`
+    : line
+  ui.showToast(`🤖 Đã thêm "${dish.name}" vào ô phân tích AI`, 'info')
+}
+
+async function reloadActiveMenuNow() {
+  if (isReloadingMenu.value) return
+  isReloadingMenu.value = true
+  try {
+    await appStore.fetchMenu(appStore.activeSheet || 'MENU2026', { forceReloadCache: true })
+    ui.showToast(`🔄 Đã đồng bộ thực đơn "${appStore.activeSheet}" (${appStore.menuList.length} món)`, 'success')
+  } finally {
+    isReloadingMenu.value = false
+  }
+}
+
+async function onQuickSwitchActiveMenu(e: Event) {
+  const nextSheet = (e.target as HTMLSelectElement).value
+  if (!nextSheet || nextSheet === appStore.activeSheet) return
+  await appStore.switchMenu(nextSheet)
+  ui.showToast(`📖 Đã chuyển sang thực đơn "${nextSheet}" (${appStore.menuList.length} món)`, 'success')
 }
 
 async function useSampleMenu() {
@@ -264,29 +350,69 @@ const CATEGORIES = [
   { name: 'TẤT CẢ', keywords: [] },
   { name: 'SET MENU', keywords: ['set menu'] },
   { name: 'COMBO COUPLE', keywords: ['combo couple'] },
-  { name: 'NƯỚNG/THỊT', keywords: ['nướng', 'tảng', 'ba chỉ', 'bò', 'heo', 'gà', 'thịt', 'dẻ sườn', 'sườn', 'chim', 'khay'] },
-  { name: 'LẨU/SÚP', keywords: ['lẩu', 'súp', 'canh', 'mì', 'miến', 'cháo', 'tokbokki'] },
-  { name: 'ĐỒ UỐNG', keywords: ['bia', 'nước', 'cola', 'sprite', 'sữa', 'trà', 'rượu', 'chanh', 'tiger', 'heineken'] }
+  { name: 'KHAI VỊ/RAU', keywords: ['khai vi', 'goi', 'salad', 'khoai', 'cha gio', 'cha dum', 'rau', 'nam', 'bi nu', 'dau hu', 'tau hu', 'sum vay', 'pha lau'] },
+  { name: 'NƯỚNG/THỊT/HẢI SẢN', keywords: ['nuong', 'tang', 'ba chi', 'ba roi', 'bo', 'be', 'heo', 'ga', 'thit', 'de suon', 'suon', 'chim', 'khay', 'tom', 'muc', 'bach tuoc', 'ca', 'hau', 'bao ngu', 'cua', 'oc', 'so'] },
+  { name: 'LẨU/SÚP/CƠM MÌ', keywords: ['lau', 'sup', 'canh', 'mi', 'mien', 'hu tieu', 'com', 'xoi', 'chao', 'tokbokki'] },
+  { name: 'ĐỒ UỐNG/TRÁNG MIỆNG', keywords: ['bia', 'nuoc', 'cola', 'coca', 'pepsi', 'sting', '7up', 'suoi', 'aquafina', 'sprite', 'sua', 'tra', 'ruou', 'vang', 'chanh', 'tiger', 'heineken', 'saigon', 'trai cay', 'banh', 'panna cotta'] }
 ]
 
-const popularMenuItems = computed(() => {
-  if (!appStore.historyList) return []
-  const counts: Record<string, number> = {}
-  appStore.historyList.forEach((order: any) => {
-    if (order.menuItems) {
-      order.menuItems.forEach((item: any) => {
-        const name = item.name.toUpperCase().trim()
-        counts[name] = (counts[name] || 0) + (item.qty || 1)
-      })
+function itemMatchesCategory(item: any, catKeywords: string[]): boolean {
+  if (!catKeywords || catKeywords.length === 0) return true
+  if (!item._catHaystack) {
+    item._catHaystack = stripAccents(`${item?.name || ''} ${item?.category || ''}`).toLowerCase()
+  }
+  return catKeywords.some(kw => item._catHaystack.includes(kw))
+}
+
+const menuListByUpperName = computed(() => {
+  const map = new Map<string, any>()
+  for (const item of appStore.menuList || []) {
+    if (item?.name) {
+      map.set(item.name.toUpperCase().trim(), item)
     }
-  })
+  }
+  return map
+})
+
+const filteredActiveMenuDishes = computed(() => {
+  let list = Array.isArray(appStore.menuList) ? [...appStore.menuList] : []
+  if (activeMenuCategoryFilter.value !== 'TẤT CẢ') {
+    const cat = CATEGORIES.find(c => c.name === activeMenuCategoryFilter.value)
+    if (cat) {
+      list = list.filter(it => itemMatchesCategory(it, cat.keywords))
+    }
+  }
+  const q = stripAccents(activeMenuSearchQuery.value || '').toLowerCase().trim()
+  if (q) {
+    list = list.filter((it: any) => {
+      const clean = it.cleanName || stripAccents(it.name || '').toLowerCase()
+      const acr = String(it.acronym || '').toLowerCase()
+      return clean.includes(q) || acr.includes(q) || String(it.price || '').includes(q)
+    })
+  }
+  return list
+})
+
+const popularMenuItems = computed(() => {
+  if (!appStore.historyList || appStore.historyList.length === 0) return []
+  const counts: Record<string, number> = {}
+  const history = appStore.historyList
+  for (let i = 0; i < history.length; i++) {
+    const menuItems = history[i]?.menuItems
+    if (!menuItems) continue
+    for (let j = 0; j < menuItems.length; j++) {
+      const item = menuItems[j]
+      if (!item?.name) continue
+      const name = item.name.toUpperCase().trim()
+      counts[name] = (counts[name] || 0) + (item.qty || 1)
+    }
+  }
+  const upperMap = menuListByUpperName.value
   return Object.entries(counts)
     .sort((a, b) => b[1] - a[1])
     .slice(0, 8)
-    .map(([name]) => {
-      const match = appStore.menuList.find((i: any) => i.name.toUpperCase().trim() === name)
-      return match || { name, price: 0 }
-    })
+    .map(([name]) => upperMap.get(name) || null)
+    .filter(Boolean)
 })
 
 const filteredSuggestions = computed(() => {
@@ -295,22 +421,37 @@ const filteredSuggestions = computed(() => {
   const q = ui.focusIdx !== null ? (formStore.items[ui.focusIdx]?.name || '') : ''
   if (!q) {
     if (selectedCategory.value === 'TẤT CẢ') {
-      return popularMenuItems.value
+      const merged: any[] = []
+      const seen = new Set<string>()
+      for (const pop of popularMenuItems.value) {
+        if (!pop?.name) continue
+        const key = stripAccents(pop.name).toLowerCase().trim()
+        if (!seen.has(key)) {
+          seen.add(key)
+          merged.push(pop)
+        }
+      }
+      for (const menuItem of (appStore.menuList || [])) {
+        if (!menuItem?.name) continue
+        const key = stripAccents(menuItem.name).toLowerCase().trim()
+        if (!seen.has(key)) {
+          seen.add(key)
+          merged.push(menuItem)
+        }
+        if (merged.length >= 30) break
+      }
+      return merged
     }
     const cat = CATEGORIES.find(c => c.name === selectedCategory.value)
     if (cat) {
-      return appStore.menuList.filter((item: any) => 
-        cat.keywords.some(kw => item.name.toLowerCase().includes(kw))
-      ).slice(0, 20)
+      return appStore.menuList.filter((item: any) => itemMatchesCategory(item, cat.keywords)).slice(0, 30)
     }
   }
   
   if (selectedCategory.value !== 'TẤT CẢ') {
     const cat = CATEGORIES.find(c => c.name === selectedCategory.value)
     if (cat) {
-      list = list.filter((item: any) => 
-        cat.keywords.some(kw => item.name.toLowerCase().includes(kw))
-      )
+      list = list.filter((item: any) => itemMatchesCategory(item, cat.keywords))
     }
   }
   return list
@@ -419,7 +560,7 @@ function addNewItemAndFocus() {
 
         <button
           type="button"
-          @click="showQuickSetPicker = !showQuickSetPicker"
+          @click="showQuickSetPicker = !showQuickSetPicker; if (showQuickSetPicker) showActiveMenuBrowser = false"
           class="text-[10px] px-3 py-2 rounded-xl font-black border transition-all uppercase tracking-wider flex items-center gap-1.5 cursor-pointer shadow-2xs min-h-[36px] active:scale-95"
           :class="showQuickSetPicker ? 'bg-emerald-600 text-white border-emerald-600' : 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800/50 hover:bg-emerald-100'"
           title="Chọn nhanh Set Menu 1..15 hoặc Combo Couple 1..11"
@@ -428,8 +569,30 @@ function addNewItemAndFocus() {
           <span>Chọn Set / Combo</span>
         </button>
 
-        <button @click="ui.showMenuManager = true" class="text-[10px] bg-surface-3 px-3 py-2 rounded-xl text-text-secondary font-black border border-border-subtle hover:bg-surface-hover active:scale-95 transition-all uppercase tracking-wider flex items-center gap-1.5 cursor-pointer shadow-2xs min-h-[36px]">
-          <i class="fa-solid fa-book-open text-apex-primary"></i> {{ appStore.activeSheet }}
+        <button
+          type="button"
+          @click="showActiveMenuBrowser = !showActiveMenuBrowser; if (showActiveMenuBrowser) showQuickSetPicker = false"
+          class="text-[10px] px-3 py-2 rounded-xl font-black border transition-all uppercase tracking-wider flex items-center gap-1.5 cursor-pointer shadow-2xs min-h-[36px] active:scale-95"
+          :class="showActiveMenuBrowser ? 'bg-apex-primary text-white border-apex-primary' : 'bg-surface-3 text-text-secondary border-border-subtle hover:bg-surface-hover'"
+          title="Xem danh sách món của thực đơn đang sử dụng để chọn lên phiếu hoặc gửi cho AI"
+        >
+          <i class="fa-solid fa-book-open" :class="showActiveMenuBrowser ? 'text-white' : 'text-apex-primary'"></i>
+          <span>{{ appStore.activeSheet }}</span>
+          <span
+            class="px-1.5 py-0.5 rounded-full text-[9px] font-black font-tabular"
+            :class="showActiveMenuBrowser ? 'bg-white/20 text-white' : (appStore.menuList.length > 0 ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300' : 'bg-amber-500/20 text-amber-700')"
+          >
+            {{ appStore.menuList.length }} món
+          </span>
+        </button>
+
+        <button
+          type="button"
+          @click="ui.openConfig('menu')"
+          class="text-[10px] bg-surface-3 px-2.5 py-2 rounded-xl text-text-secondary font-black border border-border-subtle hover:bg-surface-hover active:scale-95 transition-all flex items-center justify-center cursor-pointer shadow-2xs min-h-[36px]"
+          title="Mở quản lý & cấu hình thực đơn"
+        >
+          <i class="fa-solid fa-sliders text-apex-primary"></i>
         </button>
       </div>
     </div>
@@ -466,6 +629,143 @@ function addNewItemAndFocus() {
         {{ smartSetAdvisor.cta }}
       </button>
     </div>
+
+    <!-- Collapsible Active Menu Dish Browser (1-Click Add to Slip or Send to AI) -->
+    <transition name="fade">
+      <div
+        v-if="showActiveMenuBrowser"
+        class="mb-4 p-3.5 rounded-2xl bg-slate-50 dark:bg-surface-3 border border-blue-200 dark:border-blue-800/50 space-y-3"
+      >
+        <div class="flex flex-wrap items-center justify-between gap-2">
+          <div class="flex flex-wrap items-center gap-2 min-w-0">
+            <span class="inline-flex items-center gap-1.5 text-[11px] font-black uppercase tracking-wider text-blue-900 dark:text-blue-200">
+              <i class="fa-solid fa-book-open text-apex-primary"></i>
+              Thực đơn đang dùng:
+            </span>
+            <select
+              :value="appStore.activeSheet"
+              @change="onQuickSwitchActiveMenu"
+              class="px-2.5 py-1.5 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-black text-blue-900 dark:text-blue-200 outline-none cursor-pointer"
+            >
+              <option v-if="appStore.activeSheet && !appStore.menuSheets.includes(appStore.activeSheet)" :value="appStore.activeSheet">
+                {{ appStore.activeSheet }}
+              </option>
+              <option v-for="sheet in appStore.menuSheets" :key="sheet" :value="sheet">
+                {{ sheet }}
+              </option>
+            </select>
+            <button
+              type="button"
+              @click="reloadActiveMenuNow"
+              :disabled="isReloadingMenu"
+              class="px-2.5 py-1.5 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-[10px] font-black text-slate-600 dark:text-slate-300 hover:border-blue-400 transition-all cursor-pointer flex items-center gap-1"
+              title="Đồng bộ lại danh sách món của thực đơn đang chọn"
+            >
+              <i class="fa-solid fa-rotate" :class="{ 'animate-spin': isReloadingMenu }"></i>
+              <span>Tải lại</span>
+            </button>
+            <button
+              type="button"
+              @click="ui.openConfig('menu')"
+              class="px-2.5 py-1.5 rounded-xl bg-blue-50 dark:bg-blue-950/50 border border-blue-200 dark:border-blue-800 text-[10px] font-black text-blue-700 dark:text-blue-300 hover:bg-blue-100 transition-all cursor-pointer flex items-center gap-1"
+            >
+              <i class="fa-solid fa-pen-to-square"></i>
+              <span>Quản lý thực đơn</span>
+            </button>
+          </div>
+          <button
+            type="button"
+            @click="showActiveMenuBrowser = false"
+            class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 text-xs px-1.5 cursor-pointer"
+          >
+            ✕
+          </button>
+        </div>
+
+        <!-- Search & Category Filter -->
+        <div class="flex flex-col sm:flex-row gap-2">
+          <div class="relative flex-1 min-w-0">
+            <i class="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs"></i>
+            <input
+              v-model="activeMenuSearchQuery"
+              type="text"
+              placeholder="Tìm nhanh món trong thực đơn (có dấu, không dấu, viết tắt VD: bo tang, bnt, sm2)..."
+              class="w-full pl-8 pr-8 py-2 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-semibold text-slate-800 dark:text-slate-100 focus:outline-none focus:border-blue-500"
+            />
+            <button
+              v-if="activeMenuSearchQuery"
+              type="button"
+              @click="activeMenuSearchQuery = ''"
+              class="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-xs cursor-pointer"
+            >
+              ✕
+            </button>
+          </div>
+        </div>
+
+        <div class="flex flex-wrap gap-1.5">
+          <button
+            v-for="cat in CATEGORIES"
+            :key="`browser-${cat.name}`"
+            type="button"
+            @click="activeMenuCategoryFilter = cat.name"
+            class="px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer"
+            :class="activeMenuCategoryFilter === cat.name ? 'bg-apex-primary text-white shadow-2xs' : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 hover:border-blue-400'"
+          >
+            {{ cat.name }}
+          </button>
+          <span class="ml-auto self-center text-[10px] font-bold text-slate-500 dark:text-slate-400">
+            Hiển thị {{ filteredActiveMenuDishes.length }} / {{ appStore.menuList.length }} món
+          </span>
+        </div>
+
+        <div v-if="filteredActiveMenuDishes.length === 0" class="py-6 text-center text-xs font-semibold text-slate-500 bg-white dark:bg-slate-800/70 rounded-xl border border-dashed border-slate-200 dark:border-slate-700">
+          Không tìm thấy món phù hợp trong thực đơn "{{ appStore.activeSheet }}".
+        </div>
+
+        <div v-else class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2 max-h-[280px] overflow-y-auto custom-scrollbar pr-1">
+          <div
+            v-for="dish in filteredActiveMenuDishes"
+            :key="`active-dish-${dish.name}`"
+            class="p-2.5 rounded-xl bg-white dark:bg-slate-800 border transition-all flex items-center justify-between gap-2"
+            :class="getDishQtyOnSlip(dish.name) > 0 ? 'border-emerald-400 dark:border-emerald-600 bg-emerald-50/40 dark:bg-emerald-950/20' : 'border-slate-200 dark:border-slate-700 hover:border-blue-400'"
+          >
+            <div class="min-w-0 flex-1 cursor-pointer" @click="quickAddMenuDish(dish)">
+              <div class="flex items-center gap-1.5">
+                <span class="font-bold text-xs text-slate-800 dark:text-slate-100 truncate">{{ dish.name }}</span>
+                <span
+                  v-if="getDishQtyOnSlip(dish.name) > 0"
+                  class="px-1.5 py-0.5 rounded-full bg-emerald-600 text-white text-[9px] font-black shrink-0"
+                >
+                  x{{ getDishQtyOnSlip(dish.name) }}
+                </span>
+              </div>
+              <div class="text-[11px] font-black text-blue-600 dark:text-blue-400 font-tabular mt-0.5">
+                {{ formatVND(dish.price || 0) }}
+              </div>
+            </div>
+            <div class="flex items-center gap-1 shrink-0">
+              <button
+                type="button"
+                @click="sendDishToAiInput(dish)"
+                class="px-2 py-1.5 rounded-lg bg-slate-100 dark:bg-slate-700 hover:bg-indigo-100 dark:hover:bg-indigo-900/50 text-slate-600 dark:text-slate-200 hover:text-indigo-700 text-[9px] font-black uppercase transition-all cursor-pointer active:scale-95"
+                title="Đưa tên món vào ô AI để phân tích cùng tin nhắn khách"
+              >
+                +AI
+              </button>
+              <button
+                type="button"
+                @click="quickAddMenuDish(dish)"
+                class="px-2.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-[10px] font-black uppercase transition-all cursor-pointer active:scale-95 shadow-2xs"
+                title="Thêm món trực tiếp vào phiếu đặt bàn"
+              >
+                +Phiếu
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </transition>
 
     <!-- Collapsible 1-Click Set Menu & Combo Couple Picker -->
     <transition name="fade">

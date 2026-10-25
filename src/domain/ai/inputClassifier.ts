@@ -7,6 +7,12 @@ export interface AIInputClassificationInput {
   hasImage?: boolean
   attachedImageCount?: number
   currentFormState?: unknown
+  menuCatalog?: Array<{
+    name: string
+    cleanName?: string
+    acronym?: string
+    aliases?: string[]
+  }>
   now?: Date
 }
 
@@ -82,10 +88,31 @@ export function classifyAIInput(input: AIInputClassificationInput): AIInputClass
     }
   })
 
-  const menuKeywords = /\bmon|menu|thuc don|set|combo|suat|lau|nuong|buffet|tiger|heineken|coca|sting|7up|saigon|bia|ruou|nuoc|mon an|khai vi|mon chinh|trang mieng|set menu|combo\s+\d\b/i
+  const menuKeywords = /\b(?:mon|menu|thuc don|set|combo|couple|suat|phan|dia|lau|nuong|buffet|tiger|heineken|coca|pepsi|sting|7up|saigon|aquafina|dasani|lavi|suoi|bia|ruou|vang|soju|vodka|nuoc|tra dao|tra vai|sua tuoi|mon an|khai vi|mon chinh|trang mieng|set menu|sm\d{1,2}|cc\d{1,2}|combo\s+\d)\b/i
   const quantityPattern = /\bx\s*\d+\b|\b\d+\s*x\b|\*\s*\d+\b|\b\d+\s*\*/i
-  const foodKeywords = /\b(?:ga|tom|bo|heo|thit|ca|muc|ngheu|so|oc|rau|nam|dau|chao|mi|com|sup|canh|xoi|nom|salad|khoai|goi|sot|hap|nuong|xao|chien|luoc|kho|quay|xong khoi|suon|nam heo|tai|luoi|long|de suon|ba chi|heo nuong)\b/i
-  const hasMenuKeyword = menuKeywords.test(cleanTextForMenu) || quantityPattern.test(cleanTextForMenu) || foodKeywords.test(cleanTextForMenu)
+  const foodKeywords = /\b(?:ga|tom|bo|be|heo|thit|ca|muc|bach tuoc|hau|bao ngu|cua|ghe|ngheu|ngao|so|oc|ech|luon|vit|ngong|cuu|nai|da dieu|rau|nam|bi nu|dau hu|tau hu|chao|mi|mien|hu tieu|com|sup|canh|xoi|nom|salad|khoai|goi|sot|hap|nuong|xao|chien|luoc|kho|quay|om|ap chao|xong khoi|suon|sun|bap bo|nam heo|vu heo|gio heo|bao tu|pha lau|cha gio|cha dum|xuc xich|pho mai|phomai|banh bao|banh mi|banh bo|panna cotta|trai cay|kim chi|shiitake|shitake|tomyum|sum vay|thap cam|ganh ganh|da trang|khoi tay bac|tai|luoi|long|de suon|ba chi|ba roi|heo nuong)\b/i
+
+  const normalizedMenuLookupText = cleanTextForMenu.replace(/[^\p{L}\d\s]/gu, ' ').replace(/\s+/g, ' ').trim()
+  const hasCatalogDishMatch = Array.isArray(input.menuCatalog) && input.menuCatalog.some(item => {
+    const cName = (item.cleanName || stripAccents(item.name || '').toLowerCase())
+      .replace(/[^\p{L}\d\s]/gu, ' ')
+      .replace(/\s+/g, ' ')
+      .trim()
+    if (cName.length >= 4 && normalizedMenuLookupText.includes(cName)) return true
+    if (Array.isArray(item.aliases)) {
+      return item.aliases.some(a => {
+        const aNorm = stripAccents(a || '').toLowerCase().replace(/[^\p{L}\d\s]/gu, ' ').replace(/\s+/g, ' ').trim()
+        return aNorm.length >= 3 && normalizedMenuLookupText.includes(aNorm)
+      })
+    }
+    return false
+  })
+
+  const hasMenuKeyword =
+    menuKeywords.test(cleanTextForMenu) ||
+    quantityPattern.test(cleanTextForMenu) ||
+    foodKeywords.test(cleanTextForMenu) ||
+    hasCatalogDishMatch
 
   // 7. Detect Party Keywords
   const partyKeywords = /\b(?:sinh nhat|sn|thoi noi|day thang|cong ty|cty|doanh nghiep|tat nien|tan nien|lien hoan|hop lop|ky niem|sinh nhat cua|happy birthday|hbd|hpbd)\b/i

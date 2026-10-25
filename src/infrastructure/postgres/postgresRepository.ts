@@ -4,7 +4,33 @@ import type {
   SettingsRepository, 
   CorrectionRepository 
 } from '@/repositories/repositoryInterfaces'
-import { cleanPhoneNumber } from '@/utils'
+import { cleanPhoneNumber, stripAccents } from '@/utils'
+import { SETS } from '@/utils/constants'
+import {
+  PRIMARY_MENU_SHEET,
+  isValidMenuSheetName,
+  normalizeMenuSheetName,
+  prioritizeMenuSheets,
+  isValidMenuItemsDataset
+} from '@/domain/menu/menuSheetGuard'
+
+function isInternalNonMenuSheet(name: string): boolean {
+  return !isValidMenuSheetName(name)
+}
+
+function buildMenuAcronym(name: string): string {
+  const norm = stripAccents(String(name || '')).toLowerCase().trim()
+  if (!norm) return ''
+  const smMatch = norm.match(/^set\s+menu\s+(\d+)$/)
+  if (smMatch) return `SM${smMatch[1]}`
+  const ccMatch = norm.match(/^combo\s+couple\s+(\d+)$/)
+  if (ccMatch) return `CC${ccMatch[1]}`
+  return norm
+    .split(/\s+/)
+    .filter(Boolean)
+    .map(w => w[0])
+    .join('')
+}
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || ''
 const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || ''
@@ -21,12 +47,23 @@ async function pgFetch(path: string, options: RequestInit = {}) {
     'Prefer': 'return=representation',
     ...options.headers
   }
-  const res = await fetch(url, { ...options, headers })
-  if (!res.ok) {
-    const text = await res.text().catch(() => '')
-    throw new Error(`Postgres API error (${res.status}): ${text || res.statusText}`)
+  let timeoutId: ReturnType<typeof setTimeout> | null = null
+  let signal = options.signal
+  if (!signal && typeof AbortController !== 'undefined') {
+    const controller = new AbortController()
+    timeoutId = setTimeout(() => controller.abort(), 15000)
+    signal = controller.signal
   }
-  return res.json()
+  try {
+    const res = await fetch(url, { ...options, headers, ...(signal ? { signal } : {}) })
+    if (!res.ok) {
+      const text = await res.text().catch(() => '')
+      throw new Error(`Postgres API error (${res.status}): ${text || res.statusText}`)
+    }
+    return res.json()
+  } finally {
+    if (timeoutId) clearTimeout(timeoutId)
+  }
 }
 
 export function stringToUuid(str: string): string {
@@ -139,23 +176,67 @@ function isValidJwt(token?: string): boolean {
 }
 
 export class PostgresOrderRepository implements OrderRepository {
+  private buildBookingUpsertRow(data: any) {
+    const orderData = data?.id ? data : (data?.data || data || {})
+    const rawId = orderData.id || crypto.randomUUID()
+    const orderId = stringToUuid(rawId)
+    return {
+      rawId,
+      row: {
+        id: orderId,
+        customer_name: orderData.customer?.name || orderData.customer_name || 'Khách hàng',
+        customer_phone: orderData.customer?.phone || orderData.phone || '',
+        normalized_phone: cleanPhoneNumber(orderData.customer?.phone || orderData.phone || ''),
+        booking_date: toPgDate(orderData.customer?.date || orderData.booking_date || ''),
+        start_time: toPgTime(orderData.customer?.time || orderData.booking_time || '18:00'),
+        guest_count: parseInt(orderData.customer?.pax || orderData.guest_count || '1') || 1,
+        table_id: orderData.customer?.tables || orderData.customer?.table_number || orderData.table_number || orderData.tables || null,
+        status: orderData.customer?.type || orderData.status || 'Ăn thường',
+        note: orderData.customer?.note || orderData.note || '',
+        ordered_items: orderData.items || orderData.menuItems || [],
+        total_amount: Number(orderData.total || orderData.totalAmount) || 0,
+        deposit_amount: Number(orderData.deposit?.amount || orderData.depositAmount) || 0,
+        is_deposited: !!(orderData.deposit?.isPaid || orderData.isDeposited),
+        transfer_image: orderData.deposit?.image || orderData.transferImage || '',
+        bill_url: orderData.billUrl || '',
+        staff: orderData.staff || { name: 'Admin', phone: '' },
+        version: Number(orderData.version) || 1,
+        idempotency_key: orderData.idempotencyKey || null
+      }
+    }
+  }
+
   async getHistory(onBgUpdate?: (data: any) => void): Promise<any> {
     try {
       const rows: any[] = []
-      let offset = 0
       const limit = 1000
-      let hasMore = true
-      
-      while (hasMore) {
-        const batch = await pgFetch(`/bookings?select=*&order=booking_date.desc,start_time.desc&offset=${offset}&limit=${limit}`)
-        if (Array.isArray(batch) && batch.length > 0) {
-          rows.push(...batch)
-          offset += batch.length
-          if (batch.length < limit) {
-            hasMore = false
+      const firstBatch = await pgFetch(`/bookings?select=*&order=booking_date.desc,start_time.desc&offset=0&limit=${limit}`)
+      if (Array.isArray(firstBatch) && firstBatch.length > 0) {
+        rows.push(...firstBatch)
+        // Fetch subsequent pages in parallel batches of 3 if dataset exceeds 1,000 rows
+        let offset = firstBatch.length
+        let hasMore = firstBatch.length === limit
+        while (hasMore) {
+          const offsets = [offset, offset + limit, offset + limit * 2]
+          const pages = await Promise.all(
+            offsets.map((off) =>
+              pgFetch(`/bookings?select=*&order=booking_date.desc,start_time.desc&offset=${off}&limit=${limit}`)
+            )
+          )
+          hasMore = true
+          for (const batch of pages) {
+            if (Array.isArray(batch) && batch.length > 0) {
+              rows.push(...batch)
+              if (batch.length < limit) {
+                hasMore = false
+                break
+              }
+            } else {
+              hasMore = false
+              break
+            }
           }
-        } else {
-          hasMore = false
+          offset += limit * pages.length
         }
       }
 
@@ -212,31 +293,7 @@ export class PostgresOrderRepository implements OrderRepository {
   }
 
   async saveOrder(data: any, token?: string): Promise<any> {
-    const orderData = data.id ? data : data.data
-    const rawId = orderData.id || crypto.randomUUID()
-    const orderId = stringToUuid(rawId)
-    
-    const payload = {
-      id: orderId,
-      customer_name: orderData.customer?.name || orderData.customer_name || 'Khách hàng',
-      customer_phone: orderData.customer?.phone || orderData.phone || '',
-      normalized_phone: cleanPhoneNumber(orderData.customer?.phone || orderData.phone || ''),
-      booking_date: toPgDate(orderData.customer?.date || orderData.booking_date || ''),
-      start_time: toPgTime(orderData.customer?.time || orderData.booking_time || '18:00'),
-      guest_count: parseInt(orderData.customer?.pax || orderData.guest_count || '1') || 1,
-      table_id: orderData.customer?.tables || orderData.customer?.table_number || orderData.table_number || orderData.tables || null,
-      status: orderData.customer?.type || orderData.status || 'Ăn thường',
-      note: orderData.customer?.note || orderData.note || '',
-      ordered_items: orderData.items || orderData.menuItems || [],
-      total_amount: Number(orderData.total || orderData.totalAmount) || 0,
-      deposit_amount: Number(orderData.deposit?.amount || orderData.depositAmount) || 0,
-      is_deposited: !!(orderData.deposit?.isPaid || orderData.isDeposited),
-      transfer_image: orderData.deposit?.image || orderData.transferImage || '',
-      bill_url: orderData.billUrl || '',
-      staff: orderData.staff || { name: 'Admin', phone: '' },
-      version: Number(orderData.version) || 1,
-      idempotency_key: orderData.idempotencyKey || null
-    }
+    const { rawId, row: payload } = this.buildBookingUpsertRow(data)
 
     try {
       const headers: Record<string, string> = {
@@ -259,15 +316,57 @@ export class PostgresOrderRepository implements OrderRepository {
     }
   }
 
-  async saveOrdersBatch(payloads: any[]): Promise<any> {
-    const results = []
-    for (const p of payloads) {
-      try {
-        const res = await this.saveOrder(p)
-        results.push(res)
-      } catch (e: any) {
-        results.push({ ok: false, message: e.message })
+  async saveOrdersBatch(payloads: any[], tokenOrOptions?: string | { silent?: boolean }): Promise<any> {
+    const token = typeof tokenOrOptions === 'string' ? tokenOrOptions : undefined
+    if (!Array.isArray(payloads) || payloads.length === 0) {
+      return { ok: true, results: [] }
+    }
+    if (payloads.length === 1) {
+      const singleRes = await this.saveOrder(payloads[0], token)
+      return { ok: singleRes.ok, results: [singleRes] }
+    }
+
+    // Deduplicate by target UUID within the same bulk statement (latest wins)
+    const prepared = payloads.map((p) => this.buildBookingUpsertRow(p))
+    const dedupedRowsMap = new Map<string, any>()
+    for (const entry of prepared) {
+      dedupedRowsMap.set(entry.row.id, entry.row)
+    }
+
+    try {
+      const headers: Record<string, string> = {
+        'Prefer': 'resolution=merge-duplicates, return=representation'
       }
+      if (isValidJwt(token)) {
+        headers['Authorization'] = `Bearer ${token}`
+      }
+      const response = await pgFetch(`/bookings?on_conflict=id`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(Array.from(dedupedRowsMap.values()))
+      })
+      if (Array.isArray(response) && response.length > 0) {
+        return {
+          ok: true,
+          results: prepared.map((entry) => ({
+            ok: true,
+            id: entry.rawId,
+            message: 'Order Saved to PostgreSQL (Batch)'
+          }))
+        }
+      }
+    } catch {
+      // Fallback to bounded-concurrency per-item upsert if bulk insert encounters a row-level error
+    }
+
+    const results: any[] = []
+    const CHUNK = 5
+    for (let i = 0; i < payloads.length; i += CHUNK) {
+      const slice = payloads.slice(i, i + CHUNK)
+      const chunkRes = await Promise.all(
+        slice.map((p) => this.saveOrder(p, token).catch((e: any) => ({ ok: false, message: e.message })))
+      )
+      results.push(...chunkRes)
     }
     return { ok: true, results }
   }
@@ -297,16 +396,40 @@ export class PostgresOrderRepository implements OrderRepository {
 export class PostgresMenuRepository implements MenuRepository {
   async getMenu(sheetName: string, onBgUpdate?: (data: any) => void): Promise<any> {
     try {
-      const rows = await pgFetch(`/menu_items?source_sheet_id=eq.${encodeURIComponent(sheetName)}&select=*`)
-      const data = rows.map((r: any) => ({
-        id: r.id,
-        name: r.name,
-        category: r.category,
-        price: Number(r.price),
-        aliases: r.aliases || [],
-        isAvailable: r.is_available
-      }))
-      if (onBgUpdate) {
+      const requested = sheetName ? String(sheetName).trim() : PRIMARY_MENU_SHEET
+      if (isInternalNonMenuSheet(requested)) {
+        return { ok: true, data: [] }
+      }
+      const cleanSheet = normalizeMenuSheetName(requested)
+      const rows = await pgFetch(`/menu_items?source_sheet_id=eq.${encodeURIComponent(cleanSheet)}&select=*`)
+      const canonicalSetsMap = new Map<string, string>()
+      for (const [k, v] of Object.entries(SETS)) {
+        canonicalSetsMap.set(stripAccents(k).toLowerCase().trim(), v)
+      }
+
+      const data = (Array.isArray(rows) ? rows : [])
+        .filter((r: any) => r && r.name && r.is_available !== false)
+        .map((r: any) => {
+          const dishName = String(r.name).trim()
+          const cleanName = stripAccents(dishName).toLowerCase().trim()
+          const canonicalDesc = canonicalSetsMap.get(cleanName)
+          const rawDesc = r.description || r.desc || canonicalDesc || r.category || ''
+          return {
+            id: r.id,
+            name: dishName,
+            category: r.category,
+            price: Number(r.price) || 0,
+            desc: String(rawDesc).trim(),
+            cleanName,
+            acronym: buildMenuAcronym(dishName),
+            aliases: Array.isArray(r.aliases) ? r.aliases : [],
+            isAvailable: r.is_available !== false
+          }
+        })
+      if (!isValidMenuItemsDataset(data)) {
+        return { ok: true, data: [] }
+      }
+      if (onBgUpdate && data.length > 0) {
         onBgUpdate({ ok: true, data })
       }
       return { ok: true, data }
@@ -319,29 +442,64 @@ export class PostgresMenuRepository implements MenuRepository {
     try {
       // Fetch distinct source_sheet_id from menu_items
       const rows = await pgFetch('/menu_items?select=source_sheet_id')
-      const sheets = Array.from(new Set(rows.map((r: any) => r.source_sheet_id).filter(Boolean))) as string[]
-      return { ok: true, sheets: sheets.length > 0 ? sheets : ['Menu'] }
+      const rawSheets = (Array.isArray(rows) ? rows : [])
+        .map((r: any) => String(r?.source_sheet_id || '').trim())
+        .filter((s: string) => s && !isInternalNonMenuSheet(s))
+      const sheets = prioritizeMenuSheets(rawSheets, rawSheets.length > 0)
+      return { ok: true, sheets }
     } catch (e: any) {
       return { ok: false, message: e.message }
     }
   }
 
   async createMenu(name: string, rawText: string, password?: string, token?: string): Promise<any> {
-    // Standard parse of bulk text items: "1. Món A - 100k"
-    const lines = rawText.split('\n')
-    const items = []
+    // Parse standard bulk text items ("Món A - 100k"), category headers, and "- subcomponent" lines
+    const lines = String(rawText || '').split('\n')
+    const items: Array<{
+      name: string
+      category?: string
+      price: number
+      source_sheet_id: string
+      is_available: boolean
+    }> = []
+    let currentCategory = ''
+
     for (const line of lines) {
       const trimmed = line.trim()
       if (!trimmed) continue
-      const parts = trimmed.split('-')
-      const dishName = parts[0].replace(/^\d+[\.\)\s]+/, '').trim()
-      let price = 0
-      if (parts[1]) {
-        const pStr = parts[1].toLowerCase().replace(/k/g, '000').replace(/[^0-9]/g, '')
-        price = parseInt(pStr) || 0
+
+      // Sub-component / description line belonging to previous dish
+      if (/^[-•+]\s*/.test(trimmed)) {
+        if (items.length > 0) {
+          const prev = items[items.length - 1]
+          const cleanSub = trimmed.replace(/^[-•+]\s*/, '').trim()
+          if (cleanSub) {
+            prev.category = prev.category && prev.category.includes('/')
+              ? `${prev.category}\n${cleanSub}`
+              : (prev.category && !/^(KHAI VỊ|MÓN CHÍNH|ĐỒ UỐNG|TRÁNG MIỆNG|LẨU|SÚP|SALAD|COMBO|SET)/i.test(prev.category)
+                  ? `${prev.category}\n${cleanSub}`
+                  : cleanSub)
+          }
+        }
+        continue
       }
+
+      const lastDashIdx = trimmed.lastIndexOf('-')
+      if (lastDashIdx === -1) {
+        currentCategory = trimmed.replace(/[:：]+$/, '').trim()
+        continue
+      }
+
+      const rawDishPart = trimmed.slice(0, lastDashIdx).replace(/^\d+[\.\)\/\s]+/, '').trim()
+      const rawPricePart = trimmed.slice(lastDashIdx + 1).trim()
+      if (!rawDishPart) continue
+
+      const pStr = rawPricePart.toLowerCase().replace(/k/g, '000').replace(/[^0-9]/g, '')
+      const price = parseInt(pStr, 10) || 0
+
       items.push({
-        name: dishName,
+        name: rawDishPart,
+        category: currentCategory || undefined,
         price,
         source_sheet_id: name,
         is_available: true
@@ -349,10 +507,22 @@ export class PostgresMenuRepository implements MenuRepository {
     }
 
     try {
-      await pgFetch('/menu_items', {
-        method: 'POST',
-        body: JSON.stringify(items)
-      })
+      const headers: Record<string, string> = {}
+      if (isValidJwt(token)) {
+        headers['Authorization'] = `Bearer ${token}`
+      }
+      await pgFetch(`/menu_items?source_sheet_id=eq.${encodeURIComponent(name)}`, {
+        method: 'DELETE',
+        headers
+      }).catch(() => {})
+
+      if (items.length > 0) {
+        await pgFetch('/menu_items', {
+          method: 'POST',
+          headers,
+          body: JSON.stringify(items)
+        })
+      }
       return { ok: true, message: `Menu ${name} created` }
     } catch (e: any) {
       return { ok: false, message: e.message }

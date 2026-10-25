@@ -1,28 +1,45 @@
 import { stripAccents, formatSetNote, mergeSetComponentNote } from '@/utils'
 import { SETS } from '@/utils/constants'
 import { parseDishItems } from '@/domain/ai/ruleEngine'
+import {
+  PRIMARY_MENU_SHEET,
+  isValidMenuSheetName,
+  normalizeMenuSheetName,
+  filterValidMenuSheets,
+  prioritizeMenuSheets,
+  isValidMenuItemsDataset
+} from './menuSheetGuard'
+
+export {
+  PRIMARY_MENU_SHEET,
+  isValidMenuSheetName,
+  normalizeMenuSheetName,
+  filterValidMenuSheets,
+  prioritizeMenuSheets,
+  isValidMenuItemsDataset
+}
 
 export const CANONICAL_SET_AND_COMBO_ITEMS = [
-  { name: 'Set menu 1', price: 2277000, acronym: 'SM1', cleanName: 'set menu 1', desc: SETS['Set menu 1'] },
-  { name: 'Set menu 2', price: 2163000, acronym: 'SM2', cleanName: 'set menu 2', desc: SETS['Set menu 2'] },
-  { name: 'Set menu 3', price: 2213000, acronym: 'SM3', cleanName: 'set menu 3', desc: SETS['Set menu 3'] },
-  { name: 'Set menu 4', price: 2469000, acronym: 'SM4', cleanName: 'set menu 4', desc: SETS['Set menu 4'] },
-  { name: 'Set menu 5', price: 2562000, acronym: 'SM5', cleanName: 'set menu 5', desc: SETS['Set menu 5'] },
-  { name: 'Set menu 6', price: 2608000, acronym: 'SM6', cleanName: 'set menu 6', desc: SETS['Set menu 6'] },
-  { name: 'Set menu 7', price: 2702000, acronym: 'SM7', cleanName: 'set menu 7', desc: SETS['Set menu 7'] },
-  { name: 'Set menu 8', price: 2740000, acronym: 'SM8', cleanName: 'set menu 8', desc: SETS['Set menu 8'] },
-  { name: 'Set menu 9', price: 2832000, acronym: 'SM9', cleanName: 'set menu 9', desc: SETS['Set menu 9'] },
-  { name: 'Set menu 10', price: 3030000, acronym: 'SM10', cleanName: 'set menu 10', desc: SETS['Set menu 10'] },
-  { name: 'Set menu 11', price: 3040000, acronym: 'SM11', cleanName: 'set menu 11', desc: SETS['Set menu 11'] },
-  { name: 'Set menu 12', price: 3269000, acronym: 'SM12', cleanName: 'set menu 12', desc: SETS['Set menu 12'] },
-  { name: 'Set menu 13', price: 3530000, acronym: 'SM13', cleanName: 'set menu 13', desc: SETS['Set menu 13'] },
-  { name: 'Set menu 14', price: 3709000, acronym: 'SM14', cleanName: 'set menu 14', desc: SETS['Set menu 14'] },
-  { name: 'Set menu 15', price: 4029000, acronym: 'SM15', cleanName: 'set menu 15', desc: SETS['Set menu 15'] },
-  { name: 'Combo couple 1', price: 399000, acronym: 'CC1', cleanName: 'combo couple 1', desc: SETS['Combo couple 1'] },
-  { name: 'Combo couple 2', price: 399000, acronym: 'CC2', cleanName: 'combo couple 2', desc: SETS['Combo couple 2'] },
-  { name: 'Combo couple 3', price: 399000, acronym: 'CC3', cleanName: 'combo couple 3', desc: SETS['Combo couple 3'] },
-  { name: 'Combo couple 4', price: 499000, acronym: 'CC4', cleanName: 'combo couple 4', desc: SETS['Combo couple 4'] },
-  { name: 'Combo couple 5', price: 499000, acronym: 'CC5', cleanName: 'combo couple 5', desc: SETS['Combo couple 5'] },
+  { name: 'Set menu 1', price: 2500000, acronym: 'SM1', cleanName: 'set menu 1', desc: SETS['Set menu 1'] },
+  { name: 'Set menu 2', price: 2500000, acronym: 'SM2', cleanName: 'set menu 2', desc: SETS['Set menu 2'] },
+  { name: 'Set menu 3', price: 2500000, acronym: 'SM3', cleanName: 'set menu 3', desc: SETS['Set menu 3'] },
+  { name: 'Set menu 4', price: 2500000, acronym: 'SM4', cleanName: 'set menu 4', desc: SETS['Set menu 4'] },
+  { name: 'Set menu 5', price: 2500000, acronym: 'SM5', cleanName: 'set menu 5', desc: SETS['Set menu 5'] },
+  { name: 'Set menu 6', price: 3000000, acronym: 'SM6', cleanName: 'set menu 6', desc: SETS['Set menu 6'] },
+  { name: 'Set menu 7', price: 3000000, acronym: 'SM7', cleanName: 'set menu 7', desc: SETS['Set menu 7'] },
+  { name: 'Set menu 8', price: 3000000, acronym: 'SM8', cleanName: 'set menu 8', desc: SETS['Set menu 8'] },
+  { name: 'Set menu 9', price: 3000000, acronym: 'SM9', cleanName: 'set menu 9', desc: SETS['Set menu 9'] },
+  { name: 'Set menu 10', price: 3000000, acronym: 'SM10', cleanName: 'set menu 10', desc: SETS['Set menu 10'] },
+  { name: 'Set menu 11', price: 3900000, acronym: 'SM11', cleanName: 'set menu 11', desc: SETS['Set menu 11'] },
+  { name: 'Set menu 12', price: 3900000, acronym: 'SM12', cleanName: 'set menu 12', desc: SETS['Set menu 12'] },
+  { name: 'Set menu 13', price: 3900000, acronym: 'SM13', cleanName: 'set menu 13', desc: SETS['Set menu 13'] },
+  { name: 'Set menu 14', price: 3900000, acronym: 'SM14', cleanName: 'set menu 14', desc: SETS['Set menu 14'] },
+  { name: 'Set menu 15', price: 3900000, acronym: 'SM15', cleanName: 'set menu 15', desc: SETS['Set menu 15'] },
+  { name: 'Combo couple 1', price: 499000, acronym: 'CC1', cleanName: 'combo couple 1', desc: SETS['Combo couple 1'] },
+  { name: 'Combo couple 2', price: 499000, acronym: 'CC2', cleanName: 'combo couple 2', desc: SETS['Combo couple 2'] },
+  { name: 'Combo couple 3', price: 499000, acronym: 'CC3', cleanName: 'combo couple 3', desc: SETS['Combo couple 3'] },
+  { name: 'Combo couple 4', price: 599000, acronym: 'CC4', cleanName: 'combo couple 4', desc: SETS['Combo couple 4'] },
+  { name: 'Combo couple 5', price: 599000, acronym: 'CC5', cleanName: 'combo couple 5', desc: SETS['Combo couple 5'] },
   { name: 'Combo couple 6', price: 499000, acronym: 'CC6', cleanName: 'combo couple 6', desc: SETS['Combo couple 6'] },
   { name: 'Combo couple 7', price: 499000, acronym: 'CC7', cleanName: 'combo couple 7', desc: SETS['Combo couple 7'] },
   { name: 'Combo couple 8', price: 599000, acronym: 'CC8', cleanName: 'combo couple 8', desc: SETS['Combo couple 8'] },
@@ -1201,16 +1218,22 @@ export function resolveBestMenuSheet(
   allMenus: Record<string, any[]>,
   activeSheet: string = ''
 ): { bestSheet: string; score: number; isBorderline: boolean } {
-  let bestSheet = activeSheet
+  const rawActiveValid = isValidMenuSheetName(activeSheet) ? normalizeMenuSheetName(activeSheet) : ''
+  const sheets = filterValidMenuSheets(
+    Object.keys(allMenus || {}).filter(s => isValidMenuSheetName(s) && isValidMenuItemsDataset(allMenus[s]))
+  )
+  const safeActiveSheet = rawActiveValid || (sheets.includes(PRIMARY_MENU_SHEET) ? PRIMARY_MENU_SHEET : '')
+  let bestSheet = safeActiveSheet
   let maxScore = 0
   const scores: Record<string, number> = {}
-  const sheets = Object.keys(allMenus)
+  const dishScores: Record<string, number> = {}
   if (sheets.length === 0) return { bestSheet, score: 0, isBorderline: false }
 
   const normalizedText = stripAccents(text).toLowerCase()
 
   for (const sheet of sheets) {
     let score = 0
+    let dishScore = 0
     const items = allMenus[sheet] || []
     const sheetNorm = stripAccents(sheet).toLowerCase()
     if (sheetNorm.includes('sinh nhat') && normalizedText.includes('sinh nhat')) {
@@ -1230,13 +1253,36 @@ export function resolveBestMenuSheet(
         const mName = stripAccents(item.name || '').toLowerCase().trim()
         return mName === pName || mName.includes(pName) || pName.includes(mName)
       })
-      if (found) score += 1
+      if (found) {
+        score += 1
+        dishScore += 1
+      }
     }
 
     scores[sheet] = score
-    if (score > maxScore) {
+    dishScores[sheet] = dishScore
+    if (
+      score > maxScore ||
+      (score === maxScore && score > 0 && (sheet === safeActiveSheet || sheet === PRIMARY_MENU_SHEET))
+    ) {
       maxScore = score
       bestSheet = sheet
+    }
+  }
+
+  // Prefer keeping the currently active menu (especially official MENU2026) unless another menu
+  // strictly matches MORE actual ordered dishes rather than generic event keywords.
+  const activeScore = safeActiveSheet && scores[safeActiveSheet] !== undefined ? scores[safeActiveSheet] : 0
+  const activeDishScore = safeActiveSheet && dishScores[safeActiveSheet] !== undefined ? dishScores[safeActiveSheet] : 0
+  if (safeActiveSheet && bestSheet !== safeActiveSheet) {
+    const bestDishScore = dishScores[bestSheet] || 0
+    if (
+      parsedItems.length === 0 ||
+      maxScore <= activeScore ||
+      bestDishScore <= activeDishScore
+    ) {
+      bestSheet = safeActiveSheet
+      maxScore = activeScore
     }
   }
 

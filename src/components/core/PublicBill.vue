@@ -377,7 +377,7 @@ onUnmounted(() => { if (timer) clearInterval(timer) })
         <div class="p-5 sm:p-6 md:p-7 relative overflow-hidden">
           <!-- HEADER -->
           <div class="text-center mb-6 pb-5 border-b border-slate-100 mt-0">
-            <img src="/images/brand-logo.svg" class="h-20 w-auto mx-auto mb-2.5 object-contain" alt="Logo" loading="eager">
+            <img src="/images/brand-logo.svg" class="h-40 w-auto mx-auto mb-3 object-contain" alt="Logo" loading="eager">
             <h1 class="font-black tracking-[0.12em] text-slate-900 uppercase text-2xl leading-tight" style="font-family: 'Be Vietnam Pro', sans-serif;">KING'S GRILL</h1>
             <p class="text-slate-600 text-[11px] font-semibold mt-1 leading-snug">ĐC: Số 34, Đường Hoàng Văn Thụ, Phường Thủ Dầu Một, Thành phố Hồ Chí Minh</p>
             <div class="mt-3 flex items-center justify-center gap-3">
@@ -423,10 +423,10 @@ onUnmounted(() => { if (timer) clearInterval(timer) })
           </div>
 
           <!-- RESERVED STAMP ZONE (P1-04: Never overlaps business data) -->
-          <div id="bill-stamp-zone" class="my-4 py-3 border-y border-dashed border-slate-200/80 flex flex-col items-center justify-center pointer-events-none bg-slate-50/40 rounded-2xl">
-            <div class="relative w-[170px] sm:w-[200px] flex flex-col items-center justify-center" style="transform: rotate(-3deg); opacity: 0.95;">
-              <img id="bill-stamp-img" :src="order.isDeposited ? '/images/stamps/paid.png' : '/images/stamps/pending.png'" class="w-full object-contain filter drop-shadow-sm" style="image-rendering: -webkit-optimize-contrast; image-rendering: crisp-edges;" alt="Stamp" />
-              <div v-if="order.isDeposited" class="mt-2 px-3 py-1 bg-white/95 border border-red-200/90 rounded-full shadow-xs text-center text-[#961825] font-black tracking-widest whitespace-nowrap font-tabular font-deposit-meta" style="font-family: 'Google Sans Flex', 'Be Vietnam Pro', sans-serif; font-size: 13px;">
+          <div id="bill-stamp-zone" class="my-4 py-3.5 border-y border-dashed border-slate-200/80 flex flex-col items-center justify-center pointer-events-none bg-slate-50/40 rounded-2xl">
+            <div class="relative w-[190px] sm:w-[216px] flex flex-col items-center justify-center" style="transform: rotate(-3deg);">
+              <img id="bill-stamp-img" :src="order.isDeposited ? '/images/stamps/paid.png?v=2' : '/images/stamps/pending.png?v=2'" class="w-full object-contain" style="filter: contrast(1.06) saturate(1.1) drop-shadow(0 4px 10px rgba(15, 23, 42, 0.14));" alt="Stamp" />
+              <div v-if="order.isDeposited" class="mt-2 px-3.5 py-1 bg-white/95 border border-red-300 rounded-full shadow-sm text-center text-[#B41222] font-black tracking-widest whitespace-nowrap font-tabular font-deposit-meta" style="font-family: 'Google Sans Flex', 'Be Vietnam Pro', sans-serif; font-size: 13px;">
                 {{ formatDepositTime(order.deposit?.time || order.depositTime) }}
               </div>
             </div>

@@ -1,6 +1,13 @@
 import fs from 'fs/promises'
 import path from 'path'
 import http from 'http'
+import {
+  PRIMARY_MENU_SHEET,
+  isValidMenuSheetName,
+  normalizeMenuSheetName,
+  prioritizeMenuSheets,
+  isValidMenuItemsDataset
+} from '../../domain/menu/menuSheetGuard'
 
 // Cấu hình đường dẫn lưu trữ data local
 const DATA_DIR = path.resolve(process.cwd(), 'src/infrastructure/local/data')
@@ -328,7 +335,10 @@ export async function handleLocalApi(req: http.IncomingMessage, res: http.Server
       }
 
       case 'getMenuSheets': {
-        let sheets = await readJsonFile<string[]>(MENU_SHEETS_FILE, [])
+        const filterMenuSheets = (list: string[]) => prioritizeMenuSheets(list, true)
+
+        let rawLocal = await readJsonFile<string[]>(MENU_SHEETS_FILE, [])
+        let sheets = rawLocal.length > 0 ? filterMenuSheets(rawLocal) : []
         if (sheets.length === 0) {
           try {
             const response = await fetch(REAL_GAS_URL, {
@@ -339,39 +349,58 @@ export async function handleLocalApi(req: http.IncomingMessage, res: http.Server
             if (response.ok) {
               const data = await response.json()
               if (data.ok && Array.isArray(data.sheets)) {
-                await writeJsonFile(MENU_SHEETS_FILE, data.sheets)
-                result = data
-                break
+                const validSheets = filterMenuSheets(data.sheets)
+                if (validSheets.length > 0) {
+                  await writeJsonFile(MENU_SHEETS_FILE, validSheets)
+                  result = { ...data, sheets: validSheets }
+                  break
+                }
               }
             }
           } catch (e: any) {
             console.warn('[Local API] Không tải được danh sách menu sheet từ GAS:', e.message)
           }
-          sheets = ['Menu']
+          sheets = [PRIMARY_MENU_SHEET]
         }
         result = { ok: true, sheets }
         break
       }
 
       case 'getMenu': {
-        const sheetName = payload.sheetName || 'Menu'
+        const requestedSheet = String(payload.sheetName || PRIMARY_MENU_SHEET).trim()
+        if (!isValidMenuSheetName(requestedSheet)) {
+          result = { ok: true, data: [] }
+          break
+        }
+        const sheetName = normalizeMenuSheetName(requestedSheet)
         const menuFile = path.join(DATA_DIR, `menu_${sheetName.replace(/\s+/g, '_')}.json`)
         let menuData = await readJsonFile<any[]>(menuFile, [])
-        
+        if (!isValidMenuItemsDataset(menuData)) {
+          menuData = []
+        }
+
         if (menuData.length === 0) {
           try {
-            const response = await fetch(REAL_GAS_URL, {
-              method: 'POST',
-              headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-              body: JSON.stringify({ action: 'getMenu', sheetName })
-            })
-            if (response.ok) {
-              const data = await response.json()
-              if (data.ok && Array.isArray(data.data)) {
-                await writeJsonFile(menuFile, data.data)
-                result = data
-                break
-              }
+            const fetchFromGas = async (targetName: string) => {
+              const response = await fetch(REAL_GAS_URL, {
+                method: 'POST',
+                headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                body: JSON.stringify({ action: 'getMenu', sheetName: targetName })
+              })
+              if (!response.ok) return null
+              return response.json()
+            }
+
+            let data = await fetchFromGas(sheetName)
+            if (data && data.ok && Array.isArray(data.data) && data.data.length > 0 && !isValidMenuItemsDataset(data.data)) {
+              const altName = sheetName === sheetName.toLowerCase() ? sheetName.toUpperCase() : sheetName.toLowerCase()
+              data = await fetchFromGas(altName)
+            }
+
+            if (data && data.ok && isValidMenuItemsDataset(data.data)) {
+              await writeJsonFile(menuFile, data.data)
+              result = data
+              break
             }
           } catch (e: any) {
             console.warn(`[Local API] Không tải được dữ liệu menu [${sheetName}] từ GAS:`, e.message)

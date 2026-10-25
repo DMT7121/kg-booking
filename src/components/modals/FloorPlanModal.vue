@@ -82,62 +82,83 @@ function isTableMatch(tablesStr: string | undefined, tableName: string): boolean
   return tables.includes(tableName.toUpperCase())
 }
 
-// Calculate Table Status at effectiveInspectTime
-function getTableStatus(tableName: string) {
-  if (!appStore.historyList) return 'available'
-  
-  // Find orders for target date that include this table (excluding the booking currently being edited)
-  const todayOrders = appStore.historyList.filter(o => 
-    o.id !== formStore.id &&
-    o.parsedCustomer?.date === bookingDate.value && 
-    isTableMatch(o.parsedCustomer?.tables, tableName)
-  )
+// Pre-indexed O(1) Table Status & Occupant Map for bookingDate + effectiveInspectTime
+// Eliminates 200+ full historyList scans + Date allocations on every render / time-scrubber click
+const tableInspectionMap = computed(() => {
+  const map = new Map<string, { status: 'available' | 'occupied' | 'reserved'; details: string | null }>()
+  const list = appStore.historyList
+  if (!Array.isArray(list) || list.length === 0) return map
 
-  if (todayOrders.length === 0) return 'available'
+  const targetDate = bookingDate.value
+  const currentEditId = formStore.id
+  const ordersByTable = new Map<string, any[]>()
 
-  const [refH, refM] = effectiveInspectTime.value.split(':').map(Number)
-  const refTime = new Date()
-  refTime.setHours(refH || 18, refM || 0, 0, 0)
-  
-  for (const order of todayOrders) {
-    const time = order.parsedCustomer?.time
-    if (!time) continue
-    
-    const [hh, mm] = time.split(':').map(Number)
-    const orderTime = new Date()
-    orderTime.setHours(hh, mm, 0, 0)
-    
-    const diffMs = orderTime.getTime() - refTime.getTime()
-    const diffMins = diffMs / (1000 * 60)
-
-    // If within past 2 hours and future 2 hours around reference time
-    if (diffMins > -120 && diffMins <= 15) {
-      return 'occupied'
-    } else if (diffMins > 15 && diffMins < 120) {
-      return 'reserved'
+  for (let i = 0; i < list.length; i++) {
+    const o = list[i]
+    if (!o || o.id === currentEditId || o.parsedCustomer?.date !== targetDate) continue
+    const tablesStr = o.parsedCustomer?.tables
+    if (!tablesStr) continue
+    const tables = parseTables(tablesStr)
+    for (let j = 0; j < tables.length; j++) {
+      const t = tables[j]
+      let arr = ordersByTable.get(t)
+      if (!arr) {
+        arr = []
+        ordersByTable.set(t, arr)
+      }
+      arr.push(o)
     }
   }
 
-  return 'available'
+  if (ordersByTable.size === 0) return map
+
+  const [refH, refM] = effectiveInspectTime.value.split(':').map(Number)
+  const refTotalMins = (Number.isFinite(refH) ? refH : 18) * 60 + (Number.isFinite(refM) ? refM : 0)
+
+  ordersByTable.forEach((todayOrders, tableKey) => {
+    const first = todayOrders[0]
+    const details = first ? `${first.parsedCustomer?.name || 'Khách'} (${first.parsedCustomer?.time || ''})` : null
+    let status: 'available' | 'occupied' | 'reserved' = 'available'
+
+    for (let k = 0; k < todayOrders.length; k++) {
+      const time = todayOrders[k].parsedCustomer?.time
+      if (!time) continue
+      const [hh, mm] = time.split(':').map(Number)
+      if (!Number.isFinite(hh)) continue
+      const diffMins = (hh * 60 + (Number.isFinite(mm) ? mm : 0)) - refTotalMins
+
+      // If within past 2 hours and future 2 hours around reference time
+      if (diffMins > -120 && diffMins <= 15) {
+        status = 'occupied'
+        break
+      } else if (diffMins > 15 && diffMins < 120) {
+        status = 'reserved'
+        break
+      }
+    }
+
+    map.set(tableKey, { status, details })
+  })
+
+  return map
+})
+
+// Calculate Table Status at effectiveInspectTime (O(1) Map lookup)
+function getTableStatus(tableName: string) {
+  return tableInspectionMap.value.get(tableName.toUpperCase())?.status || 'available'
 }
 
 function getZoneAvailableCount(tables: string[]): number {
-  return tables.filter(t => getTableStatus(t) === 'available').length
+  let count = 0
+  for (let i = 0; i < tables.length; i++) {
+    if (getTableStatus(tables[i]) === 'available') count++
+  }
+  return count
 }
 
-// Get occupying customer details (name and time)
+// Get occupying customer details (name and time) (O(1) Map lookup)
 function getOccupyingDetails(tableName: string): string | null {
-  if (!appStore.historyList) return null
-  const todayOrders = appStore.historyList.filter(o => 
-    o.id !== formStore.id &&
-    o.parsedCustomer?.date === bookingDate.value && 
-    isTableMatch(o.parsedCustomer?.tables, tableName)
-  )
-  if (todayOrders.length > 0) {
-    const order = todayOrders[0]
-    return `${order.parsedCustomer?.name || 'Khách'} (${order.parsedCustomer?.time || ''})`
-  }
-  return null
+  return tableInspectionMap.value.get(tableName.toUpperCase())?.details || null
 }
 
 // Get the original tables of the booking before editing
@@ -152,8 +173,11 @@ const originalTables = computed(() => {
   }
 })
 
+const originalTablesSet = computed(() => new Set(originalTables.value))
+const selectedTablesSet = computed(() => new Set(formStore.customer.tables ? parseTables(formStore.customer.tables) : []))
+
 function isOriginalTable(table: string): boolean {
-  return originalTables.value.includes(table.toUpperCase())
+  return originalTablesSet.value.has(table.toUpperCase())
 }
 
 // Get zone prefix from table name (e.g. "A12" -> "A")
@@ -219,8 +243,7 @@ function closeFloorPlan() {
 }
 
 function isSelected(table: string) {
-  const currentTables = formStore.customer.tables ? parseTables(formStore.customer.tables) : []
-  return currentTables.includes(table.toUpperCase())
+  return selectedTablesSet.value.has(table.toUpperCase())
 }
 
 // --- Drag & Drop xếp bàn ---

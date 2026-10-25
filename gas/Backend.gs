@@ -81,9 +81,11 @@ function doGet(e) {
   return HtmlService.createHtmlOutput("Backend Ready.");
 }
 
-function doPost(e) {
-  // AUTO CLEANUP SYSTEM CONFIG FOR BRACES (Run once and save)
+function ensureSystemConfigSanitizedOnce_() {
   try {
+    const cache = CacheService.getScriptCache();
+    if (cache.get("sys_cfg_sanitized_v2") === "1") return;
+
     const ss = SpreadsheetApp.openById(CONFIG.SS_ID);
     const configSheet = ss.getSheetByName(CONFIG.SHEET_NAME_CONFIG);
     if (configSheet) {
@@ -93,6 +95,10 @@ function doPost(e) {
       for (let i = 1; i < values.length; i++) {
         const key = values[i][0];
         let val = values[i][1];
+        if (key === 'default_menu_profile_id' && !isCustomerMenuSheetName_(val)) {
+          configSheet.getRange(i + 1, 2).setValue("MENU2026");
+          updated = true;
+        }
         if (key === 'webhookUrl' && typeof val === 'string' && (val.includes('{') || val.includes('}'))) {
           const cleaned = val.replace(/[{}]/g, '').trim();
           configSheet.getRange(i + 1, 2).setValue(cleaned);
@@ -110,13 +116,29 @@ function doPost(e) {
         }
       }
       if (updated) {
-        try { CacheService.getScriptCache().remove("system_config"); } catch(err) {}
+        try { cache.remove("system_config"); } catch(err) {}
       }
     }
+    cache.put("sys_cfg_sanitized_v2", "1", 21600); // Cache 6 hours
   } catch (err) {
     console.log("Auto-clean config failed: " + err.message);
   }
+}
 
+function invalidateHistoryCache_() {
+  try {
+    const cache = CacheService.getScriptCache();
+    const metaRaw = cache.get("orders_hist_meta_v1");
+    const keys = ["orders_hist_meta_v1"];
+    const count = metaRaw ? (parseInt(metaRaw, 10) || 0) : 8;
+    for (let i = 0; i < Math.max(count, 8); i++) {
+      keys.push("orders_hist_chunk_" + i);
+    }
+    cache.removeAll(keys);
+  } catch (err) {}
+}
+
+function doPost(e) {
   let isApiRequest = false;
   try {
     if (!e || !e.postData) return HtmlService.createHtmlOutput("No post data");
@@ -126,13 +148,16 @@ function doPost(e) {
     if (!data.action) {
       return handleTelegramWebhook(data);
     }
+
+    // One-time config sanitization guarded by ScriptCache (prevents 1.5s SpreadsheetApp.openById on every call)
+    ensureSystemConfigSanitizedOnce_();
     
     isApiRequest = true;
     const action = data.action;
     
     // Write actions that modify configuration or sheets and need script lock protection
     const writeActions = [
-      "saveOrder", "saveOrdersBatch", "deleteOrder", "createMenu", "deleteMenu", 
+      "saveOrder", "saveOrdersBatch", "deleteOrder", "removeOrderFromSheet", "createMenu", "deleteMenu", 
       "uploadMenuImage", "uploadDishImage", "saveConfig", "saveApiKey", 
       "deleteApiKey", "saveApiKeys", "saveAiApiConfig", "saveMenuAlias", 
       "deleteMenuAlias", "logAiCorrection", "upsertSystemConfig", 
@@ -155,6 +180,7 @@ function doPost(e) {
         case "saveOrder": result = saveOrder(data.data); break;
         case "saveOrdersBatch": result = saveOrdersBatch(data.payloads); break;
         case "deleteOrder": result = deleteOrder(data.id, data.password, data.token); break;
+        case "removeOrderFromSheet": result = deleteOrderInternal_(data.id || (data.data && data.data.id)); break;
         case "getHistory": result = getHistoryData(); break;
         case "getMenuSheets": result = getMenuSheets(); break;
         case "getMenu": result = getMenuData(data.sheetName); break;
@@ -215,43 +241,117 @@ function doPost(e) {
 }
 
 // --- PHẦN 2: MENU ---
+function isCustomerMenuSheetName_(name) {
+  if (!name) return false;
+  const trimmed = String(name).trim();
+  if (!trimmed || trimmed.toUpperCase().indexOf("[RS]") === 0) return false;
+  const lower = trimmed.toLowerCase();
+  if (!lower.includes("menu") && !lower.includes("thực đơn") && !lower.includes("thuc don")) return false;
+
+  const norm = lower
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/đ/g, "d")
+    .replace(/[\s\-_]+/g, "_")
+    .replace(/^_+|_+$/g, "");
+
+  const invalidExact = [
+    "menu",
+    "thuc_don",
+    "alias",
+    "aliases",
+    "menu_alias",
+    "menu_aliases",
+    "ai_correction",
+    "ai_corrections",
+    "config",
+    "system_config",
+    "system_config_backup",
+    "system_config_old_backup",
+    "orders",
+    "api_keys",
+    "audit_log",
+    "webhook_logs",
+    "booking_location_index",
+    "booking_location_history"
+  ];
+  if (invalidExact.indexOf(norm) !== -1) return false;
+  if (
+    norm.indexOf("menu_alias") !== -1 ||
+    norm.indexOf("ai_correction") !== -1 ||
+    norm.indexOf("system_config") !== -1 ||
+    norm.indexOf("booking_location") !== -1 ||
+    norm.indexOf("webhook_log") !== -1 ||
+    norm.indexOf("audit_log") !== -1
+  ) {
+    return false;
+  }
+  return true;
+}
+
+const PRIMARY_MENU_SHEET = "MENU2026";
+
+function prioritizeMenuSheets_(rawSheets) {
+  const seen = {};
+  const others = [];
+  let hasPrimary = false;
+  for (let i = 0; i < rawSheets.length; i++) {
+    const raw = String(rawSheets[i] || "").trim();
+    if (!isCustomerMenuSheetName_(raw)) continue;
+    const canonical = raw.toUpperCase() === PRIMARY_MENU_SHEET ? PRIMARY_MENU_SHEET : raw;
+    const lower = canonical.toLowerCase();
+    if (seen[lower]) continue;
+    seen[lower] = true;
+    if (canonical === PRIMARY_MENU_SHEET) {
+      hasPrimary = true;
+    } else {
+      others.push(canonical);
+    }
+  }
+  return hasPrimary ? [PRIMARY_MENU_SHEET].concat(others) : [PRIMARY_MENU_SHEET].concat(others);
+}
+
 function getMenuSheets() {
   try {
-    const cached = CacheService.getScriptCache().get("menu_sheets");
+    const cached = CacheService.getScriptCache().get("menu_sheets_v3");
     if (cached) return JSON.parse(cached);
   } catch(e) {}
 
   const ss = SpreadsheetApp.openById(CONFIG.SS_ID);
-  const menuSheets = ss.getSheets().map(s => s.getName()).filter(n => n.toLowerCase().includes("menu"));
+  const rawNames = ss.getSheets().map(s => s.getName()).filter(n => isCustomerMenuSheetName_(n));
+  const menuSheets = prioritizeMenuSheets_(rawNames);
   const result = { ok: true, sheets: menuSheets };
   try {
-    CacheService.getScriptCache().put("menu_sheets", JSON.stringify(result), 21600); // cache 6 hours
+    CacheService.getScriptCache().put("menu_sheets_v3", JSON.stringify(result), 21600); // cache 6 hours
   } catch(e) {}
   return result;
 }
 
 function getMenuData(sheetName) {
-  const targetSheet = sheetName || "MENU2026";
-  const cacheKey = "menu_data_" + targetSheet.replace(/\s+/g, "_");
+  if (sheetName && !isCustomerMenuSheetName_(sheetName)) {
+    return { ok: true, data: [] };
+  }
+  const requested = sheetName ? String(sheetName).trim() : PRIMARY_MENU_SHEET;
+  const canonicalRequested = requested.toUpperCase() === PRIMARY_MENU_SHEET ? PRIMARY_MENU_SHEET : requested;
+  const preCacheKey = "menu_data_v2_" + canonicalRequested.replace(/\s+/g, "_");
   try {
-    const cached = CacheService.getScriptCache().get(cacheKey);
+    const cached = CacheService.getScriptCache().get(preCacheKey);
     if (cached) return JSON.parse(cached);
   } catch(e) {}
 
   const ss = SpreadsheetApp.openById(CONFIG.SS_ID);
-  let target = sheetName;
-  if (!target) {
-    const firstMenu = ss.getSheets().find(s => s.getName().toLowerCase().includes("menu"));
-    target = firstMenu ? firstMenu.getName() : "Menu";
-  }
-  let sheet = ss.getSheetByName(target);
-  if (!sheet && target) {
-    sheet = ss.getSheets().find(s => s.getName().toLowerCase() === target.toLowerCase());
+  let sheet = ss.getSheetByName(canonicalRequested);
+  if (!sheet && canonicalRequested) {
+    sheet = ss.getSheets().find(s => s.getName().toLowerCase() === canonicalRequested.toLowerCase() && isCustomerMenuSheetName_(s.getName()));
   }
   if (!sheet) {
-    sheet = ss.getSheets().find(s => s.getName().toLowerCase().includes("menu"));
+    // Always prioritize official MENU2026 before scanning any secondary menu sheets
+    sheet = ss.getSheetByName(PRIMARY_MENU_SHEET) ||
+            ss.getSheets().find(s => s.getName().toUpperCase() === PRIMARY_MENU_SHEET) ||
+            ss.getSheets().find(s => isCustomerMenuSheetName_(s.getName()));
   }
   if (!sheet) return { ok: false, message: "Sheet not found", data: [] };
+  const resolvedCacheKey = "menu_data_v2_" + sheet.getName().replace(/\s+/g, "_");
   try {
     const rows = sheet.getRange("A2:E").getValues().filter(r => r[0]);
     const menu = rows.map(r => ({
@@ -259,7 +359,7 @@ function getMenuData(sheetName) {
     }));
     const result = { ok: true, data: menu };
     try {
-      CacheService.getScriptCache().put(cacheKey, JSON.stringify(result), 21600); // cache 6 hours
+      CacheService.getScriptCache().put(resolvedCacheKey, JSON.stringify(result), 21600); // cache 6 hours
     } catch(e) {}
     return result;
   } catch (e) {
@@ -338,7 +438,10 @@ function createNewMenuSheet(name, rawText, password, token) {
   try {
     const cache = CacheService.getScriptCache();
     cache.remove("menu_sheets");
+    cache.remove("menu_sheets_v2");
+    cache.remove("menu_sheets_v3");
     cache.remove("menu_data_" + sheetName.replace(/\s+/g, "_"));
+    cache.remove("menu_data_v2_" + sheetName.replace(/\s+/g, "_"));
   } catch(e) {}
   return { ok: true, message: "Menu Updated Successfully", sheetName: sheetName, logs: logs };
 }
@@ -351,11 +454,17 @@ function deleteMenuSheet(name, password, token) {
   if (!checkAdminAccess_(token, password)) {
     return { ok: false, message: "Từ chối truy cập! Yêu cầu mật khẩu Admin để xóa Menu." };
   }
+  if (!isCustomerMenuSheetName_(name)) {
+    return { ok: false, message: "Không thể xóa bảng cấu hình hệ thống." };
+  }
+  if (String(name).trim().toUpperCase() === PRIMARY_MENU_SHEET) {
+    return { ok: false, message: "Không thể xóa thực đơn chính thức MENU2026." };
+  }
   const ss = SpreadsheetApp.openById(CONFIG.SS_ID);
   const sheet = ss.getSheetByName(name);
   if (!sheet) return { ok: false, message: "Không tìm thấy sheet Menu này." };
   
-  const menuSheets = ss.getSheets().filter(s => s.getName().toLowerCase().includes("menu"));
+  const menuSheets = ss.getSheets().filter(s => isCustomerMenuSheetName_(s.getName()));
   if (menuSheets.length <= 1) {
     return { ok: false, message: "Không thể xóa Menu cuối cùng của hệ thống." };
   }
@@ -364,7 +473,10 @@ function deleteMenuSheet(name, password, token) {
   try {
     const cache = CacheService.getScriptCache();
     cache.remove("menu_sheets");
+    cache.remove("menu_sheets_v2");
+    cache.remove("menu_sheets_v3");
     cache.remove("menu_data_" + name.replace(/\s+/g, "_"));
+    cache.remove("menu_data_v2_" + name.replace(/\s+/g, "_"));
   } catch(e) {}
   return { ok: true, message: "Xóa Menu thành công." };
 }
@@ -503,9 +615,17 @@ function parseMenuRawData(text) {
 
 // --- PHẦN 3: ORDERS ---
 function saveOrder(p) {
-  // --- BACKEND VALIDATION ---
-  if (!p || !p.customer || !p.customer.name || !p.customer.phone) {
-    throw new Error("Lỗ hổng: Dữ liệu khách hàng không hợp lệ!");
+  // --- BACKEND VALIDATION & NORMALIZATION ---
+  if (!p || !p.customer || !p.customer.name) {
+    throw new Error("Lỗ hổng: Dữ liệu khách hàng không hợp lệ (thiếu tên khách)!");
+  }
+  if (!p.customer.phone || !String(p.customer.phone).trim()) {
+    p.customer.phone = "Chưa có SĐT";
+  }
+  p.customer.date = normalizeOrderDateToDMY_(p.customer.date);
+  p.customer.type = normalizePartyType_(p.customer.type, p.customer.note);
+  if (!p.deposit) {
+    p.deposit = { isPaid: false, amount: 0, image: "", note: "" };
   }
   
   const total = Number(p.total) || 0;
@@ -534,11 +654,11 @@ function saveOrder(p) {
   p.billUrl = billUrl;
   if(transferUrl) p.deposit.image = transferUrl;
 
-  const bookingId = p.id || Utilities.getUuid();
+  let bookingId = p.id || Utilities.getUuid();
 
-  // Use Sheets API V4 to search and save for maximum speed (Sheet API optimization)
+  // Use Sheets API V4 to search and save for maximum speed (read A:E for ID + Phone + JSON deduplication)
   const spreadsheetId = CONFIG.SS_ID;
-  const rangeName = CONFIG.SHEET_NAME_ORDERS + "!A:B";
+  const rangeName = CONFIG.SHEET_NAME_ORDERS + "!A:E";
   let values = [];
   try {
     const response = Sheets.Spreadsheets.Values.get(spreadsheetId, rangeName);
@@ -563,20 +683,20 @@ function saveOrder(p) {
   // Deduplicate: find by phone suffix (last 9 digits) and event date if not found by ID
   if (foundRowIndex === -1 && p.customer && p.customer.phone && p.customer.date) {
     const cleanPhone = String(p.customer.phone).replace(/\D/g, "");
-    if (cleanPhone) {
+    if (cleanPhone && cleanPhone.length >= 7) {
       const phoneSuffix = cleanPhone.substring(Math.max(0, cleanPhone.length - 9));
-      const targetDate = String(p.customer.date).trim();
+      const targetDate = normalizeOrderDateToDMY_(String(p.customer.date).trim());
       
       for (let i = 1; i < values.length; i++) {
         const orderPhone = String(values[i][3] || "").replace(/\D/g, "");
-        if (orderPhone.endsWith(phoneSuffix)) {
+        if (orderPhone.length >= 7 && orderPhone.endsWith(phoneSuffix)) {
           let orderDate = "";
           try {
             const orderData = JSON.parse(values[i][4]);
-            orderDate = String(orderData.customer?.date || "").trim();
+            orderDate = normalizeOrderDateToDMY_(String(orderData.customer?.date || "").trim());
           } catch(e) {}
           
-          if (orderDate === targetDate) {
+          if (orderDate && orderDate === targetDate) {
             foundRowIndex = i + 1;
             bookingId = values[i][0]; // Keep existing ID from Sheet
             p.id = bookingId; // Update payload ID to match
@@ -634,6 +754,7 @@ function saveOrder(p) {
   if (!p.skipNotification) {
     try { sendNotification_(p, bookingId, billUrl); } catch(e) { console.log("Notification Failed: " + e.message); }
   }
+  invalidateHistoryCache_();
   return { message: "Order Saved (V3.6.0)", id: bookingId, billUrl: billUrl, calendarSync: calendarSync };
 }
 
@@ -643,7 +764,7 @@ function saveOrdersBatch(payloads) {
   }
   
   const spreadsheetId = CONFIG.SS_ID;
-  const rangeName = CONFIG.SHEET_NAME_ORDERS + "!A:B";
+  const rangeName = CONFIG.SHEET_NAME_ORDERS + "!A:E";
   let values = [];
   try {
     const response = Sheets.Spreadsheets.Values.get(spreadsheetId, rangeName);
@@ -784,6 +905,7 @@ function saveOrdersBatch(payloads) {
       valueInputOption: "USER_ENTERED",
       data: valueRanges
     }, spreadsheetId);
+    invalidateHistoryCache_();
   }
 
   return { ok: true, results: results };
@@ -812,6 +934,8 @@ function calculateBookingHash(data, bookingId) {
     data.customer.time || "",
     data.customer.tables || "",
     data.customer.pax || "",
+    data.customer.type || "Ăn thường",
+    data.customer.note || "",
     data.deposit.amount || 0,
     data.deposit.isPaid ? "PAID" : "UNPAID",
     (data.items || []).map(i => `${i.name}:${i.qty}`).join(',')
@@ -1617,18 +1741,43 @@ function updateOrderImages(bookingId, billUrl, transferUrl) {
     }
   }
   
+  invalidateHistoryCache_();
   return { ok: true, message: "Order images updated successfully" };
 }
 
 function getHistoryData() {
   try {
+    const cache = CacheService.getScriptCache();
+    try {
+      const metaRaw = cache.get("orders_hist_meta_v1");
+      if (metaRaw) {
+        const chunkCount = parseInt(metaRaw, 10);
+        if (chunkCount === 0) return { ok: true, data: [] };
+        if (chunkCount > 0 && chunkCount <= 25) {
+          const chunkKeys = [];
+          for (let i = 0; i < chunkCount; i++) chunkKeys.push("orders_hist_chunk_" + i);
+          const chunkMap = cache.getAll(chunkKeys);
+          let assembled = "";
+          let complete = true;
+          for (let i = 0; i < chunkCount; i++) {
+            const part = chunkMap["orders_hist_chunk_" + i];
+            if (part === undefined || part === null) { complete = false; break; }
+            assembled += part;
+          }
+          if (complete) {
+            return { ok: true, data: JSON.parse(assembled) };
+          }
+        }
+      }
+    } catch (cacheReadErr) {}
+
     const range = `'${CONFIG.SHEET_NAME_ORDERS}'!A2:Q`;
     const response = Sheets.Spreadsheets.Values.get(CONFIG.SS_ID, range);
     if (!response.values) return { ok: true, data: [] };
+    const safeJSON = (s) => { try { return JSON.parse(s); } catch(e) { return null; } };
+    const extractFileId = (url) => url ? (url.match(/id=([^&]+)/) || [])[1] : null;
     const history = response.values.reverse().map(r => {
       const safeGet = (idx) => r[idx] !== undefined ? r[idx] : "";
-      const safeJSON = (s) => { try { return JSON.parse(s); } catch(e) { return null; } };
-      const extractFileId = (url) => url ? (url.match(/id=([^&]+)/) || [])[1] : null;
       const colE = safeGet(4);
       let isNewFormat = typeof colE === 'string' && colE.trim().startsWith('{');
       if (isNewFormat) {
@@ -1660,6 +1809,20 @@ function getHistoryData() {
         };
       }
     });
+
+    try {
+      const jsonStr = JSON.stringify(history);
+      const CHUNK_SIZE = 85000;
+      const chunkCount = Math.ceil(jsonStr.length / CHUNK_SIZE);
+      if (chunkCount <= 25) {
+        const batchCache = { "orders_hist_meta_v1": String(chunkCount) };
+        for (let i = 0; i < chunkCount; i++) {
+          batchCache["orders_hist_chunk_" + i] = jsonStr.substring(i * CHUNK_SIZE, (i + 1) * CHUNK_SIZE);
+        }
+        cache.putAll(batchCache, 60); // 60s ScriptCache TTL (invalidated immediately on writes)
+      }
+    } catch (cacheWriteErr) {}
+
     return { ok: true, data: history };
   } catch(e) { return { ok: false, message: "Lỗi tải lịch sử: " + e.message }; }
 }
@@ -1701,6 +1864,8 @@ function deleteOrderInternal_(id) {
     sheet.deleteRow(foundRowIndex);
   }
 
+  invalidateHistoryCache_();
+
   try {
     const calSs = SpreadsheetApp.openById(CONFIG.LINKED_CALENDAR_ID);
     clearCalendarEntryById(calSs, id);
@@ -1720,13 +1885,20 @@ function deleteOrder(id, password, token) {
 
 function getSheetId_(sheetName) {
   try {
+    const cache = CacheService.getScriptCache();
+    const cachedMapRaw = cache.get("sheet_id_map_v1");
+    if (cachedMapRaw) {
+      const map = JSON.parse(cachedMapRaw);
+      if (map[sheetName] !== undefined) return map[sheetName];
+    }
     const spreadsheet = Sheets.Spreadsheets.get(CONFIG.SS_ID);
     const sheets = spreadsheet.sheets || [];
+    const map = {};
     for (let i = 0; i < sheets.length; i++) {
-      if (sheets[i].properties.title === sheetName) {
-        return sheets[i].properties.sheetId;
-      }
+      map[sheets[i].properties.title] = sheets[i].properties.sheetId;
     }
+    try { cache.put("sheet_id_map_v1", JSON.stringify(map), 21600); } catch (ce) {}
+    if (map[sheetName] !== undefined) return map[sheetName];
   } catch(e) {}
   return null;
 }
@@ -1944,6 +2116,9 @@ function loadSystemConfig_() {
   if (typeof cfg['telegram_chat_id'] === 'string') {
     cfg['telegram_chat_id'] = cfg['telegram_chat_id'].replace(/[{}]/g, '').trim();
   }
+  if (!isCustomerMenuSheetName_(cfg['default_menu_profile_id'])) {
+    cfg['default_menu_profile_id'] = PRIMARY_MENU_SHEET;
+  }
   
   return cfg;
 }
@@ -1978,7 +2153,13 @@ function saveSystemConfig(data, password) {
 function getSystemConfig() {
   try {
     const cached = CacheService.getScriptCache().get("system_config");
-    if (cached) return JSON.parse(cached);
+    if (cached) {
+      const parsedCached = JSON.parse(cached);
+      if (parsedCached && parsedCached.data && !isCustomerMenuSheetName_(parsedCached.data['default_menu_profile_id'])) {
+        parsedCached.data['default_menu_profile_id'] = PRIMARY_MENU_SHEET;
+      }
+      return parsedCached;
+    }
   } catch(e) {}
 
   const ss = SpreadsheetApp.openById(CONFIG.SS_ID);
@@ -2014,6 +2195,10 @@ function getSystemConfig() {
     }
   }
   
+  if (!isCustomerMenuSheetName_(config['default_menu_profile_id'])) {
+    config['default_menu_profile_id'] = PRIMARY_MENU_SHEET;
+  }
+
   const result = { ok: true, data: config };
   try {
     CacheService.getScriptCache().put("system_config", JSON.stringify(result), 21600); // cache 6 hours
@@ -2066,51 +2251,23 @@ function sendNotification_(orderData, orderId, billUrl) {
   let chatId = cfg['telegramChatId'];
   if (!chatId) return;
 
-  const escapeHtml = function(text) {
-    if (!text) return '';
-    return text.toString()
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;');
-  };
-
   const shareUrl = getShareUrlWithData_(orderId, orderData);
   const c = orderData.customer || {};
-  const fmt = (n) => n ? n.toString().replace(/\B(?=(\d{3})+(?!\d))/g, '.') + 'đ' : '0đ';
-  const dep = orderData.deposit || {};
-  const depStatus = dep.isPaid ? '✅ ĐÃ CỌC' : '⏳ CHỜ CỌC';
-  const itemCount = (orderData.items || []).length;
-  let imageLinkLine = '';
-  if (billUrl && billUrl.indexOf('http') === 0) {
-    imageLinkLine = '\n🖼️ <a href="' + billUrl + '">XEM ẢNH PHIẾU ĐẶT (ONLINE)</a>';
-  }
+  c.type = normalizePartyType_(c.type, c.note);
 
-  const msg = '🔔 <b>ĐƠN MỚI — KING\'S GRILL</b>\n' +
-    '━━━━━━━━━━━━━━━━━━━\n' +
-    '👤 <b>Khách hàng:</b> ' + escapeHtml(c.name || 'N/A') + '\n' +
-    '📱 <b>Số điện thoại:</b> ' + escapeHtml(c.phone || 'N/A') + '\n' +
-    '📅 <b>Thời gian:</b> ' + escapeHtml(c.date || '?') + ' | ⏰ ' + escapeHtml(c.time || '?') + '\n' +
-    '👥 <b>Số lượng:</b> ' + escapeHtml(c.pax || '?') + ' khách | 🪑 <b>Bàn:</b> ' + escapeHtml(c.tables || '?') + '\n' +
-    '🍽️ <b>Chi tiết:</b> ' + itemCount + ' món | 💰 <b>Tổng:</b> ' + fmt(orderData.total) + '\n' +
-    '💳 <b>Trạng thái:</b> ' + depStatus + (dep.amount ? ' (' + fmt(dep.amount) + ')' : '') + '\n' +
-    '━━━━━━━━━━━━━━━━━━━\n' +
-    '💬 <b>Ghi chú:</b> <i>' + escapeHtml(c.note || 'Không có') + '</i>\n\n' +
-    '👉 <a href="' + shareUrl + '">XEM CHI TIẾT PHIẾU ĐẶT BÀN</a>' + imageLinkLine;
+  const msg = buildModernTelegramCard_(orderData, orderId, {
+    mode: "notification",
+    shareUrl: shareUrl,
+    billUrl: billUrl
+  });
 
   if (webhookUrl.includes('api.telegram.org')) {
     try {
-      const notificationButtons = [
-        [
-          { text: "🧾 Xem Phiếu Online", url: shareUrl },
-          { text: "📱 Mở App Đặt Bàn", web_app: { url: "https://datban-kingsgrill.pages.dev" } }
-        ]
-      ];
-      if (!dep.isPaid && dep.amount > 0) {
-        const qrUrl = "https://img.vietqr.io/image/970415-102874136666-compact2.png?amount=" + dep.amount + "&addInfo=DATBAN%20" + encodeURIComponent(orderId.slice(-6)) + "&accountName=KINGS%20GRILL";
-        notificationButtons.push([
-          { text: "💳 Mã VietQR Cọc", url: qrUrl }
-        ]);
-      }
+      const notificationButtons = buildModernTelegramKeyboard_(orderData, orderId, {
+        mode: "confirmed",
+        chatId: chatId,
+        shareUrl: shareUrl
+      });
 
       const payload = { 
         chat_id: chatId, 
@@ -2906,25 +3063,25 @@ function testTelegramNotification(orderData) {
     if (!chatId) return { ok: false, message: "telegramChatId not set in config" };
 
     const c = orderData.customer || {};
-    const fmt = (n) => n ? n.toString().replace(/\B(?=(\d{3})+(?!\d))/g, '.') + 'đ' : '0đ';
-    const dep = orderData.deposit || {};
-    const depStatus = dep.isPaid ? '✅ ĐÃ CỌC' : '⏳ CHỜ CỌC';
-    const itemCount = (orderData.items || []).length;
+    c.type = normalizePartyType_(c.type, c.note);
     const shareUrl = 'https://kg-booking.pages.dev/#/bill/test_id';
 
-    const msg = '🔔 <b>ĐƠN MỚI — KING\'S GRILL</b>\n' +
-      '━━━━━━━━━━━━━━━━━━━\n' +
-      '👤 <b>Khách hàng:</b> ' + (c.name || 'N/A') + '\n' +
-      '📱 <b>Số điện thoại:</b> ' + (c.phone || 'N/A') + '\n' +
-      '📅 <b>Thời gian:</b> ' + (c.date || '?') + ' | ⏰ ' + (c.time || '?') + '\n' +
-      '👥 <b>Số lượng:</b> ' + (c.pax || '?') + ' khách | 🪑 <b>Bàn:</b> ' + (c.tables || '?') + '\n' +
-      '🍽️ <b>Chi tiết:</b> ' + itemCount + ' món | 💰 <b>Tổng:</b> ' + fmt(orderData.total) + '\n' +
-      '💳 <b>Trạng thái:</b> ' + depStatus + (dep.amount ? ' (' + fmt(dep.amount) + ')' : '') + '\n' +
-      '━━━━━━━━━━━━━━━━━━━\n' +
-      '💬 <b>Ghi chú:</b> <i>' + (c.note || 'Không có') + '</i>\n\n' +
-      '👉 <a href="' + shareUrl + '">XEM CHI TIẾT PHIẾU ĐẶT BÀN</a>';
+    const msg = buildModernTelegramCard_(orderData, "test_id", {
+      mode: "notification",
+      shareUrl: shareUrl
+    });
+    const buttons = buildModernTelegramKeyboard_(orderData, "test_id", {
+      mode: "confirmed",
+      chatId: chatId,
+      shareUrl: shareUrl
+    });
 
-    const payload = { chat_id: chatId, text: msg, parse_mode: 'HTML' };
+    const payload = {
+      chat_id: chatId,
+      text: msg,
+      parse_mode: 'HTML',
+      reply_markup: { inline_keyboard: buttons }
+    };
     if (cfg['telegramTopicId']) {
       const threadIdNum = Number(cfg['telegramTopicId']);
       if (!isNaN(threadIdNum) && threadIdNum > 1) {
@@ -2955,7 +3112,7 @@ function testTelegramNotification(orderData) {
 // --- TELEGRAM WEBHOOK INCOMING EVENT HANDLERS ---
 
 function handleTelegramWebhook(update) {
-  // Clean up expired temp payloads from Script Properties
+  // Auto-confirm any legacy unconfirmed temp payloads & clean up expired cache keys
   cleanExpiredTempPayloads_();
 
   // Log webhook event details to Webhook_Logs sheet for diagnostic purposes
@@ -2971,10 +3128,10 @@ function handleTelegramWebhook(update) {
     cache.put("processed_update_" + updateId, "true", 600); // 10 minutes cache
   }
 
-  // --- A. Callback Query Handler (Inline Buttons) ---
+  // --- A. Callback Query Handler (Inline Buttons with Instant Web + Mobile Feedback) ---
   if (update && update.callback_query) {
     const callbackQuery = update.callback_query;
-    const callbackData = callbackQuery.data;
+    const callbackData = String(callbackQuery.data || "");
     const message = callbackQuery.message;
     const chatId = message.chat.id;
     const messageId = message.message_id;
@@ -2989,104 +3146,275 @@ function handleTelegramWebhook(update) {
     };
 
     try {
+      // 0. Instant visual feedback for no-op / status badge clicks
+      if (callbackData.indexOf("noop_confirmed:") === 0) {
+        answerCallbackQuery_(botToken, callbackQuery.id, "✅ Đơn đặt bàn này đã được xác nhận chính thức và đồng bộ vào Lịch!", false);
+        return HtmlService.createHtmlOutput("Noop confirmed");
+      }
+
+      // 1. Official Confirmation ("✅ Xác nhận chính thức" -> removes "Bot tự động xác nhận - cần xem lại" note)
       if (callbackData.indexOf("confirm_create:") === 0) {
-      const tempId = callbackData.substring("confirm_create:".length);
-      const payloadStr = PropertiesService.getScriptProperties().getProperty(tempId);
-      if (!payloadStr) {
-        editTelegramMessageText_(botToken, chatId, messageId, "⚠️ <b>Phiên làm việc đã hết hạn (quá 10 phút) hoặc đơn đã được xác nhận tạo phiếu.</b>", null);
-        return HtmlService.createHtmlOutput("Temp payload expired");
-      }
-      
-      let payload = null;
-      try {
-        payload = JSON.parse(payloadStr);
-      } catch (e) {
-        editTelegramMessageText_(botToken, chatId, messageId, "⚠️ <b>Lỗi phân tích dữ liệu tạm thời.</b>", null);
-        return HtmlService.createHtmlOutput("JSON parse error");
-      }
-      
-      // Save order
-      payload.skipNotification = false;
-      const saveResult = saveOrder(payload);
-      if (!saveResult || !saveResult.id) {
-        editTelegramMessageText_(botToken, chatId, messageId, "❌ <b>Lên phiếu thất bại: " + (saveResult ? saveResult.message : "Lưu dữ liệu lỗi") + "</b>", null);
-        return HtmlService.createHtmlOutput("Save failed");
-      }
-      
-      PropertiesService.getScriptProperties().deleteProperty(tempId);
-      
-      const c = payload.customer;
-      const fmt = (n) => n ? n.toString().replace(/\B(?=(\d{3})+(?!\d))/g, '.') + 'đ' : '0đ';
-      const depStatus = payload.deposit.isPaid ? '✅ ĐÃ CỌC (' + fmt(payload.deposit.amount) + ')' : '⏳ CHỜ CỌC (' + fmt(payload.deposit.amount) + ')';
-      const depNoteLine = payload.deposit.note ? `\n💳 <b>Chi tiết cọc:</b> ${payload.deposit.note}` : "";
-      
-      const successCaption = '✅ <b>LÊN PHIẾU ĐẶT BÀN THÀNH CÔNG</b>\n' +
-        '━━━━━━━━━━━━━━━━━━━\n' +
-        '👤 <b>Khách hàng:</b> ' + escapeHtml(c.name || 'N/A') + '\n' +
-        '📱 <b>Số điện thoại:</b> ' + escapeHtml(c.phone || 'N/A') + '\n' +
-        '📅 <b>Thời gian:</b> ' + escapeHtml(c.date || '?') + ' | ⏰ ' + escapeHtml(c.time || '?') + '\n' +
-        '👥 <b>Số lượng:</b> ' + escapeHtml(c.pax || '?') + ' khách | 🪑 <b>Bàn:</b> ' + escapeHtml(c.tables || '?') + '\n' +
-        '🍽️ <b>Món ăn:</b> ' + (payload.items.map(i => i.name + ' x' + i.qty).join(', ') || 'Chưa đặt') + '\n' +
-        '💰 <b>Tổng tiền:</b> ' + fmt(payload.total) + '\n' +
-        '💳 <b>Trạng thái:</b> ' + depStatus + depNoteLine + '\n' +
-        '━━━━━━━━━━━━━━━━━━━\n' +
-        '🆔 <b>Mã đặt bàn:</b> <code>' + payload.id + '</code>\n' +
-        '👉 <a href="https://kg-booking.pages.dev/#/bill/' + payload.id + '">XEM PHIẾU ĐẶT ONLINE</a>';
-      
-      const postSuccessButtons = [
-        [
-          { text: "🧾 Xem Phiếu Online", url: "https://kg-booking.pages.dev/#/bill/" + payload.id },
-          { text: "📱 Mở App Đặt Bàn", web_app: { url: "https://datban-kingsgrill.pages.dev" } }
-        ]
-      ];
-      if (!payload.deposit.isPaid && payload.deposit.amount > 0) {
-        const qrUrl = "https://img.vietqr.io/image/970415-102874136666-compact2.png?amount=" + payload.deposit.amount + "&addInfo=DATBAN%20" + encodeURIComponent(payload.id.slice(-6)) + "&accountName=KINGS%20GRILL";
-        postSuccessButtons.push([
-          { text: "💵 Đã Nhận Cọc", callback_data: "mark_paid:" + payload.id },
-          { text: "💳 Mã VietQR Cọc", url: qrUrl }
-        ]);
+        const refId = callbackData.substring("confirm_create:".length);
+        // Stage 1: Immediate visual button transition on Telegram Web & Mobile
+        showInstantButtonLoading_(botToken, chatId, messageId, message.reply_markup, callbackData, "⏳ Đang xác nhận chính thức...");
+
+        let payload = resolveOrderFromCallbackRef_(refId);
+        if (!payload) {
+          answerCallbackQuery_(botToken, callbackQuery.id, "⚠️ Không tìm thấy dữ liệu đơn hoặc đơn đã bị xóa.", true);
+          editTelegramMessageText_(botToken, chatId, messageId, "⚠️ <b>Đơn đặt bàn không còn tồn tại hoặc đã bị hủy trước đó.</b>", null);
+          return HtmlService.createHtmlOutput("Order not found");
+        }
+
+        // Strip the auto-confirm warning note now that user explicitly clicked Confirm
+        payload.customer = payload.customer || {};
+        payload.customer.note = removeAutoConfirmNote_(payload.customer.note || "");
+        payload.customer.type = normalizePartyType_(payload.customer.type, payload.customer.note);
+        payload.aiMetadata = payload.aiMetadata || {};
+        payload.aiMetadata.autoConfirmed = false;
+        payload.aiMetadata.confirmedByUser = true;
+        payload.aiMetadata.confirmedAt = new Date().toISOString();
+        payload.skipNotification = true;
+
+        const saveResult = saveOrder(payload);
+        if (!saveResult || !saveResult.id) {
+          answerCallbackQuery_(botToken, callbackQuery.id, "❌ Lên phiếu thất bại!", true);
+          editTelegramMessageText_(botToken, chatId, messageId, "❌ <b>Xác nhận thất bại: " + escapeHtml(saveResult ? saveResult.message : "Lưu dữ liệu lỗi") + "</b>", null);
+          return HtmlService.createHtmlOutput("Save failed");
+        }
+
+        payload.id = saveResult.id;
+        if (refId.indexOf("temp_TG_") === 0) {
+          try { PropertiesService.getScriptProperties().deleteProperty(refId); } catch(e) {}
+        }
+
+        const shareUrl = getShareUrlWithData_(payload.id, payload);
+        const confirmedCard = buildModernTelegramCard_(payload, payload.id, {
+          mode: "confirmed",
+          shareUrl: shareUrl,
+          calendarSync: saveResult.calendarSync
+        });
+        const confirmedButtons = buildModernTelegramKeyboard_(payload, payload.id, {
+          mode: "confirmed",
+          chatId: chatId,
+          shareUrl: shareUrl
+        });
+
+        editTelegramMessageText_(botToken, chatId, messageId, confirmedCard, { inline_keyboard: confirmedButtons });
+        answerCallbackQuery_(botToken, callbackQuery.id, "✅ Đã xác nhận chính thức & xoá ghi chú cảnh báo trên Sheet!", false);
+        return HtmlService.createHtmlOutput("Callback processed - order officially confirmed");
       }
 
-      editTelegramMessageText_(botToken, chatId, messageId, successCaption, { inline_keyboard: postSuccessButtons });
-      answerCallbackQuery_(botToken, callbackQuery.id, "Đã lên phiếu thành công!");
-      return HtmlService.createHtmlOutput("Callback processed - order created");
-    }
-    
-    if (callbackData.indexOf("cancel_create:") === 0) {
-      const tempId = callbackData.substring("cancel_create:".length);
-      PropertiesService.getScriptProperties().deleteProperty(tempId);
-      editTelegramMessageText_(botToken, chatId, messageId, "❌ <b>ĐÃ HỦY YÊU CẦU ĐẶT BÀN.</b>", null);
-      answerCallbackQuery_(botToken, callbackQuery.id, "Đã hủy yêu cầu.");
-      return HtmlService.createHtmlOutput("Callback processed - canceled");
-    }
+      // 2. Toggle back to Needs Review ("🔄 Đánh dấu Cần xem lại")
+      if (callbackData.indexOf("mark_review:") === 0) {
+        const bookingId = callbackData.substring("mark_review:".length);
+        showInstantButtonLoading_(botToken, chatId, messageId, message.reply_markup, callbackData, "⏳ Đang gắn ghi chú xem lại...");
 
-    if (callbackData.indexOf("mark_paid:") === 0) {
-      const bookingId = callbackData.substring("mark_paid:".length);
-      const existing = getOrderById_(bookingId);
-      if (existing) {
-        existing.deposit = existing.deposit || {};
-        existing.deposit.isPaid = true;
-        saveOrder(existing);
-        answerCallbackQuery_(botToken, callbackQuery.id, "✅ Đã ghi nhận cọc thành công!");
-        
-        const updatedButtons = [
-          [
-            { text: "🧾 Xem Phiếu Online", url: "https://kg-booking.pages.dev/#/bill/" + bookingId },
-            { text: "📱 Mở App Đặt Bàn", web_app: { url: "https://datban-kingsgrill.pages.dev" } }
-          ]
-        ];
-        editTelegramMessageText_(botToken, chatId, messageId, "🟢 <b>ĐÃ GHI NHẬN CỌC THÀNH CÔNG (Chuyển khoản)</b>\nMã đặt bàn: <code>" + bookingId + "</code>\nKhách: <b>" + escapeHtml(existing.customer.name) + "</b> | Bàn: <b>" + escapeHtml(existing.customer.tables) + "</b>", { inline_keyboard: updatedButtons });
-      } else {
-        answerCallbackQuery_(botToken, callbackQuery.id, "Không tìm thấy đơn.");
+        const existing = resolveOrderFromCallbackRef_(bookingId);
+        if (!existing) {
+          answerCallbackQuery_(botToken, callbackQuery.id, "⚠️ Không tìm thấy đơn đặt bàn này.", true);
+          return HtmlService.createHtmlOutput("Order not found");
+        }
+
+        existing.customer = existing.customer || {};
+        existing.customer.note = appendAutoConfirmNote_(existing.customer.note || "");
+        existing.aiMetadata = existing.aiMetadata || {};
+        existing.aiMetadata.autoConfirmed = true;
+        existing.aiMetadata.confirmedByUser = false;
+        existing.skipNotification = true;
+
+        const saveResult = saveOrder(existing);
+        const shareUrl = getShareUrlWithData_(existing.id, existing);
+        const card = buildModernTelegramCard_(existing, existing.id, {
+          mode: "auto_confirmed",
+          shareUrl: shareUrl,
+          calendarSync: saveResult ? saveResult.calendarSync : null
+        });
+        const kb = buildModernTelegramKeyboard_(existing, existing.id, {
+          mode: "auto_confirmed",
+          chatId: chatId,
+          shareUrl: shareUrl
+        });
+
+        editTelegramMessageText_(botToken, chatId, messageId, card, { inline_keyboard: kb });
+        answerCallbackQuery_(botToken, callbackQuery.id, "⚠️ Đã gắn lại ghi chú 'Bot tự động xác nhận - cần xem lại' vào Sheet!", false);
+        return HtmlService.createHtmlOutput("Callback processed - marked review");
       }
-      return HtmlService.createHtmlOutput("Callback processed - mark paid");
+
+      // 3. Cancel / Delete Booking ("❌ Hủy bỏ / Xóa lịch")
+      if (callbackData.indexOf("cancel_create:") === 0) {
+        const refId = callbackData.substring("cancel_create:".length);
+        showInstantButtonLoading_(botToken, chatId, messageId, message.reply_markup, callbackData, "⏳ Đang hủy & xóa khỏi Lịch...");
+
+        let targetBookingId = refId;
+        let customerName = "";
+        let customerTables = "";
+
+        if (refId.indexOf("temp_TG_") === 0) {
+          const payloadStr = PropertiesService.getScriptProperties().getProperty(refId);
+          if (payloadStr) {
+            try {
+              const p = JSON.parse(payloadStr);
+              targetBookingId = p.id || "";
+              customerName = (p.customer && p.customer.name) || "";
+              customerTables = (p.customer && p.customer.tables) || "";
+            } catch(e) {}
+          }
+          PropertiesService.getScriptProperties().deleteProperty(refId);
+        } else {
+          const existing = getOrderById_(refId);
+          if (existing && existing.customer) {
+            customerName = existing.customer.name || "";
+            customerTables = existing.customer.tables || "";
+          }
+        }
+
+        if (targetBookingId && targetBookingId.indexOf("temp_TG_") !== 0) {
+          try { deleteOrderInternal_(targetBookingId); } catch(e) {}
+        }
+
+        const cancelHtml = "❌ <b>ĐÃ HỦY &amp; XÓA LỊCH ĐẶT BÀN</b>\n" +
+          "━━━━━━━━━━━━━━━━━━━\n" +
+          (customerName ? ("👤 <b>Khách hàng:</b> " + escapeHtml(customerName) + (customerTables ? " | 🪑 <b>Bàn:</b> " + escapeHtml(customerTables) : "") + "\n") : "") +
+          (targetBookingId ? ("🆔 <b>Mã đơn đã hủy:</b> <code>" + escapeHtml(targetBookingId) + "</code>\n") : "") +
+          "🗑️ <i>Đã gỡ bỏ hoàn toàn khỏi danh sách Orders và Bảng Lịch Đặt Bàn Google Sheets.</i>";
+
+        editTelegramMessageText_(botToken, chatId, messageId, cancelHtml, null);
+        answerCallbackQuery_(botToken, callbackQuery.id, "🗑️ Đã hủy yêu cầu và xóa lịch khỏi Sheet!", false);
+        return HtmlService.createHtmlOutput("Callback processed - canceled");
+      }
+
+      // 4. Open Inline Party Type Selector ("🎉 Đổi Loại Tiệc ▾")
+      if (callbackData.indexOf("open_type_menu:") === 0) {
+        const bookingId = callbackData.substring("open_type_menu:".length);
+        const existing = resolveOrderFromCallbackRef_(bookingId);
+        if (!existing) {
+          answerCallbackQuery_(botToken, callbackQuery.id, "⚠️ Không tìm thấy đơn đặt bàn.", true);
+          return HtmlService.createHtmlOutput("Order not found");
+        }
+        const typeMenuKeyboard = buildPartyTypeMenuKeyboard_(bookingId, existing.customer && existing.customer.type);
+        editTelegramMessageReplyMarkup_(botToken, chatId, messageId, { inline_keyboard: typeMenuKeyboard });
+        answerCallbackQuery_(botToken, callbackQuery.id, "🎉 Chọn Loại Tiệc / Nhu Cầu Đặt bên dưới:", false);
+        return HtmlService.createHtmlOutput("Callback processed - open party type menu");
+      }
+
+      // 5. Close Inline Party Type Selector ("⬅️ Quay lại")
+      if (callbackData.indexOf("close_type_menu:") === 0) {
+        const bookingId = callbackData.substring("close_type_menu:".length);
+        const existing = resolveOrderFromCallbackRef_(bookingId);
+        if (!existing) {
+          answerCallbackQuery_(botToken, callbackQuery.id, "⚠️ Không tìm thấy đơn đặt bàn.", true);
+          return HtmlService.createHtmlOutput("Order not found");
+        }
+        const isAuto = hasAutoConfirmNote_(existing.customer && existing.customer.note);
+        const shareUrl = getShareUrlWithData_(existing.id || bookingId, existing);
+        const kb = buildModernTelegramKeyboard_(existing, existing.id || bookingId, {
+          mode: isAuto ? "auto_confirmed" : "confirmed",
+          chatId: chatId,
+          shareUrl: shareUrl
+        });
+        editTelegramMessageReplyMarkup_(botToken, chatId, messageId, { inline_keyboard: kb });
+        answerCallbackQuery_(botToken, callbackQuery.id, "Đã quay lại bảng điều khiển", false);
+        return HtmlService.createHtmlOutput("Callback processed - close party type menu");
+      }
+
+      // 6. Select & Update Party Type ("set_type:<bookingId>:<index>")
+      if (callbackData.indexOf("set_type:") === 0) {
+        const parts = callbackData.split(":");
+        const bookingId = parts[1] || "";
+        const typeIdx = parseInt(parts[2], 10);
+        const chosenType = (PARTY_TYPES_CANONICAL_[typeIdx] && PARTY_TYPES_CANONICAL_[typeIdx].name) || "Ăn thường";
+
+        showInstantButtonLoading_(botToken, chatId, messageId, message.reply_markup, callbackData, "⏳ Đang lưu: " + chosenType + "...");
+
+        const existing = resolveOrderFromCallbackRef_(bookingId);
+        if (!existing) {
+          answerCallbackQuery_(botToken, callbackQuery.id, "⚠️ Không tìm thấy đơn đặt bàn.", true);
+          return HtmlService.createHtmlOutput("Order not found");
+        }
+
+        existing.customer = existing.customer || {};
+        existing.customer.type = chosenType;
+        existing.skipNotification = true;
+
+        const saveResult = saveOrder(existing);
+        const isAuto = hasAutoConfirmNote_(existing.customer.note);
+        const shareUrl = getShareUrlWithData_(existing.id, existing);
+        const updatedCard = buildModernTelegramCard_(existing, existing.id, {
+          mode: isAuto ? "auto_confirmed" : "confirmed",
+          shareUrl: shareUrl,
+          calendarSync: saveResult ? saveResult.calendarSync : null
+        });
+        const updatedKb = buildModernTelegramKeyboard_(existing, existing.id, {
+          mode: isAuto ? "auto_confirmed" : "confirmed",
+          chatId: chatId,
+          shareUrl: shareUrl
+        });
+
+        editTelegramMessageText_(botToken, chatId, messageId, updatedCard, { inline_keyboard: updatedKb });
+        answerCallbackQuery_(botToken, callbackQuery.id, "🎉 Đã đổi Loại tiệc sang: " + chosenType + "!", false);
+        return HtmlService.createHtmlOutput("Callback processed - party type updated");
+      }
+
+      // 7. Toggle Deposit Paid / Unpaid ("mark_paid:<id>" / "unmark_paid:<id>")
+      if (callbackData.indexOf("mark_paid:") === 0 || callbackData.indexOf("unmark_paid:") === 0) {
+        const isMarkingPaid = callbackData.indexOf("mark_paid:") === 0;
+        const bookingId = callbackData.substring(isMarkingPaid ? "mark_paid:".length : "unmark_paid:".length);
+
+        showInstantButtonLoading_(
+          botToken,
+          chatId,
+          messageId,
+          message.reply_markup,
+          callbackData,
+          isMarkingPaid ? "⏳ Đang xác nhận cọc..." : "⏳ Đang chuyển về chờ cọc..."
+        );
+
+        const existing = resolveOrderFromCallbackRef_(bookingId);
+        if (existing) {
+          existing.deposit = existing.deposit || {};
+          existing.deposit.isPaid = isMarkingPaid;
+          if (isMarkingPaid && !existing.deposit.amount) {
+            existing.deposit.amount = autoCalcDeposit_(existing.customer, existing.items);
+          }
+          existing.deposit.note = isMarkingPaid ? "Đã nhận cọc (Xác nhận qua Telegram)" : "Chờ cọc";
+          existing.skipNotification = true;
+
+          const saveResult = saveOrder(existing);
+          const isAuto = hasAutoConfirmNote_(existing.customer && existing.customer.note);
+          const shareUrl = getShareUrlWithData_(existing.id, existing);
+          const updatedCard = buildModernTelegramCard_(existing, existing.id, {
+            mode: isAuto ? "auto_confirmed" : "confirmed",
+            shareUrl: shareUrl,
+            calendarSync: saveResult ? saveResult.calendarSync : null
+          });
+          const updatedKb = buildModernTelegramKeyboard_(existing, existing.id, {
+            mode: isAuto ? "auto_confirmed" : "confirmed",
+            chatId: chatId,
+            shareUrl: shareUrl
+          });
+
+          editTelegramMessageText_(botToken, chatId, messageId, updatedCard, { inline_keyboard: updatedKb });
+          answerCallbackQuery_(
+            botToken,
+            callbackQuery.id,
+            isMarkingPaid ? "✅ Đã ghi nhận ĐÃ CỌC & đồng bộ Sheet!" : "⏳ Đã chuyển trạng thái về CHỜ CỌC!",
+            false
+          );
+        } else {
+          answerCallbackQuery_(botToken, callbackQuery.id, "⚠️ Không tìm thấy đơn đặt bàn.", true);
+        }
+        return HtmlService.createHtmlOutput("Callback processed - deposit toggled");
+      }
+
+      // Fallback for any unknown callback data so button spinner never hangs
+      answerCallbackQuery_(botToken, callbackQuery.id, "⚡ Đã nhận thao tác!", false);
+      return HtmlService.createHtmlOutput("Callback processed");
+    } catch (err) {
+      logError_("Callback Error: " + err.message + "\nStack: " + err.stack);
+      answerCallbackQuery_(botToken, callbackQuery.id, "❌ Lỗi: " + err.message, true);
+      editTelegramMessageText_(botToken, chatId, messageId, "❌ <b>Lỗi xử lý yêu cầu:</b> " + escapeHtml_(err.message), null);
+      return HtmlService.createHtmlOutput("Callback error: " + err.message);
     }
-  } catch (err) {
-    logError_("Callback Error: " + err.message + "\nStack: " + err.stack);
-    answerCallbackQuery_(botToken, callbackQuery.id, "❌ Lỗi: " + err.message);
-    editTelegramMessageText_(botToken, chatId, messageId, "❌ <b>Lỗi xử lý yêu cầu:</b> " + escapeHtml_(err.message), null);
-    return HtmlService.createHtmlOutput("Callback error: " + err.message);
-  }
   }
 
   const msg = update.message;
@@ -3100,7 +3428,9 @@ function handleTelegramWebhook(update) {
   if (!botToken) return HtmlService.createHtmlOutput("Bot token not found in config");
 
   const cfg = loadSystemConfig_();
-  const activeMenuSheet = cfg['default_menu_profile_id'] || "Menu";
+  const activeMenuSheet = isCustomerMenuSheetName_(cfg['default_menu_profile_id'])
+    ? cfg['default_menu_profile_id']
+    : PRIMARY_MENU_SHEET;
 
   const escapeHtml = function(t) {
     if (!t) return '';
@@ -3163,7 +3493,7 @@ function handleTelegramWebhook(update) {
           if (tempMsgId) deleteTelegramMessage_(botToken, chatId, tempMsgId);
           replyTelegram_(botToken, chatId, threadId, `🗑️ <b>ĐÃ HỦY ĐƠN ĐẶT BÀN THÀNH CÔNG!</b>\nKhách: <b>${escapeHtml(order.customer.name)}</b> | Bàn: <b>${escapeHtml(order.customer.tables)}</b>`);
           
-          // Optionally edit parent message to show cancelled status
+          // Edit parent message to show cancelled status
           editTelegramText_(botToken, chatId, replyTo.message_id, `❌ <b>ĐƠN ĐẶT BÀN ĐÃ BỊ HỦY</b>\nKhách: ${escapeHtml(order.customer.name)} | Điện thoại: ${escapeHtml(order.customer.phone)}`);
         } else if (replyResult.action === "update" && replyResult.data) {
           const updatedOrder = replyResult.data;
@@ -3175,6 +3505,8 @@ function handleTelegramWebhook(update) {
           updatedOrder.billImage = order.billImage || "";
           updatedOrder.customFileName = order.customFileName || ("TG_" + updatedOrder.customer.name);
           updatedOrder.activeMenuSheet = order.activeMenuSheet;
+          updatedOrder.customer = updatedOrder.customer || {};
+          updatedOrder.customer.type = normalizePartyType_(updatedOrder.customer.type || order.customer.type, text + " " + (updatedOrder.customer.note || ""));
           
           // Auto-recalculate deposit if unpaid
           if (updatedOrder.deposit && !updatedOrder.deposit.isPaid) {
@@ -3190,32 +3522,25 @@ function handleTelegramWebhook(update) {
           
           const c = updatedOrder.customer;
           const fmt = (n) => n ? n.toString().replace(/\B(?=(\d{3})+(?!\d))/g, '.') + 'đ' : '0đ';
-          const depStatus = updatedOrder.deposit.isPaid ? '✅ ĐÃ CỌC (' + fmt(updatedOrder.deposit.amount) + ')' : '⏳ CHỜ CỌC (' + fmt(updatedOrder.deposit.amount) + ')';
-          const depNoteLine = updatedOrder.deposit.note ? `\n💳 <b>Chi tiết cọc:</b> ${updatedOrder.deposit.note}` : "";
-          
-          let imageLinkLine = '';
-          if (updatedOrder.billImage && updatedOrder.billImage.indexOf('http') === 0) {
-            imageLinkLine = '\n🖼️ <a href="' + updatedOrder.billImage + '">XEM ẢNH PHIẾU ĐẶT (ONLINE)</a>';
-          }
-
-          const confirmCaption = '📝 <b>CẬP NHẬT PHIẾU ĐẶT BÀN THÀNH CÔNG</b>\n' +
-            '━━━━━━━━━━━━━━━━━━━\n' +
-            '👤 <b>Khách hàng:</b> ' + escapeHtml(c.name || 'N/A') + '\n' +
-            '📱 <b>Số điện thoại:</b> ' + escapeHtml(c.phone || 'N/A') + '\n' +
-            '📅 <b>Thời gian:</b> ' + escapeHtml(c.date || '?') + ' | ⏰ ' + escapeHtml(c.time || '?') + '\n' +
-            '👥 <b>Số lượng:</b> ' + escapeHtml(c.pax || '?') + ' khách | 🪑 <b>Bàn:</b> ' + escapeHtml(c.tables || '?') + '\n' +
-            '🍽️ <b>Món ăn:</b> ' + (updatedOrder.items.map(i => i.name + ' x' + i.qty).join(', ') || 'Chưa đặt') + '\n' +
-            '💰 <b>Tổng tiền:</b> ' + fmt(updatedOrder.total) + '\n' +
-            '💳 <b>Trạng thái:</b> ' + depStatus + depNoteLine + '\n' +
-            '━━━━━━━━━━━━━━━━━━━\n' +
-            '🆔 <b>Mã đặt bàn:</b> <code>' + bookingId + '</code>\n' +
-            '👉 <a href="https://kg-booking.pages.dev/#/bill/' + bookingId + '">XEM PHIẾU ĐẶT ONLINE</a>' + imageLinkLine;
+          const isAuto = hasAutoConfirmNote_(c.note);
+          const shareUrl = getShareUrlWithData_(bookingId, updatedOrder);
+          const confirmCaption = buildModernTelegramCard_(updatedOrder, bookingId, {
+            mode: "updated",
+            shareUrl: shareUrl,
+            billUrl: updatedOrder.billImage,
+            calendarSync: saveResult.calendarSync
+          });
+          const updatedKb = buildModernTelegramKeyboard_(updatedOrder, bookingId, {
+            mode: isAuto ? "auto_confirmed" : "confirmed",
+            chatId: chatId,
+            shareUrl: shareUrl
+          });
           
           if (tempMsgId) deleteTelegramMessage_(botToken, chatId, tempMsgId);
-          editTelegramText_(botToken, chatId, replyTo.message_id, confirmCaption);
-          replyTelegram_(botToken, chatId, threadId, `✅ <b>Đã cập nhật đơn đặt bàn thành công!</b>\nKhách: <b>${escapeHtml(c.name)}</b> | Ngày: <b>${escapeHtml(c.date)}</b> | Bàn: <b>${escapeHtml(c.tables)}</b> | Cọc: <b>${fmt(updatedOrder.deposit.amount)}</b>`);
+          editTelegramMessageText_(botToken, chatId, replyTo.message_id, confirmCaption, { inline_keyboard: updatedKb });
+          replyTelegram_(botToken, chatId, threadId, `✅ <b>Đã cập nhật đơn đặt bàn thành công!</b>\n👤 Khách: <b>${escapeHtml(c.name)}</b> | 🎉 Tiệc: <b>${escapeHtml(c.type || 'Ăn thường')}</b>\n📅 Ngày: <b>${escapeHtml(c.date)}</b> | 🪑 Bàn: <b>${escapeHtml(c.tables)}</b> | 💰 Cọc: <b>${fmt(updatedOrder.deposit.amount)}</b>`);
         } else {
-          throw new Error("Không hiểu rõ chỉ thị chỉnh sửa. Vui lòng nhập rõ cú pháp ví dụ: 'Hủy bàn', 'Sửa tiền cọc 3TR', 'Dời sang 09/07/2026 - Bàn mới C5'.");
+          throw new Error("Không hiểu rõ chỉ thị chỉnh sửa. Vui lòng nhập rõ cú pháp ví dụ: 'Hủy bàn', 'Sửa tiền cọc 3TR', 'Dời sang 09/07/2026 - Bàn mới C5', 'Đổi sang tiệc Sinh nhật'.");
         }
       } catch (err) {
         if (tempMsgId) deleteTelegramMessage_(botToken, chatId, tempMsgId);
@@ -3263,11 +3588,9 @@ function handleTelegramWebhook(update) {
   }
   
   // 2. Read registered chat ID and topic IDs from config
-  // Reuse cfg defined at top
   const registeredChatId = cfg['telegramChatId'];
   const registeredTopicId = cfg['telegramTopicId'];
   const registeredAutoBookingTopicId = cfg['telegramAutoBookingTopicId'] || cfg['telegram_auto_booking_topic_id'] || registeredTopicId;
-  // Reuse activeMenuSheet defined at top
   
   // 3. Process booking text if it matches the registered group and topic
   if (registeredChatId && String(chatId) === String(registeredChatId)) {
@@ -3275,18 +3598,19 @@ function handleTelegramWebhook(update) {
     const isStatusCmd = text && (text.startsWith("/status") || text.includes("@KGReservedBot_bot /status"));
     if (isStatusCmd) {
       const bankAccount = cfg['default_bank_account_id'] || "Chưa thiết lập";
-      const statusMsg = "🤖 <b>TRẠNG THÁI KẾT NỐI HỆ THỐNG</b>\n" +
+      const statusMsg = "🤖 <b>TRẠNG THÁI KẾT NỐI HỆ THỐNG KING'S GRILL</b>\n" +
         "━━━━━━━━━━━━━━━━━━━\n" +
-        "🟢 <b>Kết nối:</b> Hoạt động bình thường\n" +
-        "📊 <b>Bảng thực đơn hoạt động:</b> <code>" + activeMenuSheet + "</code>\n" +
-        "💳 <b>Tài khoản nhận cọc mặc định:</b> <code>" + bankAccount + "</code>\n" +
+        "<blockquote>🟢 <b>Kết nối Bot:</b> Hoạt động bình thường\n" +
+        "🤖 <b>Chế độ tự động:</b> Tự động thêm lịch &amp; gắn ghi chú <i>\"Bot tự động xác nhận - cần xem lại\"</i> nếu chưa bấm Xác nhận\n" +
+        "🎉 <b>Đồng bộ Loại tiệc:</b> Sinh nhật, Thôi nôi (1st), Công ty, Ăn thường, Liên hoan, Cưới/Báo hỷ, Farewell, Kỉ niệm, Tất niên, Tân niên, Gia đình\n" +
+        "📊 <b>Thực đơn đang dùng:</b> <code>" + activeMenuSheet + "</code>\n" +
+        "💳 <b>Tài khoản nhận cọc:</b> <code>" + bankAccount + "</code>\n" +
         "📍 <b>ID nhóm chat:</b> <code>" + chatId + "</code>\n" +
         "📢 <b>Topic Thông báo:</b> <code>" + (registeredTopicId || "Mặc định / Không có") + "</code>\n" +
-        "📥 <b>Topic Nhận đơn:</b> <code>" + (registeredAutoBookingTopicId || "Mặc định / Không có") + "</code>\n" +
-        "📦 <b>Phiên bản backend:</b> <code>v121</code>\n\n" +
-        "👉 Lệnh đăng ký:\n" +
-        " - <code>/register_notification</code>: Đăng ký Topic hiện tại để nhận thông báo\n" +
-        " - <code>/register_auto_booking</code>: Đăng ký Topic hiện tại để tự động nhận đơn";
+        "📥 <b>Topic Nhận đơn:</b> <code>" + (registeredAutoBookingTopicId || "Mặc định / Không có") + "</code></blockquote>\n" +
+        "👉 Lệnh quản trị:\n" +
+        " • <code>/register_notification</code>: Đăng ký Topic nhận thông báo\n" +
+        " • <code>/register_auto_booking</code>: Đăng ký Topic tự động nhận đơn";
       replyTelegram_(botToken, chatId, threadId, statusMsg);
       return HtmlService.createHtmlOutput("Status responded");
     }
@@ -3294,22 +3618,21 @@ function handleTelegramWebhook(update) {
     // A.1. Handle help command
     const isHelpCmd = text && (text.startsWith("/huongdan") || text.includes("@KGReservedBot_bot /huongdan") || text.startsWith("/help"));
     if (isHelpCmd) {
-      const helpMsg = "📖 <b>HƯỚNG DẪN SỬ DỤNG BOT ĐẶT BÀN KING'S GRILL</b>\n" +
+      const helpMsg = "📖 <b>HƯỚNG DẪN SỬ DỤNG BOT ĐẶT BÀN KING'S GRILL (V4)</b>\n" +
         "━━━━━━━━━━━━━━━━━━━\n" +
-        "🤖 <b>1. LÊN PHIẾU ĐẶT BÀN MỚI</b>\n" +
-        "Gửi trực tiếp tin nhắn có chứa các thông tin đặt bàn vào nhóm/topic nhận đơn. Ví dụ:\n" +
-        "<i>Anh Trí 0901234567 ngày mai 18:30 đi 4 khách bàn A1 ăn Lẩu thái 1, cơm chiên 1, cọc 500k</i>\n" +
-        "👉 Bot sẽ tự động phân tích và gửi thẻ xác nhận. Anh/chị bấm <b>[✅ Xác nhận tạo]</b> để lưu vào Spreadsheet & Lịch Google.\n\n" +
-        "📝 <b>2. CẬP NHẬT / HỦY PHIẾU TIỆC CŨ</b>\n" +
-        "Nhấn <b>Trả lời (Reply)</b> vào tin nhắn đặt bàn cũ (hoặc tin nhắn báo thành công của Bot) và soạn nội dung thay đổi:\n" +
-        " - Đổi ngày/giờ: <i>Dời sang 09/07/2026 lúc 19h30</i>\n" +
-        " - Sửa bàn: <i>Đổi sang bàn C5</i>\n" +
-        " - Thêm/bớt món: <i>Thêm 1 cơm chiên hải sản, bớt 1 lẩu thái</i>\n" +
-        " - Sửa tiền cọc: <i>Sửa cọc 2TR</i> (hoặc 2000K, 2M)\n" +
-        " - Hủy bàn: <i>Hủy bàn này nha</i> hoặc <i>Khách không ăn nữa</i>\n\n" +
-        "📌 <b>3. LỆNH HỆ THỐNG</b>\n" +
-        " - <code>/status</code>: Kiểm tra trạng thái hoạt động của Bot\n" +
-        " - <code>/huongdan</code>: Xem hướng dẫn sử dụng này";
+        "🤖 <b>1. LÊN PHIẾU &amp; TỰ ĐỘNG GHI LỊCH CHỐNG SÓT BÀN</b>\n" +
+        "Gửi trực tiếp tin nhắn đặt bàn vào nhóm/topic nhận đơn. Ví dụ:\n" +
+        "<blockquote><i>Anh Trí 0901234567 ngày mai 18:30 đi 6 khách bàn A1 tiệc sinh nhật bé Bắp, ăn Lẩu thái 1, cơm chiên 1, cọc 500k</i></blockquote>\n" +
+        "👉 <b>Cơ chế chống sót lịch:</b> Ngay khi gửi tin, Bot sẽ <b>tự động thêm lịch vào Sheet</b> kèm ghi chú <code>Bot tự động xác nhận - cần xem lại</code>.\n" +
+        "👉 Khi anh/chị bấm nút <b>[✅ Xác nhận chính thức]</b>, Bot sẽ xóa dòng cảnh báo này. Nếu bấm <b>[❌ Hủy lịch]</b>, Bot sẽ xóa đơn khỏi Sheet.\n\n" +
+        "🎉 <b>2. ĐỔI NHANH LOẠI TIỆC &amp; TRẠNG THÁI CỌC TRÊN TELEGRAM</b>\n" +
+        " • Bấm <b>[🎉 Đổi Loại Tiệc ▾]</b> ngay dưới tin nhắn của Bot để chọn nhanh: <i>Sinh nhật, Ăn thường, Liên hoan, Công ty, Thôi nôi (1st), Gia đình...</i>\n" +
+        " • Bấm <b>[💵 Xác Nhận Đã Cọc]</b> để cập nhật trạng thái cọc tức thì trên cả Điện thoại và Telegram Web.\n\n" +
+        "📝 <b>3. CẬP NHẬT / HỦY PHIẾU BẰNG CÁCH TRẢ LỜI (REPLY)</b>\n" +
+        "Nhấn <b>Reply</b> vào tin nhắn của Bot và gõ yêu cầu:\n" +
+        " • <i>Đổi sang 19h30 bàn C5 tiệc liên hoan</i>\n" +
+        " • <i>Thêm 1 cơm chiên hải sản, sửa cọc 2TR</i>\n" +
+        " • <i>Hủy bàn này nha</i>";
       replyTelegram_(botToken, chatId, threadId, helpMsg);
       return HtmlService.createHtmlOutput("Help responded");
     }
@@ -3324,7 +3647,7 @@ function handleTelegramWebhook(update) {
       const invalidCmdMsg = "⚠️ <b>LỆNH KHÔNG HỢP LỆ</b>\n" +
         "━━━━━━━━━━━━━━━━━━━\n" +
         "Hệ thống không hỗ trợ lệnh này.\n\n" +
-        "👉 Sử dụng lệnh <code>/status</code> để kiểm tra kết nối bot.";
+        "👉 Sử dụng lệnh <code>/status</code> hoặc <code>/huongdan</code> để xem chi tiết.";
       replyTelegram_(botToken, chatId, threadId, invalidCmdMsg);
       return HtmlService.createHtmlOutput("Invalid command responded");
     }
@@ -3334,13 +3657,13 @@ function handleTelegramWebhook(update) {
       const emptyMsg = "🤖 <b>TIN NHẮN KHÔNG HỢP LỆ</b>\n" +
         "━━━━━━━━━━━━━━━━━━━\n" +
         "Em nhận được cập nhật nhưng tin nhắn trống hoặc không có nội dung chữ để phân tích.\n\n" +
-        "👉 Hãy gửi tin nhắn đặt bàn kèm chữ hoặc trả lời tin nhắn cũ với cú pháp cọc nhé!";
+        "👉 Hãy gửi tin nhắn đặt bàn kèm chữ hoặc trả lời tin nhắn cũ với cú pháp chỉnh sửa nhé!";
       replyTelegram_(botToken, chatId, threadId, emptyMsg);
       return HtmlService.createHtmlOutput("Empty text responded");
     }
 
     // D. Respond immediately to notify user and retrieve temporary message ID
-    const tempRes = replyTelegramWithResult_(botToken, chatId, threadId, "⏳ <b>Dạ em đã nhận thông tin mới, em sẽ lên lịch ngay...</b>");
+    const tempRes = replyTelegramWithResult_(botToken, chatId, threadId, "⏳ <b>Đang phân tích &amp; tự động ghi lịch đặt bàn vào Sheet...</b>");
     const tempMsgId = (tempRes && tempRes.result && tempRes.result.message_id) ? tempRes.result.message_id : null;
 
     sendChatAction_(botToken, chatId, threadId, "typing");
@@ -3348,9 +3671,14 @@ function handleTelegramWebhook(update) {
     try {
       const parsedData = parseBookingWithGemini_(text, activeMenuSheet);
       
-      if (!parsedData || !parsedData.customer || !parsedData.customer.name || !parsedData.customer.phone) {
+      if (!parsedData || !parsedData.customer || !parsedData.customer.name) {
         throw new Error("Không trích xuất được thông tin tên hoặc số điện thoại khách hàng.");
       }
+      if (!parsedData.customer.phone || !String(parsedData.customer.phone).trim()) {
+        parsedData.customer.phone = "Chưa có SĐT";
+      }
+      parsedData.customer.date = normalizeOrderDateToDMY_(parsedData.customer.date);
+      parsedData.customer.type = normalizePartyType_(parsedData.customer.type, text + " " + (parsedData.customer.note || ""));
       
       let isPaid = false;
       let depositAmount = 0;
@@ -3368,6 +3696,10 @@ function handleTelegramWebhook(update) {
         depositNote = "Yêu cầu cọc (Bot)";
       }
 
+      // Append "Bot tự động xác nhận - cần xem lại" right away so if the user does NOT press Confirm,
+      // the booking is already safely scheduled in the Sheet & Calendar with this exact review note!
+      parsedData.customer.note = appendAutoConfirmNote_(parsedData.customer.note || "");
+
       const bookingId = "TG_" + Utilities.getUuid().substring(0, 8) + "_" + Date.now();
       const payload = {
         customer: parsedData.customer,
@@ -3384,48 +3716,41 @@ function handleTelegramWebhook(update) {
         total: parsedData.total || 0,
         billImage: "",
         customFileName: "TG_" + parsedData.customer.name,
-        activeMenuSheet: activeMenuSheet
+        activeMenuSheet: activeMenuSheet,
+        aiMetadata: {
+          source: "TelegramBot",
+          autoConfirmed: true,
+          confirmedByUser: false,
+          createdAt: new Date().toISOString()
+        },
+        skipNotification: true
       };
       
-      // Store payload in cache for 10 minutes
-      const tempId = "temp_TG_" + Utilities.getUuid().substring(0, 8) + "_" + Date.now();
-      PropertiesService.getScriptProperties().setProperty(tempId, JSON.stringify(payload));
-      
-      const c = parsedData.customer;
-      const fmt = (n) => n ? n.toString().replace(/\B(?=(\d{3})+(?!\d))/g, '.') + 'đ' : '0đ';
-      const depStatusText = isPaid ? `✅ ĐÃ CỌC (${fmt(depositAmount)})` : `⏳ CHỜ CỌC (${fmt(depositAmount)})`;
-      const depNoteText = depositNote ? `\n💳 <b>Ghi chú cọc:</b> ${depositNote}` : "";
-      
-      const confirmationText = '🤖 <b>XÁC NHẬN ĐƠN ĐẶT BÀN MỚI</b>\n' +
-        '━━━━━━━━━━━━━━━━━━━\n' +
-        '👤 <b>Khách hàng:</b> ' + escapeHtml(c.name || 'N/A') + '\n' +
-        '📱 <b>Số điện thoại:</b> ' + escapeHtml(c.phone || 'N/A') + '\n' +
-        '📅 <b>Thời gian:</b> ' + escapeHtml(c.date || '?') + ' | ⏰ ' + escapeHtml(c.time || '?') + '\n' +
-        '👥 <b>Số lượng:</b> ' + escapeHtml(c.pax || '?') + ' khách | 🪑 <b>Bàn:</b> ' + escapeHtml(c.tables || '?') + '\n' +
-        '🍽️ <b>Món ăn:</b> ' + (payload.items.map(i => i.name + ' x' + i.qty).join(', ') || 'Chưa đặt') + '\n' +
-        '💰 <b>Tổng tạm tính:</b> ' + fmt(payload.total) + '\n' +
-        '💳 <b>Trạng thái:</b> ' + depStatusText + depNoteText + '\n' +
-        '━━━━━━━━━━━━━━━━━━━\n' +
-        '💬 <b>Ghi chú:</b> <i>' + escapeHtml(c.note || 'Không có') + '</i>\n\n' +
-        '👉 Vui lòng nhấn nút dưới đây để xác nhận tạo phiếu:';
-      
-      const buttons = [
-        [
-          { text: "✅ Xác nhận tạo", callback_data: "confirm_create:" + tempId },
-          { text: "❌ Hủy bỏ", callback_data: "cancel_create:" + tempId }
-        ],
-        [
-          { text: "📱 Mở App Đặt Bàn", web_app: { url: "https://datban-kingsgrill.pages.dev" } }
-        ]
-      ];
-      if (!isPaid && depositAmount > 0) {
-        const qrUrl = "https://img.vietqr.io/image/970415-102874136666-compact2.png?amount=" + depositAmount + "&addInfo=DATBAN%20" + encodeURIComponent(bookingId.slice(-6)) + "&accountName=KINGS%20GRILL";
-        buttons.push([
-          { text: "💳 Chuyển Cọc VietQR", url: qrUrl }
-        ]);
+      // Auto-save to Orders & Calendar Sheet immediately with note "Bot tự động xác nhận - cần xem lại"
+      const saveResult = saveOrder(payload);
+      if (saveResult && saveResult.id) {
+        payload.id = saveResult.id;
       }
+
+      // Also keep temp_TG_ reference for backward compatibility
+      const tempId = "temp_TG_" + Utilities.getUuid().substring(0, 8) + "_" + Date.now();
+      try {
+        PropertiesService.getScriptProperties().setProperty(tempId, JSON.stringify(payload));
+      } catch(e) {}
       
-      // A. Send confirmation message with inline buttons
+      const shareUrl = getShareUrlWithData_(payload.id, payload);
+      const confirmationText = buildModernTelegramCard_(payload, payload.id, {
+        mode: "auto_confirmed",
+        shareUrl: shareUrl,
+        calendarSync: saveResult ? saveResult.calendarSync : null
+      });
+      const buttons = buildModernTelegramKeyboard_(payload, payload.id, {
+        mode: "auto_confirmed",
+        chatId: chatId,
+        shareUrl: shareUrl
+      });
+      
+      // A. Send modern interactive card with inline buttons
       replyTelegramWithButtons_(botToken, chatId, threadId, confirmationText, buttons);
       
       // B. Delete temporary processing message
@@ -3433,7 +3758,7 @@ function handleTelegramWebhook(update) {
         deleteTelegramMessage_(botToken, chatId, tempMsgId);
       }
       
-      return HtmlService.createHtmlOutput("Confirmation sent");
+      return HtmlService.createHtmlOutput("Auto-confirmed and confirmation card sent");
     } catch (err) {
       // F. Delete temporary message on error/failure
       if (tempMsgId) {
@@ -3442,10 +3767,10 @@ function handleTelegramWebhook(update) {
 
       const isGeneralChat = err.message.indexOf("Không trích xuất được thông tin tên hoặc số điện thoại") !== -1;
       if (isGeneralChat) {
-        const helpMsg = "🤖 <b>KÊNH ĐẶT BÀN TỰ ĐỘNG</b>\n" +
+        const helpMsg = "🤖 <b>KÊNH ĐẶT BÀN TỰ ĐỘNG KING'S GRILL</b>\n" +
           "━━━━━━━━━━━━━━━━━━━\n" +
-          "Em nhận được tin nhắn của anh/chị nhưng không phân tích được thông tin đặt bàn.\n\n" +
-          "👉 Vui lòng nhập theo cú pháp ví dụ:\n<i>Anh Trí 0901234567 ngày mai 18:30 đi 4 khách bàn A1 ăn Lẩu thái 1, cơm chiên 1</i>";
+          "Em nhận được tin nhắn của anh/chị nhưng chưa nhận diện được tên khách đặt bàn.\n\n" +
+          "👉 Vui lòng nhập theo cú pháp ví dụ:\n<blockquote><i>Anh Trí 0901234567 ngày mai 18:30 đi 4 khách bàn A1 tiệc sinh nhật ăn Lẩu thái 1, cơm chiên 1</i></blockquote>";
         replyTelegram_(botToken, chatId, threadId, helpMsg);
       } else {
         const errMsg = "❌ <b>LỖI XỬ LÝ ĐẶT BÀN</b>\n" +
@@ -3487,7 +3812,7 @@ Hãy trả về JSON chính xác như sau:
   "action": "delete"
 }
 
-HÀNH ĐỘNG 2: Nếu yêu cầu là chỉnh sửa (ví dụ: sửa tiền cọc, đổi ngày, đổi bàn, đổi giờ, thêm/bớt món, đổi số lượng khách...):
+HÀNH ĐỘNG 2: Nếu yêu cầu là chỉnh sửa (ví dụ: sửa tiền cọc, đổi ngày, đổi bàn, đổi giờ, đổi loại tiệc/nhu cầu đặt, thêm/bớt món, đổi số lượng khách...):
 Hãy cập nhật các trường tương ứng trong JSON cũ và trả về JSON mới đã cập nhật:
 {
   "action": "update",
@@ -3514,7 +3839,10 @@ LƯU Ý QUAN TRỌNG KHI CẬP NHẬT (ACTION = "UPDATE"):
    - Cập nhật 'deposit.isPaid' = true
    - Cập nhật 'deposit.amount' = 3000000
    - Cập nhật 'deposit.note' = 'Cập nhật cọc 3TR' (hoặc nội dung yêu cầu)
-7. Giữ nguyên các thông tin khác của đơn hàng (như khách hàng, ghi chú) nếu không được yêu cầu thay đổi.
+7. Khi đổi "Loại tiệc / Nhu cầu đặt" (trường 'customer.type'):
+   - Hãy chọn chính xác 1 giá trị chuẩn đồng bộ với Webapp:
+     "Sinh nhật", "Thôi nôi (1st)", "Công ty", "Ăn thường", "Cưới/Báo hỷ", "Liên hoan", "Farewell (Tiệc chia tay)", "Kỉ niệm", "Tất niên", "Tân niên", "Gia đình", "Khác".
+8. Giữ nguyên các thông tin khác của đơn hàng (như khách hàng, ghi chú) nếu không được yêu cầu thay đổi.
 
 Thực đơn nhà hàng để đối chiếu giá và tên món ăn:
 ${menuContext}
@@ -3588,7 +3916,12 @@ Thời gian hiện tại của hệ thống để đối chiếu ngày tháng: $
   cleanJsonText = cleanJsonText.replace(/,\s*([\]}])/g, "$1");
   
   try {
-    return JSON.parse(cleanJsonText);
+    const parsedResult = JSON.parse(cleanJsonText);
+    if (parsedResult && parsedResult.action === "update" && parsedResult.data && parsedResult.data.customer) {
+      parsedResult.data.customer.type = normalizePartyType_(parsedResult.data.customer.type, instructionText);
+      parsedResult.data.customer.date = normalizeOrderDateToDMY_(parsedResult.data.customer.date);
+    }
+    return parsedResult;
   } catch (parseErr) {
     throw new Error("JSON parsing failed: " + parseErr.message + "\nRaw: " + contentText);
   }
@@ -3637,11 +3970,13 @@ function editTelegramMessageText_(botToken, chatId, messageId, text, replyMarkup
   });
 }
 
-function answerCallbackQuery_(botToken, callbackQueryId, text) {
+function answerCallbackQuery_(botToken, callbackQueryId, text, showAlert) {
   const url = "https://api.telegram.org/bot" + botToken + "/answerCallbackQuery";
   const payload = {
     callback_query_id: callbackQueryId,
-    text: text
+    text: text,
+    show_alert: !!showAlert,
+    cache_time: 0
   };
   UrlFetchApp.fetch(url, {
     method: "post",
@@ -3674,19 +4009,19 @@ function parseBookingWithGemini_(text, activeMenuSheet) {
     menuContext = menuData.data.map(i => `- ${i.name}: ${i.price}đ`).join('\n');
   }
 
-  const sysPrompt = `Bạn là Trợ lý Đặt bàn King's Grill. Nhiệm vụ của bạn là trích xuất thông tin đặt bàn từ văn bản của người dùng sang định dạng JSON.
+  const sysPrompt = `Bạn là Trợ lý Đặt bàn King's Grill. Nhiệm vụ của bạn là trích xuất thông tin đặt bàn từ văn bản của người dùng sang định dạng JSON chuẩn đồng bộ với Webapp đặt bàn.
 
 Định dạng JSON cần trả về:
 {
   "customer": {
     "name": "Tên khách hàng (ví dụ: 'Anh Trí')",
     "phone": "Số điện thoại (chỉ giữ lại số, ví dụ: '0901234567')",
-    "date": "Ngày đặt (DD/MM/YYYY, ví dụ: '05/07/2026'). Hãy tự suy luận dựa trên thời gian hiện tại nếu người dùng dùng từ 'hôm nay', 'ngày mai'...",
+    "date": "Ngày đặt (DD/MM/YYYY, ví dụ: '05/07/2026'). Hãy tự suy luận dựa trên thời gian hiện tại nếu người dùng dùng từ 'hôm nay', 'ngày mai', 'thứ 7 tuần này'...",
     "time": "Giờ đặt (HH:MM, ví dụ: '18:30')",
     "pax": "Số khách (chỉ số, ví dụ: '4')",
-    "tables": "Mã bàn (ví dụ: 'A1'). Nếu không có, hãy để trống hoặc đoán bàn phù hợp.",
-    "type": "Ăn thường",
-    "note": "Ghi chú thêm"
+    "tables": "Mã bàn (ví dụ: 'A1'). Nếu không có, hãy để trống.",
+    "type": "Loại tiệc / Nhu cầu đặt (chọn đúng 1 giá trị trong danh sách chuẩn bên dưới)",
+    "note": "Ghi chú thêm (không lặp lại các thông tin đã đưa vào các trường trên)"
   },
   "items": [
     {
@@ -3698,6 +4033,21 @@ function parseBookingWithGemini_(text, activeMenuSheet) {
   "total": 100000
 }
 
+DANH SÁCH CHUẨN CHO TRƯỜNG "customer.type" (Loại tiệc / Nhu cầu đặt - ĐỒNG BỘ 100% VỚI WEBAPP):
+Bắt buộc chọn đúng 1 trong các giá trị sau:
+- "Sinh nhật" (nếu nhắc tới: sinh nhật, sn, birthday, bday, mừng tuổi mới, trang trí sinh nhật, bánh kem...)
+- "Thôi nôi (1st)" (nếu nhắc tới: thôi nôi, đầy tháng, tròn 1 tuổi, bé 1 tuổi...)
+- "Công ty" (nếu nhắc tới: tiệc công ty, cty, company, doanh nghiệp, tiếp khách, đối tác, xuất hóa đơn VAT...)
+- "Cưới/Báo hỷ" (nếu nhắc tới: báo hỷ, tiệc cưới, đám cưới, kỷ niệm ngày cưới, wedding...)
+- "Liên hoan" (nếu nhắc tới: liên hoan, tụ tập, họp mặt, họp lớp, hội nhóm, party, nhậu, tổng kết...)
+- "Farewell (Tiệc chia tay)" (nếu nhắc tới: chia tay, farewell, tiễn đồng nghiệp, chuyển công tác...)
+- "Kỉ niệm" (nếu nhắc tới: kỷ niệm, kỉ niệm, anniversary, cầu hôn, proposal, hẹn hò lãng mạn...)
+- "Tất niên" (nếu nhắc tới: tất niên, year end party, YEP, tổng kết cuối năm...)
+- "Tân niên" (nếu nhắc tới: tân niên, khai xuân, đầu năm...)
+- "Gia đình" (nếu nhắc tới: tiệc gia đình, sum họp gia đình, ăn gia đình...)
+- "Khác" (nếu có yêu cầu tổ chức sự kiện đặc biệt khác không thuộc các mục trên)
+- "Ăn thường" (MẶC ĐỊNH nếu khách chỉ đặt bàn ăn bình thường hoặc không nêu rõ loại tiệc)
+
 Thời gian hiện tại của hệ thống: ${new Date().toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' })}
 
 Thực đơn chính thức của nhà hàng (để ánh xạ tên món ăn và đơn giá):
@@ -3705,7 +4055,7 @@ ${menuContext}
 
 LƯU Ý NGHIÊM NGẶT VỀ THỰC ĐƠN VÀ ĐƠN GIÁ:
 1. Chỉ trích xuất các món ăn có trong thực đơn ở trên. KHÔNG tự bịa ra món ăn mới, không bịa ra giá mới.
-2. Ánh xạ tên món ăn người viết viết (có thể viết tắt, viết không dấu) sang tên món ăn chính xác trong thực đơn.
+2. Ánh xạ tên món ăn người viết (có thể viết tắt, viết không dấu) sang tên món ăn chính xác trong thực đơn.
 3. Nhân số lượng với đơn giá chính xác trong thực đơn để tính tổng tiền 'total'.
 4. Nếu món ăn người dùng viết không có trong thực đơn, hãy bỏ qua không đưa vào 'items'. Tuyệt đối không tự đoán giá của món không có trong thực đơn.`;
 
@@ -3776,7 +4126,12 @@ LƯU Ý NGHIÊM NGẶT VỀ THỰC ĐƠN VÀ ĐƠN GIÁ:
   cleanJsonText = cleanJsonText.replace(/,\s*([\]}])/g, "$1");
   
   try {
-    return JSON.parse(cleanJsonText);
+    const parsed = JSON.parse(cleanJsonText);
+    if (parsed && parsed.customer) {
+      parsed.customer.type = normalizePartyType_(parsed.customer.type, text);
+      parsed.customer.date = normalizeOrderDateToDMY_(parsed.customer.date);
+    }
+    return parsed;
   } catch (parseErr) {
     console.log("Gemini raw JSON: " + contentText);
     throw new Error("JSON parsing failed: " + parseErr.message + "\nRaw: " + contentText);
@@ -3942,7 +4297,7 @@ function getOrderById_(bookingId) {
   return null;
 }
 
-function editTelegramPhoto_(botToken, chatId, messageId, photoUrl, caption) {
+function editTelegramPhoto_(botToken, chatId, messageId, photoUrl, caption, replyMarkup) {
   const url = "https://api.telegram.org/bot" + botToken + "/editMessageMedia";
   const payload = {
     chat_id: chatId,
@@ -3954,6 +4309,9 @@ function editTelegramPhoto_(botToken, chatId, messageId, photoUrl, caption) {
       parse_mode: "HTML"
     }
   };
+  if (replyMarkup) {
+    payload.reply_markup = replyMarkup;
+  }
   const response = UrlFetchApp.fetch(url, {
     method: "post",
     contentType: "application/json",
@@ -3963,27 +4321,63 @@ function editTelegramPhoto_(botToken, chatId, messageId, photoUrl, caption) {
   return response.getContentText();
 }
 
-function editTelegramText_(botToken, chatId, messageId, text) {
-  const url = "https://api.telegram.org/bot" + botToken + "/editMessageCaption";
-  const payload = {
+function editTelegramText_(botToken, chatId, messageId, text, replyMarkup) {
+  const textUrl = "https://api.telegram.org/bot" + botToken + "/editMessageText";
+  const textPayload = {
     chat_id: chatId,
     message_id: messageId,
-    caption: text,
+    text: text,
     parse_mode: "HTML"
   };
-  UrlFetchApp.fetch(url, {
+  if (replyMarkup) {
+    textPayload.reply_markup = replyMarkup;
+  }
+  const res = UrlFetchApp.fetch(textUrl, {
     method: "post",
     contentType: "application/json",
-    payload: JSON.stringify(payload),
+    payload: JSON.stringify(textPayload),
     muteHttpExceptions: true
   });
+  if (res.getResponseCode() !== 200) {
+    const captionUrl = "https://api.telegram.org/bot" + botToken + "/editMessageCaption";
+    const captionPayload = {
+      chat_id: chatId,
+      message_id: messageId,
+      caption: text,
+      parse_mode: "HTML"
+    };
+    if (replyMarkup) {
+      captionPayload.reply_markup = replyMarkup;
+    }
+    UrlFetchApp.fetch(captionUrl, {
+      method: "post",
+      contentType: "application/json",
+      payload: JSON.stringify(captionPayload),
+      muteHttpExceptions: true
+    });
+  }
 }
 
 function extractBookingIdFromMessage_(replyTo) {
+  if (!replyTo) return "";
   let text = replyTo.caption || replyTo.text || "";
+
+  // 0. Check inline keyboard callback_data if present
+  if (replyTo.reply_markup && Array.isArray(replyTo.reply_markup.inline_keyboard)) {
+    const kb = replyTo.reply_markup.inline_keyboard;
+    for (let r = 0; r < kb.length; r++) {
+      for (let c = 0; c < kb[r].length; c++) {
+        const cbData = kb[r][c] && kb[r][c].callback_data ? String(kb[r][c].callback_data) : "";
+        const cbMatch = cbData.match(/:(TG_[A-Za-z0-9_]+|ORD-[A-Za-z0-9_-]+|BK_[A-Za-z0-9_-]+)/);
+        if (cbMatch && cbMatch[1]) {
+          return cbMatch[1];
+        }
+      }
+    }
+  }
   
   // 1. Try regex on the text directly (in case bookingId is printed as plain text)
-  let match = text.match(/TG_[A-Za-z0-9_]+/);
+  let match = text.match(/(?:TG_[A-Za-z0-9_]+|ORD-[A-Za-z0-9_-]+|BK_[A-Za-z0-9_-]+)/);
   if (match) return match[0];
   
   // 2. Try looking in entities or caption_entities
@@ -3991,7 +4385,7 @@ function extractBookingIdFromMessage_(replyTo) {
   for (let i = 0; i < entities.length; i++) {
     const ent = entities[i];
     if (ent.type === "text_link" && ent.url) {
-      const urlMatch = ent.url.match(/#\/bill\/([A-Za-z0-9_-]+)/) || ent.url.match(/TG_[A-Za-z0-9_]+/);
+      const urlMatch = ent.url.match(/#\/bill\/([A-Za-z0-9_-]+)/) || ent.url.match(/(?:TG_[A-Za-z0-9_]+|ORD-[A-Za-z0-9_-]+|BK_[A-Za-z0-9_-]+)/);
       if (urlMatch) {
         return urlMatch[1] || urlMatch[0];
       }
@@ -4003,7 +4397,7 @@ function extractBookingIdFromMessage_(replyTo) {
   let urlMatch;
   while ((urlMatch = urlRegex.exec(text)) !== null) {
     const link = urlMatch[0];
-    const linkMatch = link.match(/#\/bill\/([A-Za-z0-9_-]+)/) || link.match(/TG_[A-Za-z0-9_]+/);
+    const linkMatch = link.match(/#\/bill\/([A-Za-z0-9_-]+)/) || link.match(/(?:TG_[A-Za-z0-9_]+|ORD-[A-Za-z0-9_-]+|BK_[A-Za-z0-9_-]+)/);
     if (linkMatch) {
       return linkMatch[1] || linkMatch[0];
     }
@@ -4181,6 +4575,21 @@ function cleanExpiredTempPayloads_() {
         const timestampStr = parts[parts.length - 1];
         const timestamp = Number(timestampStr);
         if (!isNaN(timestamp) && (now - timestamp > tenMinutes)) {
+          try {
+            const rawJson = props.getProperty(key);
+            const bookingId = key.replace(/^temp_/, "");
+            if (rawJson && !getOrderById_(bookingId)) {
+              const tempOrder = JSON.parse(rawJson);
+              if (tempOrder && tempOrder.customer) {
+                tempOrder.customer.type = normalizePartyType_(tempOrder.customer.type, tempOrder.customer.note);
+                tempOrder.customer.note = appendAutoConfirmNote_(tempOrder.customer.note);
+                tempOrder.skipNotification = true;
+                saveOrder(tempOrder);
+              }
+            }
+          } catch (autoSaveErr) {
+            console.log("Auto-save fallback in cleanExpiredTempPayloads_ failed: " + autoSaveErr.message);
+          }
           props.deleteProperty(key);
         }
       }
@@ -4209,3 +4618,334 @@ function registerBotCommands_(botToken) {
     console.log("Failed to register bot commands: " + e.message);
   }
 }
+
+// ============================================================================
+// PARTY TYPE NORMALIZATION, AUTO-CONFIRM HELPERS & MODERN TELEGRAM UI BUILDERS
+// ============================================================================
+
+const AUTO_CONFIRM_NOTE_TEXT_ = "Bot tự động xác nhận - cần xem lại";
+
+const PARTY_TYPES_CANONICAL_ = [
+  "Sinh nhật",
+  "Thôi nôi (1st)",
+  "Công ty",
+  "Ăn thường",
+  "Cưới/Báo hỷ",
+  "Liên hoan",
+  "Farewell (Tiệc chia tay)",
+  "Kỉ niệm",
+  "Tất niên",
+  "Tân niên",
+  "Gia đình",
+  "Khác"
+];
+
+function normalizePartyType_(rawType, fallbackText) {
+  const combined = ((rawType || "") + " " + (fallbackText || "")).trim();
+  if (!combined) return "Ăn thường";
+
+  const exactRaw = String(rawType || "").trim();
+  if (PARTY_TYPES_CANONICAL_.indexOf(exactRaw) !== -1) {
+    return exactRaw;
+  }
+
+  const lower = combined.toLowerCase();
+  if (/(sinh\s*nh[aậ]t|\bsn\b|bday|birthday|m[uừ]ng\s*tu[oổ]i|b[aá]nh\s*kem)/i.test(lower)) return "Sinh nhật";
+  if (/(th[oô]i\s*n[oô]i|1st|[đd][aầ]y\s*th[aá]ng|tr[oò]n\s*1\s*tu[oổ]i)/i.test(lower)) return "Thôi nôi (1st)";
+  if (/(k[yỷỉ]\s*ni[eệ]m|anniversary|c[aầ]u\s*h[oô]n|proposal)/i.test(lower)) return "Kỉ niệm";
+  if (/(c[uư][oớ]i|b[aá]o\s*h[yỷ]|wedding|vu\s*quy|t[aâ]n\s*h[oô]n|[đd]ính\s*h[oô]n)/i.test(lower)) return "Cưới/Báo hỷ";
+  if (/(chia\s*tay|farewell|ti[eễ]n\s*b[aạ]n|chuy[eể]n\s*c[oô]ng\s*t[aá]c)/i.test(lower)) return "Farewell (Tiệc chia tay)";
+  if (/(t[aấ]t\s*ni[eê]n|year\s*end|\byep\b|cu[oố]i\s*n[aă]m)/i.test(lower)) return "Tất niên";
+  if (/(t[aâ]n\s*ni[eê]n|khai\s*xu[aâ]n|[đd][aầu]\s*n[aă]m)/i.test(lower)) return "Tân niên";
+  if (/(c[oô]ng\s*ty|\bcty\b|doanh\s*nghi[eệ]p|ti[eế]p\s*kh[aá]ch|[đd][oố]i\s*t[aá]c|agency|corp|team\s*building|\bvat\b|h[oó]a\s*[đd][oơ]n\s*[đd][oỏ])/i.test(lower)) return "Công ty";
+  if (/(li[eê]n\s*hoan|h[oọ]p\s*m[aặ]t|h[oọ]p\s*l[oớ]p|g[aặ]p\s*m[aặ]t|b[aạ]n\s*b[eè]|t[uụ]\s*t[aậ]p|party|nh[aậ]u|gathering)/i.test(lower)) return "Liên hoan";
+  if (/(gia\s*[đd][iì]nh|family|sum\s*h[oọ]p)/i.test(lower)) return "Gia đình";
+  if (/(\bkh[aá]c\b|s[uự]\s*ki[eệ]n)/i.test(lower)) return "Khác";
+  return "Ăn thường";
+}
+
+function getPartyTypeBadge_(type) {
+  const norm = normalizePartyType_(type, "");
+  const badges = {
+    "Sinh nhật": "🎂 Sinh nhật",
+    "Thôi nôi (1st)": "👶 Thôi nôi (1st)",
+    "Công ty": "🏢 Công ty",
+    "Ăn thường": "🍽️ Ăn thường",
+    "Cưới/Báo hỷ": "💒 Cưới/Báo hỷ",
+    "Liên hoan": "🍻 Liên hoan",
+    "Farewell (Tiệc chia tay)": "👋 Farewell (Tiệc chia tay)",
+    "Kỉ niệm": "💝 Kỉ niệm",
+    "Tất niên": "🥂 Tất niên",
+    "Tân niên": "🧧 Tân niên",
+    "Gia đình": "👨‍👩‍👧‍👦 Gia đình",
+    "Khác": "✨ Khác"
+  };
+  return badges[norm] || ("🎉 " + norm);
+}
+
+function normalizeOrderDateToDMY_(dateStr) {
+  if (!dateStr) return "";
+  const str = String(dateStr).trim();
+  const isoMatch = str.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})$/);
+  if (isoMatch) {
+    return String(isoMatch[3]).padStart(2, '0') + "/" + String(isoMatch[2]).padStart(2, '0') + "/" + isoMatch[1];
+  }
+  const dmyMatch = str.match(/^(\d{1,2})[-/](\d{1,2})(?:[-/](\d{2,4}))?$/);
+  if (dmyMatch) {
+    const d = String(dmyMatch[1]).padStart(2, '0');
+    const m = String(dmyMatch[2]).padStart(2, '0');
+    let y = dmyMatch[3] ? String(dmyMatch[3]) : String(new Date().getFullYear());
+    if (y.length === 2) y = "20" + y;
+    return d + "/" + m + "/" + y;
+  }
+  return str;
+}
+
+function hasAutoConfirmNote_(note) {
+  if (!note) return false;
+  return String(note).toLowerCase().indexOf(AUTO_CONFIRM_NOTE_TEXT_.toLowerCase()) !== -1;
+}
+
+function appendAutoConfirmNote_(note) {
+  const clean = String(note || "").trim();
+  if (hasAutoConfirmNote_(clean)) return clean;
+  if (!clean) return AUTO_CONFIRM_NOTE_TEXT_;
+  return clean + " | " + AUTO_CONFIRM_NOTE_TEXT_;
+}
+
+function removeAutoConfirmNote_(note) {
+  if (!note) return "";
+  let s = String(note);
+  s = s.replace(/\s*\|\s*Bot tự động xác nhận\s*-\s*cần xem lại/gi, "");
+  s = s.replace(/Bot tự động xác nhận\s*-\s*cần xem lại\s*\|\s*/gi, "");
+  s = s.replace(/Bot tự động xác nhận\s*-\s*cần xem lại/gi, "");
+  return s.trim();
+}
+
+function resolveOrderFromCallbackRef_(refId) {
+  const props = PropertiesService.getScriptProperties();
+  let bookingId = String(refId || "").replace(/^temp_/, "");
+  let existingOrder = getOrderById_(bookingId);
+  let tempKey = refId.indexOf("temp_") === 0 ? refId : null;
+
+  if (!existingOrder) {
+    const rawDirect = props.getProperty(refId);
+    if (rawDirect) {
+      try {
+        existingOrder = JSON.parse(rawDirect);
+        tempKey = refId;
+      } catch (e) {}
+    } else {
+      const keys = props.getKeys();
+      for (let i = 0; i < keys.length; i++) {
+        if (keys[i].indexOf("temp_" + bookingId) === 0) {
+          tempKey = keys[i];
+          try {
+            existingOrder = JSON.parse(props.getProperty(tempKey));
+          } catch (e) {}
+          break;
+        }
+      }
+    }
+  }
+  return {
+    bookingId: bookingId,
+    orderData: existingOrder,
+    tempKey: tempKey
+  };
+}
+
+function editTelegramMessageReplyMarkup_(botToken, chatId, messageId, replyMarkup) {
+  const url = "https://api.telegram.org/bot" + botToken + "/editMessageReplyMarkup";
+  const payload = {
+    chat_id: chatId,
+    message_id: messageId,
+    reply_markup: replyMarkup || { inline_keyboard: [] }
+  };
+  try {
+    UrlFetchApp.fetch(url, {
+      method: "post",
+      contentType: "application/json",
+      payload: JSON.stringify(payload),
+      muteHttpExceptions: true
+    });
+  } catch (e) {
+    console.log("editTelegramMessageReplyMarkup_ failed: " + e.message);
+  }
+}
+
+function showInstantButtonLoading_(botToken, chatId, messageId, currentReplyMarkup, targetCallbackData, loadingLabel) {
+  if (!currentReplyMarkup || !Array.isArray(currentReplyMarkup.inline_keyboard)) return;
+  try {
+    const clonedRows = [];
+    for (let r = 0; r < currentReplyMarkup.inline_keyboard.length; r++) {
+      const row = currentReplyMarkup.inline_keyboard[r];
+      const newRow = [];
+      for (let c = 0; c < row.length; c++) {
+        const btn = Object.assign({}, row[c]);
+        if (btn.callback_data && btn.callback_data === targetCallbackData) {
+          btn.text = loadingLabel || ("⏳ " + btn.text);
+        }
+        newRow.push(btn);
+      }
+      clonedRows.push(newRow);
+    }
+    editTelegramMessageReplyMarkup_(botToken, chatId, messageId, { inline_keyboard: clonedRows });
+  } catch (e) {
+    console.log("showInstantButtonLoading_ failed: " + e.message);
+  }
+}
+
+function buildModernTelegramCard_(orderData, orderId, opts) {
+  opts = opts || {};
+  const c = (orderData && orderData.customer) ? orderData.customer : {};
+  const d = (orderData && orderData.deposit) ? orderData.deposit : {};
+  const s = (orderData && orderData.staff) ? orderData.staff : {};
+  const items = (orderData && Array.isArray(orderData.items)) ? orderData.items : [];
+  const total = Number(orderData && orderData.total) || 0;
+
+  const isAutoConfirmed = opts.isAutoConfirmed !== undefined
+    ? !!opts.isAutoConfirmed
+    : hasAutoConfirmNote_(c.note);
+
+  const partyBadge = getPartyTypeBadge_(c.type);
+  const statusHeader = opts.statusTitle
+    ? opts.statusTitle
+    : (isAutoConfirmed
+        ? "🤖 <b>ĐÃ TỰ ĐỘNG LÊN LỊCH (CẦN XEM LẠI)</b>"
+        : "✅ <b>ĐẶT BÀN ĐÃ XÁC NHẬN CHÍNH THỨC</b>");
+
+  const statusBadge = isAutoConfirmed
+    ? "🟡 <i>Bot tự động xác nhận - cần xem lại</i>"
+    : "🟢 <i>Đã xác nhận chính thức trên Sheet</i>";
+
+  let text = statusHeader + "\n";
+  text += "━━━━━━━━━━━━━━━━━━\n";
+  text += "🆔 Mã đơn: <code>" + escapeHtml_(orderId || orderData.id || "") + "</code>\n";
+  text += "📌 Trạng thái: " + statusBadge + "\n";
+  text += "🎉 Loại tiệc: <b>" + escapeHtml_(partyBadge) + "</b>\n";
+  text += "━━━━━━━━━━━━━━━━━━\n";
+  text += "<blockquote>";
+  text += "👤 Khách hàng: <b>" + escapeHtml_(c.name || "Khách đặt bàn") + "</b>\n";
+  text += "📞 Điện thoại: <code>" + escapeHtml_(c.phone || "Chưa có SĐT") + "</code>\n";
+  text += "📅 Ngày giờ: <b>" + escapeHtml_(c.time || "--:--") + " — " + escapeHtml_(c.date || "--/--/----") + "</b>\n";
+  text += "👥 Số lượng: <b>" + escapeHtml_(c.pax || "0") + " khách</b>\n";
+  text += "🪑 Bàn xếp: <b>" + escapeHtml_(c.tables || "Chưa xếp bàn") + "</b>";
+  if (opts.sheetLocation) {
+    text += "\n📍 Vị trí Sheet: <code>" + escapeHtml_(opts.sheetLocation) + "</code>";
+  }
+  text += "</blockquote>\n";
+
+  // Deposit section
+  const depAmount = Number(d.amount) || 0;
+  const depFormatted = depAmount > 0 ? depAmount.toLocaleString('vi-VN') + "đ" : "0đ";
+  if (d.isPaid) {
+    text += "💳 Tiền cọc: <b>✅ ĐÃ NHẬN CỌC (" + depFormatted + ")</b>";
+    if (d.note) text += " — <i>" + escapeHtml_(d.note) + "</i>";
+    text += "\n";
+  } else if (depAmount > 0) {
+    text += "💳 Tiền cọc dự kiến: <b>⏳ CHƯA CỌC (" + depFormatted + ")</b>\n";
+  }
+
+  // Menu items section
+  const validItems = items.filter(function(i) { return i && i.name && Number(i.qty) > 0; });
+  if (validItems.length > 0) {
+    text += "🍽️ <b>Thực đơn đặt trước (" + validItems.length + " món):</b>\n";
+    text += "<blockquote>";
+    for (let idx = 0; idx < validItems.length; idx++) {
+      const it = validItems[idx];
+      const lineTotal = (Number(it.qty) || 0) * (Number(it.price) || 0);
+      text += "• " + escapeHtml_(it.name) + " × <b>" + it.qty + "</b> (" + lineTotal.toLocaleString('vi-VN') + "đ)\n";
+    }
+    text += "💰 Tổng cộng: <b>" + total.toLocaleString('vi-VN') + "đ</b>";
+    text += "</blockquote>\n";
+  }
+
+  // Note section
+  const displayNote = c.note ? String(c.note).trim() : "";
+  if (displayNote) {
+    text += "📝 Ghi chú Sheet: <i>" + escapeHtml_(displayNote) + "</i>\n";
+  }
+
+  if (s && s.name) {
+    text += "👨‍💼 Nguồn tạo: <i>" + escapeHtml_(s.name) + "</i>\n";
+  }
+
+  text += "💡 <i>Mẹo: Reply tin nhắn này để sửa giờ/bàn/món/cọc hoặc gửi ảnh UNC.</i>";
+  return text;
+}
+
+function buildModernTelegramKeyboard_(orderData, orderId, opts) {
+  opts = opts || {};
+  const id = orderId || (orderData && orderData.id) || "";
+  const c = (orderData && orderData.customer) ? orderData.customer : {};
+  const d = (orderData && orderData.deposit) ? orderData.deposit : {};
+  const isAutoConfirmed = opts.isAutoConfirmed !== undefined
+    ? !!opts.isAutoConfirmed
+    : hasAutoConfirmNote_(c.note);
+  const shareUrl = opts.shareUrl || getShareUrlWithData_(id, orderData);
+  const currentTypeBadge = getPartyTypeBadge_(c.type);
+
+  const rows = [];
+
+  // Row 1: Confirm status action + Cancel action
+  if (isAutoConfirmed) {
+    rows.push([
+      { text: "✅ Xác nhận chính thức", callback_data: "confirm_create:" + id },
+      { text: "🗑️ Hủy lịch này", callback_data: "cancel_create:" + id }
+    ]);
+  } else {
+    rows.push([
+      { text: "☑️ Đã xác nhận chuẩn", callback_data: "noop_confirmed:" + id },
+      { text: "⚠️ Đánh dấu xem lại", callback_data: "mark_review:" + id },
+      { text: "🗑️ Hủy lịch", callback_data: "cancel_create:" + id }
+    ]);
+  }
+
+  // Row 2: Quick party type selector + Deposit toggle
+  const depositBtn = d.isPaid
+    ? { text: "💳 Đã cọc (Bấm hoàn)", callback_data: "unmark_paid:" + id }
+    : { text: "💰 Đánh dấu Đã Cọc", callback_data: "mark_paid:" + id };
+
+  rows.push([
+    { text: "🎉 Đổi tiệc: " + currentTypeBadge, callback_data: "open_type_menu:" + id },
+    depositBtn
+  ]);
+
+  // Row 3: Universal Web URL (works on both Telegram Web & Mobile App in Groups and Private Chats)
+  rows.push([
+    { text: "🌐 Mở / Chỉnh sửa trên Webapp", url: shareUrl }
+  ]);
+
+  return rows;
+}
+
+function buildPartyTypeMenuKeyboard_(bookingId, currentType) {
+  const normCurrent = normalizePartyType_(currentType, "");
+  const rows = [];
+  let currentRow = [];
+
+  for (let i = 0; i < PARTY_TYPES_CANONICAL_.length; i++) {
+    const pt = PARTY_TYPES_CANONICAL_[i];
+    const isSelected = (pt === normCurrent);
+    const label = (isSelected ? "✅ " : "") + getPartyTypeBadge_(pt);
+    currentRow.push({
+      text: label,
+      callback_data: "set_type:" + bookingId + ":" + i
+    });
+    if (currentRow.length === 2) {
+      rows.push(currentRow);
+      currentRow = [];
+    }
+  }
+  if (currentRow.length > 0) {
+    rows.push(currentRow);
+  }
+
+  rows.push([
+    { text: "🔙 Quay lại thẻ đặt bàn", callback_data: "close_type_menu:" + bookingId }
+  ]);
+
+  return rows;
+}
+

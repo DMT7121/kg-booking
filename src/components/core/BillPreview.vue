@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, watch, nextTick } from 'vue'
+import { ref, onMounted, onUnmounted, watch, nextTick, defineAsyncComponent } from 'vue'
 import { useUIStore } from '@/stores/useUIStore'
 import { useFormStore } from '@/stores/useFormStore'
 import { useAppStore } from '@/stores/useAppStore'
@@ -61,9 +61,6 @@ const getDayOfWeek = (dateStr?: string): string => {
   }
 }
 
-const currentTimestamp = ref('')
-let _timestampTimer: ReturnType<typeof setInterval> | null = null
-
 let _ro: ResizeObserver | null = null
 const previewContainerRef = ref<HTMLElement | null>(null)
 
@@ -91,11 +88,6 @@ function handleKeyDown(e: KeyboardEvent) {
 }
 
 onMounted(() => {
-  currentTimestamp.value = new Date().toLocaleString('vi-VN')
-  _timestampTimer = setInterval(() => {
-    currentTimestamp.value = new Date().toLocaleString('vi-VN')
-  }, 1000)
-
   // Watch for container resizes to scale the bill
   if (previewContainerRef.value) {
     _ro = new ResizeObserver(() => {
@@ -109,10 +101,6 @@ onMounted(() => {
 })
 
 onUnmounted(() => {
-  if (_timestampTimer) {
-    clearInterval(_timestampTimer)
-    _timestampTimer = null
-  }
   if (_ro) {
     _ro.disconnect()
     _ro = null
@@ -199,9 +187,9 @@ function openZaloChat() {
 }
 
 import BillTemplateClassic from '@/components/bills/templates/BillTemplateClassic.vue'
-import BillTemplateModern from '@/components/bills/templates/BillTemplateModern.vue'
-import BillTemplateLuxury from '@/components/bills/templates/BillTemplateLuxury.vue'
-import BillTemplateTicket from '@/components/bills/templates/BillTemplateTicket.vue'
+const BillTemplateModern = defineAsyncComponent(() => import('@/components/bills/templates/BillTemplateModern.vue'))
+const BillTemplateLuxury = defineAsyncComponent(() => import('@/components/bills/templates/BillTemplateLuxury.vue'))
+const BillTemplateTicket = defineAsyncComponent(() => import('@/components/bills/templates/BillTemplateTicket.vue'))
 
 const showQualityMenu = ref(false)
 const showCopyMenu = ref(false)

@@ -1,4 +1,11 @@
 import { postGAS, fetchWithRetry } from './gasClient'
+import {
+  PRIMARY_MENU_SHEET,
+  isValidMenuSheetName,
+  normalizeMenuSheetName,
+  prioritizeMenuSheets,
+  isValidMenuItemsDataset
+} from '@/domain/menu/menuSheetGuard'
 import type { 
   OrderRepository, 
   MenuRepository, 
@@ -35,11 +42,40 @@ export class GasOrderRepository implements OrderRepository {
 
 export class GasMenuRepository implements MenuRepository {
   async getMenu(sheetName: string, onBgUpdate?: (data: any) => void): Promise<any> {
-    return postGAS({ action: 'getMenu', sheetName }, undefined, onBgUpdate)
+    const requested = sheetName ? String(sheetName).trim() : PRIMARY_MENU_SHEET
+    if (!isValidMenuSheetName(requested)) {
+      return { ok: true, data: [] }
+    }
+    const cleanSheet = normalizeMenuSheetName(requested)
+    const safeBgUpdate = onBgUpdate
+      ? (bgData: any) => {
+          if (bgData && isValidMenuItemsDataset(bgData.data)) {
+            onBgUpdate(bgData)
+          }
+        }
+      : undefined
+
+    const res = await postGAS({ action: 'getMenu', sheetName: cleanSheet }, undefined, safeBgUpdate)
+    if (res && Array.isArray(res.data) && res.data.length > 0 && !isValidMenuItemsDataset(res.data)) {
+      // Recover if legacy GAS script cache ("menu_data_MENU2026") was poisoned by 0-price alias rows:
+      // querying opposite case ("menu2026") hits a clean cache key while matching the same tab case-insensitively.
+      const altSheet = cleanSheet === cleanSheet.toLowerCase() ? cleanSheet.toUpperCase() : cleanSheet.toLowerCase()
+      const retryRes = await postGAS({ action: 'getMenu', sheetName: altSheet })
+      if (retryRes && isValidMenuItemsDataset(retryRes.data)) {
+        if (onBgUpdate) onBgUpdate(retryRes)
+        return retryRes
+      }
+      return { ok: true, data: [] }
+    }
+    return res
   }
 
   async getMenuSheets(): Promise<any> {
-    return postGAS({ action: 'getMenuSheets' })
+    const res = await postGAS({ action: 'getMenuSheets' })
+    if (res && Array.isArray(res.sheets)) {
+      return { ...res, sheets: prioritizeMenuSheets(res.sheets, true) }
+    }
+    return res
   }
 
   async createMenu(name: string, rawText: string, password?: string, token?: string): Promise<any> {

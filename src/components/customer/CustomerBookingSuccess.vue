@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import {
   RESTAURANT_NAME,
   RESTAURANT_HOTLINE,
@@ -7,13 +7,16 @@ import {
 } from '@/domain/customerBooking/types'
 import type { SubmittedCustomerDetails } from '@/domain/customerBooking/types'
 import {
-  prewarmBillExportAssets,
+  fetchUrlAsDataUrl,
   renderBillElementToCanvas,
   canvasToPngBlob,
   savePngBlobToDevice
 } from '@/utils/billExportEngine'
 
-prewarmBillExportAssets()
+onMounted(() => {
+  // Only prewarm the brand logo when the customer actually reaches the success screen
+  fetchUrlAsDataUrl('/images/brand-logo.svg').catch(() => {})
+})
 
 const props = defineProps<{
   bookingId: string

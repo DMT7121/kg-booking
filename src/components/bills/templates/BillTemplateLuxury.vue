@@ -202,10 +202,11 @@ const verificationQrUrl = useVerificationQr(() => qrLink.value || 'https://kg-bo
         <!-- Left: Royal Stamp & Deposit Guarantee -->
         <div class="w-1/2 flex flex-col items-start gap-3">
           <div class="w-full p-4 rounded-xl bg-[#FAF9F5] border border-[#C5A059]/40 flex items-center gap-4 relative overflow-hidden">
-            <div class="w-20 shrink-0 relative" :style="stampParallax ? { transform: `translate(${stampParallax.x}px, ${stampParallax.y}px)` } : {}">
+            <div class="w-24 shrink-0 relative" :style="stampParallax ? { transform: `translate(${stampParallax.x}px, ${stampParallax.y}px)` } : {}">
               <img 
-                :src="formStore?.deposit?.isPaid ? '/images/stamps/paid.png' : '/images/stamps/pending.png'" 
-                class="w-full object-contain filter drop-shadow" 
+                :src="formStore?.deposit?.isPaid ? '/images/stamps/paid.png?v=2' : '/images/stamps/pending.png?v=2'" 
+                class="w-full object-contain" 
+                style="filter: contrast(1.06) saturate(1.1) drop-shadow(0 3px 8px rgba(15, 23, 42, 0.12));"
                 alt="Stamp"
               />
             </div>

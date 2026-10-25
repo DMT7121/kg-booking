@@ -15,6 +15,42 @@ export function clearL1ApiCache(): void {
   l1ApiCache.clear()
 }
 
+function invalidateL1CacheForAction(action?: string): void {
+  if (!action) return
+  const lower = action.toLowerCase()
+  if (lower.includes('order')) {
+    l1ApiCache.delete('getHistory')
+  } else if (lower.includes('menu') || lower.includes('dish')) {
+    for (const key of l1ApiCache.keys()) {
+      if (key.startsWith('getMenu') || key === 'getMenuAliases') {
+        l1ApiCache.delete(key)
+      }
+    }
+  } else if (lower.includes('config') || lower.includes('correction')) {
+    l1ApiCache.delete('getConfig_v2')
+    l1ApiCache.delete('getAiRuntimeConfig')
+    l1ApiCache.delete('getAiCorrections')
+  }
+}
+
+function createBoundedSignal(externalSignal: AbortSignal | undefined, timeoutMs: number): {
+  signal: AbortSignal | undefined
+  cleanup: () => void
+} {
+  if (externalSignal) {
+    return { signal: externalSignal, cleanup: () => {} }
+  }
+  if (typeof AbortController === 'undefined') {
+    return { signal: undefined, cleanup: () => {} }
+  }
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(new Error(`Request timeout after ${timeoutMs}ms`)), timeoutMs)
+  return {
+    signal: controller.signal,
+    cleanup: () => clearTimeout(timer)
+  }
+}
+
 /**
  * Generic Stale-While-Revalidate and Coalescing wrapper
  */
@@ -128,13 +164,14 @@ async function postGASDirect(payload: Record<string, any>, signal?: AbortSignal,
     if (useWorker) {
       try {
         const headers = buildGatewayHeaders()
+        const gwBound = createBoundedSignal(signal, 12000)
 
         const res = await fetch(API_GATEWAY_URL, {
           method: 'POST',
           headers,
           body: JSON.stringify(payload),
-          signal
-        })
+          signal: gwBound.signal
+        }).finally(gwBound.cleanup)
         
         if (res.ok) {
           const ct = res.headers.get('content-type') || ''
@@ -153,7 +190,7 @@ async function postGASDirect(payload: Record<string, any>, signal?: AbortSignal,
         }
         throw new Error(`Gateway returned HTTP ${res.status}`)
       } catch (gatewayError: any) {
-        if (gatewayError.name === 'AbortError') throw gatewayError
+        if (signal?.aborted) throw gatewayError
 
         console.warn(`[API Client] Lỗi kết nối tới Gateway (${gatewayError.message}). Đang chuyển hướng dự phòng sang GAS trực tiếp...`)
         
@@ -169,12 +206,13 @@ async function postGASDirect(payload: Record<string, any>, signal?: AbortSignal,
     }
 
     // Fallback sang GAS trực tiếp
+    const gasBound = createBoundedSignal(signal, 20000)
     const res = await fetch(GAS_DIRECT_URL, {
       method: 'POST',
       headers: buildGASHeaders(),
       body: JSON.stringify(payload),
-      signal
-    })
+      signal: gasBound.signal
+    }).finally(gasBound.cleanup)
     if (!res.ok) throw new Error(`GAS fallback HTTP error! status: ${res.status}`)
     const data = await res.json()
     if (!data.ok && data.message && !isBackground) {
@@ -212,7 +250,7 @@ export async function postGAS(
   const isRead = readActions.includes(payload.action)
 
   if (isRead) {
-    const cacheKey = payload.action === 'getMenu' ? `getMenu_${payload.sheetName || 'default'}` : payload.action
+    const cacheKey = payload.action === 'getMenu' ? `getMenu_v2_${payload.sheetName || 'MENU2026'}` : (payload.action === 'getMenuSheets' || payload.action === 'getConfig' ? `${payload.action}_v2` : payload.action)
     let ttlMs = 10 * 60 * 1000 // default 10 minutes
     if (payload.action === 'getMenu') ttlMs = 15 * 60 * 1000
     if (payload.action === 'getHistory') ttlMs = 3 * 60 * 1000
@@ -224,6 +262,7 @@ export async function postGAS(
     )
   }
 
+  invalidateL1CacheForAction(payload.action)
   return postGASDirect(payload, signal, false)
 }
 
@@ -243,23 +282,27 @@ export async function fetchWithRetry(
   const useLocalProxy = import.meta.env.DEV && API_GATEWAY_URL.startsWith('/api')
   const useWorker = (useLocalProxy || !isGasMode) && !isGatewayCircuitOpen('cloudflare_edge')
 
-  // Lần lượt thử qua API Gateway trước, nếu thất bại qua số lần retry thì chuyển sang GAS Fallback
-  for (let i = 0; i < retries; i++) {
-    if (signal?.aborted) {
-      setTimeout(() => { ui.activeRequests-- }, 300)
-      throw new Error('Aborted')
-    }
-    
-    if (useWorker) {
+  invalidateL1CacheForAction(payload.action)
+
+  // Chỉ chạy vòng lặp retry qua API Gateway khi useWorker === true (tránh ngủ chờ 3s vô ích khi gọi thẳng GAS)
+  if (useWorker) {
+    const gatewayAttempts = Math.min(retries, 2)
+    for (let i = 0; i < gatewayAttempts; i++) {
+      if (signal?.aborted) {
+        setTimeout(() => { ui.activeRequests-- }, 300)
+        throw new Error('Aborted')
+      }
+
       try {
         const headers = buildGatewayHeaders()
+        const gwBound = createBoundedSignal(signal, 12000)
 
         const res = await fetch(API_GATEWAY_URL, {
           method: 'POST',
           headers,
           body: JSON.stringify(payload),
-          signal
-        })
+          signal: gwBound.signal
+        }).finally(gwBound.cleanup)
         if (res.ok) {
           const ct = res.headers.get('content-type') || ''
           if (!ct.includes('application/json')) {
@@ -267,7 +310,7 @@ export async function fetchWithRetry(
           }
           reportGatewaySuccess('cloudflare_edge')
           const data = await res.json()
-          if (!data.ok && data.message) {
+          if (!data.ok && data.message && !options?.silent) {
             ui.showToast(`Lỗi Server: ${data.message}`, 'error')
           }
           ui.connectionStatus = 'online'
@@ -276,34 +319,35 @@ export async function fetchWithRetry(
         }
         throw new Error(`HTTP error! status: ${res.status}`)
       } catch (e: any) {
-        if (e.name === 'AbortError') {
+        if (signal?.aborted) {
           setTimeout(() => { ui.activeRequests-- }, 300)
           throw e
         }
-        
+
         const isNetworkErr = e instanceof TypeError || e.message?.includes('fetch') || e.message?.includes('network')
         if (isNetworkErr) {
           reportGatewayFailure('cloudflare_edge', 'edge_cors_or_network', e.message)
+          break // Fail fast to GAS fallback when Gateway is unreachable/CORS-blocked
         }
       }
-    }
 
-    if (i === retries - 1) {
-      break
+      if (i < gatewayAttempts - 1) {
+        console.warn(`[API Client] Giao dịch thất bại. Đang thử lại... (${i + 1}/${gatewayAttempts})`)
+        await new Promise(r => setTimeout(r, 350 * (i + 1)))
+      }
     }
-    console.warn(`[API Client] Giao dịch thất bại. Đang thử lại... (${i + 1}/${retries})`)
-    await new Promise(r => setTimeout(r, 1000 * (i + 1)))
   }
 
-  // Fallback to GAS directly if Gateway fails all retries
+  // Fallback to GAS directly if Gateway is skipped or fails
   console.warn(`[API Client] Chuyển hướng đồng bộ trực tiếp lên GAS...`)
   try {
+    const gasBound = createBoundedSignal(signal, 20000)
     const res = await fetch(GAS_DIRECT_URL, {
       method: 'POST',
       headers: buildGASHeaders(),
       body: JSON.stringify(payload),
-      signal
-    })
+      signal: gasBound.signal
+    }).finally(gasBound.cleanup)
     if (!res.ok) throw new Error(`GAS fallback HTTP error! status: ${res.status}`)
     const ct = res.headers.get('content-type') || ''
     const data = ct.includes('application/json') ? await res.json() : JSON.parse(await res.text())

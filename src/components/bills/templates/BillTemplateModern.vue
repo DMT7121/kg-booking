@@ -223,10 +223,11 @@ const verificationQrUrl = useVerificationQr(() => qrLink.value || 'https://kg-bo
         
         <!-- Stamp Indicator -->
         <div class="flex items-center gap-4 bg-slate-50 p-4 rounded-2xl border border-slate-200 w-full relative overflow-hidden">
-          <div class="w-20 shrink-0 relative" :style="stampParallax ? { transform: `translate(${stampParallax.x}px, ${stampParallax.y}px)` } : {}">
+          <div class="w-24 shrink-0 relative" :style="stampParallax ? { transform: `translate(${stampParallax.x}px, ${stampParallax.y}px)` } : {}">
             <img 
-              :src="formStore?.deposit?.isPaid ? '/images/stamps/paid.png' : '/images/stamps/pending.png'" 
-              class="w-full object-contain filter drop-shadow-sm" 
+              :src="formStore?.deposit?.isPaid ? '/images/stamps/paid.png?v=2' : '/images/stamps/pending.png?v=2'" 
+              class="w-full object-contain" 
+              style="filter: contrast(1.06) saturate(1.1) drop-shadow(0 3px 8px rgba(15, 23, 42, 0.12));"
               alt="Deposit Stamp"
             />
           </div>

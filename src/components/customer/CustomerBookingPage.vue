@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted, defineAsyncComponent } from 'vue'
 import {
   RESTAURANT_NAME,
   COLOR_TONES,
@@ -7,8 +7,9 @@ import {
   RESTAURANT_ZALO_URL
 } from '@/domain/customerBooking/types'
 import { useCustomerBooking } from '@/composables/useCustomerBooking'
-import CustomerReviewModal from './CustomerReviewModal.vue'
-import CustomerBookingSuccess from './CustomerBookingSuccess.vue'
+
+const CustomerReviewModal = defineAsyncComponent(() => import('./CustomerReviewModal.vue'))
+const CustomerBookingSuccess = defineAsyncComponent(() => import('./CustomerBookingSuccess.vue'))
 
 const {
   form,

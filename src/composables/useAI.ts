@@ -10,7 +10,7 @@ import type { AIModel } from '@/utils/constants'
 import { isModelCooldown } from '@/services/ai/circuitBreaker'
 import { parseUnifiedBooking, type CanonicalBookingPayload } from '@/domain/ai/unifiedParserEngine'
 import * as api from '@/services/api'
-import { getCachedMenu, getCachedMenuSheets } from '@/services/cache'
+import { getCachedMenu, getCachedMenuSheets, cacheMenuSheets, deleteCachedMenu } from '@/services/cache'
 import { 
   extractByRules, 
   preNormalizeInput, 
@@ -22,12 +22,18 @@ import {
 } from '@/domain/ai/ruleEngine'
 import { safeParseJSON } from '@/domain/ai/jsonRepair'
 import { 
+  CANONICAL_SET_AND_COMBO_ITEMS,
   matchMenuItems, 
   resolveBestMenuSheet, 
   resolveMenuItemsLocally,
   resolveSetMenuDescription,
   extractSetOrComboHeaderAndQty,
-  deduplicateMatchedItems
+  deduplicateMatchedItems,
+  PRIMARY_MENU_SHEET,
+  isValidMenuSheetName,
+  normalizeMenuSheetName,
+  prioritizeMenuSheets,
+  isValidMenuItemsDataset
 } from '@/domain/menu/menuMatcher'
 import { 
   applyDeterministicRuleLock, 
@@ -404,19 +410,130 @@ export function useAI() {
     })
   }
 
+  async function ensureActiveMenuReady() {
+    if (!appStore.menuList || appStore.menuList.length === 0) {
+      const target = isValidMenuSheetName(appStore.activeSheet) ? appStore.activeSheet.trim() : 'MENU2026'
+      logStore.addLog(`[Menu Sync] Thực đơn "${target}" chưa nạp vào bộ nhớ, đang tải thực đơn trước khi AI phân tích...`, 'info')
+      await appStore.fetchMenu(target)
+    }
+  }
+
+  function buildMenusForRetriever(loadedMenus: Record<string, any[]>) {
+    const aliasByDish = new Map<string, string[]>()
+    for (const entry of (appStore.menuAliases || [])) {
+      if (!entry?.alias || !entry?.dishName) continue
+      const normDish = stripAccents(entry.dishName).toLowerCase().trim()
+      if (!normDish) continue
+      const arr = aliasByDish.get(normDish) || []
+      arr.push(entry.alias)
+      aliasByDish.set(normDish, arr)
+    }
+
+    const enrichItem = (item: any) => {
+      const normName = stripAccents(item?.name || '').toLowerCase().trim()
+      const extraAliases = aliasByDish.get(normName) || []
+      const baseAliases = Array.isArray(item?.aliases) ? item.aliases : []
+      const acrList = item?.acronym ? [item.acronym] : []
+      const mergedAliases = Array.from(new Set([...baseAliases, ...acrList, ...extraAliases].filter(Boolean)))
+      return {
+        id: item.id || item.name,
+        name: item.name,
+        aliases: mergedAliases,
+        category: item.category || item.desc,
+        price: item.price
+      }
+    }
+
+    const activeSheetName = isValidMenuSheetName(appStore.activeSheet) ? appStore.activeSheet.trim() : 'MENU2026'
+    const activeItemsMap = new Map<string, any>()
+    for (const item of (appStore.menuList || [])) {
+      if (!item?.name) continue
+      activeItemsMap.set(stripAccents(item.name).toLowerCase().trim(), enrichItem(item))
+    }
+    for (const setItem of CANONICAL_SET_AND_COMBO_ITEMS) {
+      const key = stripAccents(setItem.name).toLowerCase().trim()
+      if (!activeItemsMap.has(key)) {
+        activeItemsMap.set(key, enrichItem(setItem))
+      }
+    }
+
+    const result: Array<{ menuId: string; menuName: string; items: any[] }> = []
+    if (activeItemsMap.size > 0) {
+      result.push({
+        menuId: activeSheetName,
+        menuName: activeSheetName,
+        items: Array.from(activeItemsMap.values())
+      })
+    }
+
+    for (const [sheetName, items] of Object.entries(loadedMenus || {})) {
+      if (!isValidMenuSheetName(sheetName) || sheetName === activeSheetName || !Array.isArray(items) || items.length === 0) continue
+      result.push({
+        menuId: sheetName,
+        menuName: sheetName,
+        items: items.filter((it: any) => it?.name).map(enrichItem)
+      })
+    }
+
+    return result
+  }
+
+  function buildVisionMenuCatalogAppend(): string {
+    const activeSheetName = appStore.activeSheet || 'MENU2026'
+    const catalogMap = new Map<string, { name: string; price: number }>()
+    for (const item of (appStore.menuList || [])) {
+      if (!item?.name) continue
+      catalogMap.set(stripAccents(item.name).toLowerCase().trim(), {
+        name: item.name,
+        price: Number(item.price) || 0
+      })
+    }
+    for (const setItem of CANONICAL_SET_AND_COMBO_ITEMS) {
+      const key = stripAccents(setItem.name).toLowerCase().trim()
+      if (!catalogMap.has(key)) {
+        catalogMap.set(key, { name: setItem.name, price: setItem.price })
+      }
+    }
+    if (catalogMap.size === 0) return ''
+
+    const lines = Array.from(catalogMap.values())
+      .slice(0, 220)
+      .map(it => {
+        const pLabel = it.price >= 1000 ? `${Math.round(it.price / 1000)}k` : `${it.price}đ`
+        return `- ${it.name} (${pLabel})`
+      })
+      .join('\n')
+
+    return `\n\n# DANH MỤC THỰC ĐƠN ĐANG SỬ DỤNG ("${activeSheetName}"):\nKhi trích xuất menu_items từ ảnh, hãy ưu tiên khớp "matched_name" và "unit_price" chuẩn xác theo thực đơn đang sử dụng dưới đây:\n${lines}\n`
+  }
+
   async function loadAllMenusData(): Promise<Record<string, any[]>> {
     const start = performance.now()
     const allData: Record<string, any[]> = {}
+    const activeSheetName = isValidMenuSheetName(appStore.activeSheet)
+      ? normalizeMenuSheetName(appStore.activeSheet)
+      : PRIMARY_MENU_SHEET
+
+    if (appStore.menuList && isValidMenuItemsDataset(appStore.menuList)) {
+      allData[activeSheetName] = appStore.menuList
+    }
     
-    let sheets = appStore.menuSheets
+    let sheets = prioritizeMenuSheets(appStore.menuSheets || [], false)
     let sheetsSource = 'store'
     
     if (!sheets || sheets.length === 0) {
       try {
         const cachedSheets = await getCachedMenuSheets()
         if (cachedSheets && cachedSheets.length > 0) {
-          sheets = cachedSheets
-          appStore.menuSheets = cachedSheets
+          const invalidCached = cachedSheets.filter((s: string) => !isValidMenuSheetName(s))
+          sheets = prioritizeMenuSheets(cachedSheets, true)
+          if (invalidCached.length > 0 || cachedSheets[0] !== PRIMARY_MENU_SHEET) {
+            for (const bad of invalidCached) {
+              deleteCachedMenu(bad).catch(() => {})
+            }
+            cacheMenuSheets(sheets).catch(() => {})
+          }
+          appStore.menuSheets = sheets
           sheetsSource = 'local-cache'
         }
       } catch (e) {
@@ -425,7 +542,7 @@ export function useAI() {
     }
     
     if (!sheets || sheets.length === 0) {
-      logStore.addLog(`[loadAllMenusData] Không tìm thấy danh sách sheet thực đơn nào (trống). Thời gian: 0ms`, 'warning')
+      logStore.addLog(`[loadAllMenusData] Chỉ dùng thực đơn đang mở "${activeSheetName}" (${allData[activeSheetName]?.length || 0} món).`, 'info')
       return allData
     }
 
@@ -434,15 +551,23 @@ export function useAI() {
     const details: string[] = []
 
     await Promise.all(sheets.map(async (sheet) => {
+      if (sheet === activeSheetName && allData[activeSheetName]?.length > 0) {
+        cacheHits++
+        details.push(`${sheet}: ACTIVE (${allData[activeSheetName].length} món)`)
+        return
+      }
       const menuItems = await getCachedMenu(sheet)
-      if (menuItems && menuItems.length > 0) {
+      if (menuItems && isValidMenuItemsDataset(menuItems)) {
         allData[sheet] = menuItems
         cacheHits++
         details.push(`${sheet}: HIT (${menuItems.length} món)`)
       } else {
+        if (menuItems && menuItems.length > 0) {
+          deleteCachedMenu(sheet).catch(() => {})
+        }
         cacheMisses++
         details.push(`${sheet}: MISS (scheduled background prefetch)`)
-        appStore.scheduleMenuPrefetch(sheet, { reason: 'ai-cache-miss', priority: 'background' })
+        appStore.scheduleMenuPrefetch(sheet, { reason: 'ai-cache-miss', priority: sheet === PRIMARY_MENU_SHEET ? 'high' : 'background' })
       }
     }))
 
@@ -579,6 +704,8 @@ export function useAI() {
     }
 
     try {
+      await ensureActiveMenuReady()
+
       if (formStore.aiImage) {
         logStore.addLog('[ImageProcessor] Tự động nâng cao độ tương phản và nén 1120px tối ưu cho Vision OCR...')
         formStore.aiImage = await processImageForOCR(formStore.aiImage, { contrastEnhancement: true })
@@ -586,7 +713,29 @@ export function useAI() {
       const type = formStore.aiImage ? 'vision' : 'text'
       const hasImage = !!formStore.aiImage
 
-      
+      let promptText = formStore.aiImage
+        ? (formStore.rawInput || 'Phân tích ảnh này để lấy thông tin đặt bàn, khách hàng và danh sách món ăn.')
+        : formStore.rawInput
+      promptText = preNormalizeInput(promptText)
+      const cleanedPromptForAI = stripSetMenuComponents(promptText)
+
+      ruleBasedResult = extractByRules(promptText)
+      hardEntities = extractHardEntities(promptText)
+
+      let menuCandidates: any[] = []
+      if (flags.enableMenuCandidateRetrieval && cleanedPromptForAI.trim()) {
+        const loadedMenus = await getOrLoadAllMenus()
+        const menusForRetriever = buildMenusForRetriever(loadedMenus)
+        menuCandidates = retrieveMenuCandidates({
+          text: cleanedPromptForAI,
+          menus: menusForRetriever,
+          limit: 18
+        })
+        logStore.addLog(
+          `[Menu Retrieval] Thực đơn đang dùng "${appStore.activeSheet}" (${appStore.menuList?.length || 0} món) → lọc được ${menuCandidates.length} món ứng viên.`
+        )
+      }
+
       const classificationInput = {
         text: formStore.rawInput || '',
         hasImage,
@@ -595,10 +744,22 @@ export function useAI() {
           customer: formStore.customer,
           items: formStore.items
         },
+        menuCatalog: appStore.menuList,
         now: new Date()
       }
       
       const classification = classifyAIInput(classificationInput)
+      if (
+        menuCandidates.length > 0 ||
+        (Array.isArray(ruleBasedResult?.menu_items) && ruleBasedResult.menu_items.length > 0)
+      ) {
+        classification.requiresMenuContext = true
+        classification.detectedSignals.hasMenuKeyword = true
+        if (classification.complexity === 'simple_booking') {
+          classification.complexity = 'booking_with_menu'
+        }
+      }
+
       inputType = classification.complexity === 'image_ocr' ? 'chat_screenshot' : 'booking_text'
       
       let profile: PromptProfile = 'TEXT_SIMPLE'
@@ -621,20 +782,11 @@ export function useAI() {
         modelProfile: profile,
         menuFingerprint,
         correctionFingerprint,
-        promptSchemaVersion: 2,
+        promptSchemaVersion: 3,
         normalizerSchemaVersion: 3
       }))
 
-      logStore.addLog(`[Classifier] Complexity: "${classification.complexity}", requiresLLM: ${classification.requiresLLM}, requiresMenuContext: ${classification.requiresMenuContext}`)
-      
-      let promptText = formStore.aiImage
-        ? (formStore.rawInput || 'Phân tích ảnh này để lấy thông tin đặt bàn, khách hàng và danh sách món ăn.')
-        : formStore.rawInput
-      promptText = preNormalizeInput(promptText)
-      const cleanedPromptForAI = stripSetMenuComponents(promptText)
-
-      ruleBasedResult = extractByRules(promptText)
-      hardEntities = extractHardEntities(promptText)
+      logStore.addLog(`[Classifier] Complexity: "${classification.complexity}", Profile: "${profile}", requiresMenuContext: ${classification.requiresMenuContext}`)
 
       if (!force && !formStore.aiImage) {
         const cachedResponse = await getCachedAIResponse<any>(cacheKey, { menuFingerprint, correctionFingerprint })
@@ -684,44 +836,7 @@ export function useAI() {
           }
         }
 
-        let menuCandidates: any[] = []
-        if (flags.enableMenuCandidateRetrieval) {
-          const loadedMenus = await getOrLoadAllMenus()
-          const menusForRetriever = Object.entries(loadedMenus).map(([sheetName, items]) => ({
-            menuId: sheetName,
-            menuName: sheetName,
-            items: items.map((item: any) => ({
-              id: item.id || item.name,
-              name: item.name,
-              aliases: item.aliases || (item.acronym ? [item.acronym] : []),
-              category: item.category,
-              price: item.price
-            }))
-          }))
-          
-          if (menusForRetriever.length === 0 && appStore.menuList && appStore.menuList.length > 0) {
-            menusForRetriever.push({
-              menuId: appStore.activeSheet || 'default',
-              menuName: appStore.activeSheet || 'default',
-              items: appStore.menuList.map((item: any) => ({
-                id: item.id || item.name,
-                name: item.name,
-                aliases: item.aliases || (item.acronym ? [item.acronym] : []),
-                category: item.category,
-                price: item.price
-              }))
-            })
-          }
-
-          menuCandidates = retrieveMenuCandidates({
-            text: cleanedPromptForAI,
-            menus: menusForRetriever,
-            limit: 15
-          })
-          logStore.addLog(`[Menu Retrieval] Đã lọc được ${menuCandidates.length} món ăn ứng viên phù hợp.`)
-        }
-
-        // profile already determined at start for cache key stability
+        // profile & menuCandidates already resolved cleanly above for cache key & prompt accuracy
 
         const currentDateTimeStr = (() => {
           const now = new Date()
@@ -739,6 +854,10 @@ export function useAI() {
           userText: cleanedPromptForAI,
           classification,
           menuCandidates,
+          activeMenuSummary: {
+            sheetName: appStore.activeSheet || 'MENU2026',
+            totalDishes: appStore.menuList?.length || 0
+          },
           conversationContext: '',
           currentDateTime: currentDateTimeStr,
           locale: 'vi-VN',
@@ -875,7 +994,7 @@ export function useAI() {
           const loadedMenus = await getOrLoadAllMenus()
           const { bestSheet, score, isBorderline } = resolveBestMenuSheet(promptText, rawJsonParsed.menu_items || [], loadedMenus, appStore.activeSheet)
           
-          if (bestSheet && bestSheet !== appStore.activeSheet) {
+          if (bestSheet && isValidMenuSheetName(bestSheet) && bestSheet !== appStore.activeSheet) {
             logStore.addLog(`Phát hiện khả năng khớp thực đơn tốt hơn tại Sheet: "${bestSheet}" (Điểm: ${score}).`)
             if (isBorderline) {
               pendingMenuSwitchSheet = bestSheet
@@ -1060,7 +1179,7 @@ export function useAI() {
       api.clearAIAbortController()
       logStore.addLog(`=== KẾT THÚC PHIÊN PHÂN TÍCH (Tổng độ trễ: ${((performance.now() - startTime)/1000).toFixed(2)}s) ===`, 'info')
       
-      if (pendingMenuSwitchSheet) {
+      if (pendingMenuSwitchSheet && isValidMenuSheetName(pendingMenuSwitchSheet)) {
         const targetSheet = pendingMenuSwitchSheet
         setTimeout(async () => {
           try {
@@ -1174,6 +1293,8 @@ Output JSON: { "amount": Number, "content": "String", "bank": "String", "time": 
     uiStore.loading.subMsg = 'Vision Processing...'
 
     try {
+      await ensureActiveMenuReady()
+
       if (Object.keys(configStore.keysStatus).length === 0) {
         await configStore.refreshVaultState()
       }
@@ -1309,6 +1430,8 @@ Output JSON: { "amount": Number, "content": "String", "bank": "String", "time": 
     uiStore.loading.subMsg = 'Single-Pass Multimodal Extraction...'
 
     try {
+      await ensureActiveMenuReady()
+
       if (Object.keys(configStore.keysStatus).length === 0) {
         await configStore.refreshVaultState()
       }
@@ -1349,9 +1472,10 @@ Output JSON: { "amount": Number, "content": "String", "bank": "String", "time": 
           uiStore.loading.subMsg = `Vision: ${model.name}...`
           logStore.addLog(`Thử gọi Single-Pass Vision bằng model: [${model.name}]...`)
 
+          const visionSystemPrompt = SINGLE_PASS_VISION_PROMPT + buildVisionMenuCatalogAppend()
           const rawResult = await callAIModel({
             model,
-            sysPrompt: SINGLE_PASS_VISION_PROMPT,
+            sysPrompt: visionSystemPrompt,
             userPrompt: 'Phân tích trực tiếp ảnh này và trích xuất cấu trúc thông tin đặt bàn hoàn chỉnh dưới định dạng JSON theo đúng schema.',
             image: optimizedImg,
             jsonMode: true,
@@ -1422,7 +1546,7 @@ Output JSON: { "amount": Number, "content": "String", "bank": "String", "time": 
                   loadedMenus,
                   appStore.activeSheet
                 )
-                if (bestSheet && bestSheet !== appStore.activeSheet && !isBorderline) {
+                if (bestSheet && isValidMenuSheetName(bestSheet) && bestSheet !== appStore.activeSheet && !isBorderline) {
                   logStore.addLog(`[Vision] Tự động chuyển sang thực đơn phù hợp nhất: "${bestSheet}" (Điểm: ${score})`, 'success')
                   await appStore.switchMenu(bestSheet)
                   parsed.menu_items = matchMenuItems(

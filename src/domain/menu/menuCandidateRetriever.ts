@@ -58,16 +58,16 @@ let _cachedMiniSearch: MiniSearch | null = null
 let _cachedFingerprint = ''
 
 function computeMenuFingerprint(menus: any[]): string {
-  let count = 0
-  let firstItem = ''
-  let lastItem = ''
-  for (const m of (menus || [])) {
-    const items = m.items || []
-    count += items.length
-    if (!firstItem && items[0]) firstItem = items[0].name || ''
-    if (items.length) lastItem = items[items.length - 1].name || ''
-  }
-  return `${menus.length}_${count}_${firstItem}_${lastItem}`
+  if (!Array.isArray(menus) || menus.length === 0) return 'empty'
+  return menus
+    .map(m => {
+      const items = m.items || []
+      const first = items[0]?.name || ''
+      const last = items[items.length - 1]?.name || ''
+      const aliasCount = items.reduce((acc: number, it: any) => acc + (Array.isArray(it?.aliases) ? it.aliases.length : 0), 0)
+      return `${m.menuId}:${items.length}:${aliasCount}:${first}:${last}`
+    })
+    .join('|')
 }
 
 export function retrieveMenuCandidates(input: MenuCandidateRetrievalInput): MenuCandidate[] {
@@ -75,6 +75,7 @@ export function retrieveMenuCandidates(input: MenuCandidateRetrievalInput): Menu
   const rawNormText = normalizeString(text)
   if (!rawNormText || !menus || menus.length === 0) return []
   const normalizedText = expandSetAndComboShorthands(rawNormText)
+  const primaryMenuId = menus[0]?.menuId || ''
 
   // Reuse cached MiniSearch if menu has not changed
   const fingerprint = computeMenuFingerprint(menus)
@@ -83,7 +84,7 @@ export function retrieveMenuCandidates(input: MenuCandidateRetrievalInput): Menu
   if (!miniSearch || _cachedFingerprint !== fingerprint) {
     miniSearch = new MiniSearch({
       fields: ['name', 'cleanName', 'acronym', 'aliases'],
-      storeFields: ['menuId', 'menuName', 'itemId', 'itemName', 'aliases'],
+      storeFields: ['menuId', 'menuName', 'itemId', 'itemName', 'acronym', 'aliases', 'rawAliases', 'price'],
       searchOptions: {
         boost: { name: 2.5, cleanName: 1.5, aliases: 2, acronym: 0.8 },
         fuzzy: 0.15,
@@ -96,19 +97,24 @@ export function retrieveMenuCandidates(input: MenuCandidateRetrievalInput): Menu
 
     for (const menu of menus) {
       for (const item of (menu.items || [])) {
+        if (!item?.name) continue
         const cleanName = normalizeString(item.name)
         const acronym = generateAcronym(item.name)
-        const aliasesStr = (item.aliases || []).map(normalizeString).join(' ')
+        const rawAliases = Array.isArray(item.aliases) ? item.aliases.filter(Boolean) : []
+        const aliasesStr = rawAliases.map(normalizeString).filter(Boolean).join(' ')
 
         documents.push({
           id: docId++,
           menuId: menu.menuId,
           menuName: menu.menuName,
           itemId: item.id || `item-${docId}`,
+          name: item.name,
           itemName: item.name,
           cleanName,
           acronym,
-          aliases: aliasesStr
+          aliases: aliasesStr,
+          rawAliases,
+          price: item.price
         })
       }
     }
@@ -143,18 +149,26 @@ export function retrieveMenuCandidates(input: MenuCandidateRetrievalInput): Menu
 
     // Check exact match (ensure numbered Set/Combo matches exact trailing number boundary)
     const exactRegex = new RegExp(`(?:^|\\s)${cleanItemName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?:\\s|$)`, 'i')
-    if (exactRegex.test(normalizedText)) {
+    if (cleanItemName && exactRegex.test(normalizedText)) {
       matchedBy.push('exact')
     }
 
-    // Check alias match
-    if (res.aliases) {
-      const aliasList = res.aliases.split(' ')
-      for (const a of aliasList) {
-        if (a && a.length > 2 && normalizedText.includes(a)) {
-          matchedBy.push('alias')
-          break
-        }
+    // Check full multi-word alias & acronym match
+    const rawAliasList: string[] = Array.isArray(res.rawAliases) ? res.rawAliases : []
+    for (const rawAlias of rawAliasList) {
+      const aNorm = normalizeString(rawAlias)
+      if (!aNorm || aNorm.length < 2) continue
+      const aliasRegex = new RegExp(`(?:^|\\s)${aNorm.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?:\\s|$)`, 'i')
+      if (aliasRegex.test(normalizedText) || (aNorm.length >= 4 && normalizedText.includes(aNorm))) {
+        matchedBy.push('alias')
+        break
+      }
+    }
+    if (!matchedBy.includes('alias') && typeof res.acronym === 'string' && res.acronym.length >= 2) {
+      const acrNorm = res.acronym.toLowerCase()
+      const acrRegex = new RegExp(`(?:^|\\s)${acrNorm.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?:\\s|$)`, 'i')
+      if (acrRegex.test(normalizedText)) {
+        matchedBy.push('alias')
       }
     }
 
@@ -171,13 +185,21 @@ export function retrieveMenuCandidates(input: MenuCandidateRetrievalInput): Menu
 
     matchedBy.push('fuzzy', 'bm25')
 
+    const activeMenuBoost = res.menuId === primaryMenuId ? 0.05 : 0
+    const baseScore = matchedBy.includes('exact')
+      ? Math.max(0.95, res.score / 10)
+      : matchedBy.includes('alias')
+        ? Math.max(0.88, res.score / 10)
+        : res.score / 10
+
     candidates.push({
       menuId: res.menuId,
       menuName: res.menuName,
       itemId: res.itemId,
       itemName: res.itemName,
-      aliases: res.aliases ? res.aliases.split(' ') : [],
-      score: parseFloat(Math.min(1.0, res.score / 10).toFixed(2)),
+      aliases: rawAliasList,
+      price: typeof res.price === 'number' ? res.price : undefined,
+      score: parseFloat(Math.min(1.0, baseScore + activeMenuBoost).toFixed(2)),
       matchedBy
     })
   }
@@ -187,17 +209,20 @@ export function retrieveMenuCandidates(input: MenuCandidateRetrievalInput): Menu
   if (candidates.length < limit) {
     for (const menu of menus) {
       for (const item of menu.items) {
+        if (!item?.name) continue
         const normalizedName = normalizeString(item.name)
-        if (normalizedText.includes(normalizedName) && normalizedName.length > 2) {
-          const exists = candidates.some(c => c.itemName === item.name)
+        if (normalizedName.length > 2 && normalizedText.includes(normalizedName)) {
+          const exists = candidates.some(c => c.menuId === menu.menuId && c.itemName === item.name)
           if (!exists) {
+            const activeMenuBoost = menu.menuId === primaryMenuId ? 0.04 : 0
             candidates.push({
               menuId: menu.menuId,
               menuName: menu.menuName,
               itemId: item.id,
               itemName: item.name,
               aliases: item.aliases,
-              score: 0.95,
+              price: item.price,
+              score: parseFloat(Math.min(1.0, 0.95 + activeMenuBoost).toFixed(2)),
               matchedBy: ['exact']
             })
           }

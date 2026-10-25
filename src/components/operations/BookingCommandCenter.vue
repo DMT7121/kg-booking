@@ -213,18 +213,52 @@
           </div>
         </div>
 
-        <!-- Bookings Cards Grid -->
-        <div v-else class="grid grid-cols-1 md:grid-cols-2 gap-3.5">
-          <CommandCenterCard 
-            v-for="booking in filteredBookings"
-            :key="booking.id || booking.order_id"
-            :booking="booking"
-            :all-bookings="allBookings"
-            @view-detail="$emit('view-detail', $event)"
-            @quick-seat="$emit('quick-seat', $event)"
-            @quick-complete="$emit('quick-complete', $event)"
-            @edit-booking="$emit('edit-booking', $event)"
-          />
+        <!-- Bookings Cards Grid (Bounded Virtual Scrollable Viewport across Mobile, Tablet & Desktop) -->
+        <div v-else class="relative">
+          <div
+            ref="ccScrollRef"
+            tabindex="0"
+            class="max-h-[64dvh] sm:max-h-[68dvh] lg:max-h-[calc(100dvh-290px)] overflow-y-auto overscroll-y-contain pr-1 custom-scrollbar focus:outline-none"
+            @keydown="handleCcKeydown"
+          >
+            <div
+              class="space-y-3.5"
+              :style="{
+                paddingTop: ccTopSpacer + 'px',
+                paddingBottom: ccBottomSpacer + 'px',
+                overflowAnchor: 'none'
+              }"
+            >
+              <div
+                v-for="{ item: row, key: rowKey } in virtualBookingRows"
+                :key="rowKey"
+                :ref="(el) => measureCcRow(rowKey, el)"
+                class="grid grid-cols-1 md:grid-cols-2 gap-3.5"
+              >
+                <CommandCenterCard
+                  v-for="booking in row.items"
+                  :key="booking.id || booking.order_id"
+                  :booking="booking"
+                  :all-bookings="getSameDateBookings(booking)"
+                  @view-detail="$emit('view-detail', $event)"
+                  @quick-seat="$emit('quick-seat', $event)"
+                  @quick-complete="$emit('quick-complete', $event)"
+                  @edit-booking="$emit('edit-booking', $event)"
+                />
+              </div>
+            </div>
+          </div>
+
+          <button
+            v-if="isCcScrolledDown && filteredBookings.length > 8"
+            type="button"
+            @click="scrollCcToTop(true)"
+            class="absolute bottom-3 right-3 z-20 min-h-[38px] px-3 py-1.5 rounded-full bg-slate-900/90 dark:bg-blue-600/95 text-white text-[11px] font-black shadow-lg flex items-center gap-1.5 active:scale-95 hover:bg-slate-800 transition-all cursor-pointer tabular-nums"
+            title="Cuộn về đầu danh sách ca trực"
+          >
+            <i class="fa-solid fa-arrow-up text-[10px]"></i>
+            <span>Đầu danh sách</span>
+          </button>
         </div>
       </div>
 
@@ -237,12 +271,13 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import CommandCenterCard from './CommandCenterCard.vue'
 import OperationalRiskWidget from './OperationalRiskWidget.vue'
 import { calculateCompositeStatus } from '@/domain/booking/statusCalculator'
 import { detectBookingRisks, OperationalRiskIssue } from '@/domain/booking/conflictEngine'
 import { useUIStore } from '@/stores/useUIStore'
+import { useVirtualList } from '@/composables/useVirtualList'
 
 const props = defineProps<{
   allBookings: any[]
@@ -403,36 +438,48 @@ const scopedGuestsCount = computed(() => {
   return scopedBookings.value.reduce((sum, b) => sum + (b.booking?.guest_count ?? b.guest_count ?? 0), 0)
 })
 
-const readyCount = computed(() => {
-  return scopedBookings.value.filter(b => calculateCompositeStatus(b).derived === 'READY').length
+// Single-pass status evaluation for scopedBookings (avoids calling calculateCompositeStatus 4x per booking)
+const scopedBookingsWithStatus = computed(() => {
+  return scopedBookings.value.map(b => ({
+    booking: b,
+    status: calculateCompositeStatus(b)
+  }))
 })
 
-const attentionCount = computed(() => {
-  return scopedBookings.value.filter(b => {
-    const d = calculateCompositeStatus(b).derived
-    return d === 'NEEDS_ATTENTION' || d === 'BLOCKED'
-  }).length
+const scopedStatusCounts = computed(() => {
+  let ready = 0
+  let attention = 0
+  let inService = 0
+  const list = scopedBookingsWithStatus.value
+  for (let i = 0; i < list.length; i++) {
+    const d = list[i].status.derived
+    if (d === 'READY') ready++
+    else if (d === 'NEEDS_ATTENTION' || d === 'BLOCKED') attention++
+    else if (d === 'IN_SERVICE') inService++
+  }
+  return { ready, attention, inService }
 })
 
-const inServiceCount = computed(() => {
-  return scopedBookings.value.filter(b => calculateCompositeStatus(b).derived === 'IN_SERVICE').length
-})
+const readyCount = computed(() => scopedStatusCounts.value.ready)
+const attentionCount = computed(() => scopedStatusCounts.value.attention)
+const inServiceCount = computed(() => scopedStatusCounts.value.inService)
 
 // Final filtered bookings for display (applying status filter, zone and search)
 const filteredBookings = computed(() => {
-  let list = scopedBookings.value
+  let entries = scopedBookingsWithStatus.value
 
   // Status filter
   if (activeStatusFilter.value !== 'all') {
-    list = list.filter(b => {
-      const summary = calculateCompositeStatus(b)
-      if (activeStatusFilter.value === 'attention') return summary.derived === 'NEEDS_ATTENTION' || summary.derived === 'BLOCKED'
-      if (activeStatusFilter.value === 'ready') return summary.derived === 'READY'
-      if (activeStatusFilter.value === 'in_service') return summary.derived === 'IN_SERVICE'
-      if (activeStatusFilter.value === 'completed') return summary.derived === 'COMPLETED'
+    entries = entries.filter(({ status }) => {
+      if (activeStatusFilter.value === 'attention') return status.derived === 'NEEDS_ATTENTION' || status.derived === 'BLOCKED'
+      if (activeStatusFilter.value === 'ready') return status.derived === 'READY'
+      if (activeStatusFilter.value === 'in_service') return status.derived === 'IN_SERVICE'
+      if (activeStatusFilter.value === 'completed') return status.derived === 'COMPLETED'
       return true
     })
   }
+
+  let list = entries.map(e => e.booking)
 
   // Zone filter
   if (selectedZone.value !== 'all') {
@@ -447,27 +494,108 @@ const filteredBookings = computed(() => {
   if (q) {
     const cleanQ = q.normalize("NFD").replace(/[\u0300-\u036f]/g, "")
     list = list.filter(b => {
-      const name = (b.customer?.name || b.customer_name || '').normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase()
+      if (!b._ccNormName) {
+        b._ccNormName = (b.customer?.name || b.customer_name || '').normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase()
+      }
       const phone = (b.customer?.phone || b.phone || '').replace(/\D/g, '')
       const table = (b.booking?.table_number || b.table_number || b.tables || '').toLowerCase()
-      return name.includes(cleanQ) || phone.includes(cleanQ) || table.includes(cleanQ)
+      return b._ccNormName.includes(cleanQ) || phone.includes(cleanQ) || table.includes(cleanQ)
     })
   }
 
-  // Sort by arrival time ascending
-  return list.sort((a, b) => {
+  // Sort by arrival time ascending (clone before sorting to avoid mutating source array)
+  return [...list].sort((a, b) => {
     const timeA = a.booking?.event_time || a.booking?.booking_time || a.time || '00:00'
     const timeB = b.booking?.event_time || b.booking?.booking_time || b.time || '00:00'
     return timeA.localeCompare(timeB)
   })
 })
 
-// Scoped risk issues for the selected date
+// Pre-index all bookings by date (O(N)) so conflict checks per card/date run in O(K_same_day) instead of O(N^2)
+const bookingsByDateMap = computed(() => {
+  const map = new Map<string, any[]>()
+  const list = props.allBookings || []
+  for (let i = 0; i < list.length; i++) {
+    const b = list[i]
+    const d = (b.date || b.booking?.event_date || b.booking?.booking_date || '').trim()
+    if (!d) continue
+    let bucket = map.get(d)
+    if (!bucket) {
+      bucket = []
+      map.set(d, bucket)
+    }
+    bucket.push(b)
+  }
+  return map
+})
+
+function getSameDateBookings(booking: any): any[] {
+  const d = (booking?.date || booking?.booking?.event_date || booking?.booking?.booking_date || '').trim()
+  return (d && bookingsByDateMap.value.get(d)) || []
+}
+
+// Responsive 1-column (<768px) / 2-column (>=768px) Virtual Scrolling for Command Center cards
+const ccViewportWidth = ref(typeof window !== 'undefined' ? window.innerWidth : 1280)
+function updateCcViewportWidth() {
+  if (typeof window !== 'undefined') ccViewportWidth.value = window.innerWidth
+}
+onMounted(() => {
+  if (typeof window !== 'undefined') window.addEventListener('resize', updateCcViewportWidth, { passive: true })
+})
+onUnmounted(() => {
+  if (typeof window !== 'undefined') window.removeEventListener('resize', updateCcViewportWidth)
+})
+
+const ccGridCols = computed(() => (ccViewportWidth.value >= 768 ? 2 : 1))
+
+const chunkedBookingRows = computed(() => {
+  const list = filteredBookings.value
+  const cols = ccGridCols.value
+  if (cols <= 1) {
+    return list.map((b, idx) => ({
+      rowKey: `cc-1-${b.id || b.order_id || idx}`,
+      items: [b]
+    }))
+  }
+  const rows: Array<{ rowKey: string; items: any[] }> = []
+  for (let i = 0; i < list.length; i += cols) {
+    const slice = list.slice(i, i + cols)
+    rows.push({
+      rowKey: `cc-2-${slice[0]?.id || slice[0]?.order_id || i}-${slice[1]?.id || slice[1]?.order_id || ''}`,
+      items: slice
+    })
+  }
+  return rows
+})
+
+const {
+  containerRef: ccScrollRef,
+  virtualItems: virtualBookingRows,
+  topSpacer: ccTopSpacer,
+  bottomSpacer: ccBottomSpacer,
+  isScrolledDown: isCcScrolledDown,
+  measureItem: measureCcRow,
+  scrollToTop: scrollCcToTop,
+  handleKeydown: handleCcKeydown
+} = useVirtualList({
+  items: chunkedBookingRows,
+  estimateSize: 196,
+  overscan: 5,
+  gap: 14,
+  getKey: (row) => row.rowKey,
+  initialViewportHeight: 560
+})
+
+watch([selectedDateStr, dateMode, activeShift, activeStatusFilter, selectedZone, searchQuery], () => {
+  scrollCcToTop(false)
+})
+
+// Scoped risk issues for the selected date (partitioned by date to avoid O(N^2) in 'all' mode)
 const dateRiskIssues = computed<OperationalRiskIssue[]>(() => {
   if (!bookingsForDate.value || bookingsForDate.value.length === 0) return []
   const issues: OperationalRiskIssue[] = []
   for (const b of bookingsForDate.value) {
-    issues.push(...detectBookingRisks(b, bookingsForDate.value))
+    issues.push(...detectBookingRisks(b, getSameDateBookings(b)))
   }
   return issues
 })

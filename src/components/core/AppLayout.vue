@@ -242,61 +242,87 @@ const commands = [
   { label: 'Đồng bộ dữ liệu Cloud', cmd: '/sync', desc: 'Tải lại lịch sử đặt bàn từ server', icon: 'fa-rotate text-purple-500' }
 ]
 
+const indexedCommands = commands.map(c => ({
+  ...c,
+  _cleanLabel: c.label.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/đ/g, 'd').toLowerCase(),
+  _cleanDesc: c.desc.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/đ/g, 'd').toLowerCase()
+}))
+
 const filteredCommands = computed(() => {
   if (paletteFilter.value !== 'all' && paletteFilter.value !== 'commands') return []
   const q = searchQuery.value.trim().toLowerCase()
   if (!q) return commands
-  const cleanQ = q.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
-  return commands.filter(c => {
-    const cleanLabel = c.label.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
-    const cleanDesc = c.desc.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
-    return c.cmd.includes(q) || cleanLabel.includes(cleanQ) || cleanDesc.includes(cleanQ)
-  })
+  const cleanQ = q.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/đ/g, 'd').toLowerCase()
+  return indexedCommands.filter(c => (
+    c.cmd.includes(q) || c._cleanLabel.includes(cleanQ) || c._cleanDesc.includes(cleanQ)
+  ))
 })
 
 const searchResults = computed(() => {
+  if (!ui.showCommandPalette) return []
   if (paletteFilter.value !== 'all' && paletteFilter.value !== 'orders') return []
   const q = searchQuery.value.trim().toLowerCase()
   if (!q && paletteFilter.value !== 'orders') return []
   if (q.startsWith('/')) return []
   
-  const cleanQ = q.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase()
-  const list = !cleanQ ? appStore.historyList : appStore.historyList.filter(o => {
-    if (!o.parsedCustomer) return false
-    const name = (o.parsedCustomer.name || '').normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase()
-    const phone = (o.parsedCustomer.phone || '').replace(/\D/g, '')
-    const id = (o.id || '').toLowerCase()
-    const table = (o.parsedCustomer.tables || '').toLowerCase()
-    return name.includes(cleanQ) || phone.includes(cleanQ) || id.includes(cleanQ) || table.includes(cleanQ)
-  })
-  return list.slice(0, 6)
+  const cleanQ = q.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/đ/g, 'd').toLowerCase()
+  if (!cleanQ) return appStore.historyList.slice(0, 6)
+
+  const matches: any[] = []
+  const list = appStore.historyList
+  for (let i = 0; i < list.length && matches.length < 6; i++) {
+    const o = list[i]
+    if (!o?.parsedCustomer) continue
+    if (!(o as any)._paletteKey) {
+      const name = (o.parsedCustomer.name || '').normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/đ/g, 'd').toLowerCase()
+      const phone = (o.parsedCustomer.phone || '').replace(/\D/g, '')
+      const id = (o.id || '').toLowerCase()
+      const table = (o.parsedCustomer.tables || '').toLowerCase()
+      ;(o as any)._paletteKey = `${name}|${phone}|${id}|${table}`
+    }
+    if ((o as any)._paletteKey.includes(cleanQ)) {
+      matches.push(o)
+    }
+  }
+  return matches
+})
+
+const indexedPaletteMenuItems = computed(() => {
+  const mergedMap = new Map<string, any>()
+  for (const item of appStore.menuList || []) {
+    const key = String(item.name || '').toLowerCase()
+    if (key) mergedMap.set(key, item)
+  }
+  for (const item of CANONICAL_SET_AND_COMBO_ITEMS) {
+    const key = item.name.toLowerCase()
+    if (!mergedMap.has(key)) mergedMap.set(key, item)
+  }
+  return Array.from(mergedMap.values()).map(item => ({
+    raw: item,
+    nameClean: (item.cleanName || String(item.name || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/đ/g, 'd').toLowerCase()),
+    noteClean: String(item.note || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/đ/g, 'd').toLowerCase()
+  }))
 })
 
 const menuSearchResults = computed(() => {
+  if (!ui.showCommandPalette) return []
   if (paletteFilter.value !== 'all' && paletteFilter.value !== 'menu') return []
   const q = searchQuery.value.trim().toLowerCase()
   if (!q && paletteFilter.value !== 'menu') return []
   if (q.startsWith('/')) return []
 
   const cleanQ = q.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/đ/g, 'd').toLowerCase()
-  const mergedMap = new Map<string, any>()
-  for (const item of CANONICAL_SET_AND_COMBO_ITEMS) {
-    mergedMap.set(item.name.toLowerCase(), item)
-  }
-  for (const item of appStore.menuList || []) {
-    const key = String(item.name || '').toLowerCase()
-    if (key && !mergedMap.has(key)) {
-      mergedMap.set(key, item)
+  const indexed = indexedPaletteMenuItems.value
+  if (!cleanQ) return indexed.slice(0, 8).map(e => e.raw)
+
+  const results: any[] = []
+  for (let i = 0; i < indexed.length && results.length < 6; i++) {
+    const entry = indexed[i]
+    if (entry.nameClean.includes(cleanQ) || entry.noteClean.includes(cleanQ)) {
+      results.push(entry.raw)
     }
   }
-  const allItems = Array.from(mergedMap.values())
-  if (!cleanQ) return allItems.slice(0, 8)
-
-  return allItems.filter(item => {
-    const nameClean = String(item.name || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/đ/g, 'd').toLowerCase()
-    const noteClean = String(item.note || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/đ/g, 'd').toLowerCase()
-    return nameClean.includes(cleanQ) || noteClean.includes(cleanQ)
-  }).slice(0, 6)
+  return results
 })
 
 function quickAddDishFromPalette(dish: any) {

@@ -68,7 +68,7 @@ function getDishSuggestionsForAiItem(item: any): any[] {
   const query = (item.raw_name || item.matched_name || item.name || '').trim()
   if (!query) return []
 
-  const mergedItems = [...CANONICAL_SET_AND_COMBO_ITEMS, ...(appStore.menuList || [])]
+  const mergedItems = [...(appStore.menuList || []), ...CANONICAL_SET_AND_COMBO_ITEMS]
   const candidates = retrieveMenuCandidates({
     text: query,
     menus: [{ menuId: 'default', menuName: 'Menu', items: mergedItems }],
@@ -509,7 +509,16 @@ onUnmounted(() => {
           </div>
           <h3 class="font-bold text-text-primary text-xs uppercase tracking-wider">AI Core Pipeline v7.0</h3>
         </div>
-        <div class="flex items-center gap-1.5">
+        <div class="flex items-center gap-1.5 flex-wrap justify-end">
+          <button
+            @click.prevent="appStore.menuList.length === 0 ? appStore.fetchMenu(appStore.activeSheet || 'MENU2026', { forceReloadCache: true }) : ui.openConfig('menu')"
+            class="px-2 py-0.5 rounded-lg font-bold text-[9px] uppercase tracking-wider border transition-all select-none cursor-pointer flex items-center gap-1"
+            :class="appStore.menuList.length > 0 ? 'bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 border-emerald-500/25' : 'bg-amber-500/15 hover:bg-amber-500/25 text-amber-700 dark:text-amber-300 border-amber-500/30'"
+            :title="appStore.menuList.length > 0 ? `Thực đơn AI đang đối chiếu: ${appStore.activeSheet} (${appStore.menuList.length} món) — Nhấn để quản lý/đổi thực đơn` : 'Thực đơn chưa tải món — Nhấn để tải lại ngay'"
+          >
+            <i class="fa-solid fa-book-open text-[8px]"></i>
+            <span>{{ appStore.activeSheet || 'MENU2026' }} ({{ appStore.menuList.length }} món)</span>
+          </button>
           <button
             @click.prevent="ui.openConfig('ai')"
             class="px-2 py-0.5 rounded-lg font-bold text-[9px] uppercase tracking-wider bg-surface-3 hover:bg-surface-hover text-text-secondary border border-border-subtle transition-all select-none cursor-pointer flex items-center gap-1"

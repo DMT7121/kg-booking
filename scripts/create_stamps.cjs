@@ -27,7 +27,7 @@ const html = `<!DOCTYPE html>
   <script>
     async function run() {
       // Explicitly load both Latin and Vietnamese subsets of Hurricane
-      await document.fonts.load("142px 'Hurricane'", "Chờ cọc Đã cọc");
+      await document.fonts.load("164px 'Hurricane'", "Chờ cọc Đã cọc");
       await document.fonts.ready;
       await new Promise(r => setTimeout(r, 450));
 
@@ -73,13 +73,16 @@ const html = `<!DOCTYPE html>
           const r = data[i];
           const a = data[i + 3];
           if (a < 250) {
+            const boostedAlpha = a > 35 ? Math.min(255, Math.round(Math.pow(a / 255, 0.58) * 255 * 1.12)) : a;
             data[i] = rgbColor.r;
             data[i + 1] = rgbColor.g;
             data[i + 2] = rgbColor.b;
-          } else if (r < 60) {
+            data[i + 3] = boostedAlpha;
+          } else if (r < 55) {
             data[i + 3] = 0;
           } else {
-            const alpha = Math.min(255, Math.round(((r - 60) / 195) * 255));
+            const norm = Math.max(0, Math.min(1, (r - 55) / 175));
+            const alpha = Math.min(255, Math.round(Math.pow(norm, 0.58) * 255));
             data[i] = rgbColor.r;
             data[i + 1] = rgbColor.g;
             data[i + 2] = rgbColor.b;
@@ -153,10 +156,10 @@ const html = `<!DOCTYPE html>
       }
 
       function drawClassicFleurOrnament(ctx, cx, cy, dir, color) {
-        drawFourPointStar(ctx, cx, cy, 17.5, 6.0, color);
-        drawFourPointStar(ctx, cx + dir * 23, cy - 10.5, 6.8, 2.7, color);
-        drawFourPointStar(ctx, cx + dir * 23, cy + 10.5, 6.8, 2.7, color);
-        drawFourPointStar(ctx, cx + dir * 35, cy, 8.2, 3.0, color);
+        drawFourPointStar(ctx, cx, cy, 19.5, 6.8, color);
+        drawFourPointStar(ctx, cx + dir * 22, cy - 11.0, 7.8, 3.1, color);
+        drawFourPointStar(ctx, cx + dir * 22, cy + 11.0, 7.8, 3.1, color);
+        drawFourPointStar(ctx, cx + dir * 34, cy, 9.2, 3.4, color);
       }
 
       function drawStamp(canvas, label, hexColor, rgbColor, seed) {
@@ -179,61 +182,60 @@ const html = `<!DOCTYPE html>
           c.closePath();
         }
 
-        // Double Frame
+        // Bold Authoritative Double Seal Frame
         bCtx.strokeStyle = hexColor;
-        bCtx.lineWidth = 14;
-        roundRect(bCtx, 35, 35, 730, 730, 48);
+        bCtx.lineWidth = 21;
+        roundRect(bCtx, 34, 34, 732, 732, 48);
         bCtx.stroke();
 
-        bCtx.lineWidth = 5;
-        roundRect(bCtx, 55, 55, 690, 690, 36);
+        bCtx.lineWidth = 8.5;
+        roundRect(bCtx, 60, 60, 680, 680, 34);
         bCtx.stroke();
 
-        // Tinted Stag
+        // Tinted Stag Emblem
         const tintedStag = createTintedStag(rgbColor);
-        const sScale = Math.min(480 / cropW, 460 / cropH);
+        const sScale = Math.min(485 / cropW, 452 / cropH);
         const sW = Math.round(cropW * sScale);
         const sH = Math.round(cropH * sScale);
-        bCtx.drawImage(tintedStag, Math.round((800 - sW) / 2), 82, sW, sH);
+        bCtx.drawImage(tintedStag, Math.round((800 - sW) / 2), 78, sW, sH);
 
-        // Google Font "Hurricane" with large size (148px), letter-spacing, and rich bold calligraphy stroke
-        const textY = 652;
+        // Google Font "Hurricane" with prominent size (160px), letter-spacing, and heavy bold calligraphy ink weight
+        const textY = 648;
         bCtx.save();
         bCtx.fillStyle = hexColor;
         bCtx.strokeStyle = hexColor;
         bCtx.textAlign = 'center';
         bCtx.textBaseline = 'middle';
-        bCtx.font = "400 148px 'Hurricane', cursive";
+        bCtx.font = "400 160px 'Hurricane', cursive";
         if ('letterSpacing' in bCtx) {
-          bCtx.letterSpacing = '3.5px';
+          bCtx.letterSpacing = '3px';
         }
         bCtx.lineJoin = 'round';
         bCtx.lineCap = 'round';
-        // Outer stroke + inner fill for authentic bold calligraphy weight without closing inner loops
-        bCtx.lineWidth = 3.5;
-        bCtx.strokeText(label, 405, textY);
-        bCtx.fillText(label, 405, textY);
+        // Bold outer stroke + solid inner fill for unmistakable stamp prominence without closing inner loops
+        bCtx.lineWidth = 7.6;
+        bCtx.strokeText(label, 400, textY);
+        bCtx.fillText(label, 400, textY);
 
         const metrics = bCtx.measureText(label);
         const halfTextW = metrics.width / 2;
         bCtx.restore();
 
-        // Flanking ornaments
-        const ornamentOffset = Math.max(halfTextW + 56, 232);
+        // Flanking ornaments with balanced inner-frame & text margins
+        const ornamentOffset = Math.min(256, Math.max(halfTextW + 46, 236));
         drawClassicFleurOrnament(bCtx, 400 - ornamentOffset, textY + 6, -1, hexColor);
         drawClassicFleurOrnament(bCtx, 400 + ornamentOffset, textY + 6, 1, hexColor);
 
-        // 2. Ink Bleed / Smudge Layer ("Hiệu ứng lem mực")
-        // Multi-radius capillary ink diffusion around strokes
+        // 2. Crisp Ink Bleed / Halo Layer (Freshly inked seal press)
         const bleedCanvas = document.createElement('canvas');
         bleedCanvas.width = 800;
         bleedCanvas.height = 800;
         const bleedCtx = bleedCanvas.getContext('2d');
-        bleedCtx.filter = 'blur(1.8px)';
-        bleedCtx.globalAlpha = 0.38;
+        bleedCtx.filter = 'blur(1.4px)';
+        bleedCtx.globalAlpha = 0.48;
         bleedCtx.drawImage(baseCanvas, 0, 0);
-        bleedCtx.filter = 'blur(4.2px)';
-        bleedCtx.globalAlpha = 0.14;
+        bleedCtx.filter = 'blur(3.2px)';
+        bleedCtx.globalAlpha = 0.16;
         bleedCtx.drawImage(baseCanvas, 0, 0);
         bleedCtx.filter = 'none';
         bleedCtx.globalAlpha = 1.0;
@@ -241,7 +243,7 @@ const html = `<!DOCTYPE html>
         ctx.drawImage(bleedCanvas, 0, 0);
         ctx.drawImage(baseCanvas, 0, 0);
 
-        // 3. Natural Rubber-Stamp Ink Shader ("Hiệu ứng lem, mờ, đậm nhạt")
+        // 3. Rich High-Density Rubber-Stamp Ink Shader (Bold & Prominent, subtle organic texture)
         const n1 = createNoiseGrid(64, seed);
         const n2 = createNoiseGrid(128, seed + 101);
         const n3 = createNoiseGrid(256, seed + 202);
@@ -254,68 +256,67 @@ const html = `<!DOCTYPE html>
         const d = dstImg.data;
 
         for (let y = 0; y < 800; y++) {
-          const gradPressure = 0.92 + 0.10 * Math.sin((y / 800) * Math.PI * 0.85);
+          const gradPressure = 0.96 + 0.06 * Math.sin((y / 800) * Math.PI * 0.85);
           for (let x = 0; x < 800; x++) {
             const origIdx = (y * 800 + x) * 4;
 
-            // Capillary edge wobble ("lem viền") using smooth high-freq noise
-            const wx = (sampleNoise(n3, x * 0.22, y * 0.22) - 0.5) * 2.2;
-            const wy = (sampleNoise(n3, (x + 91) * 0.22, (y + 47) * 0.22) - 0.5) * 2.2;
+            // Subtle capillary edge wobble ("lem viền nhẹ")
+            const wx = (sampleNoise(n3, x * 0.22, y * 0.22) - 0.5) * 1.8;
+            const wy = (sampleNoise(n3, (x + 91) * 0.22, (y + 47) * 0.22) - 0.5) * 1.8;
             const sx = Math.min(799, Math.max(0, Math.round(x + wx)));
             const sy = Math.min(799, Math.max(0, Math.round(y + wy)));
             const dispIdx = (sy * 800 + sx) * 4;
 
             const aOrig = s[origIdx + 3];
             const aDisp = s[dispIdx + 3];
-            const baseAlpha = Math.max(aOrig, Math.round(aDisp * 0.78));
-            if (baseAlpha < 3) continue;
+            const baseAlpha = Math.max(aOrig, Math.round(aDisp * 0.85));
+            if (baseAlpha < 4) continue;
 
-            // Smooth FBM cloud for organic ink pressure ("đậm nhạt & mờ")
+            // High-opacity ink transfer: keeps stamp solid & vibrant (88%-100%) with subtle organic variation
             const cloud = fbm(n1, n2, n3, x, y); // ~ 0.15 .. 0.85
-            const cornerFade = 0.95 - 0.12 * ((x / 800) * (1 - y / 800));
-            const smoothCurve = Math.pow(Math.max(0.0, Math.min(1.0, (cloud - 0.20) / 0.58)), 0.78);
-            let inkDensity = (0.58 + 0.52 * smoothCurve) * cornerFade * gradPressure;
+            const cornerFade = 0.98 - 0.04 * ((x / 800) * (1 - y / 800));
+            const smoothCurve = Math.pow(Math.max(0.0, Math.min(1.0, (cloud - 0.18) / 0.58)), 0.72);
+            let inkDensity = (0.87 + 0.22 * smoothCurve) * cornerFade * gradPressure;
 
-            // Fine vintage paper-fiber micro-speckles (subtle dry ink pores)
+            // Subtle paper-fiber micro-pores (never washes out strokes)
             const pore1 = sampleNoise(nFine, x * 0.62, y * 0.62);
             const pore2 = sampleNoise(n3, x * 0.28, y * 0.28);
-            if (pore1 < 0.15 && pore2 < 0.32) {
-              inkDensity *= 0.38 + (pore1 / 0.15) * 0.42;
+            if (pore1 < 0.11 && pore2 < 0.26) {
+              inkDensity *= 0.78 + (pore1 / 0.11) * 0.18;
             }
 
-            // Extra ink pooling at stroke edges (real rubber stamps squeeze ink to the rim of letters/lines)
-            const isRim = aOrig > 95 && aOrig < 235;
+            // Extra ink pooling at stroke rims (authentic crisp dark outline of freshly inked stamp)
+            const isRim = aOrig > 85 && aOrig < 240;
             if (isRim) {
-              inkDensity = Math.min(1.15, inkDensity * 1.15);
+              inkDensity = Math.min(1.18, inkDensity * 1.15);
             }
 
-            // Richer/darker color where ink pools ("đậm"), slightly softer where ink is thin ("mờ/nhạt")
-            const colorShift = inkDensity > 0.94 ? -14 : inkDensity < 0.68 ? 10 : 0;
+            // Deepen pigment where ink pools; never whiten/wash out pigment
+            const colorShift = isRim || inkDensity > 0.98 ? -16 : inkDensity > 0.92 ? -8 : 0;
 
             d[origIdx] = Math.min(255, Math.max(0, rgbColor.r + colorShift));
             d[origIdx + 1] = Math.min(255, Math.max(0, rgbColor.g + colorShift));
             d[origIdx + 2] = Math.min(255, Math.max(0, rgbColor.b + colorShift));
-            d[origIdx + 3] = Math.min(255, Math.max(0, Math.round(baseAlpha * Math.min(1.06, inkDensity))));
+            d[origIdx + 3] = Math.min(255, Math.max(0, Math.round(baseAlpha * Math.min(1.12, inkDensity))));
           }
         }
 
-        // 4. Subtle micro ink-bleed fibers along stroke edges ("lem mực")
+        // 4. Subtle micro ink-bleed fibers along stroke edges
         for (let y = 12; y < 788; y += 2) {
           for (let x = 12; x < 788; x += 2) {
             const idx = (y * 800 + x) * 4;
             const a = s[idx + 3];
-            // Only near stroke boundaries
-            if (a > 60 && a < 210 && rng() < 0.045) {
+            if (a > 70 && a < 215 && rng() < 0.038) {
               const angle = rng() * Math.PI * 2;
-              const dist = 1.2 + rng() * 3.2;
+              const dist = 1.0 + rng() * 2.6;
               const tx = Math.round(x + Math.cos(angle) * dist);
               const ty = Math.round(y + Math.sin(angle) * dist);
               const tIdx = (ty * 800 + tx) * 4;
-              if (d[tIdx + 3] < 80) {
+              if (d[tIdx + 3] < 90) {
                 d[tIdx] = rgbColor.r;
                 d[tIdx + 1] = rgbColor.g;
                 d[tIdx + 2] = rgbColor.b;
-                d[tIdx + 3] = Math.max(d[tIdx + 3], Math.round(45 + rng() * 85));
+                d[tIdx + 3] = Math.max(d[tIdx + 3], Math.round(55 + rng() * 90));
               }
             }
           }
@@ -324,13 +325,13 @@ const html = `<!DOCTYPE html>
         ctx.putImageData(dstImg, 0, 0);
       }
 
-      // Draw Paid (#961825 crimson red): "Đã cọc"
+      // Draw Paid (#B41222 rich crimson seal red): "Đã cọc"
       const paidCanvas = document.getElementById('paidCanvas');
-      drawStamp(paidCanvas, 'Đã cọc', '#961825', { r: 150, g: 24, b: 37 }, 2026);
+      drawStamp(paidCanvas, 'Đã cọc', '#B41222', { r: 180, g: 18, b: 34 }, 2026);
 
-      // Draw Pending (#1c365d deep navy): "Chờ cọc"
+      // Draw Pending (#10357A deep royal cobalt seal blue): "Chờ cọc"
       const pendingCanvas = document.getElementById('pendingCanvas');
-      drawStamp(pendingCanvas, 'Chờ cọc', '#1c365d', { r: 28, g: 54, b: 93 }, 6202);
+      drawStamp(pendingCanvas, 'Chờ cọc', '#10357A', { r: 16, g: 53, b: 122 }, 6202);
 
       await fetch('/save', {
         method: 'POST',

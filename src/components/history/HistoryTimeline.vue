@@ -164,49 +164,56 @@ const activeZoneTables = computed(() => {
   return Array.from({ length: count }, (_, i) => `${activeZone.value}${i + 1}`)
 })
 
+const ALL_TIMELINE_TABLES: string[] = (() => {
+  const list: string[] = []
+  ;['A', 'B', 'C', 'D', 'E'].forEach(z => {
+    const count = z === 'A' ? 22 : z === 'C' ? 16 : z === 'B' ? 10 : 8
+    for (let i = 1; i <= count; i++) {
+      list.push(`${z}${i}`)
+    }
+  })
+  return list
+})()
+
+const HOUR_PREFIX_MAP = new Map<string, string>(HOURS.map(h => [h.substring(0, 2), h]))
+
 // Timeline Data Mapping
 // A booking belongs to a cell if its date matches and its time starts with the hour, and its tables match.
 const timelineData = computed(() => {
   const grid: Record<string, Record<string, any>> = {} // grid[hour][table] = booking
-  HOURS.forEach(h => {
-    grid[h] = {}
-    const allTables: string[] = []
-    ;['A', 'B', 'C', 'D', 'E'].forEach(z => {
-      const count = z === 'A' ? 22 : z === 'C' ? 16 : z === 'B' ? 10 : 8
-      for (let i = 1; i <= count; i++) {
-        allTables.push(`${z}${i}`)
-      }
-    })
-    allTables.forEach((t: string) => {
-      grid[h][t] = null
-    })
-  })
+  for (let i = 0; i < HOURS.length; i++) {
+    const h = HOURS[i]
+    const row: Record<string, any> = {}
+    for (let j = 0; j < ALL_TIMELINE_TABLES.length; j++) {
+      row[ALL_TIMELINE_TABLES[j]] = null
+    }
+    grid[h] = row
+  }
 
+  const targetDate = selectedDateStr.value
   const groups = appStore.groupedHistory
-  Object.values(groups).forEach((group: any) => {
-    const order = group.latest
-    if (!order.parsedCustomer) return
-    
-    const date = (order.parsedCustomer.date || '').trim()
-    if (date !== selectedDateStr.value) return
+  for (const key in groups) {
+    const order = groups[key].latest
+    const pc = order?.parsedCustomer
+    if (!pc) continue
 
-    const time = (order.parsedCustomer.time || '').trim()
-    const tablesStr = (order.parsedCustomer.tables || '').trim()
-    if (!tablesStr) return
+    if ((pc.date || '').trim() !== targetDate) continue
 
-    const tables = tablesStr.split(/[\s,]+/).map((t: string) => t.trim().toUpperCase()).filter(Boolean)
+    const tablesStr = (pc.tables || '').trim()
+    if (!tablesStr) continue
 
-    // Find closest hour slot
+    const time = (pc.time || '').trim()
     const hourPrefix = time ? time.split(':')[0].padStart(2, '0') : ''
-    let matchHour = HOURS.find(h => h.startsWith(hourPrefix))
-    if (!matchHour) return
+    const matchHour = HOUR_PREFIX_MAP.get(hourPrefix)
+    if (!matchHour) continue
 
-    tables.forEach((t: string) => {
-      if (grid[matchHour]) {
-        grid[matchHour][t] = order
-      }
-    })
-  })
+    const tables = tablesStr.split(/[\s,]+/)
+    const hourRow = grid[matchHour]
+    for (let k = 0; k < tables.length; k++) {
+      const t = tables[k].trim().toUpperCase()
+      if (t) hourRow[t] = order
+    }
+  }
 
   return grid
 })
@@ -264,10 +271,16 @@ function prefillBooking(table: string, time: string) {
 }
 
 function getStaff(order: any) {
+  if (!order) return ''
+  if (order.staff?.name) return order.staff.name
+  if (order._cachedStaffName !== undefined) return order._cachedStaffName
   try {
-    const data = JSON.parse(order.data || '{}')
-    return data.staff?.name || ''
+    const data = order.data ? JSON.parse(order.data) : null
+    const name = data?.staff?.name || ''
+    order._cachedStaffName = name
+    return name
   } catch {
+    order._cachedStaffName = ''
     return ''
   }
 }

@@ -4,8 +4,8 @@ import { useUIStore } from '@/stores/useUIStore'
 import { useAppStore } from '@/stores/useAppStore'
 import { useForm } from '@/composables/useForm'
 import { formatVND } from '@/utils'
-import * as api from '@/services/api'
 import { usePullToRefresh, haptic } from '@/composables/useGestures'
+import { useVirtualList } from '@/composables/useVirtualList'
 const ui = useUIStore()
 const appStore = useAppStore()
 const { editHistoricOrder, resetForm, copyToClipboard } = useForm()
@@ -58,47 +58,40 @@ function toggleExpand(key: string) {
   expandedKey.value = expandedKey.value === key ? null : key
 }
 
-// --- High-Performance Pagination & Infinite Scroll ---
-const PAGE_SIZE = 30
-const displayLimit = ref(PAGE_SIZE)
-
-watch([() => ui.historySearch, () => ui.historyFilters], () => {
-  displayLimit.value = PAGE_SIZE
-}, { deep: true })
-
+// --- Dynamic-Height Virtual Scrolling (All Devices) ---
 const filteredEntries = computed(() => {
   return Object.entries(appStore.filteredHistory)
-})
-
-const visibleHistoryEntries = computed(() => {
-  return filteredEntries.value.slice(0, displayLimit.value)
 })
 
 const totalFilteredCount = computed(() => {
   return filteredEntries.value.length
 })
 
-const hasMoreOrders = computed(() => {
-  return displayLimit.value < totalFilteredCount.value
+const {
+  containerRef: scrollContainer,
+  virtualItems: virtualHistoryRows,
+  topSpacer,
+  bottomSpacer,
+  visibleDisplayRange,
+  isScrolledDown,
+  measureItem,
+  scrollToTop,
+  handleKeydown
+} = useVirtualList({
+  items: filteredEntries,
+  estimateSize: (_idx, [key]) => (expandedKey.value === String(key) ? 380 : 182),
+  overscan: 6,
+  gap: 14,
+  getKey: ([key]) => String(key),
+  initialViewportHeight: 680
 })
 
-function loadMoreOrders() {
-  displayLimit.value += PAGE_SIZE
-}
-
-function handleListScroll(e: Event) {
-  const el = e.target as HTMLElement
-  if (!el) return
-  // Tự động nạp thêm khi cuộn gần chạm đáy (còn 200px)
-  if (el.scrollHeight - el.scrollTop - el.clientHeight < 200) {
-    if (hasMoreOrders.value) {
-      loadMoreOrders()
-    }
-  }
-}
+watch([() => ui.historySearch, () => ui.historyFilters], () => {
+  expandedKey.value = null
+  scrollToTop(false)
+}, { deep: true })
 
 // --- Pull-to-Refresh ---
-const scrollContainer = ref<HTMLElement | null>(null)
 const { pullDistance, isRefreshing, onPullStart, onPullMove, onPullEnd } = usePullToRefresh(
   () => appStore.loadHistory(false)
 )
@@ -179,11 +172,30 @@ async function deleteBatchOrders() {
   ui.showToast(`Đã xóa ${idsToDelete.length} bản ghi lịch sử.`, 'success')
 }
 
-// Check cared status from localStorage
+// Cached cared status map from localStorage (avoids JSON.parse x 30 rows on every render)
+const caredStatusMap = ref<Record<string, boolean>>((() => {
+  try {
+    return JSON.parse(localStorage.getItem('kg_cared_status') || '{}')
+  } catch {
+    return {}
+  }
+})())
+
+watch(() => ui.showCustomerCareModal, (isOpen) => {
+  if (!isOpen) {
+    try {
+      caredStatusMap.value = JSON.parse(localStorage.getItem('kg_cared_status') || '{}')
+    } catch {
+      caredStatusMap.value = {}
+    }
+  }
+})
+
 function isOrderCared(id: string) {
-  const caredStatus = JSON.parse(localStorage.getItem('kg_cared_status') || '{}')
-  return !!caredStatus[id]
+  return !!caredStatusMap.value[id]
 }
+
+const selectedIdsSet = computed(() => new Set(ui.selectedIds))
 
 function copyHistoricZaloMessage(order: any) {
   haptic('light')
@@ -221,9 +233,9 @@ function copyHistoricZaloMessage(order: any) {
 </script>
 
 <template>
-  <div class="flex-grow flex flex-col overflow-hidden text-[13px] bg-surface-canvas text-text-primary min-h-0">
+  <div class="h-full max-h-full flex-grow flex flex-col overflow-hidden text-[13px] bg-surface-canvas text-text-primary min-h-0 relative">
     <!-- LIST VIEW -->
-    <div class="flex-grow flex flex-col overflow-hidden bg-surface-canvas min-h-0">
+    <div class="h-full max-h-full flex-grow flex flex-col overflow-hidden bg-surface-canvas min-h-0 relative">
 
       <!-- Unified Compact Sticky Search, Stats & Filter Command Bar (Reclaims 72px vertical viewport) -->
       <div class="p-3 sm:px-4 sm:py-3 bg-surface-2 dark:bg-surface-2 space-y-2.5 z-10 shrink-0 border-b border-border-default dark:border-border-subtle shadow-2xs">
@@ -307,24 +319,35 @@ function copyHistoricZaloMessage(order: any) {
         </div>
       </div>
 
-      <!-- History List -->
+      <!-- Virtualized History List (Bounded Viewport on Mobile, Tablet & Desktop) -->
       <div
         ref="scrollContainer"
-        class="flex-grow overflow-y-auto px-3 sm:px-4 pb-28 md:pb-6 space-y-3 sm:space-y-4 custom-scrollbar bg-slate-50 dark:bg-slate-950"
+        tabindex="0"
+        class="flex-1 min-h-0 max-h-[calc(100dvh-165px)] lg:max-h-[calc(100dvh-135px)] overflow-y-auto overscroll-y-contain px-3 sm:px-4 pt-3 pb-28 md:pb-6 custom-scrollbar bg-slate-50 dark:bg-slate-950 focus:outline-none"
         @touchstart="(e: TouchEvent) => scrollContainer && onPullStart(e, scrollContainer)"
         @touchmove="onPullMove"
         @touchend="onPullEnd"
-        @scroll="handleListScroll"
+        @keydown="handleKeydown"
       >
         <div v-if="totalFilteredCount === 0" class="text-center py-20 text-slate-400 dark:text-slate-500">
           <i class="fa-solid fa-folder-open text-6xl mb-4 text-slate-300 dark:text-slate-600"></i>
           <p class="font-black text-sm uppercase tracking-widest">Chưa có lịch sử</p>
         </div>
 
-        <div v-for="([key, group]) in visibleHistoryEntries" :key="key"
+        <div
+          v-else
+          class="space-y-3 sm:space-y-3.5"
+          :style="{
+            paddingTop: topSpacer + 'px',
+            paddingBottom: bottomSpacer + 'px',
+            overflowAnchor: 'none'
+          }"
+        >
+        <div v-for="{ item: [key, group], key: vKey } in virtualHistoryRows" :key="vKey"
+          :ref="(el) => measureItem(vKey, el)"
           class="bg-white dark:bg-surface-2 rounded-2xl shadow-[0_2px_12px_rgba(0,0,0,0.04)] dark:shadow-none border border-slate-200/80 dark:border-border-subtle p-3 sm:p-3.5 transition-all duration-200 relative group overflow-hidden"
           :class="[
-            ui.isBatchMode && ui.selectedIds.includes(String(key)) ? 'ring-2 ring-red-500 bg-red-50 dark:bg-red-950/20' : '',
+            ui.isBatchMode && selectedIdsSet.has(String(key)) ? 'ring-2 ring-red-500 bg-red-50 dark:bg-red-950/20' : '',
             group.latest.isDeposited ? 'status-rail-emerald' : (!group.latest.parsedCustomer?.tables || group.latest.parsedCustomer?.tables === '---' || group.latest.parsedCustomer?.tables.toLowerCase().includes('chưa') ? 'status-rail-rose' : 'status-rail-amber')
           ]"
           @click="ui.isBatchMode ? ui.toggleSelection(group) : toggleExpand(String(key))"
@@ -333,8 +356,8 @@ function copyHistoricZaloMessage(order: any) {
           <div class="flex justify-between items-start mb-2.5 sm:mb-3">
             <div class="flex items-start gap-2.5 sm:gap-3">
               <div v-if="ui.isBatchMode" class="mt-1">
-                <div class="w-5 h-5 rounded border-2 flex items-center justify-center transition-colors" :class="ui.selectedIds.includes(String(key)) ? 'bg-red-600 border-red-600' : 'border-slate-300 dark:border-slate-600'">
-                  <i v-if="ui.selectedIds.includes(String(key))" class="fa-solid fa-check text-white text-[10px]"></i>
+                <div class="w-5 h-5 rounded border-2 flex items-center justify-center transition-colors" :class="selectedIdsSet.has(String(key)) ? 'bg-red-600 border-red-600' : 'border-slate-300 dark:border-slate-600'">
+                  <i v-if="selectedIdsSet.has(String(key))" class="fa-solid fa-check text-white text-[10px]"></i>
                 </div>
               </div>
 
@@ -465,18 +488,24 @@ function copyHistoricZaloMessage(order: any) {
             </div>
           </div>
         </div>
-
-        <!-- Load More Sentinel / Button -->
-        <div v-if="hasMoreOrders" class="pt-2 pb-6 text-center">
-          <button 
-            @click="loadMoreOrders"
-            class="px-5 py-2.5 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 font-bold text-xs shadow-sm hover:bg-slate-50 dark:hover:bg-slate-750 active:scale-95 transition-all cursor-pointer"
-          >
-            <i class="fa-solid fa-angles-down mr-1.5 text-blue-500"></i>
-            Xem thêm phiếu cũ hơn (Đang hiện {{ visibleHistoryEntries.length }}/{{ totalFilteredCount }})
-          </button>
         </div>
       </div>
+
+      <!-- Ergonomic Floating Position & Back-to-Top Control (Mobile + Tablet + Desktop) -->
+      <button
+        v-if="isScrolledDown && totalFilteredCount > 8"
+        type="button"
+        @click="scrollToTop(true)"
+        class="fixed md:absolute bottom-24 md:bottom-5 right-4 z-30 min-h-[40px] px-3.5 py-2 rounded-full bg-slate-900/90 dark:bg-blue-600/95 text-white text-[11px] font-black shadow-lg border border-white/15 flex items-center gap-2 active:scale-95 hover:bg-slate-800 dark:hover:bg-blue-500 transition-all cursor-pointer font-tabular"
+        title="Cuộn nhanh về đầu danh sách (Phím Home)"
+        aria-label="Cuộn về đầu danh sách"
+      >
+        <i class="fa-solid fa-arrow-up text-[10px]"></i>
+        <span>Đầu trang</span>
+        <span class="px-1.5 py-0.5 rounded-full bg-white/15 text-[10px]">
+          {{ visibleDisplayRange.first }}–{{ visibleDisplayRange.last }} / {{ totalFilteredCount }}
+        </span>
+      </button>
     </div>
   </div>
 </template>

@@ -27,12 +27,22 @@ export interface Env {
   DEFAULT_BANK_OWNER?: string;
 }
 
-// In-Memory Rate Limiter
+// In-Memory Rate Limiter with bounded memory pruning
 class InMemoryRateLimiter {
   private records: Map<string, { hits: number; windowStart: number }> = new Map();
+  private lastPruneAt = 0;
 
   isRateLimited(key: string, limit: number, windowSizeMs: number = 3600000): boolean {
     const now = Date.now();
+    if (this.records.size > 1000 && now - this.lastPruneAt > 60000) {
+      this.lastPruneAt = now;
+      for (const [k, v] of this.records.entries()) {
+        if (now - v.windowStart > windowSizeMs) {
+          this.records.delete(k);
+        }
+      }
+    }
+
     const record = this.records.get(key);
 
     if (!record) {
@@ -94,27 +104,112 @@ class CircuitBreaker {
 
 const cb = new CircuitBreaker();
 
-// Helper to hash client IP
+const sharedTextEncoder = new TextEncoder();
+const hmacKeyCache = new Map<string, Promise<CryptoKey>>();
+const ipHashCache = new Map<string, string>();
+
+function getCachedHmacKey(secret: string, usage: 'sign' | 'verify'): Promise<CryptoKey> {
+  const cacheKey = `${usage}:${secret}`;
+  let keyPromise = hmacKeyCache.get(cacheKey);
+  if (!keyPromise) {
+    keyPromise = crypto.subtle.importKey(
+      'raw',
+      sharedTextEncoder.encode(secret),
+      { name: 'HMAC', hash: 'SHA-256' },
+      false,
+      [usage]
+    ).catch((err) => {
+      hmacKeyCache.delete(cacheKey);
+      throw err;
+    });
+    if (hmacKeyCache.size > 32) {
+      const oldestKey = hmacKeyCache.keys().next().value;
+      if (oldestKey) hmacKeyCache.delete(oldestKey);
+    }
+    hmacKeyCache.set(cacheKey, keyPromise);
+  }
+  return keyPromise;
+}
+
+// Edge SWR Read Cache & In-flight Coalescer for Google Apps Script (/api read actions)
+interface GasEdgeCacheEntry {
+  status: number;
+  bodyText: string;
+  freshUntil: number;
+  staleUntil: number;
+}
+
+const gasEdgeReadCache = new Map<string, GasEdgeCacheEntry>();
+const inflightGasReads = new Map<string, Promise<{ status: number; bodyText: string; cacheable: boolean }>>();
+
+const GAS_READ_TTL_CONFIG: Record<string, { freshMs: number; staleMs: number }> = {
+  getMenu: { freshMs: 60_000, staleMs: 300_000 },
+  getMenuSheets: { freshMs: 60_000, staleMs: 300_000 },
+  getConfig: { freshMs: 60_000, staleMs: 300_000 },
+  getMenuAliases: { freshMs: 60_000, staleMs: 300_000 },
+  getAiRuntimeConfig: { freshMs: 60_000, staleMs: 300_000 },
+  getAiCorrections: { freshMs: 20_000, staleMs: 90_000 },
+  getHistory: { freshMs: 12_000, staleMs: 60_000 }
+};
+
+function buildGasReadCacheKey(gasUrl: string, action: string, payload: any): string {
+  const scope = String(payload?.sheetName || payload?.menuName || payload?.profileId || '').trim();
+  return `${gasUrl}::${action}::${scope}`;
+}
+
+export function clearGasEdgeCache(gasUrlPrefix?: string, category?: 'orders' | 'menu' | 'config' | 'all') {
+  if (!gasUrlPrefix && (!category || category === 'all')) {
+    gasEdgeReadCache.clear();
+    return;
+  }
+  for (const key of gasEdgeReadCache.keys()) {
+    if (gasUrlPrefix && !key.startsWith(`${gasUrlPrefix}::`)) continue;
+    if (!category || category === 'all') {
+      gasEdgeReadCache.delete(key);
+    } else if (category === 'orders' && key.includes('::getHistory::')) {
+      gasEdgeReadCache.delete(key);
+    } else if (category === 'menu' && (key.includes('::getMenu::') || key.includes('::getMenuSheets::') || key.includes('::getMenuAliases::'))) {
+      gasEdgeReadCache.delete(key);
+    } else if (category === 'config' && (key.includes('::getConfig::') || key.includes('::getAiRuntimeConfig::') || key.includes('::getAiCorrections::'))) {
+      gasEdgeReadCache.delete(key);
+    }
+  }
+}
+
+function invalidateGasCacheForMutation(gasUrl: string, action: string) {
+  const lower = action.toLowerCase();
+  if (lower.includes('order')) {
+    clearGasEdgeCache(gasUrl, 'orders');
+  } else if (lower.includes('menu') || lower.includes('dish')) {
+    clearGasEdgeCache(gasUrl, 'menu');
+  } else if (lower.includes('config') || lower.includes('correction')) {
+    clearGasEdgeCache(gasUrl, 'config');
+  } else {
+    clearGasEdgeCache(gasUrl, 'all');
+  }
+}
+
+// Short Edge cache for Facebook Fanpage Bot active status (avoids querying audit_logs on every chat message)
+let fbBotActiveCache: { isActive: boolean; expiresAt: number } | null = null;
+
+// Helper to hash client IP (memoized per isolate)
 async function hashIP(ip: string): Promise<string> {
-  const msgBuffer = new TextEncoder().encode(ip);
+  const cached = ipHashCache.get(ip);
+  if (cached) return cached;
+  const msgBuffer = sharedTextEncoder.encode(ip);
   const hashBuffer = await crypto.subtle.digest("SHA-256", msgBuffer);
   const hashArray = Array.from(new Uint8Array(hashBuffer));
-  return hashArray.map(b => b.toString(16).padStart(2, "0")).join("");
+  const hex = hashArray.map(b => b.toString(16).padStart(2, "0")).join("");
+  if (ipHashCache.size > 512) ipHashCache.clear();
+  ipHashCache.set(ip, hex);
+  return hex;
 }
 
 // Token Signing (HMAC-SHA256 for short-lived presigned upload token)
 async function generateSignedToken(action: string, key: string, expiresAt: number, secret: string): Promise<string> {
   const message = `${action}:${key}:${expiresAt}`;
-  const encoder = new TextEncoder();
-  const keyBuf = encoder.encode(secret);
-  const cryptoKey = await crypto.subtle.importKey(
-    'raw',
-    keyBuf,
-    { name: 'HMAC', hash: 'SHA-256' },
-    false,
-    ['sign']
-  );
-  const sigBuf = await crypto.subtle.sign('HMAC', cryptoKey, encoder.encode(message));
+  const cryptoKey = await getCachedHmacKey(secret, 'sign');
+  const sigBuf = await crypto.subtle.sign('HMAC', cryptoKey, sharedTextEncoder.encode(message));
   const signature = btoa(String.fromCharCode(...new Uint8Array(sigBuf)))
     .replace(/\+/g, '-')
     .replace(/\//g, '_')
@@ -140,20 +235,12 @@ async function verifySignedToken(token: string, secret: string): Promise<{ actio
     return null;
   }
 
-  const encoder = new TextEncoder();
-  const keyBuf = encoder.encode(secret);
-  const cryptoKey = await crypto.subtle.importKey(
-    'raw',
-    keyBuf,
-    { name: 'HMAC', hash: 'SHA-256' },
-    false,
-    ['verify']
-  );
+  const cryptoKey = await getCachedHmacKey(secret, 'verify');
 
   const sigStr = signature.replace(/-/g, '+').replace(/_/g, '/');
   const sigBytes = Uint8Array.from(atob(sigStr), c => c.charCodeAt(0));
 
-  const isValid = await crypto.subtle.verify('HMAC', cryptoKey, sigBytes, encoder.encode(message));
+  const isValid = await crypto.subtle.verify('HMAC', cryptoKey, sigBytes, sharedTextEncoder.encode(message));
   if (isValid) {
     return { action, key };
   }
@@ -167,15 +254,7 @@ async function verifySupabaseJWT(token: string, secret: string): Promise<any | n
   const [headerB64, payloadB64, signatureB64] = parts;
 
   try {
-    const encoder = new TextEncoder();
-    const rawSecret = encoder.encode(secret);
-    const cryptoKey = await crypto.subtle.importKey(
-      'raw',
-      rawSecret,
-      { name: 'HMAC', hash: 'SHA-256' },
-      false,
-      ['verify']
-    );
+    const cryptoKey = await getCachedHmacKey(secret, 'verify');
 
     const sigStr = signatureB64.replace(/-/g, '+').replace(/_/g, '/');
     const sigBytes = Uint8Array.from(atob(sigStr), c => c.charCodeAt(0));
@@ -184,7 +263,7 @@ async function verifySupabaseJWT(token: string, secret: string): Promise<any | n
       'HMAC',
       cryptoKey,
       sigBytes,
-      encoder.encode(`${headerB64}.${payloadB64}`)
+      sharedTextEncoder.encode(`${headerB64}.${payloadB64}`)
     );
 
     if (!isValid) return null;
@@ -280,78 +359,79 @@ async function saveFacebookBookingToDB(senderPsid: string, text: string, env: En
 
     const anonKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImF6Zmt6aGV5cHV2ZmNpdGNrb3ZmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODUwNzc1MjEsImV4cCI6MjEwMDY1MzUyMX0.ltnY7GTzKGE7QiWTv8ZuDlfT_NWIR2sGfGudoVDw4NQ";
 
-    // 1. Post to Supabase PostgreSQL bookings table (Exact Schema Column Names)
-    const resPost = await fetch(`${supabaseUrl}/rest/v1/bookings`, {
-      method: "POST",
-      headers: {
-        "apikey": anonKey,
-        "Authorization": `Bearer ${anonKey}`,
-        "Content-Type": "application/json",
-        "Prefer": "return=minimal"
-      },
-      body: JSON.stringify({
-        customer_name: customerName,
-        customer_phone: phone || "0900000000",
-        booking_date: isoDate,
-        start_time: eventTime,
-        guest_count: pax,
-        table_id: "Khu A",
-        source: "facebook_messenger",
-        status: "pending",
-        note: `FB Messenger (${senderPsid}): "${text}"`,
-        raw_message: text
-      })
-    });
-    console.log(`[FB Auto Booking] Supabase Bookings Insert Status: ${resPost.status}`);
-
-    // 2. Post to Supabase audit_logs for real-time chat log streaming
-    await fetch(`${supabaseUrl}/rest/v1/audit_logs`, {
-      method: "POST",
-      headers: {
-        "apikey": anonKey,
-        "Authorization": `Bearer ${anonKey}`,
-        "Content-Type": "application/json",
-        "Prefer": "return=minimal"
-      },
-      body: JSON.stringify({
-        actor_role: "facebook_user",
-        action: "facebook_message_received",
-        target_type: "messenger",
-        target_id: senderPsid,
-        before_json: { customer_name: customerName, psid: senderPsid, avatar: customerAvatar },
-        after_json: { text: text, time: new Date().toISOString() }
-      })
-    });
-
-
-    // 2. Post to Google Sheets GAS endpoint
     const gasUrl = env.GAS_URL || "https://script.google.com/macros/s/AKfycbxzjio4sat5fWoUncPgp8SfjoGqfGxW5vFoDgkHvBI3OKVWIaszsAaUt0LE2fCHtkCFsA/exec";
-    await fetch(gasUrl, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        action: "saveOrder",
-        orderData: {
-          id: `fb-${senderPsid}-${Date.now()}`,
-          timestamp: new Date().toISOString(),
-          parsedCustomer: {
-            name: customerName,
-            phone: phone || "0900000000",
-            date: eventDate,
-            time: eventTime,
-            pax: pax.toString(),
-            tables: "Khu A",
-            type: "Facebook Fanpage",
-            note: text
-          },
-          totalAmount: 0,
-          depositAmount: 0,
-          isDeposited: false,
-          menuItems: [],
-          staff: { name: "AI Chatbot Facebook", phone: "" }
-        }
+    clearGasEdgeCache(gasUrl, 'orders');
+
+    // Run Supabase bookings insert, audit_logs insert, and Google Sheets GAS sync concurrently
+    const [bookingsSettled] = await Promise.allSettled([
+      fetch(`${supabaseUrl}/rest/v1/bookings`, {
+        method: "POST",
+        headers: {
+          "apikey": anonKey,
+          "Authorization": `Bearer ${anonKey}`,
+          "Content-Type": "application/json",
+          "Prefer": "return=minimal"
+        },
+        body: JSON.stringify({
+          customer_name: customerName,
+          customer_phone: phone || "0900000000",
+          booking_date: isoDate,
+          start_time: eventTime,
+          guest_count: pax,
+          table_id: "Khu A",
+          source: "facebook_messenger",
+          status: "pending",
+          note: `FB Messenger (${senderPsid}): "${text}"`,
+          raw_message: text
+        })
+      }),
+      fetch(`${supabaseUrl}/rest/v1/audit_logs`, {
+        method: "POST",
+        headers: {
+          "apikey": anonKey,
+          "Authorization": `Bearer ${anonKey}`,
+          "Content-Type": "application/json",
+          "Prefer": "return=minimal"
+        },
+        body: JSON.stringify({
+          actor_role: "facebook_user",
+          action: "facebook_message_received",
+          target_type: "messenger",
+          target_id: senderPsid,
+          before_json: { customer_name: customerName, psid: senderPsid, avatar: customerAvatar },
+          after_json: { text: text, time: new Date().toISOString() }
+        })
+      }),
+      fetch(gasUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "saveOrder",
+          orderData: {
+            id: `fb-${senderPsid}-${Date.now()}`,
+            timestamp: new Date().toISOString(),
+            parsedCustomer: {
+              name: customerName,
+              phone: phone || "0900000000",
+              date: eventDate,
+              time: eventTime,
+              pax: pax.toString(),
+              tables: "Khu A",
+              type: "Facebook Fanpage",
+              note: text
+            },
+            totalAmount: 0,
+            depositAmount: 0,
+            isDeposited: false,
+            menuItems: [],
+            staff: { name: "AI Chatbot Facebook", phone: "" }
+          }
+        })
       })
-    });
+    ]);
+    if (bookingsSettled.status === 'fulfilled') {
+      console.log(`[FB Auto Booking] Supabase Bookings Insert Status: ${bookingsSettled.value.status}`);
+    }
     console.log(`[FB Auto Booking] Successfully created order for ${customerName}`);
   } catch (err) {
     console.error("[FB Auto Booking Error]", err);
@@ -835,28 +915,35 @@ export default {
                     const supabaseUrl = "https://azfkzheypuvfcitckovf.supabase.co";
                     const anonKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImF6Zmt6aGV5cHV2ZmNpdGNrb3ZmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODUwNzc1MjEsImV4cCI6MjEwMDY1MzUyMX0.ltnY7GTzKGE7QiWTv8ZuDlfT_NWIR2sGfGudoVDw4NQ";
 
-                    // 1. Check if Fanpage Chatbot is globally active from Supabase audit_logs
+                    // 1. Check if Fanpage Chatbot is globally active (15s Edge cache)
                     let isBotActive = true;
-                    try {
-                      const statusRes = await fetch(`${supabaseUrl}/rest/v1/audit_logs?action=eq.fb_bot_status_changed&order=created_at.desc&limit=1`, {
-                        headers: { "apikey": anonKey, "Authorization": `Bearer ${anonKey}` }
-                      });
-                      if (statusRes.ok) {
-                        const statusLogs = await statusRes.json() as any[];
-                        if (statusLogs && statusLogs.length > 0 && statusLogs[0].after_json) {
-                          if (statusLogs[0].after_json.is_active === false) {
-                            isBotActive = false;
+                    const nowMs = Date.now();
+                    if (fbBotActiveCache && nowMs < fbBotActiveCache.expiresAt) {
+                      isBotActive = fbBotActiveCache.isActive;
+                    } else {
+                      try {
+                        const statusRes = await fetch(`${supabaseUrl}/rest/v1/audit_logs?action=eq.fb_bot_status_changed&order=created_at.desc&limit=1`, {
+                          headers: { "apikey": anonKey, "Authorization": `Bearer ${anonKey}` }
+                        });
+                        if (statusRes.ok) {
+                          const statusLogs = await statusRes.json() as any[];
+                          if (statusLogs && statusLogs.length > 0 && statusLogs[0].after_json) {
+                            if (statusLogs[0].after_json.is_active === false) {
+                              isBotActive = false;
+                            }
                           }
                         }
+                        fbBotActiveCache = { isActive: isBotActive, expiresAt: nowMs + 15_000 };
+                      } catch (checkErr) {
+                        console.warn("[FB Webhook] Failed to fetch bot active status:", checkErr);
                       }
-                    } catch (checkErr) {
-                      console.warn("[FB Webhook] Failed to fetch bot active status:", checkErr);
                     }
 
-                    // Always auto-save Facebook booking lead to Supabase PostgreSQL & Google Sheets!
-                    await saveFacebookBookingToDB(senderPsid, messageText, env);
+                    // Start booking persistence immediately without blocking Messenger chat reply
+                    const saveLeadPromise = saveFacebookBookingToDB(senderPsid, messageText, env);
 
                     if (!isBotActive) {
+                      await saveLeadPromise;
                       console.log(`[FB Webhook] Chatbot Fanpage is currently TURNED OFF. Skipping AI reply to PSID ${senderPsid}`);
                       return;
                     }
@@ -870,39 +957,41 @@ export default {
                       aiReply = "Dạ KING'S GRILL xin chào anh/chị! Anh/chị có thể gửi yêu cầu đặt bàn nhanh và chọn loại tiệc/tông màu tại link online của nhà hàng: https://kg-booking.pages.dev/#/dat-ban . Nhân viên sẽ kiểm tra bàn và liên hệ lại quý khách ngay ạ!";
                     }
 
+                    const replyAndAuditPromise = (async () => {
+                      try {
+                        await fetch(`https://graph.facebook.com/v19.0/me/messages?access_token=${encodeURIComponent(pageAccessToken)}`, {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({
+                            recipient: { id: senderPsid },
+                            message: { text: aiReply }
+                          })
+                        });
+                        console.log(`[FB Reply Success] Sent AI reply to PSID ${senderPsid}`);
 
-                    try {
-                      await fetch(`https://graph.facebook.com/v19.0/me/messages?access_token=${encodeURIComponent(pageAccessToken)}`, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                          recipient: { id: senderPsid },
-                          message: { text: aiReply }
-                        })
-                      });
-                      console.log(`[FB Reply Success] Sent AI reply to PSID ${senderPsid}`);
+                        await fetch(`${supabaseUrl}/rest/v1/audit_logs`, {
+                          method: "POST",
+                          headers: {
+                            "apikey": anonKey,
+                            "Authorization": `Bearer ${anonKey}`,
+                            "Content-Type": "application/json",
+                            "Prefer": "return=minimal"
+                          },
+                          body: JSON.stringify({
+                            actor_role: "ai_bot",
+                            action: "facebook_message_sent",
+                            target_type: "messenger",
+                            target_id: senderPsid,
+                            before_json: { psid: senderPsid },
+                            after_json: { text: aiReply, time: new Date().toISOString() }
+                          })
+                        });
+                      } catch (replyErr) {
+                        console.error(`[FB Reply Error]`, replyErr);
+                      }
+                    })();
 
-                      // Log AI Bot's reply message into Supabase PostgreSQL audit_logs!
-                      await fetch(`${supabaseUrl}/rest/v1/audit_logs`, {
-                        method: "POST",
-                        headers: {
-                          "apikey": anonKey,
-                          "Authorization": `Bearer ${anonKey}`,
-                          "Content-Type": "application/json",
-                          "Prefer": "return=minimal"
-                        },
-                        body: JSON.stringify({
-                          actor_role: "ai_bot",
-                          action: "facebook_message_sent",
-                          target_type: "messenger",
-                          target_id: senderPsid,
-                          before_json: { psid: senderPsid },
-                          after_json: { text: aiReply, time: new Date().toISOString() }
-                        })
-                      });
-                    } catch (replyErr) {
-                      console.error(`[FB Reply Error]`, replyErr);
-                    }
+                    await Promise.allSettled([saveLeadPromise, replyAndAuditPromise]);
 
                   })());
                 }
@@ -958,46 +1047,48 @@ export default {
 
               ctx.waitUntil((async () => {
                 try {
-                  await fetch(`${supabaseUrl}/rest/v1/bookings`, {
-                    method: "POST",
-                    headers: {
-                      "apikey": anonKey,
-                      "Authorization": `Bearer ${anonKey}`,
-                      "Content-Type": "application/json",
-                      "Prefer": "return=minimal"
-                    },
-                    body: JSON.stringify({
-                      customer_name: payload.customer.name,
-                      customer_phone: payload.customer.phone,
-                      booking_date: isoDate,
-                      start_time: payload.customer.time,
-                      guest_count: parseInt(payload.customer.pax, 10) || 2,
-                      table_id: payload.customer.tables || "Chưa xếp",
-                      source: "telegram_bot",
-                      status: payload.deposit.isPaid ? "confirmed" : "pending",
-                      note: payload.customer.note,
-                      raw_message: payload.customer.note
-                    })
-                  });
-
-                  // 1.2 Sync to Google Sheets
                   const gasUrl = env.GAS_URL || "https://script.google.com/macros/s/AKfycbxzjio4sat5fWoUncPgp8SfjoGqfGxW5vFoDgkHvBI3OKVWIaszsAaUt0LE2fCHtkCFsA/exec";
-                  await fetch(gasUrl, {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({
-                      action: "saveOrder",
-                      orderData: {
-                        id: payload.id,
-                        timestamp: new Date().toISOString(),
-                        customer: payload.customer,
-                        items: payload.items,
-                        deposit: payload.deposit,
-                        total: payload.total,
-                        staff: { name: "Telegram Bot", phone: "" }
-                      }
+                  clearGasEdgeCache(gasUrl, 'orders');
+
+                  await Promise.allSettled([
+                    fetch(`${supabaseUrl}/rest/v1/bookings`, {
+                      method: "POST",
+                      headers: {
+                        "apikey": anonKey,
+                        "Authorization": `Bearer ${anonKey}`,
+                        "Content-Type": "application/json",
+                        "Prefer": "return=minimal"
+                      },
+                      body: JSON.stringify({
+                        customer_name: payload.customer.name,
+                        customer_phone: payload.customer.phone,
+                        booking_date: isoDate,
+                        start_time: payload.customer.time,
+                        guest_count: parseInt(payload.customer.pax, 10) || 2,
+                        table_id: payload.customer.tables || "Chưa xếp",
+                        source: "telegram_bot",
+                        status: payload.deposit.isPaid ? "confirmed" : "pending",
+                        note: payload.customer.note,
+                        raw_message: payload.customer.note
+                      })
+                    }),
+                    fetch(gasUrl, {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({
+                        action: "saveOrder",
+                        orderData: {
+                          id: payload.id,
+                          timestamp: new Date().toISOString(),
+                          customer: payload.customer,
+                          items: payload.items,
+                          deposit: payload.deposit,
+                          total: payload.total,
+                          staff: { name: "Telegram Bot", phone: "" }
+                        }
+                      })
                     })
-                  });
+                  ]);
                 } catch (saveErr) {
                   console.error("[Telegram Save Error]", saveErr);
                 }
@@ -1027,18 +1118,19 @@ export default {
               }
 
               if (botToken) {
-                await callTelegramApi(botToken, "editMessageText", {
-                  chat_id: chatId,
-                  message_id: messageId,
-                  text: confirmMsg,
-                  parse_mode: "HTML",
-                  reply_markup: { inline_keyboard: postButtons }
-                });
-
-                await callTelegramApi(botToken, "answerCallbackQuery", {
-                  callback_query_id: cbQuery.id,
-                  text: "✅ Lên phiếu đặt bàn thành công!"
-                });
+                await Promise.all([
+                  callTelegramApi(botToken, "editMessageText", {
+                    chat_id: chatId,
+                    message_id: messageId,
+                    text: confirmMsg,
+                    parse_mode: "HTML",
+                    reply_markup: { inline_keyboard: postButtons }
+                  }),
+                  callTelegramApi(botToken, "answerCallbackQuery", {
+                    callback_query_id: cbQuery.id,
+                    text: "✅ Lên phiếu đặt bàn thành công!"
+                  })
+                ]);
               }
 
               return new Response(JSON.stringify({ ok: true, message: "Order confirmed" }), { status: 200, headers: corsHeaders });
@@ -1049,18 +1141,19 @@ export default {
               telegramTempOrders.delete(tempId);
 
               if (botToken) {
-                await callTelegramApi(botToken, "editMessageText", {
-                  chat_id: chatId,
-                  message_id: messageId,
-                  text: "❌ <b>ĐÃ HỦY YÊU CẦU ĐẶT BÀN.</b>",
-                  parse_mode: "HTML",
-                  reply_markup: { inline_keyboard: [] }
-                });
-
-                await callTelegramApi(botToken, "answerCallbackQuery", {
-                  callback_query_id: cbQuery.id,
-                  text: "Đã hủy yêu cầu."
-                });
+                await Promise.all([
+                  callTelegramApi(botToken, "editMessageText", {
+                    chat_id: chatId,
+                    message_id: messageId,
+                    text: "❌ <b>ĐÃ HỦY YÊU CẦU ĐẶT BÀN.</b>",
+                    parse_mode: "HTML",
+                    reply_markup: { inline_keyboard: [] }
+                  }),
+                  callTelegramApi(botToken, "answerCallbackQuery", {
+                    callback_query_id: cbQuery.id,
+                    text: "Đã hủy yêu cầu."
+                  })
+                ]);
               }
 
               return new Response(JSON.stringify({ ok: true, message: "Order cancelled" }), { status: 200, headers: corsHeaders });
@@ -1074,25 +1167,26 @@ export default {
                 const currentText = cbMsg.text;
                 const updatedText = currentText.replace(/⏳\s*CHỜ CỌC.*?\n/i, "🟢 <b>ĐÃ CỌC (Chuyển khoản)</b>\n");
                 
-                await callTelegramApi(botToken, "editMessageText", {
-                  chat_id: chatId,
-                  message_id: messageId,
-                  text: updatedText,
-                  parse_mode: "HTML",
-                  reply_markup: {
-                    inline_keyboard: [
-                      [
-                        { text: "🧾 Xem Phiếu Online", url: `https://kg-booking.pages.dev/#/bill/${orderId}` },
-                        { text: "📱 Mở App Đặt Bàn", web_app: { url: "https://datban-kingsgrill.pages.dev" } }
+                await Promise.all([
+                  callTelegramApi(botToken, "editMessageText", {
+                    chat_id: chatId,
+                    message_id: messageId,
+                    text: updatedText,
+                    parse_mode: "HTML",
+                    reply_markup: {
+                      inline_keyboard: [
+                        [
+                          { text: "🧾 Xem Phiếu Online", url: `https://kg-booking.pages.dev/#/bill/${orderId}` },
+                          { text: "📱 Mở App Đặt Bàn", web_app: { url: "https://datban-kingsgrill.pages.dev" } }
+                        ]
                       ]
-                    ]
-                  }
-                });
-
-                await callTelegramApi(botToken, "answerCallbackQuery", {
-                  callback_query_id: cbQuery.id,
-                  text: "✅ Đã ghi nhận cọc thành công!"
-                });
+                    }
+                  }),
+                  callTelegramApi(botToken, "answerCallbackQuery", {
+                    callback_query_id: cbQuery.id,
+                    text: "✅ Đã ghi nhận cọc thành công!"
+                  })
+                ]);
               }
 
               return new Response(JSON.stringify({ ok: true, message: "Deposit marked paid" }), { status: 200, headers: corsHeaders });
@@ -1247,32 +1341,32 @@ export default {
               const dParts = (parsed.customer.date || "").split("/");
               const isoDate = dParts.length === 3 ? `${dParts[2]}-${dParts[1]}-${dParts[0]}` : new Date().toISOString().split("T")[0];
 
-              // Save to Supabase Bookings
-              await fetch(`${supabaseUrl}/rest/v1/bookings`, {
-                method: "POST",
-                headers: {
-                  "apikey": anonKey,
-                  "Authorization": `Bearer ${anonKey}`,
-                  "Content-Type": "application/json",
-                  "Prefer": "return=minimal"
-                },
-                body: JSON.stringify({
-                  customer_name: parsed.customer.name,
-                  customer_phone: parsed.customer.phone || "0900000000",
-                  booking_date: isoDate,
-                  start_time: parsed.customer.time,
-                  guest_count: parseInt(parsed.customer.pax, 10) || 2,
-                  table_id: parsed.customer.tables || "Chưa xếp",
-                  source: "zalo_oa",
-                  status: "pending",
-                  note: `Zalo OA (${senderId}): "${messageText}"`,
-                  raw_message: messageText
-                })
-              });
-
-              // Forward Alert to Telegram Group if configured
               const tgBotToken = env.TELEGRAM_BOT_TOKEN;
               const tgChatId = env.TELEGRAM_CHAT_ID;
+              const tasks: Promise<any>[] = [
+                fetch(`${supabaseUrl}/rest/v1/bookings`, {
+                  method: "POST",
+                  headers: {
+                    "apikey": anonKey,
+                    "Authorization": `Bearer ${anonKey}`,
+                    "Content-Type": "application/json",
+                    "Prefer": "return=minimal"
+                  },
+                  body: JSON.stringify({
+                    customer_name: parsed.customer.name,
+                    customer_phone: parsed.customer.phone || "0900000000",
+                    booking_date: isoDate,
+                    start_time: parsed.customer.time,
+                    guest_count: parseInt(parsed.customer.pax, 10) || 2,
+                    table_id: parsed.customer.tables || "Chưa xếp",
+                    source: "zalo_oa",
+                    status: "pending",
+                    note: `Zalo OA (${senderId}): "${messageText}"`,
+                    raw_message: messageText
+                  })
+                })
+              ];
+
               if (tgBotToken && tgChatId) {
                 const zaloAlert = `📢 <b>YÊU CẦU ĐẶT BÀN MỚI TỪ ZALO OA</b>\n` +
                   `━━━━━━━━━━━━━━━━━━━\n` +
@@ -1283,13 +1377,15 @@ export default {
                   `💬 <b>Tin nhắn:</b> <i>"${messageText}"</i>\n\n` +
                   `👉 <a href="https://datban-kingsgrill.pages.dev">MỞ APP QUẢN LÝ ĐẶT BÀN</a>`;
 
-                await callTelegramApi(tgBotToken, "sendMessage", {
+                tasks.push(callTelegramApi(tgBotToken, "sendMessage", {
                   chat_id: tgChatId,
                   message_thread_id: env.TELEGRAM_TOPIC_ID,
                   text: zaloAlert,
                   parse_mode: "HTML"
-                });
+                }));
               }
+
+              await Promise.allSettled(tasks);
             })());
           }
 
@@ -1380,12 +1476,131 @@ export default {
         });
       }
 
-      // Sheets Sync Forwarding via Cloudflare Queue or Direct Fetch (Guarantees retry/DLQ)
+      // Sheets Sync Forwarding via Edge SWR Cache + Cloudflare Queue or Direct Fetch (Guarantees retry/DLQ)
       if ((path === "/api" || path === "/api/") && request.method === "POST") {
         const payload = await request.json() as any;
+        const action = String(payload?.action || '').trim();
+        const gasUrl = env.GAS_URL || 'https://script.google.com/macros/s/AKfycbxzjio4sat5fWoUncPgp8SfjoGqfGxW5vFoDgkHvBI3OKVWIaszsAaUt0LE2fCHtkCFsA/exec';
+        const ttlPolicy = GAS_READ_TTL_CONFIG[action];
+        const bypassCache =
+          Boolean(payload?.forceRefresh) ||
+          (request.headers.get('Cache-Control') || '').toLowerCase().includes('no-cache');
 
-        if (!env.SHEETS_QUEUE) {
-          const gasUrl = env.GAS_URL || 'https://script.google.com/macros/s/AKfycbxzjio4sat5fWoUncPgp8SfjoGqfGxW5vFoDgkHvBI3OKVWIaszsAaUt0LE2fCHtkCFsA/exec';
+        const isAuthOnlyAction =
+          action === 'verifyAdminPassword' ||
+          action === 'verifyAdminSession' ||
+          action === 'logoutAdmin';
+
+        // Invalidate Edge read cache immediately on any mutating action
+        if (action && !action.startsWith('get') && !isAuthOnlyAction) {
+          invalidateGasCacheForMutation(gasUrl, action);
+        }
+
+        // Fast-path Edge SWR Cache + In-flight Request Coalescing for read actions
+        if (ttlPolicy && !bypassCache) {
+          const cacheKey = buildGasReadCacheKey(gasUrl, action, payload);
+          const now = Date.now();
+          const cached = gasEdgeReadCache.get(cacheKey);
+
+          const fetchAndPopulate = (): Promise<{ status: number; bodyText: string; cacheable: boolean }> => {
+            const existingInflight = inflightGasReads.get(cacheKey);
+            if (existingInflight) return existingInflight;
+
+            const promise = (async () => {
+              const gasRes = await fetch(gasUrl, {
+                method: 'POST',
+                headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                body: JSON.stringify(payload),
+                redirect: 'follow'
+              });
+              const resStatus = gasRes.status ?? 200;
+              const text = await gasRes.text();
+              const parsed = JSON.parse(text);
+              const normalizedBody = JSON.stringify(parsed);
+              const isOk = resStatus >= 200 && resStatus < 300 && parsed?.ok !== false;
+              if (isOk) {
+                const settledAt = Date.now();
+                if (gasEdgeReadCache.size > 256) {
+                  const oldest = gasEdgeReadCache.keys().next().value;
+                  if (oldest) gasEdgeReadCache.delete(oldest);
+                }
+                gasEdgeReadCache.set(cacheKey, {
+                  status: resStatus,
+                  bodyText: normalizedBody,
+                  freshUntil: settledAt + ttlPolicy.freshMs,
+                  staleUntil: settledAt + ttlPolicy.staleMs
+                });
+              }
+              return { status: resStatus, bodyText: normalizedBody, cacheable: isOk };
+            })().finally(() => {
+              inflightGasReads.delete(cacheKey);
+            });
+
+            inflightGasReads.set(cacheKey, promise);
+            return promise;
+          };
+
+          if (cached && now < cached.freshUntil) {
+            return new Response(cached.bodyText, {
+              status: cached.status,
+              headers: {
+                ...corsHeaders,
+                "Content-Type": "application/json",
+                "X-KG-Edge-Cache": "HIT"
+              }
+            });
+          }
+
+          if (cached && now < cached.staleUntil) {
+            if (ctx && typeof ctx.waitUntil === 'function') {
+              ctx.waitUntil(fetchAndPopulate().catch(() => {}));
+            } else {
+              fetchAndPopulate().catch(() => {});
+            }
+            return new Response(cached.bodyText, {
+              status: cached.status,
+              headers: {
+                ...corsHeaders,
+                "Content-Type": "application/json",
+                "X-KG-Edge-Cache": "STALE"
+              }
+            });
+          }
+
+          try {
+            const fresh = await fetchAndPopulate();
+            return new Response(fresh.bodyText, {
+              status: fresh.status,
+              headers: {
+                ...corsHeaders,
+                "Content-Type": "application/json",
+                "X-KG-Edge-Cache": "MISS"
+              }
+            });
+          } catch (readErr: any) {
+            // Fall through to standard direct error handling if non-JSON or network error
+            if (cached) {
+              return new Response(cached.bodyText, {
+                status: cached.status,
+                headers: {
+                  ...corsHeaders,
+                  "Content-Type": "application/json",
+                  "X-KG-Edge-Cache": "STALE-ERROR"
+                }
+              });
+            }
+          }
+        }
+
+        const isReadOrInteractiveAction =
+          action.startsWith('get') ||
+          isAuthOnlyAction ||
+          action === 'createMenu' ||
+          action === 'deleteMenu' ||
+          action === 'uploadMenuImage' ||
+          action === 'uploadDishImage';
+
+        if (!env.SHEETS_QUEUE || isReadOrInteractiveAction) {
           try {
             const gasRes = await fetch(gasUrl, {
               method: 'POST',
@@ -1393,20 +1608,35 @@ export default {
               body: JSON.stringify(payload),
               redirect: 'follow'
             });
+            const resStatus = gasRes.status ?? 200;
             const text = await gasRes.text();
             try {
               const gasData = JSON.parse(text);
-              return new Response(JSON.stringify(gasData), {
-                status: gasRes.status,
-                headers: { ...corsHeaders, "Content-Type": "application/json" }
+              const normalizedBody = JSON.stringify(gasData);
+              if (ttlPolicy && resStatus >= 200 && resStatus < 300 && gasData?.ok !== false) {
+                const settledAt = Date.now();
+                gasEdgeReadCache.set(buildGasReadCacheKey(gasUrl, action, payload), {
+                  status: resStatus,
+                  bodyText: normalizedBody,
+                  freshUntil: settledAt + ttlPolicy.freshMs,
+                  staleUntil: settledAt + ttlPolicy.staleMs
+                });
+              }
+              return new Response(normalizedBody, {
+                status: resStatus,
+                headers: {
+                  ...corsHeaders,
+                  "Content-Type": "application/json",
+                  ...(ttlPolicy ? { "X-KG-Edge-Cache": bypassCache ? "BYPASS" : "MISS" } : {})
+                }
               });
             } catch {
               return new Response(JSON.stringify({
                 ok: false,
                 error: text ? text.slice(0, 500) : 'GAS returned non-JSON response',
-                rawStatus: gasRes.status
+                rawStatus: resStatus
               }), {
-                status: gasRes.status >= 400 ? gasRes.status : 502,
+                status: resStatus >= 400 ? resStatus : 502,
                 headers: { ...corsHeaders, "Content-Type": "application/json" }
               });
             }
@@ -1418,7 +1648,7 @@ export default {
           }
         }
 
-        // Push sync action to the queue
+        // Push background sync action to the queue
         await env.SHEETS_QUEUE.send(payload);
 
         return new Response(JSON.stringify({ ok: true, status: "pending", message: "Sheets sync task successfully queued" }), {
@@ -1577,13 +1807,18 @@ export default {
         const cutoff = Date.now() - (days * 24 * 60 * 60 * 1000);
         const listed = await env.BUCKET.list({ limit: 500 });
         
-        let deleted = 0;
+        const expiredKeys: string[] = [];
         for (const obj of listed.objects) {
           if (new Date(obj.uploaded).getTime() < cutoff) {
-            await env.BUCKET.delete(obj.key);
-            deleted++;
+            expiredKeys.push(obj.key);
           }
         }
+        const DELETE_BATCH = 25;
+        for (let i = 0; i < expiredKeys.length; i += DELETE_BATCH) {
+          const slice = expiredKeys.slice(i, i + DELETE_BATCH);
+          await Promise.all(slice.map((k) => env.BUCKET.delete(k)));
+        }
+        const deleted = expiredKeys.length;
         return new Response(JSON.stringify({ ok: true, deleted, message: `Cleaned ${deleted} files` }), { status: 200, headers: corsHeaders });
       }
 
@@ -1610,11 +1845,13 @@ export default {
     }
   },
 
-  // Cloudflare Queue Consumer
+  // Cloudflare Queue Consumer (Bounded-Concurrency Parallel Dispatch + Cache Invalidation)
   async queue(batch: any, env: Env, ctx: ExecutionContext): Promise<void> {
     const gasUrl = env.GAS_URL || 'https://script.google.com/macros/s/AKfycbxzjio4sat5fWoUncPgp8SfjoGqfGxW5vFoDgkHvBI3OKVWIaszsAaUt0LE2fCHtkCFsA/exec';
-    
-    for (const message of batch.messages) {
+    const messages = batch?.messages || [];
+    if (messages.length === 0) return;
+
+    const dispatchMessage = async (message: any) => {
       const payload = message.body;
       try {
         const res = await fetch(gasUrl, {
@@ -1625,11 +1862,20 @@ export default {
         if (!res.ok) {
           throw new Error(`GAS Endpoint returned HTTP ${res.status}`);
         }
+        if (payload?.action) {
+          invalidateGasCacheForMutation(gasUrl, String(payload.action));
+        }
       } catch (err: any) {
         console.error(`[Queue Consumer] Fail to sync to Google Sheets:`, err.message);
         // Throwing error triggers Cloudflare Queue retry mechanism & DLQ mapping
         throw err;
       }
+    };
+
+    const CONCURRENCY = 4;
+    for (let i = 0; i < messages.length; i += CONCURRENCY) {
+      const chunk = messages.slice(i, i + CONCURRENCY);
+      await Promise.all(chunk.map(dispatchMessage));
     }
   }
 };
@@ -1757,10 +2003,16 @@ async function executeAIRequest(payload: any, env: Env): Promise<string> {
     }
   }
 
+  const timeoutSignal =
+    typeof AbortSignal !== 'undefined' && typeof (AbortSignal as any).timeout === 'function'
+      ? (AbortSignal as any).timeout(25000)
+      : undefined;
+
   const upstreamRes = await fetch(targetUrl, {
     method: 'POST',
     headers: fetchHeaders,
-    body: JSON.stringify(body)
+    body: JSON.stringify(body),
+    ...(timeoutSignal ? { signal: timeoutSignal } : {})
   });
 
   if (!upstreamRes.ok) {

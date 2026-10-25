@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import worker from '../src/index'
+import worker, { clearGasEdgeCache } from '../src/index'
 import * as crypto from 'crypto'
 
 describe('AI Gateway Cloudflare Worker Tests', () => {
@@ -36,6 +36,7 @@ describe('AI Gateway Cloudflare Worker Tests', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
+    clearGasEdgeCache()
     global.fetch = fetchMock
   })
 
@@ -548,6 +549,60 @@ describe('AI Gateway Cloudflare Worker Tests', () => {
       })
     )
   })
+  it('should serve /api read actions from Edge SWR cache, coalesce concurrent reads, and invalidate on write', async () => {
+    const staffJwt = generateValidJwt('staff')
+    let gasCallCount = 0
+    fetchMock.mockImplementation(async () => {
+      gasCallCount++
+      await new Promise((r) => setTimeout(r, 15))
+      return {
+        status: 200,
+        text: () => Promise.resolve(JSON.stringify({ ok: true, data: [{ id: `v-${gasCallCount}` }] }))
+      }
+    })
+
+    const makeReadReq = () =>
+      new Request('http://localhost/api', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${staffJwt}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ action: 'getHistory' })
+      })
+
+    // 1. Three concurrent identical getHistory calls coalesce into 1 upstream GAS fetch
+    const [r1, r2, r3] = await Promise.all([
+      worker.fetch(makeReadReq(), mockEnv as any, { waitUntil: vi.fn() } as any),
+      worker.fetch(makeReadReq(), mockEnv as any, { waitUntil: vi.fn() } as any),
+      worker.fetch(makeReadReq(), mockEnv as any, { waitUntil: vi.fn() } as any)
+    ])
+    expect(gasCallCount).toBe(1)
+    expect(r1.headers.get('X-KG-Edge-Cache')).toBe('MISS')
+    expect((await r2.json() as any).data[0].id).toBe('v-1')
+    expect((await r3.json() as any).data[0].id).toBe('v-1')
+
+    // 2. Subsequent read hits fresh Edge cache with zero upstream GAS fetches
+    const cachedRes = await worker.fetch(makeReadReq(), mockEnv as any, { waitUntil: vi.fn() } as any)
+    expect(cachedRes.headers.get('X-KG-Edge-Cache')).toBe('HIT')
+    expect(gasCallCount).toBe(1)
+
+    // 3. Mutating action (saveOrder) invalidates getHistory cache immediately
+    const writeReq = new Request('http://localhost/api', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${staffJwt}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ action: 'saveOrder', id: 'order-mut-1', data: { guest_count: 4 } })
+    })
+    const writeRes = await worker.fetch(writeReq, mockEnv as any, { waitUntil: vi.fn() } as any)
+    expect(writeRes.status).toBe(202)
+
+    // 4. Next getHistory call bypasses invalidated cache and fetches fresh v-2
+    const freshRes = await worker.fetch(makeReadReq(), mockEnv as any, { waitUntil: vi.fn() } as any)
+    expect(freshRes.headers.get('X-KG-Edge-Cache')).toBe('MISS')
+    expect(gasCallCount).toBe(2)
+    expect((await freshRes.json() as any).data[0].id).toBe('v-2')
+  })
 })
-
-

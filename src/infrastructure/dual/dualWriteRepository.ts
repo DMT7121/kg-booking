@@ -9,6 +9,12 @@ import { PostgresOrderRepository, PostgresMenuRepository, PostgresSettingsReposi
 import * as outbox from '@/infrastructure/outbox/outbox'
 import { triggerSync as triggerOutboxSync } from '@/infrastructure/outbox/outboxSync'
 import { getBackendMode } from '@/utils/backendMode'
+import {
+  PRIMARY_MENU_SHEET,
+  normalizeMenuSheetName,
+  prioritizeMenuSheets,
+  isValidMenuItemsDataset
+} from '@/domain/menu/menuSheetGuard'
 
 function notifyStoreOutboxUpdate() {
   try {
@@ -57,13 +63,14 @@ export function mergeHistoryRecords(pgList: any[], gasList: any[]): any[] {
     }
   }
 
-  const result = Array.from(map.values())
-  result.sort((a, b) => {
-    const tA = new Date(a.timestamp || a.created_at || a.meta?.updatedAt || 0).getTime()
-    const tB = new Date(b.timestamp || b.created_at || b.meta?.updatedAt || 0).getTime()
-    return tB - tA
+  const entries = Array.from(map.values())
+  const timed = entries.map((item) => {
+    const raw = item.timestamp || item.created_at || item.meta?.updatedAt || 0
+    const ts = raw ? Date.parse(raw) : 0
+    return { item, ts: Number.isNaN(ts) ? 0 : ts }
   })
-  return result
+  timed.sort((a, b) => b.ts - a.ts)
+  return timed.map((e) => e.item)
 }
 
 export class DualWriteOrderRepository implements OrderRepository {
@@ -315,7 +322,38 @@ export class DualWriteOrderRepository implements OrderRepository {
       return this.pg.saveOrdersBatch(payloads)
     }
 
-    // Dual Write mode: Chạy song song toàn bộ batch
+    // Dual Write mode: Ưu tiên Bulk Upsert 1 HTTP request cho PG + 1 HTTP request cho GAS song song
+    if (
+      payloads.length > 1 &&
+      typeof this.pg.saveOrdersBatch === 'function' &&
+      typeof this.gas.saveOrdersBatch === 'function'
+    ) {
+      const resolvedToken = getAdminToken()
+      const [pgSettled, gasSettled] = await Promise.allSettled([
+        this.pg.saveOrdersBatch(payloads, resolvedToken),
+        this.gas.saveOrdersBatch(payloads, { silent: true })
+      ])
+      const pgOk = pgSettled.status === 'fulfilled' && !!pgSettled.value?.ok
+      const gasOk = gasSettled.status === 'fulfilled' && !!gasSettled.value?.ok
+      if (pgOk && gasOk) {
+        return { ok: true, results: pgSettled.value.results || payloads.map(() => ({ ok: true })) }
+      }
+      // Nếu 1 hoặc cả 2 bên lỗi, ghi Outbox bù đắp cho bên bị thiếu
+      const results: any[] = []
+      for (const rawPayload of payloads) {
+        const orderData = rawPayload?.id ? rawPayload : rawPayload?.data || rawPayload
+        const orderId = orderData?.id || crypto.randomUUID()
+        const enriched = { ...orderData, id: orderId }
+        await outbox.addToOutbox(orderId, 'upsert', enriched, { syncedToPg: pgOk, syncedToSheets: gasOk })
+        results.push({ ok: true, id: orderId, status: pgOk || gasOk ? 'partially_synced' : 'pending' })
+      }
+      notifyStoreOutboxUpdate()
+      if (pgOk || gasOk) {
+        triggerOutboxSync().catch(() => {})
+      }
+      return { ok: true, results }
+    }
+
     const batchResults = await Promise.allSettled(payloads.map(p => this.saveOrder(p)))
     const results = batchResults.map(r => r.status === 'fulfilled' ? r.value : { ok: false })
     return { ok: true, results }
@@ -392,17 +430,22 @@ export class DualWriteMenuRepository implements MenuRepository {
   private pg = new PostgresMenuRepository()
 
   async getMenu(sheetName: string, onBgUpdate?: (data: any) => void): Promise<any> {
+    const cleanSheet = normalizeMenuSheetName(sheetName || PRIMARY_MENU_SHEET)
     const mode = getBackendMode()
-    if (mode === 'gas') return this.gas.getMenu(sheetName, onBgUpdate)
-    if (mode === 'postgres') return this.pg.getMenu(sheetName, onBgUpdate)
+    if (mode === 'gas') return this.gas.getMenu(cleanSheet, onBgUpdate)
 
-    // 1. Ưu tiên đọc từ PostgreSQL (Supabase) để đạt tốc độ tức thì (<100ms)
+    // For official MENU2026 in dual_write mode, Google Sheets ("MENU2026") is the canonical source of truth
+    // managed directly by the restaurant; try Postgres first for speed only if it has valid priced items,
+    // and revalidate from Google Sheets in the background when onBgUpdate is provided.
     try {
-      const pgRes = await this.pg.getMenu(sheetName, onBgUpdate)
-      if (pgRes && pgRes.ok && Array.isArray(pgRes.data) && pgRes.data.length > 0) {
-        // Nếu có callback revalidate, đồng bộ ngầm từ Google Sheets để không bao giờ bị lệch dữ liệu
-        if (onBgUpdate) {
-          this.gas.getMenu(sheetName, onBgUpdate).catch(() => {})
+      const pgRes = await this.pg.getMenu(cleanSheet, mode === 'postgres' ? onBgUpdate : undefined)
+      if (pgRes && pgRes.ok && isValidMenuItemsDataset(pgRes.data)) {
+        if (onBgUpdate && mode === 'dual_write') {
+          this.gas.getMenu(cleanSheet, onBgUpdate).then((gasRes) => {
+            if (gasRes && gasRes.ok && isValidMenuItemsDataset(gasRes.data)) {
+              onBgUpdate(gasRes)
+            }
+          }).catch(() => {})
         }
         return pgRes
       }
@@ -410,27 +453,52 @@ export class DualWriteMenuRepository implements MenuRepository {
       console.warn('[DualWrite] PG getMenu failed, trying GAS:', e.message)
     }
 
-    // 2. Fallback sang Google Sheets nếu Postgres chưa có hoặc lỗi
-    return this.gas.getMenu(sheetName, onBgUpdate)
+    // Fallback sang Google Sheets (nguồn chính thức MENU2026) nếu Postgres chưa có hoặc rỗng
+    return this.gas.getMenu(cleanSheet, onBgUpdate)
   }
 
   async getMenuSheets(): Promise<any> {
     const mode = getBackendMode()
     if (mode === 'gas') return this.gas.getMenuSheets()
-    if (mode === 'postgres') return this.pg.getMenuSheets()
-
-    // 1. Ưu tiên đọc danh sách sheet từ PostgreSQL (<100ms)
-    try {
-      const pgRes = await this.pg.getMenuSheets()
-      if (pgRes && pgRes.ok && Array.isArray(pgRes.sheets) && pgRes.sheets.length > 0) {
-        return pgRes
+    if (mode === 'postgres') {
+      try {
+        const pgRes = await this.pg.getMenuSheets()
+        if (pgRes && pgRes.ok && Array.isArray(pgRes.sheets)) {
+          return { ok: true, sheets: prioritizeMenuSheets(pgRes.sheets, true) }
+        }
+      } catch (e: any) {
+        return { ok: false, message: e.message }
       }
-    } catch (e: any) {
-      console.warn('[DualWrite] PG getMenuSheets failed, trying GAS:', e.message)
+      return { ok: true, sheets: prioritizeMenuSheets([], true) }
     }
 
-    // 2. Fallback sang Google Sheets nếu Postgres chưa có hoặc lỗi
-    return this.gas.getMenuSheets()
+    // Dual Write Mode: Fetch PG & GAS menu sheets concurrently instead of sequentially
+    const [pgSettled, gasSettled] = await Promise.allSettled([
+      this.pg.getMenuSheets(),
+      this.gas.getMenuSheets()
+    ])
+
+    const pgSheets =
+      pgSettled.status === 'fulfilled' && pgSettled.value?.ok && Array.isArray(pgSettled.value.sheets)
+        ? pgSettled.value.sheets
+        : []
+
+    if (gasSettled.status === 'fulfilled' && gasSettled.value?.ok && Array.isArray(gasSettled.value.sheets)) {
+      return {
+        ...gasSettled.value,
+        sheets: prioritizeMenuSheets([...gasSettled.value.sheets, ...pgSheets], true)
+      }
+    }
+
+    if (pgSheets.length > 0) {
+      return { ok: true, sheets: prioritizeMenuSheets(pgSheets, true) }
+    }
+
+    const errMsg =
+      gasSettled.status === 'rejected'
+        ? gasSettled.reason?.message
+        : gasSettled.value?.message || 'Failed to load menu sheets'
+    return { ok: false, message: errMsg }
   }
 
   async createMenu(name: string, rawText: string, password?: string, token?: string): Promise<any> {
@@ -476,20 +544,15 @@ export class DualWriteMenuRepository implements MenuRepository {
     if (mode === 'gas') return this.gas.getMenuAliases(token)
     if (mode === 'postgres') return this.pg.getMenuAliases(token)
 
+    // Fast path: check PostgreSQL first (~50ms), fallback to GAS once
     try {
-      const gasRes = await this.gas.getMenuAliases(token)
-      if (gasRes && gasRes.ok && Array.isArray(gasRes.aliases) && gasRes.aliases.length > 0) {
-        return gasRes
+      const pgRes = await this.pg.getMenuAliases(token)
+      if (pgRes && pgRes.ok && Array.isArray(pgRes.data) && pgRes.data.length > 0) {
+        return { ok: true, aliases: pgRes.data, data: pgRes.data }
       }
     } catch {}
 
-    try {
-      const res = await this.pg.getMenuAliases(token)
-      if (res.ok) return res
-      throw new Error(res.message)
-    } catch {
-      return this.gas.getMenuAliases(token)
-    }
+    return this.gas.getMenuAliases(token)
   }
 
   async saveMenuAlias(alias: string, dishName: string, token?: string): Promise<any> {
@@ -526,18 +589,20 @@ export class DualWriteSettingsRepository implements SettingsRepository {
     if (mode === 'gas') return this.gas.getConfig(onBgUpdate)
     if (mode === 'postgres') return this.pg.getConfig(onBgUpdate)
 
+    let gasError: any = null
     try {
       const gasRes = await this.gas.getConfig(onBgUpdate)
       if (gasRes && gasRes.ok) return gasRes
-    } catch {}
+    } catch (e: any) {
+      gasError = e
+    }
 
     try {
       const res = await this.pg.getConfig(onBgUpdate)
-      if (res.ok) return res
-      throw new Error(res.message)
-    } catch {
-      return this.gas.getConfig(onBgUpdate)
-    }
+      if (res && res.ok) return res
+    } catch {}
+
+    return { ok: false, message: gasError?.message || 'Failed to load config' }
   }
 
   async saveConfig(payload: any): Promise<any> {
@@ -662,19 +727,14 @@ export class DualWriteCorrectionRepository implements CorrectionRepository {
     if (mode === 'gas') return this.gas.getAiCorrections(token)
     if (mode === 'postgres') return this.pg.getAiCorrections(token)
 
+    // Fast path: check PostgreSQL first (~50ms), fallback to GAS once
     try {
-      const gasRes = await this.gas.getAiCorrections(token)
-      if (gasRes && gasRes.ok && Array.isArray(gasRes.corrections) && gasRes.corrections.length > 0) {
-        return gasRes
+      const pgRes = await this.pg.getAiCorrections(token)
+      if (pgRes && pgRes.ok && Array.isArray(pgRes.data) && pgRes.data.length > 0) {
+        return { ok: true, corrections: pgRes.data, data: pgRes.data }
       }
     } catch {}
 
-    try {
-      const res = await this.pg.getAiCorrections(token)
-      if (res.ok) return res
-      throw new Error(res.message)
-    } catch {
-      return this.gas.getAiCorrections(token)
-    }
+    return this.gas.getAiCorrections(token)
   }
 }

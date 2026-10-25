@@ -40,8 +40,25 @@ export default defineConfig(({ mode }) => {
         ]
       },
       workbox: {
+        cleanupOutdatedCaches: true,
+        skipWaiting: true,
+        clientsClaim: true,
+        ignoreURLParametersMatching: [/^utm_/, /^fbclid$/, /^v$/],
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
+        globIgnores: [
+          '**/jspdf*',
+          '**/vendor-html2canvas*',
+          '**/index.es-*',
+          '**/purify.es-*',
+          '**/TestDashboard*',
+          '**/LogViewer*'
+        ],
         runtimeCaching: [
+          {
+            urlPattern: /\/assets\/.*\.(?:js|css)$/i,
+            handler: 'CacheFirst',
+            options: { cacheName: 'app-lazy-chunks-cache', expiration: { maxEntries: 60, maxAgeSeconds: 30 * 24 * 60 * 60 } }
+          },
           {
             urlPattern: /^https:\/\/fonts\.googleapis\.com\/.*/i,
             handler: 'CacheFirst',
@@ -95,14 +112,16 @@ export default defineConfig(({ mode }) => {
           if (normalizedId.includes('node_modules')) {
             if (normalizedId.includes('/vue/') || normalizedId.includes('/@vue/')) return 'vendor-vue'
             if (normalizedId.includes('/html2canvas/')) return 'vendor-html2canvas'
+            if (normalizedId.includes('/modern-screenshot/')) return 'vendor-screenshot'
             if (normalizedId.includes('/pinia/')) return 'vendor-pinia'
             if (normalizedId.includes('/idb-keyval/')) return 'vendor-idb'
             if (normalizedId.includes('/minisearch/')) return 'vendor-minisearch'
             if (normalizedId.includes('/qrcode/')) return 'vendor-qrcode'
           }
           if (
-            normalizedId.includes('/src/domain/ai/ruleEngine.ts') ||
-            normalizedId.includes('/src/domain/ai/expertEntityDisambiguator.ts')
+            normalizedId.includes('/src/domain/ai/') ||
+            normalizedId.includes('/src/services/ai/') ||
+            normalizedId.includes('/src/domain/menu/')
           ) {
             return 'domain-ai-parser'
           }

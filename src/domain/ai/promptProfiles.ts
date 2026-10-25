@@ -75,8 +75,8 @@ Chỉ trích xuất thông tin có thực trong nội dung. Không tự bịa. T
 export const PROMPT_PROFILES: Record<PromptProfile, string> = {
   TEXT_SIMPLE: `${BASE_SYSTEM_INSTRUCTIONS}
 
-Hồ sơ: TEXT_SIMPLE (Tin nhắn đặt bàn đơn giản)
-Quy tắc: Trích xuất thông tin khách hàng, số khách, ngày giờ, bàn, nhu cầu tiệc, trang trí và cọc. menu_items: [].`,
+Hồ sơ: TEXT_SIMPLE (Tin nhắn đặt bàn cơ bản)
+Quy tắc: Trích xuất thông tin khách hàng, số khách, ngày giờ, bàn, nhu cầu tiệc, trang trí và cọc. Nếu khách không gọi món ăn/đồ uống thì trả về menu_items: []; nếu khách có đề cập món ăn/đồ uống thì vẫn trích xuất đầy đủ vào menu_items.`,
 
   TEXT_WITH_MENU: `${BASE_SYSTEM_INSTRUCTIONS}
 

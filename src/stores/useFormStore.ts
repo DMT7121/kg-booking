@@ -152,41 +152,113 @@ export const useFormStore = defineStore('form', () => {
     }
   }
 
+  const _dishTaxCategoryCache = new Map<string, { isAlc: boolean; isBar: boolean }>()
+  const BAR_KEYS = [...ALCOHOL_KEYS, ...DRINK_KEYS]
+
+  function classifyDishTaxAndBar(rawName: string): { isAlc: boolean; isBar: boolean } {
+    if (!rawName) return { isAlc: false, isBar: false }
+    let cached = _dishTaxCategoryCache.get(rawName)
+    if (cached) return cached
+    const norm = stripAccents(rawName).toLowerCase()
+    const isAlc = ALCOHOL_KEYS.some(k => norm.includes(k))
+    const isBar = isAlc || BAR_KEYS.some(k => norm.includes(k))
+    cached = { isAlc, isBar }
+    if (_dishTaxCategoryCache.size > 500) _dishTaxCategoryCache.clear()
+    _dishTaxCategoryCache.set(rawName, cached)
+    return cached
+  }
+
+  let _draftSaveTimer: ReturnType<typeof setTimeout> | null = null
+  let _draftDirty = false
+  let _suppressAutoDraft = false
+
   function saveDraft() {
+    if (_draftSaveTimer) {
+      clearTimeout(_draftSaveTimer)
+      _draftSaveTimer = null
+    }
+    _draftDirty = false
+    const draft = {
+      id: id.value,
+      version: version.value,
+      originalState: originalState.value,
+      customer,
+      items: items.value,
+      deposit,
+      staff,
+      rawInput: rawInput.value,
+      aiImage: aiImage.value,
+      oldBillFileId: oldBillFileId.value,
+      aiMetadata: aiMetadata.value,
+      warnings: warnings.value,
+      unresolvedItems: unresolvedItems.value,
+      originalAiValues: originalAiValues.value,
+      taxEnabled: taxEnabled.value,
+      billMode: billMode.value,
+      saveType: saveType.value,
+      billUrl: billUrl.value
+    }
     try {
-      const draft = {
-        id: id.value,
-        version: version.value,
-        originalState: originalState.value,
-        customer,
-        items: items.value,
-        deposit,
-        staff,
-        rawInput: rawInput.value,
-        aiImage: aiImage.value,
-        oldBillFileId: oldBillFileId.value,
-        aiMetadata: aiMetadata.value,
-        warnings: warnings.value,
-        unresolvedItems: unresolvedItems.value,
-        originalAiValues: originalAiValues.value,
-        taxEnabled: taxEnabled.value,
-        billMode: billMode.value,
-        saveType: saveType.value,
-        billUrl: billUrl.value
-      }
       localStorage.setItem('kg_booking_draft', JSON.stringify(draft))
     } catch (e) {
-      console.warn('Failed to save draft:', e)
+      try {
+        const lightDraft = {
+          ...draft,
+          aiImage: null,
+          deposit: {
+            ...deposit,
+            image: deposit.image?.startsWith('data:') ? null : deposit.image
+          }
+        }
+        localStorage.setItem('kg_booking_draft', JSON.stringify(lightDraft))
+      } catch (fallbackErr) {
+        console.warn('Failed to save draft:', fallbackErr)
+      }
     }
   }
 
+  function flushPendingDraft() {
+    if (_draftDirty) {
+      saveDraft()
+    }
+  }
+
+  function scheduleSaveDraft() {
+    if (_suppressAutoDraft) return
+    _draftDirty = true
+    if (_draftSaveTimer) clearTimeout(_draftSaveTimer)
+    _draftSaveTimer = setTimeout(() => {
+      saveDraft()
+    }, 250)
+  }
+
   function clearDraft() {
+    if (_draftSaveTimer) {
+      clearTimeout(_draftSaveTimer)
+      _draftSaveTimer = null
+    }
+    _draftDirty = false
     localStorage.removeItem('kg_booking_draft')
   }
 
-  // Watch state changes to auto-save draft
+  if (typeof window !== 'undefined' && !(window as any).__kgDraftFlushBound) {
+    ;(window as any).__kgDraftFlushBound = true
+    window.addEventListener('pagehide', () => {
+      try { useFormStore().flushPendingDraft() } catch {}
+    })
+    window.addEventListener('beforeunload', () => {
+      try { useFormStore().flushPendingDraft() } catch {}
+    })
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'hidden') {
+        try { useFormStore().flushPendingDraft() } catch {}
+      }
+    })
+  }
+
+  // Watch state changes to auto-save draft (debounced to keep typing INP < 16ms)
   watch([id, version, originalState, customer, items, deposit, staff, rawInput, aiImage, oldBillFileId, aiMetadata, warnings, unresolvedItems, originalAiValues, taxEnabled, billMode, saveType, billUrl], () => {
-    saveDraft()
+    scheduleSaveDraft()
   }, { deep: true })
 
   // Initialize draft
@@ -200,7 +272,7 @@ export const useFormStore = defineStore('form', () => {
     let vat10 = 0
     if (taxEnabled.value) {
       items.value.forEach(i => {
-        const isAlc = ALCOHOL_KEYS.some(k => stripAccents(i.name).toLowerCase().includes(k))
+        const { isAlc } = classifyDishTaxAndBar(i.name)
         const itemTax = i.price * i.qty * (isAlc ? 0.1 : 0.08)
         if (isAlc) vat10 += itemTax
         else vat8 += itemTax
@@ -215,8 +287,7 @@ export const useFormStore = defineStore('form', () => {
     if (!Array.isArray(items.value)) return []
     if (billMode.value === 'full') return items.value
     return items.value.filter(item => {
-      const norm = stripAccents(item.name).toLowerCase()
-      const isBar = [...ALCOHOL_KEYS, ...DRINK_KEYS].some(k => norm.includes(k))
+      const { isBar } = classifyDishTaxAndBar(item.name)
       return billMode.value === 'bar' ? isBar : !isBar
     })
   })
@@ -237,6 +308,7 @@ export const useFormStore = defineStore('form', () => {
   }
 
   function $reset() {
+    _suppressAutoDraft = true
     id.value = generateBookingId()
     version.value = 1
     originalState.value = null
@@ -254,6 +326,10 @@ export const useFormStore = defineStore('form', () => {
     parsedAiResult.value = null
     billUrl.value = ''
     clearDraft()
+    Promise.resolve().then(() => {
+      _suppressAutoDraft = false
+      clearDraft()
+    })
 
     // Reset UI bound variables to prevent carryover cache bugs
     try {
@@ -379,6 +455,7 @@ export const useFormStore = defineStore('form', () => {
     savedNewBookingDraft, isEditingHistoric, hasOngoingNewInput,
     getOngoingDraftSummary, saveCurrentAsNewDraft, restoreNewDraft, discardNewDraft, cancelHistoricEdit,
     calculatedTotals, filteredBillItems, previewTitle,
+    saveDraft, flushPendingDraft, clearDraft,
     getDataSnapshot, $reset
   }
 })

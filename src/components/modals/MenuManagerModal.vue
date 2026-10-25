@@ -1,8 +1,12 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
+import { useVirtualList } from '@/composables/useVirtualList'
 import { useUIStore } from '@/stores/useUIStore'
 import { useAppStore } from '@/stores/useAppStore'
-import { formatVND } from '@/utils'
+import { useFormStore } from '@/stores/useFormStore'
+import { formatVND, stripAccents, mergeSetComponentNote } from '@/utils'
+import { SETS } from '@/utils/constants'
+import { resolveSetMenuDescription } from '@/domain/menu/menuMatcher'
 import { useForm } from '@/composables/useForm'
 import { useAI } from '@/composables/useAI'
 import MenuListItem from './MenuListItem.vue'
@@ -10,6 +14,7 @@ import MenuGridItem from './MenuGridItem.vue'
 
 const ui = useUIStore()
 const appStore = useAppStore()
+const formStore = useFormStore()
 const { fillSampleMenu, prepareUpdate } = useForm()
 const { parseMenuAI } = useAI()
 
@@ -54,14 +59,21 @@ const mockMenus = [
 
 // Enhance menuList with clean local images and categories
 const enhancedMenuList = computed(() => {
-  let list = appStore.menuList.map((item, index) => {
+  const slipDishSet = new Set(
+    (formStore.items || [])
+      .map(i => stripAccents(i?.name || '').toLowerCase().trim())
+      .filter(Boolean)
+  )
+
+  let list = appStore.menuList.map((item) => {
+    const cleanKey = item.cleanName || stripAccents(item.name || '').toLowerCase().trim()
     const cat = inferDishCategory(item.name, (item as any).category)
     return {
       ...item,
+      cleanName: cleanKey,
       category: cat,
-      // Priority: dishImage from store > empty (fallback to clean SVG placeholder)
-      image: (item.cleanName && appStore.dishImages[item.cleanName]) || '',
-      inUse: index % 3 === 0
+      image: (cleanKey && appStore.dishImages[cleanKey]) || '',
+      inUse: slipDishSet.has(cleanKey)
     }
   })
 
@@ -70,13 +82,14 @@ const enhancedMenuList = computed(() => {
     list = list.filter(item => item.category === selectedCategory.value)
   }
 
-  // Filter by searchQuery
+  // Filter by searchQuery (accent-insensitive + acronym support)
   if (searchQuery.value.trim()) {
-    const q = searchQuery.value.trim().toLowerCase()
+    const qRaw = searchQuery.value.trim().toLowerCase()
+    const qNorm = stripAccents(qRaw)
     list = list.filter(item => 
-      item.name.toLowerCase().includes(q) || 
-      (item.cleanName && item.cleanName.toLowerCase().includes(q)) ||
-      (item.acronym && String(item.acronym).toLowerCase().includes(q))
+      item.name.toLowerCase().includes(qRaw) || 
+      (item.cleanName && item.cleanName.toLowerCase().includes(qNorm)) ||
+      (item.acronym && String(item.acronym).toLowerCase().includes(qNorm))
     )
   }
 
@@ -85,7 +98,66 @@ const enhancedMenuList = computed(() => {
 
 
 
+// --- Responsive Multi-Column Virtual Scrolling for Menu Manager ---
+const menuViewportWidth = ref(typeof window !== 'undefined' ? window.innerWidth : 1280)
+function updateMenuViewportWidth() {
+  if (typeof window !== 'undefined') menuViewportWidth.value = window.innerWidth
+}
+onMounted(() => {
+  if (typeof window !== 'undefined') window.addEventListener('resize', updateMenuViewportWidth, { passive: true })
+})
+onUnmounted(() => {
+  if (typeof window !== 'undefined') window.removeEventListener('resize', updateMenuViewportWidth)
+})
+
+const menuGridCols = computed(() => {
+  if (viewMode.value !== 'grid') return 1
+  if (menuViewportWidth.value >= 768) return 4
+  if (menuViewportWidth.value >= 640) return 3
+  return 2
+})
+
+const chunkedMenuRows = computed(() => {
+  const list = enhancedMenuList.value
+  const cols = menuGridCols.value
+  if (cols <= 1) {
+    return list.map((dish, idx) => ({ rowKey: `list-${dish.name}-${idx}`, items: [dish] }))
+  }
+  const rows: Array<{ rowKey: string; items: any[] }> = []
+  for (let i = 0; i < list.length; i += cols) {
+    const slice = list.slice(i, i + cols)
+    rows.push({
+      rowKey: `grid-${cols}-${i}-${slice[0]?.name || i}`,
+      items: slice
+    })
+  }
+  return rows
+})
+
+const {
+  containerRef: dishScrollRef,
+  virtualItems: virtualDishRows,
+  topSpacer: dishTopSpacer,
+  bottomSpacer: dishBottomSpacer,
+  isScrolledDown: isDishListScrolledDown,
+  measureItem: measureMenuRow,
+  scrollToTop: scrollDishListToTop,
+  handleKeydown: handleDishListKeydown
+} = useVirtualList({
+  items: chunkedMenuRows,
+  estimateSize: () => (viewMode.value === 'grid' ? 236 : 84),
+  overscan: 4,
+  gap: 14,
+  getKey: (row) => row.rowKey,
+  initialViewportHeight: 520
+})
+
+watch([searchQuery, selectedCategory, viewMode, () => appStore.activeSheet], () => {
+  scrollDishListToTop(false)
+})
+
 const originalDishState = ref('')
+const originalDishLookupName = ref('')
 
 const isDishModified = computed(() => {
   if (!selectedDish.value) return false
@@ -109,6 +181,7 @@ async function selectDish(dish: any) {
   
   if (dish) {
     selectedDish.value = { ...dish }
+    originalDishLookupName.value = dish.name
     originalDishState.value = JSON.stringify(selectedDish.value)
   } else {
     if (isDishModified.value) {
@@ -116,6 +189,7 @@ async function selectDish(dish: any) {
       if (!confirmed) return
     }
     selectedDish.value = null
+    originalDishLookupName.value = ''
     originalDishState.value = ''
   }
 }
@@ -182,15 +256,57 @@ function serializeMenuToText(menuList: any[]): string {
   }).join('\n')
 }
 
+function findSelectedDishIndex(): number {
+  if (!selectedDish.value) return -1
+  const targetOrig = stripAccents(originalDishLookupName.value || selectedDish.value.name || '').toLowerCase().trim()
+  return appStore.menuList.findIndex(m => {
+    const mNorm = m.cleanName || stripAccents(m.name || '').toLowerCase().trim()
+    return mNorm === targetOrig || m.name === originalDishLookupName.value
+  })
+}
+
+function addSelectedDishToSlip() {
+  if (!selectedDish.value?.name) return
+  const dish = selectedDish.value
+  const normTarget = stripAccents(dish.name).toLowerCase().trim()
+  const existingIdx = formStore.items.findIndex(
+    i => stripAccents(i?.name || '').toLowerCase().trim() === normTarget
+  )
+  if (existingIdx !== -1) {
+    formStore.items[existingIdx].qty = (Number(formStore.items[existingIdx].qty) || 1) + 1
+    ui.showToast(`➕ Đã tăng x${formStore.items[existingIdx].qty} ${dish.name} trong phiếu`, 'success')
+    return
+  }
+  const resolvedDesc = resolveSetMenuDescription(dish.name, appStore.menuList, appStore.menuDetails || {})
+  const rawSetNote = resolvedDesc || SETS[dish.name] || ''
+  const formattedNote = rawSetNote ? mergeSetComponentNote('', rawSetNote) : ''
+  const emptyIdx = formStore.items.findIndex(i => !i.name || !i.name.trim())
+  if (emptyIdx !== -1) {
+    formStore.items[emptyIdx].name = dish.name
+    formStore.items[emptyIdx].price = Number(dish.price) || 0
+    formStore.items[emptyIdx].qty = formStore.items[emptyIdx].qty || 1
+    formStore.items[emptyIdx].note = formattedNote
+  } else {
+    formStore.items.push({
+      name: dish.name,
+      qty: 1,
+      price: Number(dish.price) || 0,
+      note: formattedNote
+    })
+  }
+  ui.showToast(`🍽️ Đã đưa "${dish.name}" vào phiếu đặt bàn`, 'success')
+}
+
 async function saveSelectedDish() {
   if (!selectedDish.value) return;
   
-  // Update local state
-  const index = appStore.menuList.findIndex(m => m.cleanName === selectedDish.value.cleanName);
+  // Update local state safely using originalDishLookupName
+  const index = findSelectedDishIndex();
   if (index !== -1) {
     appStore.menuList[index].name = selectedDish.value.name;
-    appStore.menuList[index].price = selectedDish.value.price;
-    appStore.menuList[index].desc = selectedDish.value.desc; // Update description
+    appStore.menuList[index].price = Number(selectedDish.value.price) || 0;
+    appStore.menuList[index].desc = selectedDish.value.desc;
+    appStore.menuList[index].cleanName = stripAccents(selectedDish.value.name).toLowerCase().trim();
   }
   
   // Convert to raw text
@@ -203,6 +319,7 @@ async function saveSelectedDish() {
   
   await appStore.uploadNewMenu();
   selectedDish.value = null;
+  originalDishLookupName.value = '';
   originalDishState.value = '';
 }
 
@@ -212,7 +329,7 @@ async function deleteSelectedDish() {
   const confirmed = await ui.showConfirm('Xóa món', `Bạn có chắc chắn muốn xóa món "${selectedDish.value.name}" khỏi thực đơn?`);
   if (!confirmed) return;
 
-  const index = appStore.menuList.findIndex(m => m.cleanName === selectedDish.value.cleanName);
+  const index = findSelectedDishIndex();
   if (index !== -1) {
     appStore.menuList.splice(index, 1);
   }
@@ -224,6 +341,7 @@ async function deleteSelectedDish() {
   
   await appStore.uploadNewMenu();
   selectedDish.value = null;
+  originalDishLookupName.value = '';
   originalDishState.value = '';
 }
 
@@ -274,15 +392,16 @@ async function handleDishImageUpload(event: Event) {
     
     <!-- Header -->
     <div class="flex items-center justify-between px-4 py-3 border-b border-slate-100 bg-white shrink-0 shadow-sm relative z-20">
-      <button @click="ui.closeConfig()" class="w-10 h-10 flex items-center justify-center text-blue-900 hover:bg-slate-50 rounded-full transition-colors active:scale-95">
+      <button @click="ui.closeConfig()" class="w-10 h-10 flex items-center justify-center text-blue-900 hover:bg-slate-50 rounded-full transition-colors active:scale-95" title="Quay lại danh mục Cài đặt">
         <i class="fa-solid fa-arrow-left text-xl"></i>
       </button>
       <div class="text-center flex-1">
         <h2 class="text-lg font-black text-blue-900">Cấu hình Thực đơn</h2>
-        <p class="text-[10px] font-bold text-slate-400 mt-0.5 uppercase tracking-wider">Quản lý & Cập nhật</p>
+        <p class="text-[10px] font-bold text-slate-400 mt-0.5 uppercase tracking-wider">Đang dùng: {{ appStore.activeSheet }} ({{ appStore.menuList.length }} món)</p>
       </div>
-      <button class="w-10 h-10 flex items-center justify-center text-blue-900 hover:bg-slate-50 rounded-full transition-colors">
-        <i class="fa-regular fa-circle-question text-xl"></i>
+      <button @click="ui.showSettingsHub = false; ui.closeConfig()" class="px-3 py-1.5 flex items-center gap-1.5 text-xs font-black text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-xl transition-colors active:scale-95">
+        <i class="fa-solid fa-receipt"></i>
+        <span class="hidden sm:inline">Về phiếu</span>
       </button>
     </div>
 
@@ -378,34 +497,71 @@ async function handleDishImageUpload(event: Event) {
             </div>
           </div>
 
-          <!-- Dish List Content (Scrollable) -->
-          <div class="flex-1 overflow-y-auto custom-scrollbar pr-1 pb-32 lg:pb-8">
+          <!-- Dish List Content (Bounded Virtual Scrollable Viewport) -->
+          <div
+            ref="dishScrollRef"
+            tabindex="0"
+            class="flex-1 min-h-0 overflow-y-auto overscroll-y-contain custom-scrollbar pr-1 pb-32 lg:pb-8 focus:outline-none relative"
+            @keydown="handleDishListKeydown"
+          >
             <div v-if="enhancedMenuList.length === 0" class="text-center py-12 bg-white rounded-2xl border border-slate-200 border-dashed">
               <i class="fa-solid fa-plate-wheat text-4xl text-slate-200 mb-3"></i>
               <p class="text-slate-500 font-bold text-sm">Chưa có món ăn nào trong thực đơn này</p>
             </div>
-            
-            <div v-else-if="viewMode === 'grid'" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
-              <MenuGridItem 
-                v-for="dish in enhancedMenuList" 
-                :key="dish.name"
-                :dish="dish"
-                :getCategoryColor="getCategoryColor"
-                :isSelected="selectedDish?.name === dish.name"
-                @select="selectDish"
-              />
+
+            <div
+              v-else
+              class="space-y-3.5"
+              :style="{
+                paddingTop: dishTopSpacer + 'px',
+                paddingBottom: dishBottomSpacer + 'px',
+                overflowAnchor: 'none'
+              }"
+            >
+              <template v-if="viewMode === 'grid'">
+                <div
+                  v-for="{ item: row, key: rKey } in virtualDishRows"
+                  :key="rKey"
+                  :ref="(el) => measureMenuRow(rKey, el)"
+                  class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4"
+                >
+                  <MenuGridItem
+                    v-for="dish in row.items"
+                    :key="dish.name"
+                    :dish="dish"
+                    :getCategoryColor="getCategoryColor"
+                    :isSelected="selectedDish?.name === dish.name"
+                    @select="selectDish"
+                  />
+                </div>
+              </template>
+              <template v-else>
+                <div
+                  v-for="{ item: row, key: rKey } in virtualDishRows"
+                  :key="rKey"
+                  :ref="(el) => measureMenuRow(rKey, el)"
+                >
+                  <MenuListItem
+                    v-for="dish in row.items"
+                    :key="dish.name"
+                    :dish="dish"
+                    :getCategoryColor="getCategoryColor"
+                    :isSelected="selectedDish?.name === dish.name"
+                    @select="selectDish"
+                  />
+                </div>
+              </template>
             </div>
-            
-            <div v-else class="space-y-3">
-              <MenuListItem 
-                v-for="dish in enhancedMenuList" 
-                :key="dish.name"
-                :dish="dish"
-                :getCategoryColor="getCategoryColor"
-                :isSelected="selectedDish?.name === dish.name"
-                @select="selectDish"
-              />
-            </div>
+
+            <button
+              v-if="isDishListScrolledDown && enhancedMenuList.length > 16"
+              type="button"
+              @click="scrollDishListToTop(true)"
+              class="sticky bottom-3 float-right mr-2 px-3 py-1.5 rounded-full bg-slate-900/90 text-white text-[11px] font-black shadow-lg flex items-center gap-1.5 active:scale-95 hover:bg-slate-800 transition-all cursor-pointer z-20"
+              title="Cuộn về đầu danh sách món"
+            >
+              <i class="fa-solid fa-arrow-up text-[10px]"></i> Đầu trang
+            </button>
           </div>
         </div>
 
@@ -427,7 +583,7 @@ async function handleDishImageUpload(event: Event) {
           <div class="p-5 overflow-y-auto custom-scrollbar flex-1 pb-24 lg:pb-5">
             <!-- Large Image Preview -->
             <div class="relative rounded-2xl overflow-hidden bg-slate-100 mb-5 group border border-slate-200 shadow-sm">
-              <a :href="selectedDish.image" target="_blank" class="block w-full h-full cursor-zoom-in">
+              <a v-if="selectedDish.image" :href="selectedDish.image" target="_blank" class="block w-full h-full cursor-zoom-in">
                 <img :src="selectedDish.image" alt="dish" class="w-full aspect-square object-cover transition-transform duration-500 group-hover:scale-105">
                 <div class="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors flex items-center justify-center">
                   <div class="w-12 h-12 bg-black/50 text-white rounded-full flex items-center justify-center backdrop-blur-md opacity-0 group-hover:opacity-100 scale-90 group-hover:scale-100 transition-all shadow-lg">
@@ -435,6 +591,10 @@ async function handleDishImageUpload(event: Event) {
                   </div>
                 </div>
               </a>
+              <div v-else class="w-full aspect-[16/9] flex flex-col items-center justify-center text-slate-400 bg-slate-50">
+                <i class="fa-solid fa-utensils text-3xl mb-2 text-slate-300"></i>
+                <span class="text-xs font-bold">Chưa có ảnh đại diện món ăn</span>
+              </div>
             </div>
             
             
@@ -488,11 +648,15 @@ async function handleDishImageUpload(event: Event) {
               <div class="pt-2">
                 <label class="block text-[11px] font-black text-slate-500 uppercase mb-2 tracking-wider">Ảnh hiện tại</label>
                 <div class="flex gap-3 overflow-x-auto pb-2 custom-scrollbar pr-1">
-                  <div class="relative w-20 h-20 shrink-0 rounded-xl overflow-hidden border-2 border-blue-500 shadow-md">
+                  <div v-if="selectedDish.image" class="relative w-20 h-20 shrink-0 rounded-xl overflow-hidden border-2 border-blue-500 shadow-md">
                     <img :src="selectedDish.image" class="w-full h-full object-cover">
                     <div class="absolute top-1 right-1 w-5 h-5 bg-blue-500 text-white rounded-full flex items-center justify-center text-[10px] shadow-sm">
                       <i class="fa-solid fa-check"></i>
                     </div>
+                  </div>
+                  <div v-else class="w-20 h-20 shrink-0 rounded-xl border border-slate-200 bg-slate-100 flex flex-col items-center justify-center text-slate-400">
+                    <i class="fa-solid fa-image text-lg mb-1"></i>
+                    <span class="text-[9px] font-bold">Chưa có</span>
                   </div>
                   <div class="w-20 h-20 shrink-0 rounded-xl border-2 border-dashed border-slate-200 bg-white flex flex-col items-center justify-center text-slate-400 hover:text-blue-500 hover:border-blue-300 hover:bg-blue-50 transition-all cursor-pointer">
                     <i class="fa-solid fa-plus mb-1"></i>
@@ -504,13 +668,18 @@ async function handleDishImageUpload(event: Event) {
             </div>
             
             <!-- Actions -->
-            <div class="mt-6 flex gap-3 pb-4 lg:pb-0">
-              <button @click="deleteSelectedDish" class="px-4 py-3.5 bg-red-50 text-red-600 rounded-xl text-sm font-black flex items-center justify-center gap-2 hover:bg-red-100 transition-colors shrink-0 border border-red-100">
-                <i class="fa-regular fa-trash-can"></i> <span class="hidden sm:inline">Xóa món</span>
+            <div class="mt-6 space-y-2.5 pb-4 lg:pb-0">
+              <button @click="addSelectedDishToSlip" class="w-full py-3 bg-emerald-600 text-white rounded-xl text-xs font-black shadow-sm hover:bg-emerald-700 active:scale-95 transition-all uppercase tracking-wider flex items-center justify-center gap-2">
+                <i class="fa-solid fa-plus"></i> Đưa món này vào phiếu đặt bàn
               </button>
-              <button @click="saveSelectedDish" class="flex-1 py-3.5 bg-blue-900 text-white rounded-xl text-sm font-black shadow-lg shadow-blue-900/20 hover:bg-blue-900 active:scale-95 transition-all uppercase tracking-wider">
-                Lưu thay đổi
-              </button>
+              <div class="flex gap-3">
+                <button @click="deleteSelectedDish" class="px-4 py-3.5 bg-red-50 text-red-600 rounded-xl text-sm font-black flex items-center justify-center gap-2 hover:bg-red-100 transition-colors shrink-0 border border-red-100">
+                  <i class="fa-regular fa-trash-can"></i> <span class="hidden sm:inline">Xóa món</span>
+                </button>
+                <button @click="saveSelectedDish" class="flex-1 py-3.5 bg-blue-900 text-white rounded-xl text-sm font-black shadow-lg shadow-blue-900/20 hover:bg-blue-900 active:scale-95 transition-all uppercase tracking-wider">
+                  Lưu thay đổi
+                </button>
+              </div>
             </div>
           </div>
         </div>

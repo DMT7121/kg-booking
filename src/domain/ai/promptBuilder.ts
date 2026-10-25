@@ -8,6 +8,7 @@ export interface MenuCandidate {
   itemId?: string
   itemName: string
   aliases?: string[]
+  price?: number
   score: number
   matchedBy: Array<'exact' | 'alias' | 'token' | 'fuzzy' | 'bm25'>
 }
@@ -17,6 +18,10 @@ export interface PromptBuildInput {
   userText: string
   classification: AIInputClassificationResult
   menuCandidates?: MenuCandidate[]
+  activeMenuSummary?: {
+    sheetName: string
+    totalDishes: number
+  }
   conversationContext?: string
   currentDateTime: string
   locale: 'vi-VN'
@@ -48,19 +53,27 @@ export function buildDynamicPrompt(input: PromptBuildInput): PromptBuildResult {
   const includedSections: string[] = [profile]
   const omittedSections: string[] = []
 
-  // 1. Inject Current DateTime Context
+  // 1. Inject Current DateTime & Active Menu Summary Context
   sysPrompt = sysPrompt + `\n\nThời gian hệ thống hiện tại: ${currentDateTime}`
+  if (input.activeMenuSummary && input.activeMenuSummary.totalDishes > 0) {
+    sysPrompt += `\nThực đơn đang sử dụng của nhà hàng: "${input.activeMenuSummary.sheetName}" (${input.activeMenuSummary.totalDishes} món).`
+  }
 
-  // 2. Handle Menu Candidates
-  if (profile === 'TEXT_WITH_MENU' || classification.requiresMenuContext) {
+  // 2. Handle Menu Candidates (inject whenever profile is TEXT_WITH_MENU, requiresMenuContext is true, or candidates matched)
+  if (profile === 'TEXT_WITH_MENU' || classification.requiresMenuContext || menuCandidates.length > 0) {
     if (menuCandidates.length > 0) {
       const candidatesText = menuCandidates
-        .map(c => `- Món: "${c.itemName}" (Thực đơn: ${c.menuName})`)
+        .map(c => {
+          const priceLabel = typeof c.price === 'number' && c.price > 0
+            ? ` | Giá: ${c.price.toLocaleString('vi-VN')}đ`
+            : ''
+          return `- Món: "${c.itemName}" (Thực đơn: ${c.menuName}${priceLabel})`
+        })
         .join('\n')
-      sysPrompt = sysPrompt.replace('{{MENU_CANDIDATES}}', candidatesText)
-      // If template did not have the placeholder, append it
-      if (!sysPrompt.includes(candidatesText)) {
-        sysPrompt += `\n\n{{MENU_CANDIDATES}}\nDanh sách các món ăn ứng viên trong thực đơn:\n${candidatesText}`
+      if (sysPrompt.includes('{{MENU_CANDIDATES}}')) {
+        sysPrompt = sysPrompt.replace('{{MENU_CANDIDATES}}', `Danh sách các món ăn ứng viên trong thực đơn đang sử dụng:\n${candidatesText}`)
+      } else {
+        sysPrompt += `\n\nDanh sách các món ăn ứng viên trong thực đơn đang sử dụng (ưu tiên khớp matched_name theo danh sách này):\n${candidatesText}`
       }
       includedSections.push('MENU_CANDIDATES')
     } else {
@@ -68,6 +81,7 @@ export function buildDynamicPrompt(input: PromptBuildInput): PromptBuildResult {
       omittedSections.push('MENU_CANDIDATES')
     }
   } else {
+    sysPrompt = sysPrompt.replace('{{MENU_CANDIDATES}}', '')
     omittedSections.push('MENU_CANDIDATES')
   }
 
