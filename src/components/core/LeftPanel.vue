@@ -387,18 +387,6 @@ function goToTomorrowTimeline() {
 
       <!-- RIGHT: QUICK ACTIONS / SYSTEM -->
       <div class="flex items-center gap-1 relative z-10 shrink-0">
-        <!-- Online/Offline Status Indicator (Mobile & Tablet) -->
-        <div class="lg:hidden w-7 h-7 rounded-xl bg-slate-800/60 flex items-center justify-center border border-slate-700/40"
-             :title="ui.connectionStatus === 'online' ? 'Trực tuyến' : ui.connectionStatus === 'reconnecting' ? 'Đang kết nối lại' : ui.connectionStatus === 'syncing' ? 'Đang đồng bộ' : 'Ngoại tuyến'">
-          <span class="w-2.5 h-2.5 rounded-full transition-all" 
-                :class="{
-                  'bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.8)]': ui.connectionStatus === 'online' && appStore.offlineQueueCount === 0, 
-                  'bg-yellow-400 animate-pulse': ui.connectionStatus === 'syncing' || ui.connectionStatus === 'reconnecting', 
-                  'bg-amber-400 animate-pulse': ui.connectionStatus === 'online' && appStore.offlineQueueCount > 0,
-                  'bg-rose-400': ui.connectionStatus === 'offline' || ui.connectionStatus === 'error'
-                }"></span>
-        </div>
-
         <!-- Search Command Palette (Mobile & Tablet 48px hit target) -->
         <button 
           @click="ui.showCommandPalette = true" 
