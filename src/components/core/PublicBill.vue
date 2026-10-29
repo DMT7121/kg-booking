@@ -4,7 +4,7 @@ import { getOrderById, getConfig } from '@/services/api'
 import LuckyWheel from './LuckyWheel.vue'
 import { stripAccents, formatShortVND } from '@/utils'
 import { ALCOHOL_KEYS } from '@/utils/constants'
-import { useVerificationQr } from '@/components/bills/billHelpers'
+import { useVerificationQr, parseBillItemNote } from '@/components/bills/billHelpers'
 import {
   prewarmBillExportAssets,
   renderBillElementToCanvas,
@@ -446,14 +446,47 @@ onUnmounted(() => { if (timer) clearInterval(timer) })
                 </thead>
                 <tbody class="text-xs">
                   <tr v-for="(item, i) in order.items" :key="i" class="border-b border-dashed border-slate-100 last:border-0">
-                    <td class="py-2.5">
-                      <div class="font-bold text-slate-800">
-                        {{ item.name }} [{{ formatVND(item.price || 0).replace(/\s/g, '').replace(/₫/g, 'đ') }}]
+                    <td class="py-2.5 align-top pr-2">
+                      <div class="font-black text-slate-900 leading-snug">
+                        {{ item.name }} <span class="text-slate-500 font-bold text-[11px]">[{{ formatVND(item.price || 0).replace(/\s/g, '').replace(/₫/g, 'đ') }}]</span>
                       </div>
-                      <div v-if="item.note || item.notes" class="text-[10px] text-rose-500 font-semibold mt-0.5 whitespace-pre-line italic">{{ item.note || item.notes }}</div>
+                      <template v-if="item.note || item.notes">
+                        <div
+                          v-if="parseBillItemNote(item.note || item.notes).parsedComponents.length"
+                          class="mt-1.5 rounded-xl bg-blue-50/70 border border-blue-200/80 border-l-[3px] border-l-blue-900 p-2 space-y-1"
+                        >
+                          <div class="text-[9.5px] font-black uppercase tracking-wider text-blue-900 flex items-center gap-1 pb-0.5 border-b border-blue-200/60">
+                            <i class="fa-solid fa-utensils text-[9px] text-amber-600"></i>
+                            <span>Chi tiết gói ({{ parseBillItemNote(item.note || item.notes).parsedComponents.length }} món)</span>
+                          </div>
+                          <div class="flex flex-col divide-y divide-blue-100/80">
+                            <div
+                              v-for="(comp, cIdx) in parseBillItemNote(item.note || item.notes).parsedComponents"
+                              :key="cIdx"
+                              class="py-1 flex items-center justify-between gap-2 text-[11.5px] leading-snug"
+                            >
+                              <div class="flex items-start gap-1.5 min-w-0">
+                                <span class="inline-flex items-center justify-center min-w-[17px] h-[17px] px-1 rounded bg-blue-950 text-white text-[9.5px] font-black shrink-0 mt-0.5 tabular-nums">
+                                  {{ comp.index || (cIdx + 1) }}
+                                </span>
+                                <span class="font-bold text-slate-900 break-words">{{ comp.name }}</span>
+                              </div>
+                              <span v-if="comp.qty" class="inline-flex items-center px-1.5 py-0.5 rounded bg-white border border-blue-200 text-blue-900 text-[10px] font-black shrink-0 whitespace-nowrap tabular-nums">
+                                SL: {{ comp.qty }}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                        <div
+                          v-if="parseBillItemNote(item.note || item.notes).customNotes.length"
+                          class="text-[10.5px] text-rose-600 font-bold mt-1 bg-rose-50 border border-rose-200/70 rounded-lg px-2 py-1 whitespace-pre-line leading-snug"
+                        >
+                          {{ parseBillItemNote(item.note || item.notes).customNotes.join('\n') }}
+                        </div>
+                      </template>
                     </td>
-                    <td class="py-2.5 text-center font-black text-slate-700">{{ item.qty }}</td>
-                    <td class="py-2.5 text-right font-black text-slate-700">{{ formatVND((item.price || 0) * (item.qty || 0)) }}</td>
+                    <td class="py-2.5 text-center font-black text-slate-800 align-top tabular-nums whitespace-nowrap">{{ item.qty }}</td>
+                    <td class="py-2.5 text-right font-black text-slate-900 align-top tabular-nums whitespace-nowrap">{{ formatVND((item.price || 0) * (item.qty || 0)) }}</td>
                   </tr>
                 </tbody>
               </table>
@@ -473,33 +506,41 @@ onUnmounted(() => { if (timer) clearInterval(timer) })
           </div>
 
           <!-- TOTALS -->
-          <div class="border-t-2 border-dashed border-slate-300 pt-4 space-y-2 mb-6">
-            <div class="flex justify-between items-center">
-              <span class="text-[10px] font-bold text-slate-500 uppercase">Tạm tính</span>
-              <span class="text-sm font-black text-slate-600">{{ formatVND(calculatedTotals.sub) }}</span>
-            </div>
-            
-            <div v-if="calculatedTotals.vat8 > 0" class="flex justify-between items-center">
-              <span class="text-[10px] font-bold text-slate-500 uppercase">VAT (8%)</span>
-              <span class="text-xs font-bold text-slate-600">{{ formatVND(calculatedTotals.vat8) }}</span>
-            </div>
-            
-            <div v-if="calculatedTotals.vat10 > 0" class="flex justify-between items-center">
-              <span class="text-[10px] font-bold text-slate-500 uppercase">VAT (10%)</span>
-              <span class="text-xs font-bold text-slate-600">{{ formatVND(calculatedTotals.vat10) }}</span>
-            </div>
-            
-            <div v-if="calculatedTotals.final > calculatedTotals.sub" class="flex justify-between items-center pt-2">
-              <span class="text-[11px] font-bold text-slate-600 uppercase">Tổng cộng</span>
-              <span class="text-base font-black text-slate-800">{{ formatVND(calculatedTotals.final) }}</span>
+          <div class="rounded-2xl border border-slate-200 bg-slate-50/70 p-4 space-y-2.5 mb-6">
+            <div class="text-[9.5px] font-black uppercase tracking-[0.14em] text-slate-500 pb-1.5 border-b border-slate-200/80 flex items-center justify-between">
+              <span>Tổng hợp thanh toán</span>
+              <span class="text-slate-400">VNĐ</span>
             </div>
 
-            <div class="flex justify-between items-center bg-slate-50 p-3 rounded-xl border border-slate-100 mt-2">
-              <span class="text-[11px] font-black uppercase tracking-wider" :class="order.isDeposited ? 'text-emerald-600' : 'text-rose-500'">
-                <i class="fa-solid mr-1" :class="order.isDeposited ? 'fa-circle-check' : 'fa-hourglass-half'"></i> 
-                {{ order.isDeposited ? 'TIỀN CỌC (ĐÃ NHẬN)' : 'YÊU CẦU ĐẶT CỌC' }}
+            <div class="grid grid-cols-[1fr_auto] items-center gap-4 py-0.5">
+              <span class="text-[11px] font-bold text-slate-600 uppercase whitespace-nowrap leading-normal">Tạm tính</span>
+              <span class="text-sm font-black text-slate-800 tabular-nums whitespace-nowrap text-right leading-normal">{{ formatVND(calculatedTotals.sub) }}</span>
+            </div>
+            
+            <div v-if="calculatedTotals.vat8 > 0" class="grid grid-cols-[1fr_auto] items-center gap-4 py-0.5">
+              <span class="text-[11px] font-bold text-slate-500 uppercase whitespace-nowrap leading-normal">VAT (8%)</span>
+              <span class="text-xs font-bold text-slate-600 tabular-nums whitespace-nowrap text-right leading-normal">{{ formatVND(calculatedTotals.vat8) }}</span>
+            </div>
+            
+            <div v-if="calculatedTotals.vat10 > 0" class="grid grid-cols-[1fr_auto] items-center gap-4 py-0.5">
+              <span class="text-[11px] font-bold text-slate-500 uppercase whitespace-nowrap leading-normal">VAT (10%)</span>
+              <span class="text-xs font-bold text-slate-600 tabular-nums whitespace-nowrap text-right leading-normal">{{ formatVND(calculatedTotals.vat10) }}</span>
+            </div>
+            
+            <div class="grid grid-cols-[1fr_auto] items-baseline gap-4 pt-2 border-t border-slate-200">
+              <span class="text-xs font-black text-slate-900 uppercase whitespace-nowrap leading-normal">Tổng cộng</span>
+              <span class="text-lg font-black text-blue-950 tabular-nums whitespace-nowrap text-right leading-normal">{{ formatVND(calculatedTotals.final) }}</span>
+            </div>
+
+            <div
+              class="grid grid-cols-[1fr_auto] items-center gap-3 p-3 rounded-xl border mt-1.5"
+              :class="order.isDeposited ? 'bg-emerald-50/90 border-emerald-200' : 'bg-rose-50/90 border-rose-200'"
+            >
+              <span class="text-[11px] font-black uppercase tracking-wider whitespace-nowrap leading-normal flex items-center gap-1.5" :class="order.isDeposited ? 'text-emerald-700' : 'text-rose-600'">
+                <i class="fa-solid shrink-0" :class="order.isDeposited ? 'fa-circle-check' : 'fa-hourglass-half'"></i> 
+                <span>{{ order.isDeposited ? 'ĐÃ ĐẶT CỌC' : 'YÊU CẦU CỌC' }}</span>
               </span>
-              <span class="text-lg font-black font-tabular" :class="order.isDeposited ? 'text-emerald-600' : 'text-rose-600'">{{ formatVND(order.depositAmount) }}</span>
+              <span class="text-base font-black tabular-nums whitespace-nowrap text-right leading-normal" :class="order.isDeposited ? 'text-emerald-700' : 'text-rose-600'">{{ formatVND(order.depositAmount) }}</span>
             </div>
 
             <!-- DEPOSIT INSTALLMENT BREAKDOWN -->
@@ -507,21 +548,21 @@ onUnmounted(() => { if (timer) clearInterval(timer) })
               <div class="font-black text-[10px] uppercase tracking-wider text-emerald-800 flex items-center gap-1.5 pb-1 border-b border-emerald-200/60">
                 <i class="fa-solid fa-clock-rotate-left text-[11px] text-emerald-600"></i> Chi tiết các đợt cọc:
               </div>
-              <div v-for="(h, idx) in (order.deposit?.history || order.depositHistory)" :key="idx" class="flex justify-between items-center font-tabular text-[11px] font-deposit-meta" style="font-family: 'Google Sans Flex', 'Be Vietnam Pro', sans-serif;">
-                <span class="text-slate-600">
+              <div v-for="(h, idx) in (order.deposit?.history || order.depositHistory)" :key="idx" class="grid grid-cols-[1fr_auto] items-center gap-3 font-tabular text-[11px] font-deposit-meta" style="font-family: 'Google Sans Flex', 'Be Vietnam Pro', sans-serif;">
+                <span class="text-slate-600 leading-normal">
                   {{ h.time }} <span class="font-black text-emerald-700">[{{ formatShortVND(h.delta) }}]</span> <span class="font-bold text-slate-400">(Lần {{ idx + 1 }})</span>
                 </span>
-                <span class="font-bold text-slate-700">{{ formatVND(h.amount) }}</span>
+                <span class="font-bold text-slate-700 whitespace-nowrap tabular-nums text-right leading-normal">{{ formatVND(h.amount) }}</span>
               </div>
-              <div class="pt-1.5 border-t border-emerald-200/60 flex justify-between items-center font-black text-[12px] text-emerald-800 font-deposit-meta">
-                <span>Tổng cọc: [{{ formatShortVND(order.depositAmount) }}]</span>
-                <span class="font-tabular">{{ formatVND(order.depositAmount) }}</span>
+              <div class="pt-1.5 border-t border-emerald-200/60 grid grid-cols-[1fr_auto] items-center gap-3 font-black text-[12px] text-emerald-800 font-deposit-meta">
+                <span class="whitespace-nowrap">Tổng cọc: [{{ formatShortVND(order.depositAmount) }}]</span>
+                <span class="font-tabular whitespace-nowrap text-right">{{ formatVND(order.depositAmount) }}</span>
               </div>
             </div>
             
-            <div v-if="calculatedTotals.final - order.depositAmount > 0" class="flex justify-between items-center pt-3 border-t border-slate-100 mt-3">
-              <span class="text-xs font-black text-slate-800 uppercase">CÒN LẠI</span>
-              <span class="text-lg font-black text-rose-600">{{ formatVND(calculatedTotals.final - order.depositAmount) }}</span>
+            <div v-if="calculatedTotals.final - order.depositAmount > 0" class="grid grid-cols-[1fr_auto] items-baseline gap-4 pt-2.5 border-t-2 border-slate-300 mt-2">
+              <span class="text-xs font-black text-slate-900 uppercase whitespace-nowrap leading-normal">CÒN LẠI CẦN THANH TOÁN</span>
+              <span class="text-lg font-black text-rose-600 tabular-nums whitespace-nowrap text-right leading-normal">{{ formatVND(calculatedTotals.final - order.depositAmount) }}</span>
             </div>
           </div>
 

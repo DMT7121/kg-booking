@@ -13,6 +13,7 @@ import DepositManager from '@/components/forms/DepositManager.vue'
 import MenuItemsEditor from '@/components/forms/MenuItemsEditor.vue'
 import BillPreview from './BillPreview.vue'
 import { formatVND } from '@/utils'
+import { parseBillItemNote } from '@/components/bills/billHelpers'
 
 // Tab components (Async loaded on demand to minimize initial bundle)
 const HistoryList = defineAsyncComponent(() => import('@/components/history/HistoryList.vue'))
@@ -102,13 +103,24 @@ const currentModuleMeta = computed(() => {
     case 'create': return { label: 'Tạo phiếu', icon: 'fa-solid fa-plus text-blue-400' }
     case 'timeline': return { label: 'Lịch bàn', icon: 'fa-solid fa-calendar-days text-emerald-400' }
     case 'preview': return { label: 'Xem phiếu', icon: 'fa-solid fa-eye text-cyan-400' }
-    case 'history': return { label: 'Lịch sử', icon: 'fa-solid fa-list-ul text-purple-400' }
+    case 'history': return { label: ui.isV3 ? 'Đơn đặt' : 'Lịch sử', icon: 'fa-solid fa-list-ul text-purple-400' }
     case 'analytics': return { label: 'Báo cáo', icon: 'fa-solid fa-chart-pie text-indigo-400' }
     case 'test': return { label: 'Kiểm thử', icon: 'fa-solid fa-flask text-rose-400' }
     case 'logs': return { label: 'Logs', icon: 'fa-solid fa-terminal text-amber-400' }
     default: return { label: 'Tạo phiếu', icon: 'fa-solid fa-plus text-blue-400' }
   }
 })
+
+const unpaidOrdersCount = computed(() => {
+  return (appStore.historyList || []).filter((o: any) => !o.isDeposited && Number(o.depositAmount || 0) > 0).length
+})
+
+const receiptTemplateOptions = [
+  { id: 'classic' as const, label: 'Truyền thống' },
+  { id: 'modern' as const, label: 'Tối giản' },
+  { id: 'luxury' as const, label: 'Sang trọng' },
+  { id: 'ticket' as const, label: 'Vé tiệc' }
+]
 
 function onContainerScroll(e: Event) {
   const el = e.target as HTMLElement
@@ -121,17 +133,20 @@ function reloadApp() {
   window.location.reload()
 }
 
-// --- Tab Swipe (mobile only) ---
-const mobileTabs = ['dashboard', 'timeline', 'history', 'analytics', 'create', 'preview', 'test']
+// --- Tab Swipe (mobile only, version-aware) ---
+const mobileTabsV2 = ['dashboard', 'timeline', 'history', 'analytics', 'create', 'preview', 'test']
+const mobileTabsV3 = ['create', 'preview', 'history', 'analytics']
 const tabRef = computed(() => ui.tab)
-const { onSwipeStart, onSwipeEnd } = useTabSwipe(
-  tabRef as any,
-  mobileTabs,
-  (tab) => {
-    if (tab === 'history' || tab === 'timeline') appStore.loadHistory(false)
-    else ui.tab = tab as any
+const handleSwipeSwitch = (nextTab: string) => {
+  ui.tab = nextTab as any
+  if (nextTab === 'history' || nextTab === 'timeline' || nextTab === 'analytics') {
+    appStore.loadHistory(false)
   }
-)
+}
+const swipeV2 = useTabSwipe(tabRef as any, mobileTabsV2, handleSwipeSwitch)
+const swipeV3 = useTabSwipe(tabRef as any, mobileTabsV3, handleSwipeSwitch)
+const onSwipeStart = (e: TouchEvent) => (ui.isV3 ? swipeV3.onSwipeStart(e) : swipeV2.onSwipeStart(e))
+const onSwipeEnd = (e: TouchEvent) => (ui.isV3 ? swipeV3.onSwipeEnd(e) : swipeV2.onSwipeEnd(e))
 
 // --- Share Link for current order ---
 function shareCurrentBill() {
@@ -261,14 +276,42 @@ function goToTomorrowTimeline() {
                   }"></span>
           </h1>
           <div class="flex items-center gap-1.5 mt-1" :class="{'hidden sm:flex': isHeaderCompact}">
+            <!-- PARALLEL VERSION SWITCHER PILL (v2.5.0 <-> v3.0) -->
+            <div
+              class="inline-flex items-center p-0.5 rounded-lg bg-slate-800/95 border border-slate-700/80 shrink-0 shadow-2xs"
+              role="group"
+              aria-label="Chuyển đổi phiên bản giao diện"
+            >
+              <button
+                type="button"
+                @click="ui.setAppVersion('2.5.0')"
+                class="px-1.5 py-0.5 rounded-md font-mono text-[9.5px] font-black transition-all cursor-pointer leading-none"
+                :class="!ui.isV3 ? 'bg-amber-400 text-slate-950 shadow-2xs' : 'text-slate-400 hover:text-slate-200'"
+                title="Chuyển sang Phiên bản 2.5.0-APEX (Đầy đủ các phân hệ truyền thống)"
+              >
+                2.5.0
+              </button>
+              <button
+                type="button"
+                @click="ui.setAppVersion('3.0')"
+                class="px-1.5 py-0.5 rounded-md font-mono text-[9.5px] font-black transition-all cursor-pointer leading-none flex items-center gap-0.5"
+                :class="ui.isV3 ? 'bg-blue-500 text-white shadow-2xs' : 'text-slate-400 hover:text-slate-200'"
+                title="Chuyển sang Phiên bản 3.0 Mới (Tinh gọn & Tối ưu tốc độ thao tác)"
+              >
+                <i class="fa-solid fa-bolt text-[8px] text-amber-300"></i>
+                <span>3.0</span>
+              </button>
+            </div>
+
             <button 
               @click="ui.showVersionModal = true" 
-              :title="`Build: ${buildInfo}`"
-              class="hidden sm:flex px-1.5 py-0.5 rounded bg-blue-500/20 hover:bg-blue-500/30 text-blue-300 font-mono text-[9px] font-bold border border-blue-400/30 shrink-0 cursor-pointer transition-all active:scale-95 items-center gap-1"
+              :title="`Xem chi tiết phiên bản (${buildInfo})`"
+              class="hidden xl:flex w-4 h-4 rounded-full bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white text-[9px] font-bold border border-slate-700 shrink-0 cursor-pointer transition-all items-center justify-center"
+              aria-label="Thông tin phiên bản"
             >
-              <i class="fa-solid fa-sparkles text-[8px] text-amber-300"></i>
-              <span>v2.5.0-APEX</span>
+              <i class="fa-solid fa-info text-[8px]"></i>
             </button>
+
             <button 
               v-if="appStore.offlineQueueCount > 0"
               @click="ui.showOutboxModal = true; appStore.loadOutboxDetails()"
@@ -277,7 +320,7 @@ function goToTomorrowTimeline() {
             >
               {{ appStore.offlineQueueCount }} đơn chờ
             </button>
-            <span v-else class="text-[9px] font-bold uppercase tracking-wider tabular-nums transition-colors"
+            <span v-else class="hidden sm:inline text-[9px] font-bold uppercase tracking-wider tabular-nums transition-colors"
                   :class="(ui.connectionStatus === 'offline' || ui.connectionStatus === 'error') ? 'text-rose-400' : (ui.connectionStatus === 'reconnecting' || ui.connectionStatus === 'syncing') ? 'text-amber-400' : 'text-slate-400'">
               {{ 
                 ui.connectionStatus === 'syncing' ? 'Đang đồng bộ...' : 
@@ -301,8 +344,91 @@ function goToTomorrowTimeline() {
         <i class="fa-solid fa-chevron-down text-[9px] text-slate-400"></i>
       </button>
 
-      <!-- CENTER: NAVIGATION TABS (DESKTOP >= 1024px) - 3 Phân Hệ Workspace Vận Hành Chuyên Nghiệp -->
-      <div class="hidden lg:flex items-center gap-1.5 bg-slate-800/60 dark:bg-slate-900/60 p-1.5 rounded-2xl border border-slate-700/40 mx-2 flex-1 justify-center relative z-10 overflow-x-auto scrollbar-none flex-nowrap backdrop-blur-md">
+      <!-- CENTER NAVIGATION V3.0 (DESKTOP >= 1024px) - Tinh gọn 4 trụ cột nghiệp vụ cốt lõi -->
+      <nav v-if="ui.isV3" aria-label="Điều hướng chính bản 3.0" class="hidden lg:flex items-center gap-1 bg-slate-950/75 p-1 rounded-2xl border border-slate-800 mx-2 relative z-10 overflow-x-auto scrollbar-none flex-nowrap">
+        <button
+          @click="ui.tab = 'create'"
+          :class="[
+            'px-3.5 py-1.5 rounded-xl text-xs font-black transition-all flex items-center gap-2 min-h-[34px] whitespace-nowrap cursor-pointer',
+            ui.tab === 'create'
+              ? 'bg-blue-600 text-white shadow-sm'
+              : 'text-slate-300 hover:text-white hover:bg-slate-800/70'
+          ]"
+          title="Tạo phiếu đặt bàn mới (Alt+1)"
+        >
+          <i class="fa-solid fa-file-pen text-xs" :class="ui.tab === 'create' ? 'text-white' : 'text-blue-400'"></i>
+          <span>Tạo Phiếu</span>
+          <span
+            v-if="formStore.customer.name || activeReceiptItems.length > 0"
+            class="w-1.5 h-1.5 rounded-full"
+            :class="ui.tab === 'create' ? 'bg-amber-300' : 'bg-blue-400'"
+          ></span>
+        </button>
+
+        <button
+          @click="ui.tab = 'preview'"
+          :class="[
+            'px-3.5 py-1.5 rounded-xl text-xs font-black transition-all flex items-center gap-2 min-h-[34px] whitespace-nowrap cursor-pointer',
+            ui.tab === 'preview'
+              ? 'bg-blue-600 text-white shadow-sm'
+              : 'text-slate-300 hover:text-white hover:bg-slate-800/70'
+          ]"
+          title="Xem khổ in thực tế & Xuất ảnh/PDF gửi khách (Alt+2)"
+        >
+          <i class="fa-solid fa-receipt text-xs" :class="ui.tab === 'preview' ? 'text-white' : 'text-cyan-400'"></i>
+          <span>Xem & Xuất Phiếu</span>
+        </button>
+
+        <button
+          @click="ui.tab = 'history'; appStore.loadHistory(false)"
+          :class="[
+            'px-3.5 py-1.5 rounded-xl text-xs font-black transition-all flex items-center gap-2 min-h-[34px] whitespace-nowrap cursor-pointer',
+            ui.tab === 'history'
+              ? 'bg-blue-600 text-white shadow-sm'
+              : 'text-slate-300 hover:text-white hover:bg-slate-800/70'
+          ]"
+          title="Danh sách toàn bộ đơn đặt bàn & theo dõi cọc (Alt+3)"
+        >
+          <i class="fa-solid fa-table-list text-xs" :class="ui.tab === 'history' ? 'text-white' : 'text-emerald-400'"></i>
+          <span>Đơn Đặt Bàn</span>
+          <span
+            v-if="unpaidOrdersCount > 0"
+            class="px-1.5 py-0.5 rounded-full text-[9.5px] font-black leading-none tabular-nums"
+            :class="ui.tab === 'history' ? 'bg-amber-300 text-slate-950' : 'bg-amber-500/20 text-amber-300 border border-amber-400/30'"
+            :title="`${unpaidOrdersCount} đơn đang chờ khách chuyển cọc`"
+          >
+            {{ unpaidOrdersCount }}
+          </span>
+        </button>
+
+        <button
+          @click="ui.tab = 'analytics'; appStore.loadHistory(false)"
+          :class="[
+            'px-3.5 py-1.5 rounded-xl text-xs font-black transition-all flex items-center gap-2 min-h-[34px] whitespace-nowrap cursor-pointer',
+            ui.tab === 'analytics'
+              ? 'bg-blue-600 text-white shadow-sm'
+              : 'text-slate-300 hover:text-white hover:bg-slate-800/70'
+          ]"
+          title="Báo cáo doanh thu, món bán chạy & xuất Excel CRM (Alt+4)"
+        >
+          <i class="fa-solid fa-chart-simple text-xs" :class="ui.tab === 'analytics' ? 'text-white' : 'text-indigo-400'"></i>
+          <span>Báo Cáo</span>
+        </button>
+
+        <div class="h-4 w-[1px] bg-slate-800 mx-1"></div>
+
+        <button
+          @click="copyCustomerBookingLink"
+          class="px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 min-h-[34px] whitespace-nowrap text-emerald-300 hover:text-white hover:bg-emerald-500/20 cursor-pointer"
+          title="Sao chép link Đặt bàn Online gửi cho khách hàng"
+        >
+          <i class="fa-solid fa-link text-emerald-400 text-xs"></i>
+          <span>Link Khách</span>
+        </button>
+      </nav>
+
+      <!-- CENTER: NAVIGATION TABS V2.5.0 (DESKTOP >= 1024px) - 3 Phân Hệ Workspace Vận Hành Chuyên Nghiệp -->
+      <div v-else class="hidden lg:flex items-center gap-1.5 bg-slate-800/60 dark:bg-slate-900/60 p-1.5 rounded-2xl border border-slate-700/40 mx-2 flex-1 justify-center relative z-10 overflow-x-auto scrollbar-none flex-nowrap backdrop-blur-md">
         <!-- Phân hệ 1: TIẾP NHẬN ĐƠN (Booking Intake) -->
         <div class="flex items-center gap-1 bg-slate-900/80 dark:bg-slate-950/70 p-1 rounded-xl border border-blue-500/25 shadow-sm">
           <button @click="ui.tab = 'create'" :class="['px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 min-h-[32px] whitespace-nowrap cursor-pointer', ui.tab === 'create' ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-300 hover:text-white hover:bg-slate-800/60']" title="Tạo phiếu đặt bàn mới (AI / Nhập tay)">
@@ -454,12 +580,34 @@ function goToTomorrowTimeline() {
           <div v-if="showDropdown" @click="showDropdown = false" class="fixed inset-0 z-[100]"></div>
 
           <transition enter-active-class="transition ease-out duration-100" enter-from-class="transform opacity-0 scale-95" enter-to-class="transform opacity-100 scale-100" leave-active-class="transition ease-in duration-75" leave-from-class="transform opacity-100 scale-100" leave-to-class="transform opacity-0 scale-95">
-            <div v-if="showDropdown" class="absolute top-full right-0 mt-2 w-52 bg-white dark:bg-slate-900 rounded-2xl shadow-xl border border-slate-200 dark:border-slate-800 py-1.5 z-[101] text-slate-800 dark:text-slate-100">
+            <div v-if="showDropdown" class="absolute top-full right-0 mt-2 w-56 bg-white dark:bg-slate-900 rounded-2xl shadow-xl border border-slate-200 dark:border-slate-800 py-1.5 z-[101] text-slate-800 dark:text-slate-100">
+              <!-- Quick Version Switcher in Mobile Dropdown -->
+              <div class="px-3.5 py-2.5 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between gap-2">
+                <span class="text-[11px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">Phiên bản</span>
+                <div class="inline-flex p-0.5 rounded-lg bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
+                  <button
+                    type="button"
+                    @click="ui.setAppVersion('2.5.0'); showDropdown = false"
+                    class="px-2 py-0.5 rounded-md text-[10px] font-black cursor-pointer transition-all"
+                    :class="!ui.isV3 ? 'bg-slate-900 dark:bg-amber-400 text-white dark:text-slate-950 shadow-2xs' : 'text-slate-500'"
+                  >
+                    2.5.0
+                  </button>
+                  <button
+                    type="button"
+                    @click="ui.setAppVersion('3.0'); showDropdown = false"
+                    class="px-2 py-0.5 rounded-md text-[10px] font-black cursor-pointer transition-all"
+                    :class="ui.isV3 ? 'bg-blue-600 text-white shadow-2xs' : 'text-slate-500'"
+                  >
+                    ⚡ 3.0
+                  </button>
+                </div>
+              </div>
               <button @click="ui.showSettingsHub = true; showDropdown = false" class="w-full text-left px-4 py-3 flex items-center gap-3 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors">
                 <i class="fa-solid fa-gear text-slate-400"></i>
                 <span class="font-bold text-xs">Cài đặt hệ thống</span>
               </button>
-              <button @click="ui.showSocialBotModal = true; showDropdown = false" class="w-full text-left px-4 py-3 flex items-center gap-3 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors">
+              <button v-if="!ui.isV3" @click="ui.showSocialBotModal = true; showDropdown = false" class="w-full text-left px-4 py-3 flex items-center gap-3 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors">
                 <i class="fa-solid fa-robot text-amber-500"></i>
                 <span class="font-bold text-xs">Quản lý Social Bot</span>
               </button>
@@ -500,8 +648,8 @@ function goToTomorrowTimeline() {
       <div class="flex-grow flex flex-col overflow-hidden relative min-h-0 w-full">
         <transition name="tab-fade" mode="out-in">
           <KeepAlive>
-            <QuickDashboard v-if="ui.tab === 'dashboard'" key="dashboard" />
-            <HistoryTimeline v-else-if="ui.tab === 'timeline'" key="timeline" />
+            <QuickDashboard v-if="!ui.isV3 && ui.tab === 'dashboard'" key="dashboard" />
+            <HistoryTimeline v-else-if="!ui.isV3 && ui.tab === 'timeline'" key="timeline" />
             <HistoryList v-else-if="ui.tab === 'history'" key="history" />
             <AnalyticsDashboard v-else-if="ui.tab === 'analytics'" key="analytics" />
             <TestDashboard v-else-if="ui.tab === 'test'" key="test" />
@@ -574,9 +722,12 @@ function goToTomorrowTimeline() {
                 </div>
 
                 <div class="grid grid-cols-1 lg:grid-cols-12 gap-4 items-start">
-                  <!-- Left side: AI Input, Compact Checklist & Live Split-Screen Bill Studio -->
-                  <div class="lg:col-span-5 space-y-3 lg:sticky lg:top-1">
-                    <AIInputPanel />
+                  <!-- COLUMN A: Studio & Readiness Dock (Right Sticky in v3.0, Left Sticky in v2.5.0) -->
+                  <div
+                    class="lg:col-span-5 space-y-3 lg:sticky lg:top-1"
+                    :class="ui.isV3 ? 'order-2 lg:order-2' : 'order-1 lg:order-1'"
+                  >
+                    <AIInputPanel v-if="!ui.isV3" />
 
                     <!-- Compact Interactive Progress Strip -->
                     <div class="bg-surface-2 dark:bg-surface-2 border border-border-default dark:border-border-subtle rounded-2xl p-3 shadow-xs space-y-2">
@@ -622,8 +773,8 @@ function goToTomorrowTimeline() {
                       </div>
                     </div>
 
-                    <!-- Smart Warning Widget -->
-                    <div v-if="hasSoftWarning" class="bg-amber-50/90 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-800/60 rounded-2xl p-3.5 shadow-xs space-y-1.5">
+                    <!-- Smart Warning Widget (v2.5.0 placement) -->
+                    <div v-if="!ui.isV3 && hasSoftWarning" class="bg-amber-50/90 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-800/60 rounded-2xl p-3.5 shadow-xs space-y-1.5">
                       <div class="flex items-center gap-2 text-amber-800 dark:text-amber-200 font-bold uppercase text-xs">
                         <i class="fa-solid fa-triangle-exclamation text-amber-500 text-xs"></i>
                         Cảnh báo phân tích AI
@@ -646,23 +797,28 @@ function goToTomorrowTimeline() {
                           <div class="w-6 h-6 rounded-lg bg-cyan-500/15 border border-cyan-500/30 text-cyan-600 dark:text-cyan-400 flex items-center justify-center text-xs shrink-0">
                             <i class="fa-solid fa-receipt"></i>
                           </div>
-                          <span class="font-bold text-xs text-text-primary tracking-tight truncate">Live Bill Studio</span>
-                          <span
-                            class="px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider border shrink-0"
-                            :class="formStore.deposit.isPaid ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/30' : 'bg-amber-500/15 text-amber-600 dark:text-amber-400 border-amber-500/30'"
-                          >
-                            {{ formStore.deposit.isPaid ? 'ĐÃ CỌC' : 'CHỜ CỌC' }}
+                          <span class="font-bold text-xs text-text-primary tracking-tight truncate">
+                            {{ ui.isV3 ? 'Xem Nhanh Phiếu Đặt' : 'Live Bill Studio' }}
                           </span>
+                          <button
+                            type="button"
+                            @click="toggleDepositPaid"
+                            class="px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider border shrink-0 transition-all active:scale-95 cursor-pointer"
+                            :class="formStore.deposit.isPaid ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/25' : 'bg-amber-500/15 text-amber-600 dark:text-amber-400 border-amber-500/30 hover:bg-amber-500/25'"
+                            title="Bấm để đổi nhanh trạng thái Chờ cọc / Đã cọc"
+                          >
+                            {{ formStore.deposit.isPaid ? '✓ ĐÃ CỌC' : '⏳ CHỜ CỌC' }}
+                          </button>
                         </div>
                         <div class="flex items-center gap-1 shrink-0">
                           <button
                             type="button"
                             @click="ui.tab = 'preview'"
-                            class="px-2 py-1 rounded-lg bg-surface-2 hover:bg-surface-hover text-text-secondary hover:text-apex-primary border border-border-subtle text-[10px] font-bold flex items-center gap-1 transition-all cursor-pointer"
-                            title="Mở chế độ Xem Phiếu toàn màn hình (F2)"
+                            class="px-2.5 py-1 rounded-lg bg-blue-600/10 hover:bg-blue-600/20 text-blue-700 dark:text-blue-300 border border-blue-500/30 text-[10px] font-black flex items-center gap-1 transition-all cursor-pointer"
+                            title="Mở chế độ Xem & Xuất Phiếu khổ in chuẩn 800px"
                           >
                             <i class="fa-solid fa-expand text-[9px]"></i>
-                            <span>Phóng to</span>
+                            <span>{{ ui.isV3 ? 'Khổ in' : 'Phóng to' }}</span>
                           </button>
                           <button
                             type="button"
@@ -671,6 +827,26 @@ function goToTomorrowTimeline() {
                             :title="ui.showLiveBillDock ? 'Thu gọn bản xem trước trực tiếp' : 'Mở rộng bản xem trước trực tiếp'"
                           >
                             <i class="fa-solid text-[10px]" :class="ui.showLiveBillDock ? 'fa-chevron-up' : 'fa-chevron-down'"></i>
+                          </button>
+                        </div>
+                      </div>
+
+                      <!-- Quick Template Switcher in v3.0 -->
+                      <div
+                        v-if="ui.isV3 && ui.showLiveBillDock"
+                        class="px-3 py-1.5 bg-surface-1/80 dark:bg-surface-3/40 border-b border-border-subtle flex items-center justify-between gap-1.5"
+                      >
+                        <span class="text-[9.5px] font-black uppercase tracking-wider text-text-tertiary shrink-0">Mẫu xuất:</span>
+                        <div class="flex items-center gap-1 overflow-x-auto no-scrollbar">
+                          <button
+                            v-for="tpl in receiptTemplateOptions"
+                            :key="tpl.id"
+                            type="button"
+                            @click="configStore.billPreferences.template = tpl.id"
+                            class="px-2 py-0.5 rounded-md text-[10px] font-bold transition-all cursor-pointer whitespace-nowrap border"
+                            :class="configStore.billPreferences.template === tpl.id ? 'bg-blue-600 text-white border-blue-600 shadow-2xs' : 'bg-surface-2 text-text-secondary border-border-subtle hover:text-text-primary'"
+                          >
+                            {{ tpl.label }}
                           </button>
                         </div>
                       </div>
@@ -685,7 +861,7 @@ function goToTomorrowTimeline() {
                               <div class="text-sm font-black text-slate-900 truncate mt-0.5">
                                 {{ formStore.customer.name || 'Chưa nhập tên khách' }}
                               </div>
-                              <div class="text-[11px] font-mono font-bold text-slate-600 flex items-center gap-2 mt-0.5">
+                              <div class="text-[11px] font-mono font-bold text-slate-600 flex items-center gap-2 mt-0.5 flex-wrap">
                                 <span><i class="fa-solid fa-phone text-[9px] text-slate-400 mr-1"></i>{{ formStore.customer.phone || '---' }}</span>
                                 <span v-if="formStore.customer.type" class="px-1.5 py-0.5 rounded bg-slate-100 text-slate-700 font-sans text-[10px] font-bold">{{ formStore.customer.type }}</span>
                               </div>
@@ -697,7 +873,7 @@ function goToTomorrowTimeline() {
                               >
                                 {{ formStore.customer.tables ? `Bàn ${formStore.customer.tables}` : 'Chưa xếp bàn' }}
                               </span>
-                              <div class="text-[11px] font-mono font-bold text-slate-600 mt-1">
+                              <div class="text-[11px] font-mono font-bold text-slate-600 mt-1 whitespace-nowrap">
                                 {{ formStore.customer.time || '--:--' }} • {{ formStore.customer.date || '--/--/----' }}
                               </div>
                               <div class="text-[10px] font-bold text-slate-500">
@@ -706,8 +882,13 @@ function goToTomorrowTimeline() {
                             </div>
                           </div>
 
-                          <!-- Live Dishes List -->
-                          <div v-if="activeReceiptItems.length > 0" class="space-y-1 max-h-[168px] overflow-y-auto custom-scrollbar pr-1 border-b border-dashed border-slate-200 pb-2">
+                          <!-- Customer Note Preview -->
+                          <div v-if="formStore.customer.note" class="px-2.5 py-1.5 rounded-lg bg-amber-50 border border-amber-200/70 text-[11px] text-amber-900 leading-snug whitespace-pre-line">
+                            <span class="font-bold">Ghi chú tiệc:</span> {{ formStore.customer.note }}
+                          </div>
+
+                          <!-- Live Dishes List (Set/Combo renders 1 dish per line prominently!) -->
+                          <div v-if="activeReceiptItems.length > 0" class="space-y-1.5 max-h-[260px] overflow-y-auto custom-scrollbar pr-1 border-b border-dashed border-slate-200 pb-2.5">
                             <div class="flex items-center justify-between text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">
                               <span>Thực đơn ({{ activeReceiptItems.length }} món)</span>
                               <span>Thành tiền</span>
@@ -715,48 +896,85 @@ function goToTomorrowTimeline() {
                             <div
                               v-for="(item, rIdx) in activeReceiptItems"
                               :key="rIdx"
-                              class="flex items-start justify-between gap-2 text-[11.5px] py-0.5"
+                              class="py-1 border-b border-slate-100 last:border-b-0"
                             >
-                              <div class="min-w-0 flex-1">
-                                <span class="font-mono font-black text-blue-700 mr-1">{{ item.qty }}x</span>
-                                <span class="font-semibold text-slate-800">{{ item.name }}</span>
-                                <span v-if="item.note" class="block text-[10px] text-slate-500 italic truncate pl-4">↳ {{ item.note }}</span>
+                              <div class="flex items-start justify-between gap-2 text-[11.5px]">
+                                <div class="min-w-0 flex-1">
+                                  <span class="font-mono font-black text-blue-700 mr-1">{{ item.qty }}x</span>
+                                  <span class="font-extrabold text-slate-900 uppercase">{{ item.name }}</span>
+                                </div>
+                                <span class="font-mono font-black text-slate-900 shrink-0 tabular-nums whitespace-nowrap">
+                                  {{ formatVND(Number(item.price || 0) * Number(item.qty || 1)) }}
+                                </span>
                               </div>
-                              <span class="font-mono font-bold text-slate-800 shrink-0 tabular-nums">
-                                {{ formatVND(Number(item.price || 0) * Number(item.qty || 1)) }}
-                              </span>
+
+                              <!-- Prominent 1-Dish-Per-Line Set/Combo Breakdown -->
+                              <div
+                                v-if="item.note && parseBillItemNote(item.note).parsedComponents.length"
+                                class="mt-1.5 ml-2 rounded-lg bg-blue-50/80 border border-blue-200/80 border-l-[3px] border-l-blue-900 p-2 space-y-1"
+                              >
+                                <div class="text-[9px] font-black uppercase tracking-wider text-blue-900 flex items-center gap-1 pb-0.5 border-b border-blue-200/60">
+                                  <i class="fa-solid fa-utensils text-[8.5px] text-amber-600"></i>
+                                  <span>Chi tiết gói ({{ parseBillItemNote(item.note).parsedComponents.length }} món)</span>
+                                </div>
+                                <div class="flex flex-col divide-y divide-blue-100/80">
+                                  <div
+                                    v-for="(comp, cIdx) in parseBillItemNote(item.note).parsedComponents"
+                                    :key="cIdx"
+                                    class="py-0.5 flex items-center justify-between gap-2 text-[11px] leading-snug"
+                                  >
+                                    <span class="font-bold text-slate-800 min-w-0 break-words">
+                                      <span class="inline-block min-w-[14px] font-black text-blue-900 tabular-nums">{{ comp.index || (cIdx + 1) }}.</span>
+                                      {{ comp.name }}
+                                    </span>
+                                    <span v-if="comp.qty" class="px-1.5 py-0.2 rounded bg-white border border-blue-200 text-blue-900 text-[9.5px] font-black shrink-0 tabular-nums whitespace-nowrap">
+                                      SL: {{ comp.qty }}
+                                    </span>
+                                  </div>
+                                </div>
+                              </div>
+
+                              <!-- Custom Kitchen Notes -->
+                              <div
+                                v-if="item.note && parseBillItemNote(item.note).customNotes.length"
+                                class="mt-1 ml-2 px-2 py-0.5 rounded bg-rose-50 border border-rose-200/70 text-[10px] font-bold text-rose-700 whitespace-pre-line leading-snug"
+                              >
+                                {{ parseBillItemNote(item.note).customNotes.join('\n') }}
+                              </div>
                             </div>
                           </div>
                           <div v-else class="py-2.5 text-center text-[11px] text-slate-400 border-b border-dashed border-slate-200 italic">
                             Chưa chọn món trước (Gọi món tại nhà hàng)
                           </div>
 
-                          <!-- Customer Note Preview -->
-                          <div v-if="formStore.customer.note" class="px-2.5 py-1.5 rounded-lg bg-amber-50 border border-amber-200/70 text-[11px] text-amber-900 leading-snug">
-                            <span class="font-bold">Ghi chú:</span> {{ formStore.customer.note }}
-                          </div>
-
-                          <!-- Financial Totals Breakdown -->
-                          <div class="space-y-1 text-[11.5px] pt-0.5">
-                            <div class="flex justify-between text-slate-600">
-                              <span>Tạm tính thực đơn:</span>
-                              <span class="font-mono font-bold tabular-nums">{{ formatVND(formStore.calculatedTotals.sub) }}</span>
+                          <!-- Redesigned Non-Colliding Financial Totals Card -->
+                          <div class="rounded-xl bg-slate-50 border border-slate-200/90 p-2.5 space-y-1.5 text-[11.5px]">
+                            <div class="grid grid-cols-[1fr_auto] items-center gap-3 text-slate-600">
+                              <span class="font-semibold whitespace-nowrap leading-normal">Tạm tính:</span>
+                              <span class="font-mono font-bold tabular-nums whitespace-nowrap text-right leading-normal">{{ formatVND(formStore.calculatedTotals.sub) }}</span>
                             </div>
-                            <div v-if="formStore.taxEnabled && formStore.calculatedTotals.tax > 0" class="flex justify-between text-slate-500 text-[11px]">
-                              <span>Thuế VAT (8% - 10%):</span>
-                              <span class="font-mono font-semibold tabular-nums">+{{ formatVND(formStore.calculatedTotals.tax) }}</span>
+                            <div v-if="formStore.taxEnabled && formStore.calculatedTotals.tax > 0" class="grid grid-cols-[1fr_auto] items-center gap-3 text-slate-500 text-[11px]">
+                              <span class="whitespace-nowrap leading-normal">Thuế VAT (8% - 10%):</span>
+                              <span class="font-mono font-semibold tabular-nums whitespace-nowrap text-right leading-normal">+{{ formatVND(formStore.calculatedTotals.tax) }}</span>
                             </div>
-                            <div class="flex justify-between text-slate-900 font-black text-xs pt-0.5 border-t border-slate-100">
-                              <span>Tổng cộng:</span>
-                              <span class="font-mono tabular-nums text-blue-700">{{ formatVND(formStore.calculatedTotals.final) }}</span>
+                            <div class="grid grid-cols-[1fr_auto] items-baseline gap-3 text-slate-900 font-black text-xs pt-1.5 border-t border-slate-200">
+                              <span class="uppercase whitespace-nowrap leading-normal">Tổng cộng:</span>
+                              <span class="font-mono text-[13.5px] tabular-nums text-blue-900 whitespace-nowrap text-right leading-normal">{{ formatVND(formStore.calculatedTotals.final) }}</span>
                             </div>
-                            <div v-if="formStore.deposit.amount > 0" class="flex justify-between text-[11px]" :class="formStore.deposit.isPaid ? 'text-emerald-700 font-bold' : 'text-amber-700 font-semibold'">
-                              <span>{{ formStore.deposit.isPaid ? 'Đã nhận cọc:' : 'Yêu cầu đặt cọc:' }}</span>
-                              <span class="font-mono tabular-nums">{{ formatVND(formStore.deposit.amount) }}</span>
+                            <div
+                              v-if="formStore.deposit.amount > 0"
+                              class="grid grid-cols-[1fr_auto] items-center gap-2 px-2 py-1.5 rounded-lg border text-[11px]"
+                              :class="formStore.deposit.isPaid ? 'bg-emerald-50 border-emerald-200 text-emerald-800 font-black' : 'bg-rose-50 border-rose-200 text-rose-700 font-bold'"
+                            >
+                              <span class="whitespace-nowrap leading-normal flex items-center gap-1">
+                                <i class="fa-solid text-[10px]" :class="formStore.deposit.isPaid ? 'fa-circle-check text-emerald-600' : 'fa-hourglass-half text-rose-500'"></i>
+                                <span>{{ formStore.deposit.isPaid ? 'Đã đặt cọc:' : 'Yêu cầu cọc:' }}</span>
+                              </span>
+                              <span class="font-mono tabular-nums whitespace-nowrap text-right leading-normal">{{ formatVND(formStore.deposit.amount) }}</span>
                             </div>
-                            <div v-if="formStore.deposit.amount > 0 && formStore.calculatedTotals.final > 0" class="flex justify-between text-slate-700 font-bold text-[11px]">
-                              <span>Còn lại thanh toán:</span>
-                              <span class="font-mono tabular-nums">{{ formatVND(Math.max(0, formStore.calculatedTotals.final - (formStore.deposit.amount || 0))) }}</span>
+                            <div v-if="formStore.deposit.amount > 0 && formStore.calculatedTotals.final > 0" class="grid grid-cols-[1fr_auto] items-baseline gap-3 pt-1 border-t border-slate-200 text-slate-900 font-black text-xs">
+                              <span class="uppercase whitespace-nowrap leading-normal">Còn lại:</span>
+                              <span class="font-mono text-[13px] text-rose-600 tabular-nums whitespace-nowrap text-right leading-normal">{{ formatVND(Math.max(0, formStore.calculatedTotals.final - (formStore.deposit.amount || 0))) }}</span>
                             </div>
                           </div>
 
@@ -818,11 +1036,38 @@ function goToTomorrowTimeline() {
                     </div>
                   </div>
 
-                  <!-- Right side: Manual input forms -->
-                  <div class="lg:col-span-7 space-y-4">
-                    <CustomerForm />
-                    <DepositManager />
-                    <MenuItemsEditor />
+                  <!-- COLUMN B: Booking Intake & Forms (Left Primary Desk in v3.0: AI -> Khách -> Thực đơn -> Tiền cọc; Right in v2.5.0) -->
+                  <div
+                    class="lg:col-span-7 flex flex-col gap-4"
+                    :class="ui.isV3 ? 'order-1 lg:order-1' : 'order-2 lg:order-2'"
+                  >
+                    <div v-if="ui.isV3" class="order-0 space-y-3">
+                      <AIInputPanel />
+                      <div v-if="hasSoftWarning" class="bg-amber-50/90 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-800/60 rounded-2xl p-3.5 shadow-xs space-y-1.5">
+                        <div class="flex items-center gap-2 text-amber-800 dark:text-amber-200 font-bold uppercase text-xs">
+                          <i class="fa-solid fa-triangle-exclamation text-amber-500 text-xs"></i>
+                          Cảnh báo phân tích AI
+                        </div>
+                        <ul class="list-disc pl-4 text-xs text-amber-700 dark:text-amber-300 space-y-1 font-medium">
+                          <li v-if="formStore.aiMetadata && typeof formStore.aiMetadata.confidence_score === 'number' && formStore.aiMetadata.confidence_score < 0.8">
+                            Độ tin cậy AI thấp ({{ Math.round(formStore.aiMetadata.confidence_score * 100) }}%). Vui lòng kiểm tra lại.
+                          </li>
+                          <li v-for="(warn, idx) in formStore.warnings" :key="idx">
+                            {{ warn }}
+                          </li>
+                        </ul>
+                      </div>
+                    </div>
+
+                    <div class="order-1">
+                      <CustomerForm />
+                    </div>
+                    <div :class="ui.isV3 ? 'order-2' : 'order-3'">
+                      <MenuItemsEditor />
+                    </div>
+                    <div :class="ui.isV3 ? 'order-3' : 'order-2'">
+                      <DepositManager />
+                    </div>
                   </div>
                 </div>
               </div>
@@ -999,21 +1244,33 @@ function goToTomorrowTimeline() {
                 </div>
               </div>
 
-              <!-- Nhóm 3: Lịch đặt bàn & Điều hướng -->
+              <!-- Nhóm 3: Điều hướng nhanh -->
               <div class="space-y-2">
                 <div class="text-[10px] font-black uppercase text-slate-400 dark:text-slate-400 tracking-wider flex items-center gap-1.5">
-                  <i class="fa-solid fa-calendar-days text-[9px] text-blue-500"></i>
-                  <span>Lịch đặt bàn & Điều hướng</span>
+                  <i class="fa-solid fa-compass text-[9px] text-blue-500"></i>
+                  <span>{{ ui.isV3 ? 'Điều hướng & Chia sẻ' : 'Lịch đặt bàn & Điều hướng' }}</span>
                 </div>
                 <div class="grid grid-cols-3 gap-2">
-                  <button @click="goToTodayTimeline(); showActionSheet = false" class="bg-blue-50/70 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 p-3 rounded-xl font-bold text-xs hover:bg-blue-100 dark:hover:bg-blue-900/50 transition-all active:scale-95 flex flex-col items-center justify-center gap-1.5 border border-blue-200/70 dark:border-blue-800/50 shadow-sm min-h-[58px]">
-                    <i class="fa-solid fa-calendar-day text-lg text-blue-600 dark:text-blue-400"></i>
-                    <span>Lịch hôm nay</span>
-                  </button>
-                  <button @click="goToTomorrowTimeline(); showActionSheet = false" class="bg-blue-50/70 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 p-3 rounded-xl font-bold text-xs hover:bg-blue-100 dark:hover:bg-blue-900/50 transition-all active:scale-95 flex flex-col items-center justify-center gap-1.5 border border-blue-200/70 dark:border-blue-800/50 shadow-sm min-h-[58px]">
-                    <i class="fa-solid fa-calendar-plus text-lg text-blue-600 dark:text-blue-400"></i>
-                    <span>Lịch ngày mai</span>
-                  </button>
+                  <template v-if="!ui.isV3">
+                    <button @click="goToTodayTimeline(); showActionSheet = false" class="bg-blue-50/70 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 p-3 rounded-xl font-bold text-xs hover:bg-blue-100 dark:hover:bg-blue-900/50 transition-all active:scale-95 flex flex-col items-center justify-center gap-1.5 border border-blue-200/70 dark:border-blue-800/50 shadow-sm min-h-[58px]">
+                      <i class="fa-solid fa-calendar-day text-lg text-blue-600 dark:text-blue-400"></i>
+                      <span>Lịch hôm nay</span>
+                    </button>
+                    <button @click="goToTomorrowTimeline(); showActionSheet = false" class="bg-blue-50/70 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 p-3 rounded-xl font-bold text-xs hover:bg-blue-100 dark:hover:bg-blue-900/50 transition-all active:scale-95 flex flex-col items-center justify-center gap-1.5 border border-blue-200/70 dark:border-blue-800/50 shadow-sm min-h-[58px]">
+                      <i class="fa-solid fa-calendar-plus text-lg text-blue-600 dark:text-blue-400"></i>
+                      <span>Lịch ngày mai</span>
+                    </button>
+                  </template>
+                  <template v-else>
+                    <button @click="ui.tab = 'preview'; showActionSheet = false" class="bg-blue-50/70 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 p-3 rounded-xl font-bold text-xs hover:bg-blue-100 dark:hover:bg-blue-900/50 transition-all active:scale-95 flex flex-col items-center justify-center gap-1.5 border border-blue-200/70 dark:border-blue-800/50 shadow-sm min-h-[58px]">
+                      <i class="fa-solid fa-receipt text-lg text-blue-600 dark:text-blue-400"></i>
+                      <span>Xem khổ in</span>
+                    </button>
+                    <button @click="ui.tab = 'history'; appStore.loadHistory(false); showActionSheet = false" class="bg-emerald-50/70 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 p-3 rounded-xl font-bold text-xs hover:bg-emerald-100 dark:hover:bg-emerald-900/50 transition-all active:scale-95 flex flex-col items-center justify-center gap-1.5 border border-emerald-200/70 dark:border-emerald-800/50 shadow-sm min-h-[58px]">
+                      <i class="fa-solid fa-table-list text-lg text-emerald-600 dark:text-emerald-400"></i>
+                      <span>Đơn đặt bàn</span>
+                    </button>
+                  </template>
                   <button @click="shareCurrentBill(); showActionSheet = false" class="bg-cyan-50/70 dark:bg-cyan-950/40 text-cyan-700 dark:text-cyan-300 p-3 rounded-xl font-bold text-xs hover:bg-cyan-100 dark:hover:bg-cyan-900/50 transition-all active:scale-95 flex flex-col items-center justify-center gap-1.5 border border-cyan-200/70 dark:border-cyan-800/50 shadow-sm min-h-[58px]">
                     <i class="fa-solid fa-share-nodes text-lg text-cyan-600 dark:text-cyan-400"></i>
                     <span>Chia sẻ link</span>
@@ -1039,6 +1296,32 @@ function goToTomorrowTimeline() {
             <h3 class="text-center font-black text-slate-800 dark:text-slate-100 text-base mb-4 uppercase tracking-widest">Danh Mục & Tiện Ích</h3>
             
             <div class="space-y-4">
+              <!-- Parallel Version Switcher Card -->
+              <div class="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 flex items-center justify-between gap-3">
+                <div class="min-w-0">
+                  <div class="font-black text-slate-900 dark:text-slate-100 text-xs uppercase tracking-wider">Phiên bản giao diện</div>
+                  <div class="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">Chạy song song v3.0 & v2.5.0</div>
+                </div>
+                <div class="inline-flex p-1 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 shrink-0">
+                  <button
+                    type="button"
+                    @click="ui.setAppVersion('2.5.0'); showMoreSheet = false"
+                    class="px-2.5 py-1 rounded-lg text-[10.5px] font-black transition-all cursor-pointer"
+                    :class="!ui.isV3 ? 'bg-slate-900 dark:bg-amber-400 text-white dark:text-slate-950 shadow-2xs' : 'text-slate-500'"
+                  >
+                    v2.5.0
+                  </button>
+                  <button
+                    type="button"
+                    @click="ui.setAppVersion('3.0'); showMoreSheet = false"
+                    class="px-2.5 py-1 rounded-lg text-[10.5px] font-black transition-all cursor-pointer"
+                    :class="ui.isV3 ? 'bg-blue-600 text-white shadow-2xs' : 'text-slate-500'"
+                  >
+                    ⚡ v3.0
+                  </button>
+                </div>
+              </div>
+
               <!-- Pending Outbox Sync (When offline items exist) -->
               <button 
                 v-if="appStore.offlineQueueCount > 0"
@@ -1057,8 +1340,9 @@ function goToTomorrowTimeline() {
                 <i class="fa-solid fa-chevron-right text-amber-400 text-xs"></i>
               </button>
 
-              <!-- Featured: Social Bot Messenger -->
+              <!-- Featured: Social Bot Messenger (v2.5.0 only) -->
               <button 
+                v-if="!ui.isV3"
                 @click="ui.showSocialBotModal = true; showMoreSheet = false" 
                 class="bg-slate-900 dark:bg-slate-800 text-white p-3.5 rounded-2xl font-bold text-xs hover:opacity-95 transition-all active:scale-95 flex items-center justify-between w-full border border-amber-500/40 shadow-md"
               >
@@ -1076,9 +1360,9 @@ function goToTomorrowTimeline() {
 
               <!-- Group 1: Quản lý & Vận hành -->
               <div>
-                <div class="text-[10px] font-black text-slate-400 dark:text-slate-400 uppercase tracking-wider mb-2 pl-1">Vận hành & Lịch sử</div>
-                <div class="grid grid-cols-4 gap-2">
-                  <button @click="ui.showFloorPlan = true; showMoreSheet = false" class="bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-200 p-2 rounded-2xl font-bold text-[10px] hover:bg-slate-100 dark:hover:bg-slate-700 transition-all active:scale-95 flex flex-col items-center justify-center gap-1.5 border border-slate-200/60 dark:border-slate-700">
+                <div class="text-[10px] font-black text-slate-400 dark:text-slate-400 uppercase tracking-wider mb-2 pl-1">Vận hành & Hệ thống</div>
+                <div class="grid gap-2" :class="ui.isV3 ? 'grid-cols-3' : 'grid-cols-4'">
+                  <button v-if="!ui.isV3" @click="ui.showFloorPlan = true; showMoreSheet = false" class="bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-200 p-2 rounded-2xl font-bold text-[10px] hover:bg-slate-100 dark:hover:bg-slate-700 transition-all active:scale-95 flex flex-col items-center justify-center gap-1.5 border border-slate-200/60 dark:border-slate-700">
                     <div class="w-8 h-8 rounded-xl bg-amber-50 dark:bg-amber-950/50 text-amber-600 dark:text-amber-400 flex items-center justify-center text-sm">
                       <i class="fa-solid fa-map"></i>
                     </div>
@@ -1088,7 +1372,7 @@ function goToTomorrowTimeline() {
                     <div class="w-8 h-8 rounded-xl bg-blue-50 dark:bg-blue-950/50 text-blue-600 dark:text-blue-400 flex items-center justify-center text-sm">
                       <i class="fa-solid fa-list-ul"></i>
                     </div>
-                    <span>Lịch sử</span>
+                    <span>{{ ui.isV3 ? 'Đơn đặt' : 'Lịch sử' }}</span>
                   </button>
                   <button @click="ui.tab = 'analytics'; appStore.loadHistory(false); showMoreSheet = false" class="bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-200 p-2 rounded-2xl font-bold text-[10px] hover:bg-slate-100 dark:hover:bg-slate-700 transition-all active:scale-95 flex flex-col items-center justify-center gap-1.5 border border-slate-200/60 dark:border-slate-700">
                     <div class="w-8 h-8 rounded-xl bg-purple-50 dark:bg-purple-950/50 text-purple-600 dark:text-purple-400 flex items-center justify-center text-sm">
@@ -1151,7 +1435,7 @@ function goToTomorrowTimeline() {
       </div>
     </transition>
 
-    <!-- QUICK MODULE SWITCHER MODAL / SHEET (MOBILE ONLY - Lối tắt chuyển phân hệ tức thì) -->
+    <!-- QUICK MODULE SWITCHER MODAL / SHEET (MOBILE ONLY) -->
     <transition name="fade">
       <div v-if="showMobileNavModal" class="fixed inset-0 z-[115] flex flex-col justify-end md:justify-center md:items-center p-0 md:p-4">
         <div class="fixed inset-0 bg-slate-950/65 backdrop-blur-sm" @click="showMobileNavModal = false"></div>
@@ -1167,7 +1451,9 @@ function goToTomorrowTimeline() {
                 </div>
                 <div>
                   <h3 class="font-black text-slate-900 dark:text-slate-100 text-sm uppercase tracking-wider">Chuyển Phân Hệ</h3>
-                  <p class="text-[10px] text-slate-500 dark:text-slate-400 font-medium">Chọn nhanh module làm việc tức thì</p>
+                  <p class="text-[10px] text-slate-500 dark:text-slate-400 font-medium">
+                    {{ ui.isV3 ? 'Bản 3.0 Tinh Gọn — 4 phân hệ cốt lõi' : 'Bản 2.5.0 Đầy Đủ — 6 phân hệ' }}
+                  </p>
                 </div>
               </div>
               <button @click="showMobileNavModal = false" aria-label="Đóng" class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
@@ -1175,7 +1461,6 @@ function goToTomorrowTimeline() {
               </button>
             </div>
 
-            <!-- Grid 6 Main Modules (Thứ tự chuẩn hóa: Tạo - Phiếu - Tổng quan - Lịch - Lịch sử - Sơ đồ) -->
             <div class="grid grid-cols-2 gap-2.5">
               <button 
                 @click="ui.tab = 'create'; showMobileNavModal = false" 
@@ -1200,6 +1485,7 @@ function goToTomorrowTimeline() {
               </button>
 
               <button 
+                v-if="!ui.isV3"
                 @click="ui.tab = 'dashboard'; showMobileNavModal = false" 
                 class="p-3.5 rounded-2xl flex flex-col items-center justify-center gap-2 border transition-all active:scale-95 text-center cursor-pointer min-h-[84px]"
                 :class="ui.tab === 'dashboard' ? 'bg-teal-500/15 border-teal-500/50 text-teal-600 dark:text-teal-400 font-black shadow-sm' : 'bg-slate-50 dark:bg-slate-800/60 border-slate-200/80 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700'"
@@ -1211,6 +1497,7 @@ function goToTomorrowTimeline() {
               </button>
 
               <button 
+                v-if="!ui.isV3"
                 @click="ui.tab = 'timeline'; appStore.loadHistory(false); showMobileNavModal = false" 
                 class="p-3.5 rounded-2xl flex flex-col items-center justify-center gap-2 border transition-all active:scale-95 text-center cursor-pointer min-h-[84px]"
                 :class="ui.tab === 'timeline' ? 'bg-emerald-500/15 border-emerald-500/50 text-emerald-600 dark:text-emerald-400 font-black shadow-sm' : 'bg-slate-50 dark:bg-slate-800/60 border-slate-200/80 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700'"
@@ -1229,10 +1516,23 @@ function goToTomorrowTimeline() {
                 <div class="w-10 h-10 rounded-xl bg-purple-500/20 text-purple-600 dark:text-purple-400 flex items-center justify-center text-lg">
                   <i class="fa-solid fa-list-ul"></i>
                 </div>
-                <span class="text-xs font-black uppercase tracking-tight">Lịch Sử</span>
+                <span class="text-xs font-black uppercase tracking-tight">{{ ui.isV3 ? 'Đơn Đặt Bàn' : 'Lịch Sử' }}</span>
               </button>
 
               <button 
+                v-if="ui.isV3"
+                @click="ui.tab = 'analytics'; appStore.loadHistory(false); showMobileNavModal = false" 
+                class="p-3.5 rounded-2xl flex flex-col items-center justify-center gap-2 border transition-all active:scale-95 text-center cursor-pointer min-h-[84px]"
+                :class="ui.tab === 'analytics' ? 'bg-indigo-500/15 border-indigo-500/50 text-indigo-600 dark:text-indigo-400 font-black shadow-sm' : 'bg-slate-50 dark:bg-slate-800/60 border-slate-200/80 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700'"
+              >
+                <div class="w-10 h-10 rounded-xl bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 flex items-center justify-center text-lg">
+                  <i class="fa-solid fa-chart-pie"></i>
+                </div>
+                <span class="text-xs font-black uppercase tracking-tight">Báo Cáo</span>
+              </button>
+
+              <button 
+                v-if="!ui.isV3"
                 @click="ui.showFloorPlan = true; showMobileNavModal = false" 
                 class="p-3.5 rounded-2xl flex flex-col items-center justify-center gap-2 border border-slate-200/80 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/60 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 transition-all active:scale-95 text-center cursor-pointer min-h-[84px]"
               >
@@ -1247,7 +1547,7 @@ function goToTomorrowTimeline() {
       </div>
     </transition>
 
-    <!-- MOBILE & TABLET BOTTOM NAV (Thứ tự: Tạo - Phiếu - Tổng quan - Lịch - Thêm) -->
+    <!-- MOBILE & TABLET BOTTOM NAV (v3.0: Tạo - Phiếu - Đơn đặt - Báo cáo - Tiện ích | v2.5.0: Tạo - Phiếu - Tổng quan - Lịch - Thêm) -->
     <nav class="flex lg:hidden w-full bg-white/95 dark:bg-[#0D1422]/95 backdrop-blur-xl border-t border-slate-200/80 dark:border-slate-800/80 text-[10px] font-bold uppercase tracking-wider sticky bottom-0 z-40 items-stretch shrink-0 pb-safe-bottom shadow-[0_-8px_30px_rgba(0,0,0,0.06)] dark:shadow-[0_-8px_30px_rgba(0,0,0,0.4)] select-none" aria-label="Điều hướng chính">
       <!-- 1. Tạo -->
       <button 
@@ -1273,40 +1573,69 @@ function goToTomorrowTimeline() {
         <span class="text-[10px] font-extrabold tracking-tight">Phiếu</span>
       </button>
 
-      <!-- 3. Tổng quan -->
-      <button 
-        @click="ui.tab = 'dashboard'" 
-        :class="['flex-grow flex-1 py-1.5 flex flex-col justify-center items-center gap-0.5 transition-all duration-200 select-none min-h-[52px] touch-target-48 active:scale-95', ui.tab === 'dashboard' ? 'text-blue-600 dark:text-[#62A5FF] font-black' : 'text-slate-500 dark:text-[#64748B] hover:text-slate-700 dark:hover:text-[#94A3B8]']"
-        aria-label="Tổng quan"
-      >
-        <div class="relative flex items-center justify-center w-8 h-8 rounded-full transition-all" :class="ui.tab === 'dashboard' ? 'bg-blue-500/15 dark:bg-[#2F67E8]/20 text-blue-600 dark:text-[#62A5FF] scale-105 shadow-xs' : ''">
-          <i class="fa-solid fa-gauge-high text-base"></i>
-        </div>
-        <span class="text-[10px] font-extrabold tracking-tight">Tổng quan</span>
-      </button>
+      <!-- 3 & 4 in v3.0: Đơn đặt + Báo cáo -->
+      <template v-if="ui.isV3">
+        <button 
+          @click="ui.tab = 'history'; appStore.loadHistory(false)" 
+          :class="['flex-grow flex-1 py-1.5 flex flex-col justify-center items-center gap-0.5 transition-all duration-200 select-none min-h-[52px] touch-target-48 active:scale-95', ui.tab === 'history' ? 'text-blue-600 dark:text-[#62A5FF] font-black' : 'text-slate-500 dark:text-[#64748B] hover:text-slate-700 dark:hover:text-[#94A3B8]']"
+          aria-label="Đơn đặt bàn"
+        >
+          <div class="relative flex items-center justify-center w-8 h-8 rounded-full transition-all" :class="ui.tab === 'history' ? 'bg-blue-500/15 dark:bg-[#2F67E8]/20 text-blue-600 dark:text-[#62A5FF] scale-105 shadow-xs' : ''">
+            <i class="fa-solid fa-table-list text-base"></i>
+            <span v-if="unpaidOrdersCount > 0" class="absolute -top-0.5 -right-1 min-w-[15px] h-[15px] px-1 rounded-full bg-amber-500 text-slate-950 text-[8.5px] font-black flex items-center justify-center leading-none tabular-nums">
+              {{ unpaidOrdersCount }}
+            </span>
+          </div>
+          <span class="text-[10px] font-extrabold tracking-tight">Đơn đặt</span>
+        </button>
 
-      <!-- 4. Lịch -->
-      <button 
-        @click="ui.tab = 'timeline'; appStore.loadHistory(false)" 
-        :class="['flex-grow flex-1 py-1.5 flex flex-col justify-center items-center gap-0.5 transition-all duration-200 select-none min-h-[52px] touch-target-48 active:scale-95', ui.tab === 'timeline' ? 'text-blue-600 dark:text-[#62A5FF] font-black' : 'text-slate-500 dark:text-[#64748B] hover:text-slate-700 dark:hover:text-[#94A3B8]']"
-        aria-label="Lịch đặt bàn"
-      >
-        <div class="relative flex items-center justify-center w-8 h-8 rounded-full transition-all" :class="ui.tab === 'timeline' ? 'bg-blue-500/15 dark:bg-[#2F67E8]/20 text-blue-600 dark:text-[#62A5FF] scale-105 shadow-xs' : ''">
-          <i class="fa-solid fa-calendar-days text-base"></i>
-        </div>
-        <span class="text-[10px] font-extrabold tracking-tight">Lịch</span>
-      </button>
+        <button 
+          @click="ui.tab = 'analytics'; appStore.loadHistory(false)" 
+          :class="['flex-grow flex-1 py-1.5 flex flex-col justify-center items-center gap-0.5 transition-all duration-200 select-none min-h-[52px] touch-target-48 active:scale-95', ui.tab === 'analytics' ? 'text-blue-600 dark:text-[#62A5FF] font-black' : 'text-slate-500 dark:text-[#64748B] hover:text-slate-700 dark:hover:text-[#94A3B8]']"
+          aria-label="Báo cáo"
+        >
+          <div class="relative flex items-center justify-center w-8 h-8 rounded-full transition-all" :class="ui.tab === 'analytics' ? 'bg-blue-500/15 dark:bg-[#2F67E8]/20 text-blue-600 dark:text-[#62A5FF] scale-105 shadow-xs' : ''">
+            <i class="fa-solid fa-chart-simple text-base"></i>
+          </div>
+          <span class="text-[10px] font-extrabold tracking-tight">Báo cáo</span>
+        </button>
+      </template>
 
-      <!-- 5. Thêm -->
+      <!-- 3 & 4 in v2.5.0: Tổng quan + Lịch -->
+      <template v-else>
+        <button 
+          @click="ui.tab = 'dashboard'" 
+          :class="['flex-grow flex-1 py-1.5 flex flex-col justify-center items-center gap-0.5 transition-all duration-200 select-none min-h-[52px] touch-target-48 active:scale-95', ui.tab === 'dashboard' ? 'text-blue-600 dark:text-[#62A5FF] font-black' : 'text-slate-500 dark:text-[#64748B] hover:text-slate-700 dark:hover:text-[#94A3B8]']"
+          aria-label="Tổng quan"
+        >
+          <div class="relative flex items-center justify-center w-8 h-8 rounded-full transition-all" :class="ui.tab === 'dashboard' ? 'bg-blue-500/15 dark:bg-[#2F67E8]/20 text-blue-600 dark:text-[#62A5FF] scale-105 shadow-xs' : ''">
+            <i class="fa-solid fa-gauge-high text-base"></i>
+          </div>
+          <span class="text-[10px] font-extrabold tracking-tight">Tổng quan</span>
+        </button>
+
+        <button 
+          @click="ui.tab = 'timeline'; appStore.loadHistory(false)" 
+          :class="['flex-grow flex-1 py-1.5 flex flex-col justify-center items-center gap-0.5 transition-all duration-200 select-none min-h-[52px] touch-target-48 active:scale-95', ui.tab === 'timeline' ? 'text-blue-600 dark:text-[#62A5FF] font-black' : 'text-slate-500 dark:text-[#64748B] hover:text-slate-700 dark:hover:text-[#94A3B8]']"
+          aria-label="Lịch đặt bàn"
+        >
+          <div class="relative flex items-center justify-center w-8 h-8 rounded-full transition-all" :class="ui.tab === 'timeline' ? 'bg-blue-500/15 dark:bg-[#2F67E8]/20 text-blue-600 dark:text-[#62A5FF] scale-105 shadow-xs' : ''">
+            <i class="fa-solid fa-calendar-days text-base"></i>
+          </div>
+          <span class="text-[10px] font-extrabold tracking-tight">Lịch</span>
+        </button>
+      </template>
+
+      <!-- 5. Tiện ích / Thêm -->
       <button 
         @click="showMoreSheet = true" 
         :class="['flex-grow flex-1 py-1.5 flex flex-col justify-center items-center gap-0.5 transition-all duration-200 select-none min-h-[52px] touch-target-48 active:scale-95', showMoreSheet ? 'text-blue-600 dark:text-[#62A5FF] font-black' : 'text-slate-500 dark:text-[#64748B] hover:text-slate-700 dark:hover:text-[#94A3B8]']"
-        aria-label="Danh mục thêm"
+        aria-label="Danh mục tiện ích"
       >
         <div class="relative flex items-center justify-center w-8 h-8 rounded-full transition-all" :class="showMoreSheet ? 'bg-blue-500/15 dark:bg-[#2F67E8]/20 text-blue-600 dark:text-[#62A5FF] scale-105 shadow-xs' : ''">
           <i class="fa-solid fa-ellipsis text-base"></i>
         </div>
-        <span class="text-[10px] font-extrabold tracking-tight">Thêm</span>
+        <span class="text-[10px] font-extrabold tracking-tight">{{ ui.isV3 ? 'Tiện ích' : 'Thêm' }}</span>
       </button>
     </nav>
   </div>

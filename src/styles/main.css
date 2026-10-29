@@ -561,18 +561,18 @@ input, textarea, button, select, a, div[role="button"] {
     -moz-osx-font-smoothing: grayscale;
     text-rendering: optimizeLegibility;
 }
-#bill-render .text-7xl { font-size: 72px; }
-#bill-render .text-5xl { font-size: 48px; }
-#bill-render .text-4xl { font-size: 36px; }
-#bill-render .text-3xl { font-size: 30px; }
-#bill-render .text-2xl { font-size: 24px; }
-#bill-render .text-xl { font-size: 20px; }
-#bill-render .text-lg { font-size: 18px; }
-#bill-render .text-sm { font-size: 14px; }
-#bill-render .text-xs { font-size: 12px; }
-#bill-render .text-\[9px\] { font-size: 9px; }
-#bill-render .text-\[10px\] { font-size: 10px; }
-#bill-render .text-\[11px\] { font-size: 11px; }
+#bill-render .text-7xl { font-size: 72px; line-height: 1.1; }
+#bill-render .text-5xl { font-size: 48px; line-height: 1.15; }
+#bill-render .text-4xl { font-size: 36px; line-height: 1.2; }
+#bill-render .text-3xl { font-size: 30px; line-height: 1.25; }
+#bill-render .text-2xl { font-size: 24px; line-height: 1.3; }
+#bill-render .text-xl { font-size: 20px; line-height: 1.35; }
+#bill-render .text-lg { font-size: 18px; line-height: 1.4; }
+#bill-render .text-sm { font-size: 14px; line-height: 1.45; }
+#bill-render .text-xs { font-size: 12px; line-height: 1.45; }
+#bill-render .text-\[9px\] { font-size: 9px; line-height: 1.4; }
+#bill-render .text-\[10px\] { font-size: 10px; line-height: 1.4; }
+#bill-render .text-\[11px\] { font-size: 11px; line-height: 1.45; }
 
 .print-no-shadow {
     box-shadow: none !important;
@@ -982,11 +982,14 @@ input, textarea, button, select, a, div[role="button"] {
 
 /* --- MEDIA PRINT --- */
 @media print {
+    @page { size: A4 portrait; margin: 8mm; }
     body * { visibility: hidden; }
     #bill-render, #bill-render * { visibility: visible; }
     #bill-render { 
-        position: absolute; left: 0; top: 0; width: 100%; margin: 0; padding: 0; 
+        position: absolute; left: 0; top: 0; width: 800px !important; max-width: 100% !important; margin: 0 auto; padding: 0; 
         box-shadow: none; border: none; transform: none !important;
+        -webkit-print-color-adjust: exact !important;
+        print-color-adjust: exact !important;
     }
     .no-print { display: none !important; }
 }

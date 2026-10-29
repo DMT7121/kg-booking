@@ -518,7 +518,7 @@ function _createBillRender() {
     
     let s = 1
     if (zoomMode.value === 'fit-width') {
-      s = availableWidth / 800
+      s = Math.min(1.0, availableWidth / 800)
       zoomScale.value = Math.round(s * 100) / 100
     } else if (zoomMode.value === 'fit-screen') {
       const sw = availableWidth / 800

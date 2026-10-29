@@ -347,7 +347,7 @@ function handleRecentClick(order: any) {
     <!-- View Switcher & Executive Header Bar -->
     <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pb-1">
       <!-- Segmented View Mode Controls -->
-      <div class="inline-flex p-1 bg-slate-200/80 dark:bg-surface-canvas rounded-2xl border border-slate-300/60 dark:border-border-subtle shadow-inner">
+      <div v-if="!ui.isV3" class="inline-flex p-1 bg-slate-200/80 dark:bg-surface-canvas rounded-2xl border border-slate-300/60 dark:border-border-subtle shadow-inner">
         <button 
           @click="activeView = 'summary'"
           :class="[
@@ -391,7 +391,7 @@ function handleRecentClick(order: any) {
     </div>
 
     <!-- VIEW 1: REAL-TIME SHIFT COMMAND CENTER -->
-    <div v-if="activeView === 'operations'" class="space-y-4">
+    <div v-if="!ui.isV3 && activeView === 'operations'" class="space-y-4">
       <BookingCommandCenter 
         :all-bookings="domainBookings"
         @view-detail="handleCommandCenterDetail"

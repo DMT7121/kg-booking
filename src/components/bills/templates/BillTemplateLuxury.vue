@@ -155,40 +155,73 @@ const verificationQrUrl = useVerificationQr(() => qrLink.value || 'https://kg-bo
             <tr 
               v-for="(item, i) in formStore?.filteredBillItems" 
               :key="i"
+              class="align-top"
               :class="i % 2 === 1 ? 'bg-[#FAF9F5]/40' : 'bg-white'"
             >
               <td class="py-3 px-4 text-center font-bold text-slate-400">{{ i + 1 }}</td>
               <td class="py-3 px-4">
-                <div class="font-black text-slate-900 uppercase tracking-wide text-[13px]">
+                <div class="font-black text-slate-900 uppercase tracking-wide text-[14px] leading-snug">
                   {{ item.name || 'Món chưa đặt tên' }}
                 </div>
-                <div v-if="item.note" class="mt-1 space-y-1">
+                <div v-if="item.note" class="mt-2 space-y-2">
                   <div
                     v-for="(cNote, cnIdx) in parseBillItemNote(item.note).customNotes"
                     :key="'cn-' + cnIdx"
-                    class="text-[11px] text-rose-700 font-semibold border-l-2 border-[#C5A059] pl-2 italic whitespace-pre-line leading-snug"
+                    class="text-[11.5px] text-rose-700 font-bold border-l-[3px] border-[#C5A059] bg-rose-50/60 rounded-r-lg px-2.5 py-1 italic whitespace-pre-line leading-snug"
+                    style="background-color: #fff1f2; color: #be123c; border-left: 3px solid #C5A059;"
                   >
                     {{ cNote }}
                   </div>
                   <div
-                    v-if="parseBillItemNote(item.note).components.length > 0"
-                    class="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-0.5 pl-2 border-l-2 border-[#C5A059]/70 bg-[#FAF9F5] rounded-r-lg py-1.5 pr-2 text-[11px] text-slate-700 font-semibold leading-snug"
+                    v-if="parseBillItemNote(item.note).parsedComponents.length > 0"
+                    class="rounded-xl border border-[#C5A059]/50 overflow-hidden"
+                    style="background-color: #FAF9F5; border-color: rgba(197, 160, 89, 0.55); border-left: 4px solid #9A7B38;"
                   >
-                    <div v-for="(comp, cpIdx) in parseBillItemNote(item.note).components" :key="'cp-' + cpIdx">
-                      {{ comp }}
+                    <div
+                      class="px-3 py-1 border-b border-[#C5A059]/30 flex items-center justify-between text-[10px] font-black uppercase tracking-wider text-[#0B192C]"
+                      style="background-color: #F4EFE3; border-bottom-color: rgba(197, 160, 89, 0.35); color: #0B192C;"
+                    >
+                      <span>✦ Chi tiết thực đơn gói ({{ parseBillItemNote(item.note).parsedComponents.length }} món)</span>
+                      <span class="text-[9.5px] font-bold text-[#9A7B38] whitespace-nowrap">Số lượng</span>
+                    </div>
+                    <div class="flex flex-col divide-y divide-[#C5A059]/20 px-3 py-0.5">
+                      <div
+                        v-for="(comp, cpIdx) in parseBillItemNote(item.note).parsedComponents"
+                        :key="'cp-' + cpIdx"
+                        class="py-1.5 flex items-center justify-between gap-3"
+                      >
+                        <div class="flex items-center gap-2 min-w-0 flex-1">
+                          <span
+                            class="inline-flex items-center justify-center w-5 h-5 rounded bg-[#0B192C] text-[#E6C77B] text-[10.5px] font-black shrink-0 tabular-nums leading-none"
+                            style="background-color: #0B192C; color: #E6C77B;"
+                          >
+                            {{ comp.index }}
+                          </span>
+                          <span class="text-[12.5px] font-bold text-slate-900 leading-snug break-words" style="color: #0f172a;">
+                            {{ comp.name }}
+                          </span>
+                        </div>
+                        <span
+                          v-if="comp.qty"
+                          class="px-2 py-0.5 rounded bg-white border border-[#C5A059]/50 text-[#0B192C] font-mono font-black text-[11px] shrink-0 whitespace-nowrap tabular-nums"
+                          style="background-color: #ffffff; border-color: rgba(197, 160, 89, 0.55); color: #0B192C;"
+                        >
+                          SL: {{ comp.qty }}
+                        </span>
+                      </div>
                     </div>
                   </div>
                 </div>
               </td>
-              <td class="py-3 px-4 text-center font-black text-slate-800">
-                <span class="inline-block px-2.5 py-0.5 rounded bg-[#FAF9F5] border border-[#C5A059]/30 text-slate-800 font-bold">
+              <td class="py-3 px-4 text-center font-black text-slate-800 whitespace-nowrap">
+                <span class="inline-block px-2.5 py-0.5 rounded bg-[#FAF9F5] border border-[#C5A059]/30 text-slate-800 font-bold tabular-nums">
                   {{ item.qty }}
                 </span>
               </td>
-              <td v-if="!hidePrice" class="py-3 px-4 text-right font-bold text-slate-600 font-mono">
+              <td v-if="!hidePrice" class="py-3 px-4 text-right font-bold text-slate-600 font-mono tabular-nums whitespace-nowrap">
                 {{ formatVND(item.price) }}
               </td>
-              <td v-if="!hidePrice" class="py-3 px-4 text-right font-black text-[#0B192C] font-mono text-[13px]">
+              <td v-if="!hidePrice" class="py-3 px-4 text-right font-black text-[#0B192C] font-mono text-[13px] tabular-nums whitespace-nowrap">
                 {{ formatVND(item.price * item.qty) }}
               </td>
             </tr>
@@ -197,12 +230,12 @@ const verificationQrUrl = useVerificationQr(() => qrLink.value || 'https://kg-bo
       </div>
 
       <!-- TOTALS & STAMP ROW -->
-      <div class="flex flex-row gap-6 items-start justify-between mb-6">
+      <div class="flex flex-row gap-5 items-start justify-between mb-6">
         
         <!-- Left: Royal Stamp & Deposit Guarantee -->
-        <div class="w-1/2 flex flex-col items-start gap-3">
-          <div class="w-full p-4 rounded-xl bg-[#FAF9F5] border border-[#C5A059]/40 flex items-center gap-4 relative overflow-hidden">
-            <div class="w-24 shrink-0 relative" :style="stampParallax ? { transform: `translate(${stampParallax.x}px, ${stampParallax.y}px)` } : {}">
+        <div class="w-[43%] flex flex-col items-start gap-3">
+          <div class="w-full p-4 rounded-xl bg-[#FAF9F5] border border-[#C5A059]/40 flex items-center gap-3.5 relative overflow-hidden">
+            <div class="w-22 shrink-0 relative" :style="stampParallax ? { transform: `translate(${stampParallax.x}px, ${stampParallax.y}px)` } : {}">
               <img 
                 :src="formStore?.deposit?.isPaid ? '/images/stamps/paid.png?v=2' : '/images/stamps/pending.png?v=2'" 
                 class="w-full object-contain" 
@@ -214,8 +247,8 @@ const verificationQrUrl = useVerificationQr(() => qrLink.value || 'https://kg-bo
               <div class="text-[10px] font-black uppercase tracking-widest text-[#9A7B38]">
                 XÁC NHẬN TIỀN CỌC:
               </div>
-              <div class="text-sm font-black mt-0.5" :class="formStore?.deposit?.isPaid ? 'text-emerald-800' : 'text-amber-800'">
-                {{ formStore?.deposit?.isPaid ? 'ĐÃ ĐẶT CỌC THÀNH CÔNG' : 'CHỜ THANH TOÁN TIỀN CỌC' }}
+              <div class="text-sm font-black mt-0.5 leading-snug" :class="formStore?.deposit?.isPaid ? 'text-emerald-800' : 'text-amber-800'">
+                {{ formStore?.deposit?.isPaid ? 'ĐÃ ĐẶT CỌC THÀNH CÔNG' : 'CHỜ THANH TOÁN CỌC' }}
               </div>
               <div v-if="formStore?.deposit?.isPaid && formStore?.deposit?.time" class="text-[11px] font-bold text-slate-500 font-deposit-meta mt-0.5" style="font-family: 'Google Sans Flex', 'Be Vietnam Pro', sans-serif;">
                 Ngày nhận: {{ formatDepositTime(formStore.deposit.time) }}
@@ -232,9 +265,9 @@ const verificationQrUrl = useVerificationQr(() => qrLink.value || 'https://kg-bo
             <div class="font-black text-[10px] uppercase text-[#9A7B38] pb-1 border-b border-slate-100 flex items-center gap-1.5">
               <i class="fa-solid fa-list-check"></i> Các đợt ghi nhận cọc:
             </div>
-            <div v-for="(h, idx) in formStore.deposit.history" :key="idx" class="flex justify-between items-center font-deposit-meta text-[11px]" style="font-family: 'Google Sans Flex', 'Be Vietnam Pro', sans-serif;">
+            <div v-for="(h, idx) in formStore.deposit.history" :key="idx" class="flex justify-between items-center gap-2 font-deposit-meta text-[11px]" style="font-family: 'Google Sans Flex', 'Be Vietnam Pro', sans-serif;">
               <span class="text-slate-600">{{ h.time }} <strong class="text-emerald-700">[{{ formatShortVND(h.delta) }}]</strong> <span class="font-bold text-slate-400">(Lần {{ idx + 1 }})</span></span>
-              <span class="font-bold text-slate-800">{{ formatVND(h.amount) }}</span>
+              <span class="font-bold text-slate-800 whitespace-nowrap">{{ formatVND(h.amount) }}</span>
             </div>
           </div>
 
@@ -244,36 +277,40 @@ const verificationQrUrl = useVerificationQr(() => qrLink.value || 'https://kg-bo
         </div>
 
         <!-- Right: Totals Box -->
-        <div v-if="!hidePrice" class="w-1/2 p-5 rounded-xl bg-[#FAF9F5] border border-[#C5A059]/40 space-y-2 text-xs">
-          <div class="flex justify-between items-center text-slate-500 font-bold uppercase text-[11px]">
-            <span>Tạm tính bữa tiệc</span>
-            <span class="font-mono font-black text-slate-800 text-sm">{{ formatVND(formStore?.calculatedTotals?.sub || 0) }}</span>
+        <div v-if="!hidePrice" class="w-[57%] p-5 rounded-xl bg-[#FAF9F5] border border-[#C5A059]/40 space-y-3 text-xs" style="background-color: #FAF9F5; border-color: rgba(197, 160, 89, 0.45);">
+          <div class="grid grid-cols-[1fr_auto] items-center gap-4 text-slate-600 font-bold uppercase text-[11.5px] leading-normal">
+            <span class="whitespace-nowrap">Tạm tính bữa tiệc</span>
+            <span class="font-mono font-black text-slate-800 text-[15px] tabular-nums whitespace-nowrap">{{ formatVND(formStore?.calculatedTotals?.sub || 0) }}</span>
           </div>
 
           <template v-if="formStore?.taxEnabled">
-            <div v-if="(formStore?.calculatedTotals?.vat8 || 0) > 0" class="flex justify-between items-center text-slate-500 font-medium">
-              <span>Thuế VAT (8%)</span>
-              <span class="font-mono font-bold text-slate-700">{{ formatVND(formStore.calculatedTotals.vat8) }}</span>
+            <div v-if="(formStore?.calculatedTotals?.vat8 || 0) > 0" class="grid grid-cols-[1fr_auto] items-center gap-4 text-slate-500 font-medium leading-normal">
+              <span class="whitespace-nowrap">Thuế VAT (8%)</span>
+              <span class="font-mono font-bold text-slate-700 tabular-nums whitespace-nowrap">+{{ formatVND(formStore.calculatedTotals.vat8) }}</span>
             </div>
-            <div v-if="(formStore?.calculatedTotals?.vat10 || 0) > 0" class="flex justify-between items-center text-slate-500 font-medium">
-              <span>Thuế VAT (10%)</span>
-              <span class="font-mono font-bold text-slate-700">{{ formatVND(formStore.calculatedTotals.vat10) }}</span>
+            <div v-if="(formStore?.calculatedTotals?.vat10 || 0) > 0" class="grid grid-cols-[1fr_auto] items-center gap-4 text-slate-500 font-medium leading-normal">
+              <span class="whitespace-nowrap">Thuế VAT (10%)</span>
+              <span class="font-mono font-bold text-slate-700 tabular-nums whitespace-nowrap">+{{ formatVND(formStore.calculatedTotals.vat10) }}</span>
             </div>
           </template>
 
-          <div class="pt-2.5 border-t border-[#C5A059]/40 flex justify-between items-center">
-            <span class="text-xs font-black text-[#0B192C] uppercase tracking-wider">TỔNG GIÁ TRỊ TIỆC</span>
-            <span class="text-xl font-black text-[#0B192C] font-mono">{{ formatVND(formStore?.calculatedTotals?.final || 0) }}</span>
+          <div class="py-2.5 border-y border-[#C5A059]/40 grid grid-cols-[1fr_auto] items-center gap-4 leading-normal">
+            <span class="text-[14px] font-black text-[#0B192C] uppercase tracking-wider whitespace-nowrap">TỔNG GIÁ TRỊ TIỆC</span>
+            <span class="text-[21px] font-black text-[#0B192C] font-mono tabular-nums whitespace-nowrap leading-normal">{{ formatVND(formStore?.calculatedTotals?.final || 0) }}</span>
           </div>
 
-          <div class="flex justify-between items-center pt-1 text-xs font-bold text-[#9A7B38]">
-            <span>{{ formStore?.deposit?.isPaid ? 'ĐÃ ĐẶT CỌC' : 'SỐ TIỀN CỌC CẦN CHUYỂN' }}</span>
-            <span class="font-mono font-black text-sm">{{ formatVND(formStore?.deposit?.amount || 0) }}</span>
+          <div
+            class="rounded-lg px-3.5 py-2 border grid grid-cols-[1fr_auto] items-center gap-4 text-xs font-black leading-normal"
+            :class="formStore?.deposit?.isPaid ? 'bg-emerald-50 border-emerald-200 text-emerald-800' : 'bg-white border-[#C5A059]/50 text-[#9A7B38]'"
+            :style="formStore?.deposit?.isPaid ? 'background-color: #ecfdf5; border-color: #a7f3d0; color: #065f46;' : 'background-color: #ffffff; border-color: rgba(197,160,89,0.5); color: #9A7B38;'"
+          >
+            <span class="whitespace-nowrap">{{ formStore?.deposit?.isPaid ? '✓ ĐÃ ĐẶT CỌC' : '⏳ TIỀN CỌC YÊU CẦU' }}</span>
+            <span class="font-mono font-black text-[16px] tabular-nums whitespace-nowrap leading-normal">{{ formatVND(formStore?.deposit?.amount || 0) }}</span>
           </div>
 
-          <div v-if="((formStore?.calculatedTotals?.final || 0) - (formStore?.deposit?.amount || 0)) > 0" class="pt-2 border-t border-dashed border-slate-300 flex justify-between items-center text-xs font-black text-rose-700">
-            <span class="uppercase">CÒN LẠI KHI HOÀN TẤT TIỆC</span>
-            <span class="font-mono text-base font-black">{{ formatVND((formStore?.calculatedTotals?.final || 0) - (formStore?.deposit?.amount || 0)) }}</span>
+          <div v-if="((formStore?.calculatedTotals?.final || 0) - (formStore?.deposit?.amount || 0)) > 0" class="pt-2 border-t border-dashed border-slate-300 grid grid-cols-[1fr_auto] items-center gap-4 text-xs font-black text-rose-700 leading-normal">
+            <span class="uppercase whitespace-nowrap text-[12.5px] text-[#0B192C]">CÒN LẠI THANH TOÁN</span>
+            <span class="font-mono text-[18px] font-black text-rose-700 tabular-nums whitespace-nowrap leading-normal">{{ formatVND((formStore?.calculatedTotals?.final || 0) - (formStore?.deposit?.amount || 0)) }}</span>
           </div>
         </div>
       </div>

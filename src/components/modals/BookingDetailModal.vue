@@ -5,6 +5,7 @@ import { useAppStore } from '@/stores/useAppStore'
 import * as api from '@/services/api'
 import { haptic } from '@/composables/useGestures'
 import { isIOS, isAndroid, isDesktop, formatVND, formatShortVND } from '@/utils'
+import { parseBillItemNote } from '@/components/bills/billHelpers'
 
 const ui = useUIStore()
 const appStore = useAppStore()
@@ -223,9 +224,25 @@ async function handleSyncCalendar() {
                   {{ item.name }}
                   <span class="text-blue-600 dark:text-blue-400 font-black text-[10px] ml-1 shrink-0 font-tabular">x{{ item.qty || item.quantity || 1 }}</span>
                 </div>
-                <div v-if="item.note" class="text-[10px] text-rose-600 dark:text-rose-400 font-semibold italic mt-0.5 leading-tight whitespace-pre-line">
-                  {{ item.note }}
-                </div>
+                <template v-if="item.note">
+                  <div v-if="parseBillItemNote(item.note).parsedComponents.length" class="mt-1.5 rounded-lg bg-blue-50/70 dark:bg-blue-950/30 border border-blue-200/70 dark:border-blue-800/50 p-1.5 flex flex-col gap-1">
+                    <div
+                      v-for="(comp, cIdx) in parseBillItemNote(item.note).parsedComponents"
+                      :key="cIdx"
+                      class="flex items-center justify-between gap-2 text-[11px] leading-snug"
+                    >
+                      <span class="font-bold text-slate-800 dark:text-slate-100">
+                        <span class="text-blue-700 dark:text-blue-300 font-black tabular-nums mr-1">{{ comp.index || (cIdx + 1) }}.</span>{{ comp.name }}
+                      </span>
+                      <span v-if="comp.qty" class="px-1.5 py-0.5 rounded bg-white dark:bg-slate-800 border border-blue-200 dark:border-blue-700 text-[9.5px] font-black text-blue-800 dark:text-blue-300 shrink-0 tabular-nums">
+                        SL: {{ comp.qty }}
+                      </span>
+                    </div>
+                  </div>
+                  <div v-if="parseBillItemNote(item.note).customNotes.length" class="text-[10px] text-rose-600 dark:text-rose-400 font-semibold italic mt-1 leading-tight whitespace-pre-line">
+                    {{ parseBillItemNote(item.note).customNotes.join('\n') }}
+                  </div>
+                </template>
               </div>
               <div class="text-xs font-black text-blue-900 dark:text-blue-300 shrink-0 font-tabular text-right">
                 {{ formatVND((item.price || 0) * (item.qty || item.quantity || 1)) }}

@@ -99,10 +99,22 @@ const coreFeatures = [
 
 const versionTimeline = [
   {
-    version: 'v2.5.0-APEX',
-    tag: 'Production Apex',
-    date: 'Tháng 9/2026',
+    version: 'v3.0',
+    tag: 'Parallel Streamlined',
+    date: 'Tháng 10/2026',
     status: 'current',
+    highlights: [
+      'Vận hành song song với bản v2.5.0-APEX (chuyển đổi tức thì 1-click không mất nháp)',
+      'Tinh gọn còn 4 trụ cột cốt lõi: Tạo Phiếu · Xem & Xuất Phiếu · Đơn Đặt Bàn · Báo Cáo',
+      'Bố cục Bàn Làm Việc 2 Cột (Nhập liệu Trái → Xem trước Phiếu Cố định Phải)',
+      'Phiếu đặt bàn mới: Set/Combo hiển thị rõ 1 món/dòng & Bảng tổng hợp tiền cọc chống dính chữ tuyệt đối'
+    ]
+  },
+  {
+    version: 'v2.5.0-APEX',
+    tag: 'Production Apex (Song song)',
+    date: 'Tháng 9/2026',
+    status: 'passed',
     highlights: [
       'Dual-Write Outbox chống mất đơn & PostgreSQL First (<100ms)',
       'Bảo mật Edge Gateway & Code-Splitting giảm 84% JS bundle',
@@ -187,39 +199,48 @@ const versionTimeline = [
               <div>
                 <div class="flex items-center gap-2">
                   <h2 class="text-lg md:text-xl font-black tracking-tight text-white uppercase">KING'S GRILL</h2>
-                  <span class="px-2 py-0.5 rounded-full bg-gradient-to-r from-amber-400 to-orange-500 text-slate-950 font-mono text-[10px] font-black tracking-wider shadow-md animate-pulse">
-                    v2.5.0-APEX
+                  <span class="px-2.5 py-0.5 rounded-full bg-gradient-to-r from-amber-400 to-orange-500 text-slate-950 font-mono text-[10px] font-black tracking-wider shadow-md">
+                    {{ ui.isV3 ? 'v3.0 STREAMLINED' : 'v2.5.0-APEX' }}
                   </span>
                 </div>
-                <p class="text-[11px] font-bold text-slate-400 mt-0.5">Nhật ký phiên bản & Tổng quan tính năng hệ thống</p>
+                <p class="text-[11px] font-bold text-slate-400 mt-0.5">Nhật ký phiên bản & Chuyển đổi song song v3.0 ⇄ v2.5.0</p>
               </div>
             </div>
 
-            <button 
-              @click="closeModal" 
-              class="w-9 h-9 rounded-full bg-slate-800/80 hover:bg-slate-700 text-slate-300 flex items-center justify-center transition-colors active:scale-95 border border-slate-700/50"
-            >
-              <i class="fa-solid fa-xmark text-lg"></i>
-            </button>
+            <div class="flex items-center gap-2">
+              <button
+                @click="ui.toggleAppVersion()"
+                class="px-3 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-[11px] font-black uppercase tracking-wider flex items-center gap-1.5 transition-all active:scale-95 cursor-pointer shadow-md"
+              >
+                <i class="fa-solid fa-repeat"></i>
+                <span>Đổi sang {{ ui.isV3 ? 'v2.5.0' : 'v3.0' }}</span>
+              </button>
+              <button 
+                @click="closeModal" 
+                class="w-9 h-9 rounded-full bg-slate-800/80 hover:bg-slate-700 text-slate-300 flex items-center justify-center transition-colors active:scale-95 border border-slate-700/50 cursor-pointer"
+              >
+                <i class="fa-solid fa-xmark text-lg"></i>
+              </button>
+            </div>
           </div>
 
           <!-- TAB NAVIGATION -->
           <div class="flex gap-2 mt-5 relative z-10 border-b border-slate-800/60 pb-0.5 overflow-x-auto scrollbar-none">
             <button 
               @click="activeTab = 'whats-new'"
-              :class="['px-4 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all flex items-center gap-2 whitespace-nowrap', activeTab === 'whats-new' ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/30' : 'text-slate-400 hover:text-white hover:bg-slate-800/50']"
+              :class="['px-4 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all flex items-center gap-2 whitespace-nowrap cursor-pointer', activeTab === 'whats-new' ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/30' : 'text-slate-400 hover:text-white hover:bg-slate-800/50']"
             >
-              <i class="fa-solid fa-fire text-amber-400"></i> Đột phá v2.5.0 (Mới)
+              <i class="fa-solid fa-fire text-amber-400"></i> Đột phá {{ ui.isV3 ? 'v3.0 & v2.5.0' : 'v2.5.0-APEX' }}
             </button>
             <button 
               @click="activeTab = 'all-features'"
-              :class="['px-4 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all flex items-center gap-2 whitespace-nowrap', activeTab === 'all-features' ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/30' : 'text-slate-400 hover:text-white hover:bg-slate-800/50']"
+              :class="['px-4 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all flex items-center gap-2 whitespace-nowrap cursor-pointer', activeTab === 'all-features' ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/30' : 'text-slate-400 hover:text-white hover:bg-slate-800/50']"
             >
               <i class="fa-solid fa-cubes text-cyan-400"></i> Tất cả tính năng
             </button>
             <button 
               @click="activeTab = 'timeline'"
-              :class="['px-4 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all flex items-center gap-2 whitespace-nowrap', activeTab === 'timeline' ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/30' : 'text-slate-400 hover:text-white hover:bg-slate-800/50']"
+              :class="['px-4 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all flex items-center gap-2 whitespace-nowrap cursor-pointer', activeTab === 'timeline' ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/30' : 'text-slate-400 hover:text-white hover:bg-slate-800/50']"
             >
               <i class="fa-solid fa-timeline text-purple-400"></i> Lịch sử Version
             </button>
@@ -229,15 +250,35 @@ const versionTimeline = [
         <!-- MODAL BODY -->
         <div class="p-4 md:p-6 overflow-y-auto flex-1 space-y-6 custom-scrollbar bg-slate-50/50">
           
-          <!-- TAB 1: WHAT'S NEW IN v2.5.0-APEX -->
+          <!-- TAB 1: WHAT'S NEW -->
           <div v-if="activeTab === 'whats-new'" class="space-y-4">
-            <div class="bg-gradient-to-r from-blue-600/10 via-purple-600/10 to-pink-600/10 rounded-2xl p-4 border border-blue-200/50 flex items-center justify-between">
+            <div class="bg-gradient-to-r from-blue-600/10 via-indigo-600/10 to-emerald-600/10 rounded-2xl p-4 border border-blue-200/70 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <div class="flex items-center gap-3">
-                <i class="fa-solid fa-circle-check text-emerald-500 text-xl"></i>
+                <i class="fa-solid fa-circle-check text-emerald-500 text-xl shrink-0"></i>
                 <div>
-                  <h4 class="font-black text-slate-800 text-xs uppercase tracking-wider">Phiên bản hiện tại v2.5.0-APEX đã kích hoạt</h4>
-                  <p class="text-[11px] font-medium text-slate-500 mt-0.5">Tất cả các mô hình AI, thuật toán Web Worker và Supabase DB đều sẵn sàng.</p>
+                  <h4 class="font-black text-slate-800 text-xs uppercase tracking-wider">
+                    Đang chạy song song: {{ ui.isV3 ? 'Bản 3.0 (Tinh gọn & Tốc độ)' : 'Bản 2.5.0-APEX (Đầy đủ)' }}
+                  </h4>
+                  <p class="text-[11px] font-medium text-slate-600 mt-0.5">
+                    Cả 2 phiên bản dùng chung 100% dữ liệu, AI, Offline Queue và nháp đang nhập. Chuyển đổi qua lại bất kỳ lúc nào.
+                  </p>
                 </div>
+              </div>
+              <div class="inline-flex p-1 rounded-xl bg-white border border-slate-200 shadow-xs shrink-0 self-start sm:self-auto">
+                <button
+                  @click="ui.setAppVersion('2.5.0')"
+                  class="px-3 py-1.5 rounded-lg text-[11px] font-black transition-all cursor-pointer"
+                  :class="!ui.isV3 ? 'bg-slate-900 text-white shadow-xs' : 'text-slate-500 hover:text-slate-800'"
+                >
+                  v2.5.0
+                </button>
+                <button
+                  @click="ui.setAppVersion('3.0')"
+                  class="px-3 py-1.5 rounded-lg text-[11px] font-black transition-all cursor-pointer"
+                  :class="ui.isV3 ? 'bg-blue-600 text-white shadow-xs' : 'text-slate-500 hover:text-slate-800'"
+                >
+                  v3.0 Mới
+                </button>
               </div>
             </div>
 

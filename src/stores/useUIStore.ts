@@ -21,6 +21,17 @@ export interface ModalState {
 }
 
 export const useUIStore = defineStore('ui', () => {
+  // --- Version Mode (v3.0 Parallel Operation with v2.5.0) ---
+  const loadInitialVersion = (): '2.5.0' | '3.0' => {
+    try {
+      const saved = localStorage.getItem('kg_app_ui_version')
+      if (saved === '2.5.0' || saved === '3.0') return saved
+    } catch {}
+    return '3.0'
+  }
+  const appVersion = ref<'2.5.0' | '3.0'>(loadInitialVersion())
+  const isV3 = computed(() => appVersion.value === '3.0')
+
   // --- Tab & Panel ---
   const tab = ref<'dashboard' | 'create' | 'timeline' | 'history' | 'preview' | 'analytics' | 'test' | 'logs'>('create')
   const connectionStatus = ref<'online' | 'degraded' | 'offline' | 'reconnecting' | 'syncing' | 'error'>('online')
@@ -305,7 +316,35 @@ export const useUIStore = defineStore('ui', () => {
     bookingConfirmationPayload.value = null
   }
 
+  function setAppVersion(ver: '2.5.0' | '3.0', notify = true) {
+    appVersion.value = ver
+    try {
+      localStorage.setItem('kg_app_ui_version', ver)
+    } catch {}
+    if (ver === '3.0') {
+      if (tab.value === 'dashboard' || tab.value === 'timeline') {
+        tab.value = 'create'
+      }
+      showFloorPlan.value = false
+      showSocialBotModal.value = false
+    }
+    if (notify) {
+      showToast(
+        ver === '3.0'
+          ? '⚡ Đã chuyển sang Phiên bản 3.0 (Tinh gọn & Tối ưu tốc độ thao tác)'
+          : '🔄 Đã chuyển về Phiên bản 2.5.0 (Đầy đủ phân hệ truyền thống)',
+        'info',
+        2600
+      )
+    }
+  }
+
+  function toggleAppVersion() {
+    setAppVersion(appVersion.value === '3.0' ? '2.5.0' : '3.0', true)
+  }
+
   return {
+    appVersion, isV3, setAppVersion, toggleAppVersion,
     tab, connectionStatus, isKeyboardOpen, isVoiceSupported, selectedTimelineDate,
     loading, activeRequests, isFetchingAPI, error,
     showSettingsHub, activeSettingModal, showCommandPalette, showAiConfig, showBankConfig, showMenuManager, showBrandingConfig, showStaffConfig, showStaffSelector, showWebhookConfig, showBookingDetailModal, showVersionModal, showSocialBotModal, showOutboxModal, showBookingConfirmationModal, bookingConfirmationPayload, showFloorPlan, showCustomerCareModal, activeOrderForCare, selectedBooking,

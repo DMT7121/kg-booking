@@ -10,12 +10,19 @@ const ui = useUIStore()
 
 // Tab Navigation
 const activeTab = ref('overview')
-const tabs = [
+const allTabs = [
   { id: 'overview', name: 'Tổng Quan', icon: 'fa-chart-pie' },
   { id: 'dishes', name: 'Báo Cáo Món Ăn', icon: 'fa-bowl-food' },
   { id: 'kitchen', name: 'Màn Bếp & Bar', icon: 'fa-kitchen-set' },
   { id: 'crm', name: 'CRM & Xuất File', icon: 'fa-file-excel' }
 ]
+const tabs = computed(() => ui.isV3 ? allTabs.filter(t => t.id !== 'kitchen') : allTabs)
+
+watch(() => ui.isV3, (v3) => {
+  if (v3 && activeTab.value === 'kitchen') {
+    activeTab.value = 'overview'
+  }
+}, { immediate: true })
 
 // Today's date helper
 const todayStr = () => {
@@ -729,7 +736,7 @@ function triggerKitchenPrint() {
       </div>
 
       <!-- TAB 3: KITCHEN/BAR PREPARATION -->
-      <div v-if="activeTab === 'kitchen'" class="space-y-6 print:space-y-4">
+      <div v-if="activeTab === 'kitchen' && !ui.isV3" class="space-y-6 print:space-y-4">
         <div class="flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-4 print:hidden">
           <div>
             <h2 class="text-2xl font-black text-blue-900 dark:text-blue-400 uppercase tracking-tight">Màn Hình Tổng Hợp Bếp & Bar</h2>

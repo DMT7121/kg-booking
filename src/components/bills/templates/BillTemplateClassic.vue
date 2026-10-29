@@ -34,11 +34,11 @@ const dayOfWeek = computed(() => getDayOfWeek(props.formStore?.customer?.date))
         ĐC: Số 34, Đường Hoàng Văn Thụ, Phường Thủ Dầu Một, Thành phố Hồ Chí Minh
       </p>
       <div class="mt-4 flex items-center justify-center gap-4">
-        <span class="w-14 h-[3.5px] rounded-full bg-amber-400"></span>
-        <h2 class="font-black tracking-[0.22em] text-blue-950 uppercase text-[24px] leading-none" style="font-family: 'Be Vietnam Pro', sans-serif;">
+        <span class="w-14 h-[3.5px] rounded-full bg-amber-400 shrink-0"></span>
+        <h2 class="font-black tracking-[0.2em] text-blue-950 uppercase text-[24px] leading-snug whitespace-nowrap shrink-0" style="font-family: 'Be Vietnam Pro', sans-serif;">
           PHIẾU ĐẶT BÀN
         </h2>
-        <span class="w-14 h-[3.5px] rounded-full bg-amber-400"></span>
+        <span class="w-14 h-[3.5px] rounded-full bg-amber-400 shrink-0"></span>
       </div>
     </div>
 
@@ -116,11 +116,11 @@ const dayOfWeek = computed(() => getDayOfWeek(props.formStore?.customer?.date))
       <table class="w-full border-collapse">
         <thead>
           <tr class="bg-blue-950 text-white">
-            <th class="py-3 px-4 text-left font-bold text-[13px] rounded-tl-xl w-12">#</th>
-            <th class="py-3 px-4 text-left font-bold text-[13px]">TÊN MÓN</th>
-            <th class="py-3 px-4 text-center font-bold text-[13px] w-16">SL</th>
-            <th v-if="!hidePrice" class="py-3 px-4 text-right font-bold text-[13px] w-28">ĐƠN GIÁ</th>
-            <th v-if="!hidePrice" class="py-3 px-4 text-right font-bold text-[13px] rounded-tr-xl w-32">THÀNH TIỀN</th>
+            <th class="py-3 px-3 text-left font-bold text-[13px] rounded-tl-xl w-10">#</th>
+            <th class="py-3 px-3 text-left font-bold text-[13px]">TÊN MÓN</th>
+            <th class="py-3 px-2 text-center font-bold text-[13px] w-12">SL</th>
+            <th v-if="!hidePrice" class="py-3 px-3 text-right font-bold text-[13px] w-28">ĐƠN GIÁ</th>
+            <th v-if="!hidePrice" class="py-3 px-3 text-right font-bold text-[13px] rounded-tr-xl w-32">THÀNH TIỀN</th>
           </tr>
         </thead>
         <tbody>
@@ -137,87 +137,199 @@ const dayOfWeek = computed(() => getDayOfWeek(props.formStore?.customer?.date))
               </div>
             </td>
           </tr>
-          <tr v-for="(item, i) in formStore.filteredBillItems" :key="i" class="border-b border-slate-100">
-            <td class="py-4 px-4 font-bold text-slate-400">{{ i + 1 }}</td>
-            <td class="py-4 px-4 text-left">
-              <div class="font-black text-slate-800 text-[15px] uppercase tracking-wide whitespace-normal break-words overflow-wrap-anywhere">{{ item.name || 'Chưa đặt tên' }}</div>
-              <div v-if="item.note" class="mt-1.5 space-y-1 text-left">
+          <tr v-for="(item, i) in formStore.filteredBillItems" :key="i" class="border-b border-slate-100 align-top">
+            <td class="py-4 px-3 font-bold text-slate-400">{{ i + 1 }}</td>
+            <td class="py-4 px-3 text-left">
+              <div class="font-black text-slate-900 text-[15.5px] uppercase tracking-wide whitespace-normal break-words overflow-wrap-anywhere leading-snug">{{ item.name || 'Chưa đặt tên' }}</div>
+              <div v-if="item.note" class="mt-2 space-y-2 text-left">
                 <div
                   v-for="(cNote, cnIdx) in parseBillItemNote(item.note).customNotes"
                   :key="'cn-' + cnIdx"
-                  class="text-[12px] text-rose-600 font-bold whitespace-pre-line leading-relaxed border-l-2 border-rose-200 pl-2"
+                  class="text-[12.5px] text-rose-700 font-bold whitespace-pre-line leading-relaxed border-l-[3px] border-rose-400 bg-rose-50/70 rounded-r-lg px-2.5 py-1.5"
+                  style="background-color: #fff1f2; color: #be123c; border-left: 3px solid #fb7185;"
                 >
                   {{ cNote }}
                 </div>
                 <div
-                  v-if="parseBillItemNote(item.note).components.length > 0"
-                  class="grid grid-cols-2 gap-x-4 gap-y-0.5 pl-2 border-l-2 border-emerald-400/70 bg-slate-50 rounded-r-lg py-1.5 pr-2 text-[11.5px] text-slate-600 font-semibold leading-snug"
+                  v-if="parseBillItemNote(item.note).parsedComponents.length > 0"
+                  class="rounded-xl border border-blue-200 overflow-hidden shadow-2xs"
+                  style="background-color: #f5f8ff; border-color: #bfdbfe; border-left: 4px solid #172554;"
                 >
-                  <div v-for="(comp, cpIdx) in parseBillItemNote(item.note).components" :key="'cp-' + cpIdx">
-                    {{ comp }}
+                  <div
+                    class="px-3 py-1.5 border-b border-blue-200 flex items-center justify-between gap-2 text-[10.5px] font-black uppercase tracking-wider text-blue-950"
+                    style="background-color: #eaf1ff; border-bottom-color: #bfdbfe; color: #172554;"
+                  >
+                    <span class="flex items-center gap-1.5 whitespace-nowrap">
+                      <i class="fa-solid fa-utensils text-[10px] text-blue-700"></i>
+                      <span>Chi tiết gói ({{ parseBillItemNote(item.note).parsedComponents.length }} món)</span>
+                    </span>
+                    <span class="text-[10px] font-bold text-blue-800 whitespace-nowrap">SL / Set</span>
+                  </div>
+                  <div class="flex flex-col divide-y divide-blue-100 px-3 py-0.5">
+                    <div
+                      v-for="(comp, cpIdx) in parseBillItemNote(item.note).parsedComponents"
+                      :key="'cp-' + cpIdx"
+                      class="py-1.5 flex items-center justify-between gap-2.5"
+                    >
+                      <div class="flex items-center gap-2 min-w-0 flex-1">
+                        <span
+                          class="inline-flex items-center justify-center w-5 h-5 rounded-md bg-blue-950 text-white text-[11px] font-black shrink-0 tabular-nums leading-none"
+                          style="background-color: #172554; color: #ffffff;"
+                        >
+                          {{ comp.index }}
+                        </span>
+                        <span class="text-[13.5px] font-bold text-slate-900 leading-snug break-words" style="color: #0f172a;">
+                          {{ comp.name }}
+                        </span>
+                      </div>
+                      <span
+                        v-if="comp.qty"
+                        class="px-2 py-0.5 rounded-md bg-white border border-blue-200 text-blue-950 font-mono font-black text-[11.5px] shrink-0 whitespace-nowrap tabular-nums leading-snug"
+                        style="background-color: #ffffff; border-color: #bfdbfe; color: #172554;"
+                      >
+                        SL: {{ comp.qty }}
+                      </span>
+                    </div>
                   </div>
                 </div>
               </div>
             </td>
-            <td class="py-4 px-4 text-center font-black text-slate-800">{{ item.qty }}</td>
-            <td v-if="!hidePrice" class="py-4 px-4 text-right font-bold text-slate-600 font-mono">{{ formatVND(item.price) }}</td>
-            <td v-if="!hidePrice" class="py-4 px-4 text-right font-black text-blue-900 font-mono">{{ formatVND(item.price * item.qty) }}</td>
+            <td class="py-4 px-2 text-center font-black text-slate-800 text-[15px] tabular-nums whitespace-nowrap">{{ item.qty }}</td>
+            <td v-if="!hidePrice" class="py-4 px-3 text-right font-bold text-slate-600 font-mono tabular-nums whitespace-nowrap">{{ formatVND(item.price) }}</td>
+            <td v-if="!hidePrice" class="py-4 px-3 text-right font-black text-blue-900 font-mono tabular-nums whitespace-nowrap">{{ formatVND(item.price * item.qty) }}</td>
           </tr>
         </tbody>
       </table>
     </div>
 
-    <!-- TOTALS -->
-    <div v-if="!hidePrice" class="space-y-4 mb-10 w-[54%] ml-auto">
-      <div class="flex justify-between items-center text-lg">
-        <span class="font-bold text-slate-500 uppercase">TẠM TÍNH</span>
-        <span class="font-black text-slate-800 font-mono">{{ formatVND(formStore.calculatedTotals.sub) }}</span>
-      </div>
-      
-      <template v-if="formStore.taxEnabled">
-         <div v-if="formStore.calculatedTotals.vat8 > 0" class="flex justify-between items-center text-md text-slate-500">
-           <span class="font-bold uppercase">VAT (8%)</span>
-           <span class="font-bold font-mono">{{ formatVND(formStore.calculatedTotals.vat8) }}</span>
-         </div>
-         <div v-if="formStore.calculatedTotals.vat10 > 0" class="flex justify-between items-center text-md text-slate-500">
-           <span class="font-bold uppercase">VAT (10%)</span>
-           <span class="font-bold font-mono">{{ formatVND(formStore.calculatedTotals.vat10) }}</span>
-         </div>
-      </template>
-
-      <div class="flex justify-between items-center pt-4 border-t-2 border-dashed border-slate-200">
-        <span class="text-2xl font-black text-blue-900 uppercase">TỔNG CỘNG</span>
-        <span class="text-3xl font-black text-blue-900 font-mono">{{ formatVND(formStore.calculatedTotals.final) }}</span>
-      </div>
-      <div class="flex justify-between items-center pt-2">
-        <span class="text-lg font-bold flex items-center gap-2" :class="formStore.deposit.isPaid ? 'text-green-600' : 'text-red-500'">
-          <i class="fa-solid" :class="formStore.deposit.isPaid ? 'fa-check' : 'fa-hourglass-half'"></i> 
-          {{ formStore.deposit.isPaid ? 'ĐÃ ĐẶT CỌC' : 'YÊU CẦU ĐẶT CỌC' }}
+    <!-- TOTALS & DEPOSIT SUMMARY CARD -->
+    <div
+      v-if="!hidePrice"
+      class="mb-10 w-full max-w-[540px] ml-auto rounded-2xl border border-slate-200 bg-white overflow-hidden shadow-xs"
+      style="background-color: #ffffff; border-color: #cbd5e1;"
+    >
+      <div
+        class="px-6 py-2.5 bg-slate-100 border-b border-slate-200 flex items-center justify-between gap-4"
+        style="background-color: #f1f5f9; border-bottom-color: #e2e8f0;"
+      >
+        <span class="text-[11px] font-black uppercase tracking-[0.14em] text-slate-600 whitespace-nowrap" style="color: #475569;">
+          TỔNG HỢP THANH TOÁN & ĐẶT CỌC
         </span>
-        <span class="text-2xl font-black font-tabular font-mono" :class="formStore.deposit.isPaid ? 'text-green-600' : 'text-red-500'">
-          {{ formatVND(formStore.deposit.amount) }}
+        <span class="text-[10.5px] font-bold text-slate-500 font-mono whitespace-nowrap" style="color: #64748b;">
+          VNĐ
         </span>
       </div>
 
-      <!-- DEPOSIT INSTALLMENT BREAKDOWN -->
-      <div v-if="formStore.deposit.isPaid && formStore.deposit.history && formStore.deposit.history.length > 1" class="bg-emerald-50/70 border border-emerald-200/80 rounded-2xl p-3 space-y-1.5 text-xs text-left shadow-xs font-deposit-meta" style="font-family: 'Google Sans Flex', 'Be Vietnam Pro', sans-serif;">
-        <div class="font-black text-[10px] uppercase tracking-wider text-emerald-800 flex items-center gap-1.5 pb-1 border-b border-emerald-200/60">
-          <i class="fa-solid fa-clock-rotate-left text-[11px] text-emerald-600"></i> Chi tiết các đợt cọc:
-        </div>
-        <div v-for="(h, idx) in formStore.deposit.history" :key="idx" class="flex justify-between items-center font-tabular text-[11px] font-deposit-meta" style="font-family: 'Google Sans Flex', 'Be Vietnam Pro', sans-serif;">
-          <span class="text-slate-600">
-            {{ h.time }} <span class="font-black text-emerald-700">[{{ formatShortVND(h.delta) }}]</span> <span class="font-bold text-slate-400">(Lần {{ idx + 1 }})</span>
+      <div class="px-6 py-4 space-y-3 bg-white" style="background-color: #ffffff;">
+        <!-- Subtotal -->
+        <div class="grid grid-cols-[1fr_auto] items-center gap-6 py-0.5">
+          <span class="text-[14px] font-bold text-slate-600 uppercase tracking-wide whitespace-nowrap leading-normal" style="color: #475569;">
+            Tạm tính thực đơn
           </span>
-          <span class="font-bold text-slate-700 font-deposit-meta">{{ formatVND(h.amount) }}</span>
+          <span class="text-[17px] font-extrabold text-slate-800 font-mono tabular-nums whitespace-nowrap leading-normal text-right" style="color: #1e293b;">
+            {{ formatVND(formStore.calculatedTotals.sub) }}
+          </span>
         </div>
-        <div class="pt-1.5 border-t border-emerald-200/60 flex justify-between items-center font-black text-[12px] text-emerald-800 font-deposit-meta">
-          <span>Tổng cọc: [{{ formatShortVND(formStore.deposit.amount) }}]</span>
-          <span class="font-tabular font-deposit-meta">{{ formatVND(formStore.deposit.amount) }}</span>
+
+        <!-- Tax Rows -->
+        <template v-if="formStore.taxEnabled">
+          <div v-if="formStore.calculatedTotals.vat8 > 0" class="grid grid-cols-[1fr_auto] items-center gap-6 py-0.5">
+            <span class="text-[13px] font-bold text-slate-500 uppercase tracking-wide whitespace-nowrap leading-normal" style="color: #64748b;">
+              Thuế VAT (8%)
+            </span>
+            <span class="text-[15px] font-bold text-slate-700 font-mono tabular-nums whitespace-nowrap leading-normal text-right" style="color: #334155;">
+              +{{ formatVND(formStore.calculatedTotals.vat8) }}
+            </span>
+          </div>
+          <div v-if="formStore.calculatedTotals.vat10 > 0" class="grid grid-cols-[1fr_auto] items-center gap-6 py-0.5">
+            <span class="text-[13px] font-bold text-slate-500 uppercase tracking-wide whitespace-nowrap leading-normal" style="color: #64748b;">
+              Thuế VAT (10%)
+            </span>
+            <span class="text-[15px] font-bold text-slate-700 font-mono tabular-nums whitespace-nowrap leading-normal text-right" style="color: #334155;">
+              +{{ formatVND(formStore.calculatedTotals.vat10) }}
+            </span>
+          </div>
+        </template>
+
+        <!-- Grand Total -->
+        <div class="grid grid-cols-[1fr_auto] items-center gap-6 py-3 border-y-2 border-dashed border-slate-200" style="border-color: #e2e8f0;">
+          <span class="text-[19px] font-black text-blue-950 uppercase tracking-wider whitespace-nowrap leading-normal" style="color: #172554;">
+            TỔNG CỘNG
+          </span>
+          <span class="text-[26px] font-black text-blue-950 font-mono tabular-nums whitespace-nowrap leading-normal text-right" style="color: #172554;">
+            {{ formatVND(formStore.calculatedTotals.final) }}
+          </span>
         </div>
-      </div>
-      <div v-if="formStore.calculatedTotals.final - formStore.deposit.amount > 0" class="flex justify-between items-center pt-4 border-t-2 border-slate-200">
-        <span class="text-xl font-black text-slate-800 uppercase">CÒN LẠI</span>
-        <span class="text-2xl font-black text-rose-600 font-mono">{{ formatVND(formStore.calculatedTotals.final - formStore.deposit.amount) }}</span>
+
+        <!-- Deposit Status Pill Box -->
+        <div
+          class="rounded-xl px-4 py-3 border grid grid-cols-[1fr_auto] items-center gap-6"
+          :class="formStore.deposit.isPaid ? 'bg-emerald-50 border-emerald-200' : 'bg-rose-50 border-rose-200'"
+          :style="formStore.deposit.isPaid
+            ? 'background-color: #ecfdf5; border-color: #a7f3d0;'
+            : 'background-color: #fff1f2; border-color: #fecdd3;'"
+        >
+          <span
+            class="text-[15px] font-black uppercase tracking-wide inline-flex items-center gap-2 whitespace-nowrap leading-normal"
+            :class="formStore.deposit.isPaid ? 'text-emerald-700' : 'text-rose-600'"
+            :style="formStore.deposit.isPaid ? 'color: #047857;' : 'color: #e11d48;'"
+          >
+            <i class="fa-solid text-[14px]" :class="formStore.deposit.isPaid ? 'fa-circle-check' : 'fa-hourglass-half'"></i>
+            <span>{{ formStore.deposit.isPaid ? 'ĐÃ ĐẶT CỌC' : 'YÊU CẦU ĐẶT CỌC' }}</span>
+          </span>
+          <span
+            class="text-[22px] font-black font-tabular font-mono whitespace-nowrap leading-normal text-right"
+            :class="formStore.deposit.isPaid ? 'text-emerald-700' : 'text-rose-600'"
+            :style="formStore.deposit.isPaid ? 'color: #047857;' : 'color: #e11d48;'"
+          >
+            {{ formatVND(formStore.deposit.amount) }}
+          </span>
+        </div>
+
+        <!-- DEPOSIT INSTALLMENT BREAKDOWN -->
+        <div
+          v-if="formStore.deposit.isPaid && formStore.deposit.history && formStore.deposit.history.length > 1"
+          class="bg-emerald-50/70 border border-emerald-200/80 rounded-xl p-3 space-y-1.5 text-xs text-left font-deposit-meta"
+          style="font-family: 'Google Sans Flex', 'Be Vietnam Pro', sans-serif; background-color: #f0fdf4; border-color: #bbf7d0;"
+        >
+          <div class="font-black text-[10.5px] uppercase tracking-wider text-emerald-800 flex items-center gap-1.5 pb-1 border-b border-emerald-200/60" style="color: #065f46;">
+            <i class="fa-solid fa-clock-rotate-left text-[11px] text-emerald-600"></i> Chi tiết các đợt cọc:
+          </div>
+          <div
+            v-for="(h, idx) in formStore.deposit.history"
+            :key="idx"
+            class="flex justify-between items-center gap-4 font-tabular text-[11.5px] font-deposit-meta leading-normal"
+            style="font-family: 'Google Sans Flex', 'Be Vietnam Pro', sans-serif;"
+          >
+            <span class="text-slate-600" style="color: #475569;">
+              {{ h.time }} <span class="font-black text-emerald-700" style="color: #047857;">[{{ formatShortVND(h.delta) }}]</span> <span class="font-bold text-slate-400">(Lần {{ idx + 1 }})</span>
+            </span>
+            <span class="font-bold text-slate-800 font-deposit-meta whitespace-nowrap" style="color: #1e293b;">{{ formatVND(h.amount) }}</span>
+          </div>
+          <div class="pt-1.5 border-t border-emerald-200/60 flex justify-between items-center gap-4 font-black text-[12px] text-emerald-800 font-deposit-meta leading-normal" style="color: #065f46;">
+            <span>Tổng cọc: [{{ formatShortVND(formStore.deposit.amount) }}]</span>
+            <span class="font-tabular font-deposit-meta whitespace-nowrap">{{ formatVND(formStore.deposit.amount) }}</span>
+          </div>
+        </div>
+
+        <!-- Remaining Balance -->
+        <div
+          v-if="formStore.calculatedTotals.final - formStore.deposit.amount > 0"
+          class="grid grid-cols-[1fr_auto] items-center gap-6 pt-3 border-t-2 border-slate-200"
+          style="border-top-color: #e2e8f0;"
+        >
+          <div>
+            <span class="text-[16px] font-black text-slate-900 uppercase tracking-wider whitespace-nowrap block leading-normal" style="color: #0f172a;">
+              CÒN LẠI THANH TOÁN
+            </span>
+            <span class="text-[11px] font-semibold text-slate-500 block leading-normal" style="color: #64748b;">
+              Thanh toán tại nhà hàng khi kết thúc tiệc
+            </span>
+          </div>
+          <span class="text-[24px] font-black text-rose-600 font-mono tabular-nums whitespace-nowrap leading-normal text-right" style="color: #e11d48;">
+            {{ formatVND(formStore.calculatedTotals.final - formStore.deposit.amount) }}
+          </span>
+        </div>
       </div>
     </div>
 

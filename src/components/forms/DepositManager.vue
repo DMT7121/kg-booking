@@ -207,7 +207,7 @@ function onDrop(e: DragEvent) {
           <i class="fa-solid fa-vault"></i>
         </div>
         <div class="min-w-0">
-          <h3 class="font-black text-slate-800 dark:text-slate-100 text-xs uppercase tracking-widest truncate">Quản Lý Tiền Cọc</h3>
+          <h3 class="font-black text-slate-800 dark:text-slate-100 text-xs uppercase tracking-widest truncate">{{ ui.isV3 ? '3. Quản Lý Tiền Cọc & Thanh Toán' : 'Quản Lý Tiền Cọc' }}</h3>
           <p class="text-[10px] font-bold text-slate-400 dark:text-slate-400 truncate">Theo dõi đặt cọc & Bill chuyển khoản</p>
         </div>
       </div>

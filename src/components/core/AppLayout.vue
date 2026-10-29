@@ -228,12 +228,13 @@ function getTomorrowStr() {
   return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`
 }
 
-const commands = [
+const allCommands = [
   { label: 'Tạo phiếu đặt bàn mới', cmd: '/create', desc: 'Xóa form và chuyển sang tab Tạo Phiếu', icon: 'fa-plus text-emerald-500' },
   { label: 'Xem trước & Xuất ảnh Phiếu', cmd: '/preview', desc: 'Mở màn hình xem phiếu và tải ảnh/PDF gửi khách', icon: 'fa-eye text-cyan-500' },
-  { label: 'Mở Sơ đồ bàn nhà hàng (F3)', cmd: '/floor', desc: 'Xem trực quan sơ đồ bàn trống / đã đặt', icon: 'fa-map-location-dot text-orange-500' },
-  { label: 'Lịch đặt bàn hôm nay (F4)', cmd: '/today', desc: 'Xem timeline đặt bàn ngày hôm nay', icon: 'fa-calendar-day text-blue-500' },
-  { label: 'Lịch đặt bàn ngày mai', cmd: '/tomorrow', desc: 'Xem timeline đặt bàn ngày mai', icon: 'fa-calendar-plus text-indigo-500' },
+  { label: 'Chuyển đổi phiên bản v3.0 ⇄ v2.5.0', cmd: '/version', desc: 'Đổi nhanh giao diện giữa bản 3.0 tinh gọn và bản 2.5.0 đầy đủ', icon: 'fa-code-compare text-blue-500' },
+  { label: 'Mở Sơ đồ bàn nhà hàng (F3)', cmd: '/floor', desc: 'Xem trực quan sơ đồ bàn trống / đã đặt', icon: 'fa-map-location-dot text-orange-500', v2Only: true },
+  { label: 'Lịch đặt bàn hôm nay (F4)', cmd: '/today', desc: 'Xem timeline đặt bàn ngày hôm nay', icon: 'fa-calendar-day text-blue-500', v2Only: true },
+  { label: 'Lịch đặt bàn ngày mai', cmd: '/tomorrow', desc: 'Xem timeline đặt bàn ngày mai', icon: 'fa-calendar-plus text-indigo-500', v2Only: true },
   { label: 'Xem phiếu chưa cọc', cmd: '/unpaid', desc: 'Lọc lịch sử các phiếu chưa cọc', icon: 'fa-hourglass-half text-amber-500' },
   { label: 'Copy Báo giá & Xin cọc (Zalo/FB)', cmd: '/copy-quote', desc: 'Copy nhanh kịch bản báo giá kèm STK nhận cọc', icon: 'fa-file-invoice-dollar text-amber-600' },
   { label: 'Copy Xác nhận Đã cọc (Zalo/FB)', cmd: '/copy-paid', desc: 'Copy nhanh tin nhắn báo đã nhận cọc giữ bàn', icon: 'fa-circle-check text-emerald-600' },
@@ -242,7 +243,7 @@ const commands = [
   { label: 'Đồng bộ dữ liệu Cloud', cmd: '/sync', desc: 'Tải lại lịch sử đặt bàn từ server', icon: 'fa-rotate text-purple-500' }
 ]
 
-const indexedCommands = commands.map(c => ({
+const indexedCommands = allCommands.map(c => ({
   ...c,
   _cleanLabel: c.label.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/đ/g, 'd').toLowerCase(),
   _cleanDesc: c.desc.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/đ/g, 'd').toLowerCase()
@@ -250,10 +251,11 @@ const indexedCommands = commands.map(c => ({
 
 const filteredCommands = computed(() => {
   if (paletteFilter.value !== 'all' && paletteFilter.value !== 'commands') return []
+  const available = ui.isV3 ? indexedCommands.filter(c => !c.v2Only) : indexedCommands
   const q = searchQuery.value.trim().toLowerCase()
-  if (!q) return commands
+  if (!q) return available
   const cleanQ = q.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/đ/g, 'd').toLowerCase()
-  return indexedCommands.filter(c => (
+  return available.filter(c => (
     c.cmd.includes(q) || c._cleanLabel.includes(cleanQ) || c._cleanDesc.includes(cleanQ)
   ))
 })
@@ -391,13 +393,15 @@ function executeCommand(cmd: string) {
     ui.showToast('Đã khởi tạo phiếu mới!', 'success')
   } else if (cmd === '/preview') {
     ui.tab = 'preview'
-  } else if (cmd === '/floor') {
+  } else if (cmd === '/version') {
+    ui.toggleAppVersion()
+  } else if (cmd === '/floor' && !ui.isV3) {
     ui.showFloorPlan = true
-  } else if (cmd === '/today') {
+  } else if (cmd === '/today' && !ui.isV3) {
     ui.selectedTimelineDate = getTodayStr()
     ui.tab = 'timeline'
     appStore.loadHistory(false)
-  } else if (cmd === '/tomorrow') {
+  } else if (cmd === '/tomorrow' && !ui.isV3) {
     ui.selectedTimelineDate = getTomorrowStr()
     ui.tab = 'timeline'
     appStore.loadHistory(false)
@@ -483,21 +487,27 @@ function parseVoiceCommand(text: string) {
   
   // 1. Navigation Commands
   if (lowerText.includes('đi tới') || lowerText.includes('chuyển sang') || lowerText.includes('mở tab')) {
-    if (lowerText.includes('bảng điều khiển') || lowerText.includes('dashboard')) {
+    if (!ui.isV3 && (lowerText.includes('bảng điều khiển') || lowerText.includes('dashboard'))) {
       ui.tab = 'dashboard'
       ui.showToast('Đã chuyển sang Bảng điều khiển', 'success')
       ui.showCommandPalette = false
       return
     }
-    if (lowerText.includes('lịch biểu') || lowerText.includes('timeline') || lowerText.includes('lịch trình')) {
+    if (!ui.isV3 && (lowerText.includes('lịch biểu') || lowerText.includes('timeline') || lowerText.includes('lịch trình'))) {
       ui.tab = 'timeline'
       ui.showToast('Đã chuyển sang Lịch biểu', 'success')
       ui.showCommandPalette = false
       return
     }
-    if (lowerText.includes('danh sách') || lowerText.includes('lịch sử') || lowerText.includes('history')) {
+    if (lowerText.includes('danh sách') || lowerText.includes('lịch sử') || lowerText.includes('history') || lowerText.includes('đơn đặt')) {
       ui.tab = 'history'
-      ui.showToast('Đã chuyển sang Danh sách lịch sử', 'success')
+      ui.showToast('Đã chuyển sang Đơn đặt bàn', 'success')
+      ui.showCommandPalette = false
+      return
+    }
+    if (lowerText.includes('báo cáo') || lowerText.includes('thống kê')) {
+      ui.tab = 'analytics'
+      ui.showToast('Đã chuyển sang Báo cáo', 'success')
       ui.showCommandPalette = false
       return
     }
@@ -710,13 +720,20 @@ function handleGlobalKeydown(e: KeyboardEvent) {
     }
   }
 
-  // Desktop quick tab switcher (Alt + 1..5) - Đồng bộ thứ tự: Tạo - Phiếu - Tổng quan - Lịch - Lịch sử
+  // Desktop quick tab switcher
   if (e.altKey && !e.ctrlKey && !e.metaKey) {
-    if (e.key === '1') { e.preventDefault(); ui.tab = 'create' }
-    else if (e.key === '2') { e.preventDefault(); ui.tab = 'preview' }
-    else if (e.key === '3') { e.preventDefault(); ui.tab = 'dashboard' }
-    else if (e.key === '4') { e.preventDefault(); ui.tab = 'timeline' }
-    else if (e.key === '5') { e.preventDefault(); ui.tab = 'history' }
+    if (ui.isV3) {
+      if (e.key === '1') { e.preventDefault(); ui.tab = 'create' }
+      else if (e.key === '2') { e.preventDefault(); ui.tab = 'preview' }
+      else if (e.key === '3') { e.preventDefault(); ui.tab = 'history' }
+      else if (e.key === '4') { e.preventDefault(); ui.tab = 'analytics' }
+    } else {
+      if (e.key === '1') { e.preventDefault(); ui.tab = 'create' }
+      else if (e.key === '2') { e.preventDefault(); ui.tab = 'preview' }
+      else if (e.key === '3') { e.preventDefault(); ui.tab = 'dashboard' }
+      else if (e.key === '4') { e.preventDefault(); ui.tab = 'timeline' }
+      else if (e.key === '5') { e.preventDefault(); ui.tab = 'history' }
+    }
   }
 
   if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
@@ -731,7 +748,7 @@ function handleGlobalKeydown(e: KeyboardEvent) {
     return
   }
 
-  // POS Standard F-Keys (F1-F4)
+  // POS Standard F-Keys
   if (e.key === 'F1') {
     e.preventDefault()
     ui.tab = 'create'
@@ -745,13 +762,13 @@ function handleGlobalKeydown(e: KeyboardEvent) {
     return
   }
 
-  if (e.key === 'F3') {
+  if (e.key === 'F3' && !ui.isV3) {
     e.preventDefault()
     ui.showFloorPlan = true
     return
   }
 
-  if (e.key === 'F4') {
+  if (e.key === 'F4' && !ui.isV3) {
     e.preventDefault()
     ui.tab = 'timeline'
     appStore.loadHistory(false)
@@ -1085,8 +1102,8 @@ const ambientTheme = computed(() => {
               <i class="fa-solid fa-chevron-right text-xs" :class="ui.activeSettingModal === 'ai' ? 'text-blue-500' : 'text-slate-300 dark:text-slate-600'"></i>
             </button>
 
-            <!-- Social AI Bot -->
-            <button @click="ui.showSocialBotModal = true; ui.showSettingsHub = false" class="w-full px-4 py-3.5 flex items-center gap-3.5 transition-colors group hover:bg-slate-50 dark:hover:bg-slate-800/60 text-left">
+            <!-- Social AI Bot (v2.5.0 only) -->
+            <button v-if="!ui.isV3" @click="ui.showSocialBotModal = true; ui.showSettingsHub = false" class="w-full px-4 py-3.5 flex items-center gap-3.5 transition-colors group hover:bg-slate-50 dark:hover:bg-slate-800/60 text-left">
               <div class="w-10 h-10 rounded-xl bg-indigo-50 dark:bg-indigo-950/50 text-indigo-600 dark:text-indigo-400 flex items-center justify-center text-lg shrink-0">
                 <i class="fa-solid fa-robot"></i>
               </div>
@@ -1103,6 +1120,36 @@ const ambientTheme = computed(() => {
         <div class="space-y-2.5">
           <h4 class="text-[11px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-wider pl-1">Giao diện & Hệ thống</h4>
           <div class="bg-white dark:bg-slate-850 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-800 overflow-hidden">
+            <!-- Parallel Version Switcher (v3.0 <-> v2.5.0) -->
+            <div class="w-full px-4 py-3.5 flex items-center justify-between gap-3 border-b border-slate-100 dark:border-slate-800">
+              <div class="flex items-center gap-3.5 min-w-0">
+                <div class="w-10 h-10 rounded-xl bg-blue-50 dark:bg-blue-950/50 text-blue-600 dark:text-blue-400 flex items-center justify-center text-lg shrink-0">
+                  <i class="fa-solid fa-code-compare"></i>
+                </div>
+                <div class="min-w-0">
+                  <div class="font-bold text-slate-900 dark:text-slate-100 text-xs mb-0.5">Phiên bản vận hành song song</div>
+                  <div class="text-[10px] text-slate-400 dark:text-slate-500 leading-tight">Chuyển đổi tức thì giữa bản 3.0 tinh gọn & 2.5.0</div>
+                </div>
+              </div>
+              <div class="inline-flex p-0.5 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shrink-0">
+                <button
+                  type="button"
+                  @click="ui.setAppVersion('2.5.0')"
+                  class="px-2.5 py-1 rounded-lg text-[10px] font-black transition-all cursor-pointer"
+                  :class="!ui.isV3 ? 'bg-slate-900 dark:bg-white text-white dark:text-slate-900 shadow-xs' : 'text-slate-500 dark:text-slate-400'"
+                >
+                  2.5.0
+                </button>
+                <button
+                  type="button"
+                  @click="ui.setAppVersion('3.0')"
+                  class="px-2.5 py-1 rounded-lg text-[10px] font-black transition-all cursor-pointer"
+                  :class="ui.isV3 ? 'bg-blue-600 text-white shadow-xs' : 'text-slate-500 dark:text-slate-400'"
+                >
+                  3.0
+                </button>
+              </div>
+            </div>
             <button @click="ui.openConfig('branding')" :class="['w-full px-4 py-3.5 flex items-center gap-3.5 transition-colors border-b border-slate-100 dark:border-slate-800 group text-left', ui.activeSettingModal === 'branding' ? 'bg-blue-50/70 dark:bg-blue-950/40' : 'hover:bg-slate-50 dark:hover:bg-slate-800/60']">
               <div class="w-10 h-10 rounded-xl bg-orange-50 dark:bg-orange-950/50 text-orange-600 dark:text-orange-400 flex items-center justify-center text-lg shrink-0">
                 <i class="fa-solid fa-pen-nib"></i>
@@ -1275,11 +1322,11 @@ const ambientTheme = computed(() => {
     <!-- ALL CONFIG MODALS -->
     <VerifyTransferModal />
     <BookingDetailModal />
-    <FloorPlanModal />
+    <FloorPlanModal v-if="!ui.isV3" />
     <CustomerCareModal />
     <ConflictResolutionModal />
     <VersionReleaseModal />
-    <SocialBotModal />
+    <SocialBotModal v-if="!ui.isV3" />
     <OutboxSyncModal />
     <BookingConfirmationModal />
 

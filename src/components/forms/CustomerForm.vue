@@ -14,6 +14,24 @@ const formStore = useFormStore()
 const appStore = useAppStore()
 const { handleInputFocus, handleInputBlur, formatDate, checkCRM, crmStatus } = useForm()
 
+const QUICK_ZONES = ['A', 'B', 'C', 'D', 'E', 'VIP']
+
+function selectZonePrefix(zone: string) {
+  const cur = (formStore.customer.tables || '').trim()
+  const prefix = zone === 'VIP' ? 'VIP ' : zone
+  if (!cur || /^[A-E]$/i.test(cur) || /^VIP\s*$/i.test(cur)) {
+    formStore.customer.tables = prefix
+  } else if (!cur.toUpperCase().includes(zone.toUpperCase())) {
+    formStore.customer.tables = `${cur}, ${prefix}`
+  }
+  const el = document.getElementById('cust-tables') as HTMLInputElement | null
+  if (el) {
+    el.focus()
+    const len = el.value.length
+    el.setSelectionRange(len, len)
+  }
+}
+
 const selectedIcon = computed(() => {
   const found = PARTY_TYPES.find(p => p.name === formStore.customer.type)
   return found?.icon || 'fa-utensils'
@@ -311,8 +329,22 @@ function applySmartRecommendation() {
             <i class="fa-solid fa-map-location-dot absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500"></i>
             <input id="cust-tables" v-model="formStore.customer.tables" autocomplete="off" enterkeyhint="next" @focus="handleInputFocus" @blur="handleInputBlur" class="w-full border rounded-xl pl-8 sm:pl-9 pr-2 py-2.5 sm:py-3 text-[15px] sm:text-[16px] font-semibold text-slate-800 dark:text-slate-100 bg-white dark:bg-[#0B1220] focus:border-blue-500 dark:focus:border-[#78A6FF] focus:ring-4 focus:ring-blue-50 dark:focus:ring-[#2F67E8]/20 outline-none transition-all placeholder-slate-400 dark:placeholder-slate-500" :class="formStore.aiMetadata?.confidences?.tables?.needs_review ? 'border-amber-400 bg-amber-50/10 focus:border-amber-500 focus:ring-amber-100' : 'border-slate-200 dark:border-[#293954]'" placeholder="VD: A1, B2...">
           </div>
-          <button @click.prevent="ui.showFloorPlan = true" class="touch-target-48 w-10 sm:w-11 h-10 sm:h-11 bg-blue-50 dark:bg-[#182338] text-blue-600 dark:text-[#62A5FF] hover:bg-blue-100 dark:hover:bg-[#1E2C44] rounded-xl border border-blue-100 dark:border-[#293954] flex items-center justify-center transition-colors active:scale-95 shrink-0 cursor-pointer" title="Mở sơ đồ bàn" aria-label="Mở sơ đồ bàn">
+          <button v-if="!ui.isV3" @click.prevent="ui.showFloorPlan = true" class="touch-target-48 w-10 sm:w-11 h-10 sm:h-11 bg-blue-50 dark:bg-[#182338] text-blue-600 dark:text-[#62A5FF] hover:bg-blue-100 dark:hover:bg-[#1E2C44] rounded-xl border border-blue-100 dark:border-[#293954] flex items-center justify-center transition-colors active:scale-95 shrink-0 cursor-pointer" title="Mở sơ đồ bàn" aria-label="Mở sơ đồ bàn">
             <i class="fa-solid fa-border-all text-base sm:text-lg"></i>
+          </button>
+        </div>
+        <!-- Quick Zone Chips in v3.0 (replaces Floor Plan modal with 1-tap direct entry) -->
+        <div v-if="ui.isV3" class="flex gap-1 mt-1.5 flex-nowrap overflow-x-auto no-scrollbar">
+          <button
+            v-for="z in QUICK_ZONES"
+            :key="z"
+            type="button"
+            @click.prevent="selectZonePrefix(z)"
+            class="px-2 py-1 min-h-[30px] text-[10px] font-black uppercase tracking-wider rounded-lg border transition-all active:scale-95 shrink-0 cursor-pointer"
+            :class="(formStore.customer.tables || '').toUpperCase().includes(z) ? 'bg-blue-600 text-white border-blue-600 shadow-2xs' : 'bg-slate-100 dark:bg-[#182338] border-slate-200 dark:border-[#293954] text-slate-600 dark:text-[#94A3B8] hover:bg-blue-50 dark:hover:bg-[#1E2C44] hover:text-blue-600 dark:hover:text-[#62A5FF]'"
+            :title="`Chọn nhanh Khu ${z}`"
+          >
+            {{ z === 'VIP' ? 'VIP' : `Khu ${z}` }}
           </button>
         </div>
         <!-- Smart Table Allocation Recommendation Chip -->

@@ -7,6 +7,7 @@ import { useForm } from '@/composables/useForm'
 import { formatVND, mergeSetComponentNote, stripAccents } from '@/utils'
 import { SETS } from '@/utils/constants'
 import { CANONICAL_SET_AND_COMBO_ITEMS, normalizeSetOrComboName, resolveSetMenuDescription } from '@/domain/menu/menuMatcher'
+import { parseBillItemNote } from '@/components/bills/billHelpers'
 
 const ui = useUIStore()
 const formStore = useFormStore()
@@ -43,19 +44,8 @@ function isSetOrComboItem(item: any): boolean {
   return /^(?:Set menu|Combo couple)\s+\d+$/i.test(norm) || Boolean(SETS[norm])
 }
 
-function parseItemNoteStructure(noteStr?: string): { components: string[]; customNotes: string[] } {
-  if (!noteStr || !noteStr.trim()) return { components: [], customNotes: [] }
-  const lines = noteStr.split('\n').map(l => l.trim()).filter(Boolean)
-  const components: string[] = []
-  const customNotes: string[] = []
-  for (const line of lines) {
-    if (/^\d{1,2}\s*\/\s*\S+/.test(line)) {
-      components.push(line)
-    } else {
-      customNotes.push(line)
-    }
-  }
-  return { components, customNotes }
+function parseItemNoteStructure(noteStr?: string) {
+  return parseBillItemNote(noteStr)
 }
 
 function restoreCanonicalSetNote(index: number) {
@@ -520,7 +510,7 @@ function addNewItemAndFocus() {
         </div>
         <div>
           <h3 class="font-bold text-text-primary text-xs uppercase tracking-wider flex items-center gap-1.5">
-            <span>3. Danh Sách Món Ăn & Đồ Uống</span>
+            <span>{{ ui.isV3 ? '2.' : '3.' }} Danh Sách Món Ăn & Đồ Uống</span>
             <span class="bg-emerald-600 text-white px-2 py-0.5 rounded-full text-[10px] font-black font-tabular shadow-2xs">{{ formStore.items.length }} món · {{ totalPortions }} phần</span>
           </h3>
           <p class="text-[11px] font-medium text-text-secondary">Chọn từ thực đơn hoặc nhập tự do</p>
@@ -1206,21 +1196,34 @@ function addNewItemAndFocus() {
               </button>
             </div>
 
-            <div class="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+            <div class="flex flex-col gap-1.5">
               <div
-                v-for="(compLine, cIdx) in parseItemNoteStructure(item.note).components"
+                v-for="(comp, cIdx) in parseItemNoteStructure(item.note).parsedComponents"
                 :key="cIdx"
-                class="flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-xl bg-emerald-50/50 dark:bg-emerald-950/20 border border-emerald-200/70 dark:border-emerald-800/40 text-[11px] font-bold text-slate-700 dark:text-slate-200"
+                class="flex items-center justify-between gap-2.5 px-3 py-2 rounded-xl bg-emerald-50/70 dark:bg-emerald-950/30 border border-emerald-200/80 dark:border-emerald-800/50 text-xs font-bold text-slate-800 dark:text-slate-100 shadow-2xs"
               >
-                <span class="truncate">{{ compLine }}</span>
-                <button
-                  type="button"
-                  @click.prevent="promptSwapSetDish(index, compLine)"
-                  class="px-1.5 py-0.5 rounded bg-white dark:bg-slate-800 hover:bg-amber-50 text-amber-600 dark:text-amber-400 border border-amber-200 dark:border-amber-800/60 text-[9px] font-black uppercase shrink-0 cursor-pointer active:scale-95"
-                  title="Ghi chú đổi món này sang món khác"
-                >
-                  Đổi món
-                </button>
+                <div class="flex items-center gap-2 min-w-0">
+                  <span class="inline-flex items-center justify-center min-w-[20px] h-[20px] px-1 rounded-md bg-emerald-700 dark:bg-emerald-600 text-white text-[10px] font-black shrink-0 tabular-nums">
+                    {{ comp.index || (cIdx + 1) }}
+                  </span>
+                  <span class="font-bold text-slate-900 dark:text-slate-100 leading-snug break-words">{{ comp.name }}</span>
+                </div>
+                <div class="flex items-center gap-1.5 shrink-0">
+                  <span
+                    v-if="comp.qty"
+                    class="px-2 py-0.5 rounded-md bg-white dark:bg-slate-800 border border-emerald-300 dark:border-emerald-700 text-emerald-800 dark:text-emerald-300 text-[10px] font-black tabular-nums whitespace-nowrap"
+                  >
+                    SL: {{ comp.qty }}
+                  </span>
+                  <button
+                    type="button"
+                    @click.prevent="promptSwapSetDish(index, comp.raw)"
+                    class="px-2 py-0.5 rounded-md bg-white dark:bg-slate-800 hover:bg-amber-50 dark:hover:bg-amber-950/40 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-800/60 text-[9.5px] font-black uppercase shrink-0 cursor-pointer active:scale-95 transition-colors"
+                    title="Ghi chú đổi món này sang món khác"
+                  >
+                    Đổi món
+                  </button>
+                </div>
               </div>
             </div>
           </div>

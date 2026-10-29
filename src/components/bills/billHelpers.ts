@@ -80,17 +80,103 @@ export function formatDepositTime(timeStr?: string): string {
   }
 }
 
-export function parseBillItemNote(noteStr?: string): { components: string[]; customNotes: string[] } {
-  if (!noteStr || !noteStr.trim()) return { components: [], customNotes: [] }
-  const lines = noteStr.split('\n').map(l => l.trim()).filter(Boolean)
-  const components: string[] = []
-  const customNotes: string[] = []
-  for (const line of lines) {
-    if (/^\d{1,2}\s*\/\s*\S+/.test(line)) {
-      components.push(line)
-    } else {
-      customNotes.push(line)
+export interface ParsedSetComponent {
+  index: string
+  name: string
+  qty: string | null
+  raw: string
+}
+
+export function parseSetComponentLine(line: string): ParsedSetComponent {
+  const trimmed = (line || '').trim()
+  const match = trimmed.match(/^(\d{1,2})\s*[\/\.\)]\s*(.+?)(?:\s*\[(\d+)\])?\s*$/)
+  if (match) {
+    return {
+      index: match[1],
+      name: match[2].trim(),
+      qty: match[3] || null,
+      raw: trimmed
     }
   }
-  return { components, customNotes }
+  return {
+    index: '•',
+    name: trimmed,
+    qty: null,
+    raw: trimmed
+  }
+}
+
+function splitInlineSetComponents(rawLine: string): { prefixNote: string | null; items: string[] } {
+  const trimmed = (rawLine || '').trim()
+  if (!trimmed) return { prefixNote: null, items: [] }
+
+  const splitIndices: number[] = []
+  let depth = 0
+
+  for (let i = 0; i < trimmed.length; i++) {
+    const ch = trimmed[i]
+    if (ch === '(' || ch === '[') {
+      depth++
+      continue
+    }
+    if (ch === ')' || ch === ']') {
+      depth = Math.max(0, depth - 1)
+      continue
+    }
+    if (depth === 0 && (i === 0 || /[\s,;•|]/.test(trimmed[i - 1]))) {
+      const rest = trimmed.slice(i)
+      const m = rest.match(/^(?:[1-9]|1[0-9]|20)\s*(?:\/|\.(?=\s)|(?:\)(?=\s)))\s*\S/)
+      if (m) {
+        splitIndices.push(i)
+      }
+    }
+  }
+
+  if (splitIndices.length === 0) {
+    return { prefixNote: trimmed, items: [] }
+  }
+
+  let prefixNote: string | null = null
+  if (splitIndices[0] > 0) {
+    const rawPrefix = trimmed.slice(0, splitIndices[0]).trim().replace(/[:\-–—|,;\s]+$/, '').trim()
+    const isGenericHeader = /^(?:chi\s*tiết(?:\s*(?:gói|set|combo|menu|thực\s*đơn))?|bao\s*gồm|gồm\s*có|gồm|danh\s*sách\s*món)$/i.test(rawPrefix)
+    if (rawPrefix && !isGenericHeader) {
+      prefixNote = rawPrefix
+    }
+  }
+
+  const items: string[] = []
+  for (let k = 0; k < splitIndices.length; k++) {
+    const start = splitIndices[k]
+    const end = k + 1 < splitIndices.length ? splitIndices[k + 1] : trimmed.length
+    const segment = trimmed.slice(start, end).trim().replace(/^[,;\s]+|[,;\s]+$/g, '')
+    if (segment) items.push(segment)
+  }
+
+  return { prefixNote, items }
+}
+
+export function parseBillItemNote(noteStr?: string): {
+  components: string[]
+  parsedComponents: ParsedSetComponent[]
+  customNotes: string[]
+} {
+  if (!noteStr || !noteStr.trim()) {
+    return { components: [], parsedComponents: [], customNotes: [] }
+  }
+  const lines = noteStr.split(/\r?\n/).map(l => l.trim()).filter(Boolean)
+  const components: string[] = []
+  const parsedComponents: ParsedSetComponent[] = []
+  const customNotes: string[] = []
+  for (const line of lines) {
+    const { prefixNote, items } = splitInlineSetComponents(line)
+    if (prefixNote) {
+      customNotes.push(prefixNote)
+    }
+    for (const itemLine of items) {
+      components.push(itemLine)
+      parsedComponents.push(parseSetComponentLine(itemLine))
+    }
+  }
+  return { components, parsedComponents, customNotes }
 }
