@@ -21,15 +21,8 @@ export interface ModalState {
 }
 
 export const useUIStore = defineStore('ui', () => {
-  // --- Version Mode (v3.0 Parallel Operation with v2.5.0) ---
-  const loadInitialVersion = (): '2.5.0' | '3.0' => {
-    try {
-      const saved = localStorage.getItem('kg_app_ui_version')
-      if (saved === '2.5.0' || saved === '3.0') return saved
-    } catch {}
-    return '3.0'
-  }
-  const appVersion = ref<'2.5.0' | '3.0'>(loadInitialVersion())
+  // --- Version Mode (Standalone v2.5.0-APEX Default on kg-booking.pages.dev) ---
+  const appVersion = ref<'2.5.0' | '3.0'>('2.5.0')
   const isV3 = computed(() => appVersion.value === '3.0')
 
   // --- Tab & Panel ---

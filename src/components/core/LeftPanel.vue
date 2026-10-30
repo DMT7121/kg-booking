@@ -276,31 +276,28 @@ function goToTomorrowTimeline() {
                   }"></span>
           </h1>
           <div class="flex items-center gap-1.5 mt-1" :class="{'hidden sm:flex': isHeaderCompact}">
-            <!-- PARALLEL VERSION SWITCHER PILL (v2.5.0 <-> v3.0) -->
+            <!-- VERSION BADGE (v2.5.0) + EXTERNAL LINK TO STANDALONE WEBAPP 3.0 -->
             <div
-              class="inline-flex items-center p-0.5 rounded-lg bg-slate-800/95 border border-slate-700/80 shrink-0 shadow-2xs"
+              class="inline-flex items-center p-0.5 rounded-lg bg-slate-800/95 border border-slate-700/80 shrink-0 shadow-2xs gap-0.5"
               role="group"
-              aria-label="Chuyển đổi phiên bản giao diện"
+              aria-label="Phiên bản ứng dụng"
             >
-              <button
-                type="button"
-                @click="ui.setAppVersion('2.5.0')"
-                class="px-1.5 py-0.5 rounded-md font-mono text-[9.5px] font-black transition-all cursor-pointer leading-none"
-                :class="!ui.isV3 ? 'bg-amber-400 text-slate-950 shadow-2xs' : 'text-slate-400 hover:text-slate-200'"
-                title="Chuyển sang Phiên bản 2.5.0-APEX (Đầy đủ các phân hệ truyền thống)"
+              <span
+                class="px-1.5 py-0.5 rounded-md font-mono text-[9.5px] font-black leading-none bg-amber-400 text-slate-950 shadow-2xs"
+                title="Đang chạy Phiên bản 2.5.0-APEX Đầy đủ"
               >
-                2.5.0
-              </button>
-              <button
-                type="button"
-                @click="ui.setAppVersion('3.0')"
-                class="px-1.5 py-0.5 rounded-md font-mono text-[9.5px] font-black transition-all cursor-pointer leading-none flex items-center gap-0.5"
-                :class="ui.isV3 ? 'bg-blue-500 text-white shadow-2xs' : 'text-slate-400 hover:text-slate-200'"
-                title="Chuyển sang Phiên bản 3.0 Mới (Tinh gọn & Tối ưu tốc độ thao tác)"
+                v2.5.0
+              </span>
+              <a
+                href="https://kg-booking-v3.pages.dev"
+                target="_blank"
+                rel="noopener noreferrer"
+                class="px-1.5 py-0.5 rounded-md font-mono text-[9.5px] font-black transition-all cursor-pointer leading-none flex items-center gap-0.5 text-blue-300 hover:bg-blue-600 hover:text-white"
+                title="Mở WebApp Bản 3.0 Độc lập (kg-booking-v3.pages.dev)"
               >
                 <i class="fa-solid fa-bolt text-[8px] text-amber-300"></i>
-                <span>3.0</span>
-              </button>
+                <span>3.0 ↗</span>
+              </a>
             </div>
 
             <button 
@@ -1296,30 +1293,22 @@ function goToTomorrowTimeline() {
             <h3 class="text-center font-black text-slate-800 dark:text-slate-100 text-base mb-4 uppercase tracking-widest">Danh Mục & Tiện Ích</h3>
             
             <div class="space-y-4">
-              <!-- Parallel Version Switcher Card -->
+              <!-- Standalone WebApp 3.0 Launcher Card -->
               <div class="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 flex items-center justify-between gap-3">
                 <div class="min-w-0">
-                  <div class="font-black text-slate-900 dark:text-slate-100 text-xs uppercase tracking-wider">Phiên bản giao diện</div>
-                  <div class="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">Chạy song song v3.0 & v2.5.0</div>
+                  <div class="font-black text-slate-900 dark:text-slate-100 text-xs uppercase tracking-wider">WebApp Bản 3.0 Độc Lập</div>
+                  <div class="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">Tinh gọn & OCR &lt; 1s trên tên miền riêng</div>
                 </div>
-                <div class="inline-flex p-1 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 shrink-0">
-                  <button
-                    type="button"
-                    @click="ui.setAppVersion('2.5.0'); showMoreSheet = false"
-                    class="px-2.5 py-1 rounded-lg text-[10.5px] font-black transition-all cursor-pointer"
-                    :class="!ui.isV3 ? 'bg-slate-900 dark:bg-amber-400 text-white dark:text-slate-950 shadow-2xs' : 'text-slate-500'"
-                  >
-                    v2.5.0
-                  </button>
-                  <button
-                    type="button"
-                    @click="ui.setAppVersion('3.0'); showMoreSheet = false"
-                    class="px-2.5 py-1 rounded-lg text-[10.5px] font-black transition-all cursor-pointer"
-                    :class="ui.isV3 ? 'bg-blue-600 text-white shadow-2xs' : 'text-slate-500'"
-                  >
-                    ⚡ v3.0
-                  </button>
-                </div>
+                <a
+                  href="https://kg-booking-v3.pages.dev"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  @click="showMoreSheet = false"
+                  class="px-3 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-[11px] font-black transition-all shrink-0 flex items-center gap-1 shadow-sm"
+                >
+                  <i class="fa-solid fa-bolt text-amber-300 text-[10px]"></i>
+                  <span>Mở v3.0 ↗</span>
+                </a>
               </div>
 
               <!-- Pending Outbox Sync (When offline items exist) -->

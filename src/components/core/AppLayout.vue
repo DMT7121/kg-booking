@@ -231,7 +231,7 @@ function getTomorrowStr() {
 const allCommands = [
   { label: 'Tạo phiếu đặt bàn mới', cmd: '/create', desc: 'Xóa form và chuyển sang tab Tạo Phiếu', icon: 'fa-plus text-emerald-500' },
   { label: 'Xem trước & Xuất ảnh Phiếu', cmd: '/preview', desc: 'Mở màn hình xem phiếu và tải ảnh/PDF gửi khách', icon: 'fa-eye text-cyan-500' },
-  { label: 'Chuyển đổi phiên bản v3.0 ⇄ v2.5.0', cmd: '/version', desc: 'Đổi nhanh giao diện giữa bản 3.0 tinh gọn và bản 2.5.0 đầy đủ', icon: 'fa-code-compare text-blue-500' },
+  { label: 'Mở WebApp Bản 3.0 Độc Lập ↗', cmd: '/version', desc: 'Mở trang kg-booking-v3.pages.dev (Tinh gọn & OCR < 1s)', icon: 'fa-bolt text-blue-500' },
   { label: 'Mở Sơ đồ bàn nhà hàng (F3)', cmd: '/floor', desc: 'Xem trực quan sơ đồ bàn trống / đã đặt', icon: 'fa-map-location-dot text-orange-500', v2Only: true },
   { label: 'Lịch đặt bàn hôm nay (F4)', cmd: '/today', desc: 'Xem timeline đặt bàn ngày hôm nay', icon: 'fa-calendar-day text-blue-500', v2Only: true },
   { label: 'Lịch đặt bàn ngày mai', cmd: '/tomorrow', desc: 'Xem timeline đặt bàn ngày mai', icon: 'fa-calendar-plus text-indigo-500', v2Only: true },
@@ -394,7 +394,7 @@ function executeCommand(cmd: string) {
   } else if (cmd === '/preview') {
     ui.tab = 'preview'
   } else if (cmd === '/version') {
-    ui.toggleAppVersion()
+    window.open('https://kg-booking-v3.pages.dev', '_blank', 'noopener,noreferrer')
   } else if (cmd === '/floor' && !ui.isV3) {
     ui.showFloorPlan = true
   } else if (cmd === '/today' && !ui.isV3) {

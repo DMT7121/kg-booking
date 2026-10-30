@@ -605,4 +605,80 @@ describe('AI Gateway Cloudflare Worker Tests', () => {
     expect(gasCallCount).toBe(2)
     expect((await freshRes.json() as any).data[0].id).toBe('v-2')
   })
+
+  it('should execute Chromium Google Lens OCR via /api/ocr/lens and return clean Vietnamese lines', async () => {
+    const encStr = (field: number, s: string) => {
+      const b = Buffer.from(s, 'utf-8')
+      return Buffer.concat([Buffer.from([(field << 3) | 2, b.length]), b])
+    }
+    const encMsg = (field: number, b: Buffer) =>
+      Buffer.concat([Buffer.from([(field << 3) | 2, b.length]), b])
+
+    const w1 = Buffer.concat([encStr(2, 'Anh'), encStr(3, ' ')])
+    const w2 = Buffer.concat([encStr(2, 'Tâm'), encStr(3, ' ')])
+    const w3 = Buffer.concat([encStr(2, '0332510556'), encStr(3, '')])
+    const line1 = Buffer.concat([encMsg(1, w1), encMsg(1, w2), encMsg(1, w3)])
+    const para1 = encMsg(2, line1)
+    const layout = encMsg(1, para1)
+    const textMsg = encMsg(1, layout)
+    const objRes = encMsg(3, textMsg)
+    const serverRes = encMsg(2, objRes)
+
+    fetchMock.mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      arrayBuffer: () =>
+        Promise.resolve(
+          serverRes.buffer.slice(serverRes.byteOffset, serverRes.byteOffset + serverRes.byteLength)
+        )
+    })
+
+    const req = new Request('http://localhost/api/ocr/lens', {
+      method: 'POST',
+      headers: {
+        Origin: 'https://kg-booking-v3.pages.dev',
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        imageBase64: 'data:image/jpeg;base64,/9j/4AAQSkZJRg==',
+        width: 800,
+        height: 600
+      })
+    })
+
+    const res = await worker.fetch(req, mockEnv as any, {} as any)
+    expect(res.status).toBe(200)
+    expect(['*', 'https://kg-booking-v3.pages.dev']).toContain(
+      res.headers.get('Access-Control-Allow-Origin')
+    )
+    const json = (await res.json()) as any
+    expect(json.ok).toBe(true)
+    expect(json.engine).toBe('google-lens-chromium')
+    expect(json.text).toBe('Anh Tâm 0332510556')
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    expect(fetchMock.mock.calls[0][0]).toBe('https://lensfrontend-pa.googleapis.com/v1/crupload')
+  })
+
+  it('should return 502 on /api/ocr/lens when upstream Lens fails so client falls back to Gemini Vision', async () => {
+    fetchMock.mockResolvedValueOnce({
+      ok: false,
+      status: 429,
+      arrayBuffer: () => Promise.resolve(new ArrayBuffer(0))
+    })
+
+    const req = new Request('http://localhost/api/ocr/lens', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        imageBase64: 'data:image/jpeg;base64,/9j/4AAQSkZJRg==',
+        width: 800,
+        height: 600
+      })
+    })
+
+    const res = await worker.fetch(req, mockEnv as any, {} as any)
+    expect(res.status).toBe(502)
+    const json = (await res.json()) as any
+    expect(json.ok).toBe(false)
+  })
 })

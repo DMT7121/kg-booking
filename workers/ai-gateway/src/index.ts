@@ -1,4 +1,5 @@
 // Cloudflare API Gateway Worker implementation (index.ts)
+import { executeChromiumLensOcr } from './lensChromiumOcr';
 
 export interface Env {
   GEMINI_API_KEY?: string;
@@ -680,6 +681,49 @@ export default {
       if (path === "/api/ai/health" && request.method === "GET") {
         return new Response(JSON.stringify({ ok: true, status: "healthy", version: "2.5.0-APEX" }), {
           status: 200,
+          headers: { ...corsHeaders, "Content-Type": "application/json" }
+        });
+      }
+
+      // Fast Chromium Google Lens OCR Endpoint (<1s Edge OCR, client falls back to Gemini Vision on error)
+      if ((path === "/api/ocr/lens" || path === "/ocr/lens") && request.method === "POST") {
+        const clientIP = request.headers.get("CF-Connecting-IP") || "127.0.0.1";
+        const ipHash = await hashIP(clientIP);
+        if (limiter.isRateLimited(`lens:${ipHash}`, 240, 60000)) {
+          return new Response(JSON.stringify({ ok: false, error: "Rate Limit Exceeded", errorCode: "RATE_LIMITED" }), {
+            status: 429,
+            headers: { ...corsHeaders, "Content-Type": "application/json" }
+          });
+        }
+
+        let body: any;
+        try {
+          body = await request.json();
+        } catch {
+          return new Response(JSON.stringify({ ok: false, error: "Invalid JSON body" }), {
+            status: 400,
+            headers: { ...corsHeaders, "Content-Type": "application/json" }
+          });
+        }
+
+        const imageBase64 = typeof body?.imageBase64 === "string" ? body.imageBase64 : "";
+        if (!imageBase64 || imageBase64.length > 4 * 1024 * 1024) {
+          return new Response(JSON.stringify({ ok: false, error: "Missing or oversized imageBase64 payload" }), {
+            status: 400,
+            headers: { ...corsHeaders, "Content-Type": "application/json" }
+          });
+        }
+
+        const ocrResult = await executeChromiumLensOcr({
+          imageBase64,
+          width: Number(body?.width) || undefined,
+          height: Number(body?.height) || undefined,
+          language: typeof body?.language === "string" ? body.language : "",
+          timeoutMs: 2800
+        });
+
+        return new Response(JSON.stringify(ocrResult), {
+          status: ocrResult.ok ? 200 : 502,
           headers: { ...corsHeaders, "Content-Type": "application/json" }
         });
       }
