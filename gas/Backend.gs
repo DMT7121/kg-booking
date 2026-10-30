@@ -169,7 +169,7 @@ function doPost(e) {
     let lock = null;
     if (isWrite) {
       lock = LockService.getScriptLock();
-      if (!lock.tryLock(15000)) { // 15 seconds wait limit for write lock
+      if (!lock.tryLock(28000)) { // 28 seconds wait limit for write lock to absorb bursts cleanly
         return jsonResponse({ok: false, message: "Server busy (lock timeout), please try again."});
       }
     }
@@ -614,9 +614,62 @@ function parseMenuRawData(text) {
 }
 
 // --- PHẦN 3: ORDERS ---
-function saveOrder(p) {
-  // --- BACKEND VALIDATION & NORMALIZATION ---
-  if (!p || !p.customer || !p.customer.name) {
+function normalizeIncomingOrderPayload_(raw) {
+  if (!raw || typeof raw !== "object") {
+    throw new Error("Lỗ hổng: Dữ liệu đơn hàng rỗng hoặc không hợp lệ!");
+  }
+  var p = raw;
+  if (!p.customer) {
+    var inner = null;
+    if (typeof p.data === "string" && p.data.trim().charAt(0) === "{") {
+      try { inner = JSON.parse(p.data); } catch (e) {}
+    } else if (p.data && typeof p.data === "object") {
+      inner = p.data;
+    }
+    var srcCust = p.parsedCustomer || (inner && (inner.customer || inner.parsedCustomer)) || null;
+    if (srcCust) {
+      p.customer = {
+        name: srcCust.name || p.customerName || p.customer_name || p.name || "",
+        phone: srcCust.phone || p.customerPhone || p.customer_phone || p.phone || "",
+        date: srcCust.date || p.bookingDate || p.booking_date || "",
+        time: srcCust.time || p.booking_time || "18:00",
+        pax: srcCust.pax || p.guest_count || "1",
+        tables: p.customerTable || srcCust.tables || srcCust.table_number || "",
+        type: srcCust.type || p.status || "Ăn thường",
+        note: srcCust.note || p.note || ""
+      };
+    } else if (p.name || p.customerName || p.customer_name) {
+      p.customer = {
+        name: p.customerName || p.customer_name || p.name || "",
+        phone: p.customerPhone || p.customer_phone || p.phone || "",
+        date: p.date || p.bookingDate || p.booking_date || "",
+        time: p.time || p.booking_time || "18:00",
+        pax: p.pax || p.guest_count || "1",
+        tables: p.customerTable || p.tables || p.table_number || "",
+        type: p.type || p.status || "Ăn thường",
+        note: p.note || ""
+      };
+    }
+    if (!Array.isArray(p.items)) {
+      p.items = Array.isArray(p.menuItems)
+        ? p.menuItems
+        : (inner && Array.isArray(inner.items) ? inner.items : []);
+    }
+    if (p.total === undefined || p.total === null) {
+      p.total = Number(p.totalAmount !== undefined ? p.totalAmount : (inner && inner.total)) || 0;
+    }
+    if (!p.deposit) {
+      var innerDep = inner && inner.deposit ? inner.deposit : {};
+      p.deposit = {
+        isPaid: Boolean(p.isDeposited || innerDep.isPaid),
+        amount: Number(p.depositAmount !== undefined ? p.depositAmount : innerDep.amount) || 0,
+        image: p.transferImage || innerDep.image || "",
+        note: innerDep.note || ""
+      };
+    }
+  }
+
+  if (!p.customer || !p.customer.name || !String(p.customer.name).trim()) {
     throw new Error("Lỗ hổng: Dữ liệu khách hàng không hợp lệ (thiếu tên khách)!");
   }
   if (!p.customer.phone || !String(p.customer.phone).trim()) {
@@ -624,21 +677,45 @@ function saveOrder(p) {
   }
   p.customer.date = normalizeOrderDateToDMY_(p.customer.date);
   p.customer.type = normalizePartyType_(p.customer.type, p.customer.note);
-  if (!p.deposit) {
+  if (!p.deposit || typeof p.deposit !== "object") {
     p.deposit = { isPaid: false, amount: 0, image: "", note: "" };
   }
-  
-  const total = Number(p.total) || 0;
-  const itemsCount = (p.items && Array.isArray(p.items)) ? p.items.length : 0;
-  
-  if (itemsCount > 0 && total < 10000) {
-    throw new Error("Lỗ hổng: Đơn hàng có món nhưng tổng tiền < 10.000 VNĐ!");
-  } else if (total < 0) {
+  if (p.deposit.image === "__OFFLINE_IMAGE_BUFFER_REF__") {
+    p.deposit.image = "";
+  }
+  if (!p.staff || typeof p.staff !== "object") {
+    p.staff = { name: "Admin", phone: "" };
+  }
+  if (!Array.isArray(p.items)) {
+    p.items = [];
+  }
+
+  var total = Number(p.total) || 0;
+  if (total <= 0 && p.items.length > 0) {
+    var computedTotal = 0;
+    for (var k = 0; k < p.items.length; k++) {
+      var it = p.items[k] || {};
+      var qty = Number(it.qty) || 1;
+      var price = Number(it.price) || 0;
+      if (price > 0) computedTotal += qty * price;
+    }
+    if (computedTotal > 0) {
+      total = computedTotal;
+    }
+  }
+  if (total < 0) {
     throw new Error("Lỗ hổng: Tổng tiền âm không hợp lệ!");
   }
+  p.total = total;
+  return p;
+}
+
+function saveOrder(p) {
+  // --- BACKEND VALIDATION & NORMALIZATION ---
+  p = normalizeIncomingOrderPayload_(p);
   // --------------------------
   if (p.oldBillFileId) { try { Drive.Files.update({trashed: true}, p.oldBillFileId); } catch(e) {} }
-  let billUrl = p.billImage || "";
+  let billUrl = p.billImage || p.billUrl || "";
   if (p.htmlContent) {
     const pdf = renderPreview({htmlContent: p.htmlContent, name: p.customer.name});
     if(pdf.downloadUrl) billUrl = pdf.downloadUrl;
@@ -787,23 +864,21 @@ function saveOrdersBatch(payloads) {
   const results = [];
   const valueRanges = [];
   let nextNewRowIndex = values.length + 1;
+  let sharedCalendarSs = null;
+  try {
+    sharedCalendarSs = SpreadsheetApp.openById(CONFIG.LINKED_CALENDAR_ID);
+    initLocationSheets_(sharedCalendarSs);
+  } catch (calInitErr) {
+    console.log("Batch Calendar Init Failed: " + calInitErr.message);
+  }
 
   for (let idx = 0; idx < payloads.length; idx++) {
-    const p = payloads[idx];
+    let p = payloads[idx];
     try {
-      if (!p || !p.customer || !p.customer.name || !p.customer.phone) {
-        throw new Error("Dữ liệu khách hàng không hợp lệ!");
-      }
-      const total = Number(p.total) || 0;
-      const itemsCount = (p.items && Array.isArray(p.items)) ? p.items.length : 0;
-      if (itemsCount > 0 && total < 10000) {
-        throw new Error("Đơn hàng có món nhưng tổng tiền < 10.000 VNĐ!");
-      } else if (total < 0) {
-        throw new Error("Tổng tiền âm không hợp lệ!");
-      }
+      p = normalizeIncomingOrderPayload_(p);
 
       if (p.oldBillFileId) { try { Drive.Files.update({trashed: true}, p.oldBillFileId); } catch(e) {} }
-      let billUrl = p.billImage || "";
+      let billUrl = p.billImage || p.billUrl || "";
       if (p.htmlContent) {
         const pdf = renderPreview({htmlContent: p.htmlContent, name: p.customer.name});
         if(pdf.downloadUrl) billUrl = pdf.downloadUrl;
@@ -826,20 +901,20 @@ function saveOrdersBatch(payloads) {
       // Deduplicate: find by phone suffix (last 9 digits) and event date if not found by ID
       if (foundRowIndex === -1 && p.customer && p.customer.phone && p.customer.date) {
         const cleanPhone = String(p.customer.phone).replace(/\D/g, "");
-        if (cleanPhone) {
+        if (cleanPhone && cleanPhone.length >= 7) {
           const phoneSuffix = cleanPhone.substring(Math.max(0, cleanPhone.length - 9));
-          const targetDate = String(p.customer.date).trim();
+          const targetDate = normalizeOrderDateToDMY_(String(p.customer.date).trim());
           
           for (let i = 1; i < values.length; i++) {
             const orderPhone = String(values[i][3] || "").replace(/\D/g, "");
-            if (orderPhone.endsWith(phoneSuffix)) {
+            if (orderPhone.length >= 7 && orderPhone.endsWith(phoneSuffix)) {
               let orderDate = "";
               try {
                 const orderData = JSON.parse(values[i][4]);
-                orderDate = String(orderData.customer?.date || "").trim();
+                orderDate = normalizeOrderDateToDMY_(String(orderData.customer?.date || "").trim());
               } catch(e) {}
               
-              if (orderDate === targetDate) {
+              if (orderDate && orderDate === targetDate) {
                 bookingId = values[i][0]; // Keep existing ID from Sheet
                 p.id = bookingId; // Update payload ID to match
                 foundRowIndex = idToRowMap[bookingId] || (i + 1);
@@ -887,11 +962,13 @@ function saveOrdersBatch(payloads) {
       // Calendar sync & notifications (best effort)
       let calendarSync = { status: "SKIPPED" };
       try {
-        calendarSync = syncToCalendar(p, bookingId, billUrl, transferUrl);
+        calendarSync = syncToCalendar(p, bookingId, billUrl, transferUrl, sharedCalendarSs);
       } catch(e) {
         calendarSync = { status: "ERROR", message: e.message };
       }
-      try { sendNotification_(p, bookingId, billUrl); } catch(e) {}
+      if (!p.skipNotification) {
+        try { sendNotification_(p, bookingId, billUrl); } catch(e) {}
+      }
 
       results.push({ ok: true, id: bookingId, billUrl: billUrl, calendarSync: calendarSync });
     } catch (e) {
@@ -1267,10 +1344,10 @@ function logLocationHistory(ss, bookingId, action, oldDate, newDate, oldTable, n
   }
 }
 
-function updateBookingLocationIndex(ss, bookingId, sheetName, dateStr, tableNum, row, col, infoCol, hash, status, data, noteText) {
+function updateBookingLocationIndex(ss, bookingId, sheetName, dateStr, tableNum, row, col, infoCol, hash, status, data, noteText, existingLoc) {
   const idxSheet = ss.getSheetByName("Booking_Location_Index");
   if (!idxSheet) return;
-  const existing = findExistingBookingLocation(ss, bookingId);
+  const existing = existingLoc !== undefined ? existingLoc : findExistingBookingLocation(ss, bookingId);
   const cellRange = `${sheetName}!R${row}C${col}:R${row+5}C${infoCol}`;
   const now = new Date();
   
@@ -1489,17 +1566,25 @@ function resolveTableAndZoneForCalendar_(sheet, requestedTable, bookingId) {
   var targetCol = preferredCol;
   var targetRow = findAvailableCalendarSlot(sheet, targetCol, bookingId);
 
-  // Nếu khu ưu tiên hết chỗ, chuyển sang các khu khác còn chỗ
+  // Nếu khu ưu tiên hết chỗ, đọc 1 lần vùng A3:J152 thay vì gọi 8 RPC rời rạc sang các khu khác
   if (targetRow === -1) {
+    var maxRow = 150;
+    var allValues = sheet.getRange(3, 1, maxRow, 10).getValues();
+    var allNotes = sheet.getRange(3, 1, maxRow, 10).getNotes();
     for (var z = 0; z < zoneCols.length; z++) {
       var c = zoneCols[z];
       if (c !== preferredCol) {
-        var r = findAvailableCalendarSlot(sheet, c, bookingId);
-        if (r !== -1) {
-          targetCol = c;
-          targetRow = r;
-          break;
+        var startIdx = c - 1;
+        var infoIdx = c;
+        for (var i = 0; i < allValues.length - 6; i += 6) {
+          var noteCell = allNotes[i][startIdx];
+          if (!allValues[i][infoIdx] || noteCell === bookingId || noteCell === bookingId + "_MOVED") {
+            targetCol = c;
+            targetRow = i + 3;
+            break;
+          }
         }
+        if (targetRow !== -1) break;
       }
     }
   }
@@ -1512,9 +1597,11 @@ function resolveTableAndZoneForCalendar_(sheet, requestedTable, bookingId) {
   };
 }
 
-function syncToCalendar(data, bookingId, billUrl, transferUrl) {
-  const ss = SpreadsheetApp.openById(CONFIG.LINKED_CALENDAR_ID);
-  initLocationSheets_(ss);
+function syncToCalendar(data, bookingId, billUrl, transferUrl, optCalendarSs) {
+  const ss = optCalendarSs || SpreadsheetApp.openById(CONFIG.LINKED_CALENDAR_ID);
+  if (!optCalendarSs) {
+    initLocationSheets_(ss);
+  }
   
   const dateStr = data.customer.date;
   if (!dateStr) return { status: "FAILED", message: "Thiếu ngày đặt bàn." };
@@ -1550,6 +1637,29 @@ function syncToCalendar(data, bookingId, billUrl, transferUrl) {
       ss.moveActiveSheet(1);
     } catch(e) {}
   }
+
+  // Fast-path check for existing booking before scanning calendar slots (dramatically speeds up Outbox retries)
+  const existing = findExistingBookingLocation(ss, bookingId);
+  const rawRequested = String(data.customer.tableName || data.customer.tables || "").trim().toUpperCase();
+  const normalizedRequestedTable =
+    rawRequested && !rawRequested.includes("CHỜ SẮP") && !rawRequested.startsWith("CHỜ") && rawRequested !== "CHƯA XẾP"
+      ? rawRequested.replace(/^BÀN\s*/i, "").trim()
+      : "CHỜ SẮP";
+
+  if (existing && existing.event_date === dateStr && existing.table_number === normalizedRequestedTable) {
+    data.customer.tables = normalizedRequestedTable;
+    const preHash = calculateBookingHash(data, bookingId);
+    const exRow = Number(existing.block_start_row);
+    const exCol = Number(existing.block_start_col);
+    const exInfoCol = Number(existing.block_end_col);
+    if (
+      existing.last_synced_hash === preHash &&
+      validateLocationBelongsToBooking(sheet, exRow, exCol, exRow + 5, exInfoCol, bookingId) &&
+      !isCalendarSlotEmpty_(sheet, exRow, exCol, exInfoCol)
+    ) {
+      return { status: "SUCCESS", message: "Lịch đã được đồng bộ (không đổi).", cellRange: existing.cell_range };
+    }
+  }
   
   // 2. Xác định vị trí bàn và khu vực theo nghiệp vụ:
   // Luôn ghi vào Khu A nếu còn chỗ; nếu Khu A hết chỗ mới chuyển sang các khu khác.
@@ -1564,7 +1674,6 @@ function syncToCalendar(data, bookingId, billUrl, transferUrl) {
   data.customer.tables = tableStr;
   
   const currentHash = calculateBookingHash(data, bookingId);
-  const existing = findExistingBookingLocation(ss, bookingId);
   
   // CASE 1: New booking
   if (!existing) {
@@ -1574,7 +1683,7 @@ function syncToCalendar(data, bookingId, billUrl, transferUrl) {
     }
     
     writeBookingBlock(sheet, targetRow, startCol, data, bookingId, billUrl);
-    updateBookingLocationIndex(ss, bookingId, sheetName, dateStr, tableStr, targetRow, startCol, infoCol, currentHash, "ACTIVE", data, "Created");
+    updateBookingLocationIndex(ss, bookingId, sheetName, dateStr, tableStr, targetRow, startCol, infoCol, currentHash, "ACTIVE", data, "Created", null);
     logLocationHistory(ss, bookingId, "CREATE", "", dateStr, "", tableStr, "", sheetName + "!R" + targetRow + "C" + startCol, "SUCCESS", "Đồng bộ thành công");
     return { status: "SUCCESS", message: "Đồng bộ lịch thành công.", cellRange: sheetName + "!R" + targetRow + "C" + startCol };
   }
@@ -1592,7 +1701,7 @@ function syncToCalendar(data, bookingId, billUrl, transferUrl) {
     }
     
     writeBookingBlock(sheet, targetRow, startCol, data, bookingId, billUrl);
-    updateBookingLocationIndex(ss, bookingId, sheetName, dateStr, tableStr, targetRow, startCol, infoCol, currentHash, "ACTIVE", data, "Moved Date");
+    updateBookingLocationIndex(ss, bookingId, sheetName, dateStr, tableStr, targetRow, startCol, infoCol, currentHash, "ACTIVE", data, "Moved Date", existing);
     logLocationHistory(ss, bookingId, "MOVE_DATE", existing.event_date, dateStr, existing.table_number, tableStr, existing.cell_range, sheetName + "!R" + targetRow + "C" + startCol, "SUCCESS", "Đổi ngày thành công");
     return { status: "MOVED_DATE", message: "Đã chuyển đổi ngày tiệc.", cellRange: sheetName + "!R" + targetRow + "C" + startCol };
   }
@@ -1612,7 +1721,7 @@ function syncToCalendar(data, bookingId, billUrl, transferUrl) {
     }
     
     writeBookingBlock(sheet, targetRow, startCol, data, bookingId, billUrl);
-    updateBookingLocationIndex(ss, bookingId, sheetName, dateStr, tableStr, targetRow, startCol, infoCol, currentHash, "ACTIVE", data, "Moved Table");
+    updateBookingLocationIndex(ss, bookingId, sheetName, dateStr, tableStr, targetRow, startCol, infoCol, currentHash, "ACTIVE", data, "Moved Table", existing);
     logLocationHistory(ss, bookingId, "MOVE_TABLE", dateStr, dateStr, existing.table_number, tableStr, existing.cell_range, sheetName + "!R" + targetRow + "C" + startCol, "SUCCESS", "Đổi bàn thành công");
     return { status: "MOVED_TABLE", message: "Đã chuyển đổi bàn tiệc.", cellRange: sheetName + "!R" + targetRow + "C" + startCol };
   }
@@ -1625,7 +1734,7 @@ function syncToCalendar(data, bookingId, billUrl, transferUrl) {
     // Check if the previous position is empty
     if (isCalendarSlotEmpty_(sheet, row, col, infoCol)) {
       writeBookingBlock(sheet, row, col, data, bookingId, billUrl);
-      updateBookingLocationIndex(ss, bookingId, sheetName, dateStr, tableStr, row, col, infoCol, currentHash, "ACTIVE", data, "Restored Previous Location");
+      updateBookingLocationIndex(ss, bookingId, sheetName, dateStr, tableStr, row, col, infoCol, currentHash, "ACTIVE", data, "Restored Previous Location", existing);
       logLocationHistory(ss, bookingId, "RESTORE_LOCATION", dateStr, dateStr, tableStr, tableStr, existing.cell_range, existing.cell_range, "SUCCESS", "Khôi phục vị trí cũ trống");
       return { status: "SUCCESS", message: "Đã đồng bộ lại lịch đặt vào vị trí cũ thành công.", cellRange: existing.cell_range };
     }
@@ -1638,7 +1747,7 @@ function syncToCalendar(data, bookingId, billUrl, transferUrl) {
     }
     
     writeBookingBlock(sheet, targetRow, startCol, data, bookingId, billUrl);
-    updateBookingLocationIndex(ss, bookingId, sheetName, dateStr, tableStr, targetRow, startCol, infoCol, currentHash, "ACTIVE", data, "Recovered Conflict");
+    updateBookingLocationIndex(ss, bookingId, sheetName, dateStr, tableStr, targetRow, startCol, infoCol, currentHash, "ACTIVE", data, "Recovered Conflict", existing);
     logLocationHistory(ss, bookingId, "RECOVER_LOCATION", dateStr, dateStr, tableStr, tableStr, existing.cell_range, sheetName + "!R" + targetRow + "C" + startCol, "SUCCESS", "Khôi phục vị trí xung đột");
     return { status: "SUCCESS", message: "Đã đồng bộ lịch vào vị trí mới do vị trí cũ bị đè.", cellRange: sheetName + "!R" + targetRow + "C" + startCol };
   }
@@ -1654,7 +1763,7 @@ function syncToCalendar(data, bookingId, billUrl, transferUrl) {
   }
   
   writeBookingBlock(sheet, row, col, data, bookingId, billUrl);
-  updateBookingLocationIndex(ss, bookingId, sheetName, dateStr, tableStr, row, col, infoCol, currentHash, "ACTIVE", data, "Updated");
+  updateBookingLocationIndex(ss, bookingId, sheetName, dateStr, tableStr, row, col, infoCol, currentHash, "ACTIVE", data, "Updated", existing);
   logLocationHistory(ss, bookingId, "UPDATE", dateStr, dateStr, tableStr, tableStr, existing.cell_range, existing.cell_range, "SUCCESS", "Cập nhật thành công");
   return { status: "SUCCESS", message: "Cập nhật lịch thành công.", cellRange: existing.cell_range };
 }

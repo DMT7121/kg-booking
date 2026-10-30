@@ -19,7 +19,16 @@ import {
   cacheIsFresh, getOfflineQueue, removeFromQueue, clearOfflineQueue
 } from '@/services/cache'
 import { fetchWithRetry } from '@/infrastructure/gas/gasClient'
-import { getPendingItems, addToOutbox, markAsSynced, getAllOutboxItemsDecrypted, retryOutboxItem, removeOutboxItem } from '@/infrastructure/outbox/outbox'
+import {
+  getPendingItems,
+  addToOutbox,
+  markAsSynced,
+  getAllOutboxItemsDecrypted,
+  retryOutboxItem,
+  removeOutboxItem,
+  getUnsyncedOutboxCount,
+  resetFailedOutboxAttempts
+} from '@/infrastructure/outbox/outbox'
 import { triggerSync as triggerOutboxSync, setOutboxStoreDelegate } from '@/infrastructure/outbox/outboxSync'
 import { 
   DualWriteOrderRepository as GasOrderRepository, 
@@ -109,11 +118,40 @@ export interface NormalizedBookingTime {
 
 const bookingTimeIndex = new Map<string, NormalizedBookingTime[]>()
 
+const NON_SPECIFIC_TABLE_WORDS = new Set([
+  'BAN', 'BÀN', 'KHU', 'TANG', 'TẦNG', 'PHONG', 'PHÒNG',
+  'CHO', 'CHỜ', 'SAP', 'SẮP', 'XEP', 'XẾP', 'CHUA', 'CHƯA',
+  'TAM', 'TẠM', 'HOAN', 'HOÃN', 'MANG', 'VE', 'VỀ', 'SHIP', 'ONLINE'
+])
+
+function extractConcreteTableTokens(rawTables: string): string[] {
+  if (!rawTables) return []
+  const upper = String(rawTables).trim().toUpperCase()
+  const plain = stripAccents(upper)
+  if (
+    !plain ||
+    plain.includes('CHO SAP') ||
+    plain.includes('CHUA XEP') ||
+    plain.includes('TAM HOAN') ||
+    plain.includes('MANG VE')
+  ) {
+    return []
+  }
+  return upper
+    .split(/[\s,;/+&-]+/)
+    .map((t) => t.trim())
+    .filter((t) => {
+      if (!t || NON_SPECIFIC_TABLE_WORDS.has(t)) return false
+      const clean = stripAccents(t)
+      if (NON_SPECIFIC_TABLE_WORDS.has(clean)) return false
+      // Concrete table codes contain a digit (e.g. A1, C6, E1, VIP1, 10)
+      return /\d/.test(clean)
+    })
+}
+
 function rebuildBookingTimeIndex(history: HistoryOrder[]) {
   bookingTimeIndex.clear()
-  
 
-  
   history.forEach(order => {
     if (!order.parsedCustomer) return
     const customer = order.parsedCustomer
@@ -122,7 +160,8 @@ function rebuildBookingTimeIndex(history: HistoryOrder[]) {
     
     const timeStr = customer.time || ''
     const tablesStr = customer.tables || ''
-    const tables = tablesStr.split(/[\s,]+/).map(t => t.trim().toUpperCase()).filter(Boolean)
+    const tables = extractConcreteTableTokens(tablesStr)
+    if (tables.length === 0) return
     
     const startMinutes = parseTimeToMinutes(timeStr)
     const endMinutes = startMinutes + 120
@@ -205,7 +244,7 @@ export function hasTimeConflictIndexed(
   const candidates = bookingTimeIndex.get(dateKey)
   if (!candidates || candidates.length === 0) return false
   
-  const tablesA = a.tables.split(/[\s,]+/).map(t => t.trim().toUpperCase()).filter(Boolean)
+  const tablesA = extractConcreteTableTokens(a.tables || '')
   if (tablesA.length === 0) return false
   
 
@@ -1787,8 +1826,8 @@ export const useAppStore = defineStore('app', () => {
 
   async function updateOfflineQueueCount() {
     try {
-      const pendingOutbox = await getPendingItems()
-      offlineQueueCount.value = pendingOutbox.length
+      const count = await getUnsyncedOutboxCount()
+      offlineQueueCount.value = count
       return offlineQueueCount.value
     } catch (e) {
       console.warn('Failed to read outbox queue:', e)
@@ -1812,9 +1851,17 @@ export const useAppStore = defineStore('app', () => {
     try {
       await retryOutboxItem(id, action)
       uiStore.showToast('Đang thử lại đơn hàng...', 'info')
-      await triggerOutboxSync(true)
+      const res = await triggerOutboxSync(true)
       await loadOutboxDetails()
       await updateOfflineQueueCount()
+      if (offlineQueueCount.value === 0) {
+        uiStore.connectionStatus = 'online'
+        uiStore.showToast('✅ Đã đồng bộ đơn hàng lên Cloud!', 'success')
+        await loadHistory(true)
+      } else if (res.processed > 0) {
+        uiStore.showToast('✅ Đã đồng bộ đơn hàng thành công!', 'success')
+        await loadHistory(true)
+      }
     } catch (err: any) {
       uiStore.showToast('Lỗi khi thử lại: ' + err.message, 'error')
     }
@@ -1835,6 +1882,7 @@ export const useAppStore = defineStore('app', () => {
     uiStore.connectionStatus = 'syncing'
     uiStore.showToast('Đang đồng bộ tất cả đơn hàng lên Cloud...', 'info')
     try {
+      await resetFailedOutboxAttempts(false)
       const res = await triggerOutboxSync(true)
       await loadOutboxDetails()
       await updateOfflineQueueCount()
@@ -1844,7 +1892,11 @@ export const useAppStore = defineStore('app', () => {
         uiStore.connectionStatus = 'online'
         await loadHistory(true)
       } else {
+        uiStore.connectionStatus = 'degraded'
         uiStore.showToast(`Đã đồng bộ ${res.processed} đơn. Còn ${offlineQueueCount.value} đơn cần xử lý.`, 'warning')
+        if (res.processed > 0) {
+          await loadHistory(true)
+        }
       }
     } catch (err: any) {
       uiStore.showToast('Lỗi khi đồng bộ: ' + err.message, 'error')
@@ -1854,8 +1906,19 @@ export const useAppStore = defineStore('app', () => {
   async function triggerManualSync(openModal = true) {
     if (openModal) {
       uiStore.showOutboxModal = true
-      await loadOutboxDetails()
-      triggerOutboxSync(true).then(() => loadOutboxDetails()).catch(() => {})
+      const items = await loadOutboxDetails()
+      if (items.length > 0 && (typeof navigator === 'undefined' || navigator.onLine)) {
+        resetFailedOutboxAttempts(false)
+          .then(() => triggerOutboxSync(true))
+          .then(async () => {
+            await loadOutboxDetails()
+            if (offlineQueueCount.value === 0) {
+              uiStore.connectionStatus = 'online'
+              await loadHistory(true)
+            }
+          })
+          .catch(() => {})
+      }
       return
     }
 

@@ -5,11 +5,11 @@
  * Free: 10GB storage, 10M reads/month, 1M writes/month, $0 egress
  */
 
-const R2_URL = import.meta.env.VITE_R2_URL || ''
+import { resolveR2Url } from '@/config/endpoints'
 
 /** Check if R2 is configured */
 export function isR2Available(): boolean {
-  return !!R2_URL
+  return !!resolveR2Url()
 }
 
 function getAdminToken(): string {
@@ -26,7 +26,8 @@ export async function uploadToR2(
   filename: string,
   orderId?: string
 ): Promise<{ ok: boolean; url?: string; key?: string; error?: string }> {
-  if (!R2_URL) return { ok: false, error: 'R2 not configured' }
+  const r2Url = resolveR2Url()
+  if (!r2Url) return { ok: false, error: 'R2 not configured' }
 
   try {
     const token = getAdminToken()
@@ -36,7 +37,7 @@ export async function uploadToR2(
       contentType = base64Data.split(',')[0].split(':')[1]?.split(';')[0] || 'image/jpeg'
     }
 
-    const response = await fetch(`${R2_URL}/upload`, {
+    const response = await fetch(`${r2Url}/upload`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -72,12 +73,13 @@ export async function uploadToR2(
 
 /** Delete image from R2 */
 export async function deleteFromR2(key: string): Promise<boolean> {
-  if (!R2_URL || !key) return false
+  const r2Url = resolveR2Url()
+  if (!r2Url || !key) return false
 
   try {
     const token = getAdminToken()
 
-    const res = await fetch(`${R2_URL}/image/${key}`, {
+    const res = await fetch(`${r2Url}/image/${key}`, {
       method: 'DELETE',
       headers: {
         ...(token ? { 'Authorization': `Bearer ${token}` } : {})
@@ -92,16 +94,17 @@ export async function deleteFromR2(key: string): Promise<boolean> {
 
 /** Get R2 image URL from key */
 export function getR2ImageUrl(key: string): string {
-  return `${R2_URL}/image/${key}`
+  return `${resolveR2Url()}/image/${key}`
 }
 
 /** Get R2 storage stats */
 export async function getR2Stats(): Promise<any> {
-  if (!R2_URL) return null
+  const r2Url = resolveR2Url()
+  if (!r2Url) return null
   try {
     const token = getAdminToken()
 
-    const res = await fetch(`${R2_URL}/stats`, {
+    const res = await fetch(`${r2Url}/stats`, {
       headers: {
         ...(token ? { 'Authorization': `Bearer ${token}` } : {})
       }
@@ -114,11 +117,12 @@ export async function getR2Stats(): Promise<any> {
 
 /** List images for a specific order */
 export async function listOrderImages(orderId: string): Promise<any[]> {
-  if (!R2_URL) return []
+  const r2Url = resolveR2Url()
+  if (!r2Url) return []
   try {
     const token = getAdminToken()
 
-    const res = await fetch(`${R2_URL}/list?prefix=orders/${orderId}`, {
+    const res = await fetch(`${r2Url}/list?prefix=orders/${orderId}`, {
       headers: {
         ...(token ? { 'Authorization': `Bearer ${token}` } : {})
       }

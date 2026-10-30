@@ -59,16 +59,42 @@ async function handlePending() {
   
   try {
     const o = ui.selectedBooking
-    // Copy the original string back to parsedCustomer
-    const updateData = JSON.parse(o.data || '{}')
-    updateData.customer = updateData.customer || {}
-    updateData.customer.tables = 'Tạm hoãn'
-    updateData.customer.note = ((updateData.customer.note || '') + ' [TẠM HOÃN]').trim()
-    
+    const baseCust = o.parsedCustomer || {}
+    const existingNote = String(baseCust.note || '').trim()
+    const nextNote = existingNote.includes('[TẠM HOÃN]')
+      ? existingNote
+      : `${existingNote} [TẠM HOÃN]`.trim()
+
+    const customerPayload = {
+      ...baseCust,
+      name: baseCust.name || o.customerName || 'Khách hàng',
+      phone: baseCust.phone || o.customerPhone || '',
+      date: baseCust.date || o.bookingDate || '',
+      time: baseCust.time || '18:00',
+      pax: baseCust.pax || '1',
+      tables: 'Tạm hoãn',
+      type: baseCust.type || 'Ăn thường',
+      note: nextNote
+    }
+
     const payload = {
-      ...o,
-      data: JSON.stringify(updateData),
-      customerTable: 'Tạm hoãn'
+      id: o.id,
+      version: (Number(o.version) || 1) + 1,
+      customer: customerPayload,
+      items: o.menuItems || [],
+      total: Number(o.totalAmount) || 0,
+      deposit: o.deposit || {
+        isPaid: !!o.isDeposited,
+        amount: Number(o.depositAmount) || 0,
+        image: o.transferImage || '',
+        note: ''
+      },
+      billUrl: o.billUrl || '',
+      billImage: o.billUrl || '',
+      staff: o.staff || { name: 'Admin', phone: '' },
+      activeMenuSheet: o.activeMenuSheet || '',
+      customerTable: 'Tạm hoãn',
+      skipNotification: true
     }
 
     const res = await appStore.saveOrder(payload)
@@ -76,9 +102,8 @@ async function handlePending() {
       ui.showToast('Đã chuyển sang hàng chờ!', 'success')
       // Update local state without reloading everything
       o.parsedCustomer.tables = 'Tạm hoãn'
-      o.parsedCustomer.note = updateData.customer.note
+      o.parsedCustomer.note = nextNote
       o.customerTable = 'Tạm hoãn'
-      o.data = payload.data
       close()
     } else {
       ui.showToast(res.message || 'Lỗi cập nhật', 'error')

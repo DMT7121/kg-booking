@@ -13,6 +13,7 @@ import {
   prioritizeMenuSheets,
   isValidMenuItemsDataset
 } from '@/domain/menu/menuSheetGuard'
+import { resolveSupabaseUrl, resolveSupabaseAnonKey } from '@/config/endpoints'
 
 function isInternalNonMenuSheet(name: string): boolean {
   return !isValidMenuSheetName(name)
@@ -32,17 +33,16 @@ function buildMenuAcronym(name: string): string {
     .join('')
 }
 
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || ''
-const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || ''
-
 async function pgFetch(path: string, options: RequestInit = {}) {
-  if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
+  const supabaseUrl = resolveSupabaseUrl()
+  const supabaseAnonKey = resolveSupabaseAnonKey()
+  if (!supabaseUrl || !supabaseAnonKey) {
     throw new Error('Supabase VITE_SUPABASE_URL or VITE_SUPABASE_ANON_KEY not configured')
   }
-  const url = `${SUPABASE_URL}/rest/v1${path}`
+  const url = `${supabaseUrl}/rest/v1${path}`
   const headers = {
-    'apikey': SUPABASE_ANON_KEY,
-    'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+    'apikey': supabaseAnonKey,
+    'Authorization': `Bearer ${supabaseAnonKey}`,
     'Content-Type': 'application/json',
     'Prefer': 'return=representation',
     ...options.headers
@@ -178,29 +178,46 @@ function isValidJwt(token?: string): boolean {
 export class PostgresOrderRepository implements OrderRepository {
   private buildBookingUpsertRow(data: any) {
     const orderData = data?.id ? data : (data?.data || data || {})
-    const rawId = orderData.id || crypto.randomUUID()
+    let jsonInner: any = {}
+    if (typeof orderData?.data === 'string' && orderData.data.trim().startsWith('{')) {
+      try {
+        jsonInner = JSON.parse(orderData.data)
+      } catch {}
+    } else if (orderData?.data && typeof orderData.data === 'object') {
+      jsonInner = orderData.data
+    }
+    const cust = orderData.customer || orderData.parsedCustomer || jsonInner.customer || jsonInner.parsedCustomer || {}
+    const dep = orderData.deposit || jsonInner.deposit || {}
+    const rawId = orderData.id || jsonInner.id || crypto.randomUUID()
     const orderId = stringToUuid(rawId)
+    const rawDepositImg = dep.image || orderData.transferImage || jsonInner.transferImage || ''
+    const cleanDepositImg = rawDepositImg === '__OFFLINE_IMAGE_BUFFER_REF__' ? '' : rawDepositImg
+    const rawBillUrl =
+      orderData.billUrl ||
+      (typeof orderData.billImage === 'string' && orderData.billImage.startsWith('http') ? orderData.billImage : '') ||
+      jsonInner.billUrl ||
+      ''
     return {
       rawId,
       row: {
         id: orderId,
-        customer_name: orderData.customer?.name || orderData.customer_name || 'Khách hàng',
-        customer_phone: orderData.customer?.phone || orderData.phone || '',
-        normalized_phone: cleanPhoneNumber(orderData.customer?.phone || orderData.phone || ''),
-        booking_date: toPgDate(orderData.customer?.date || orderData.booking_date || ''),
-        start_time: toPgTime(orderData.customer?.time || orderData.booking_time || '18:00'),
-        guest_count: parseInt(orderData.customer?.pax || orderData.guest_count || '1') || 1,
-        table_id: orderData.customer?.tables || orderData.customer?.table_number || orderData.table_number || orderData.tables || null,
-        status: orderData.customer?.type || orderData.status || 'Ăn thường',
-        note: orderData.customer?.note || orderData.note || '',
-        ordered_items: orderData.items || orderData.menuItems || [],
-        total_amount: Number(orderData.total || orderData.totalAmount) || 0,
-        deposit_amount: Number(orderData.deposit?.amount || orderData.depositAmount) || 0,
-        is_deposited: !!(orderData.deposit?.isPaid || orderData.isDeposited),
-        transfer_image: orderData.deposit?.image || orderData.transferImage || '',
-        bill_url: orderData.billUrl || '',
-        staff: orderData.staff || { name: 'Admin', phone: '' },
-        version: Number(orderData.version) || 1,
+        customer_name: cust.name || orderData.customer_name || orderData.customerName || orderData.name || 'Khách hàng',
+        customer_phone: cust.phone || orderData.phone || orderData.customerPhone || '',
+        normalized_phone: cleanPhoneNumber(cust.phone || orderData.phone || orderData.customerPhone || ''),
+        booking_date: toPgDate(cust.date || orderData.booking_date || orderData.bookingDate || ''),
+        start_time: toPgTime(cust.time || orderData.booking_time || '18:00'),
+        guest_count: parseInt(String(cust.pax || orderData.guest_count || '1'), 10) || 1,
+        table_id: cust.tables || cust.table_number || orderData.customerTable || orderData.table_number || orderData.tables || null,
+        status: cust.type || orderData.status || 'Ăn thường',
+        note: cust.note || orderData.note || '',
+        ordered_items: orderData.items || orderData.menuItems || jsonInner.items || jsonInner.menuItems || [],
+        total_amount: Number(orderData.total ?? orderData.totalAmount ?? jsonInner.total ?? jsonInner.totalAmount) || 0,
+        deposit_amount: Number(dep.amount ?? orderData.depositAmount ?? jsonInner.depositAmount) || 0,
+        is_deposited: !!(dep.isPaid || orderData.isDeposited || jsonInner.isDeposited),
+        transfer_image: cleanDepositImg,
+        bill_url: rawBillUrl,
+        staff: orderData.staff || jsonInner.staff || { name: 'Admin', phone: '' },
+        version: Number(orderData.version ?? jsonInner.version) || 1,
         idempotency_key: orderData.idempotencyKey || null
       }
     }
@@ -641,13 +658,15 @@ export class PostgresSettingsRepository implements SettingsRepository {
     }
 
     try {
-      if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
+      const supabaseUrl = resolveSupabaseUrl()
+      const supabaseAnonKey = resolveSupabaseAnonKey()
+      if (!supabaseUrl || !supabaseAnonKey) {
         throw new Error('Supabase not configured')
       }
-      const response = await fetch(`${SUPABASE_URL}/auth/v1/token?grant_type=password`, {
+      const response = await fetch(`${supabaseUrl}/auth/v1/token?grant_type=password`, {
         method: 'POST',
         headers: {
-          'apikey': SUPABASE_ANON_KEY,
+          'apikey': supabaseAnonKey,
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({ email, password })

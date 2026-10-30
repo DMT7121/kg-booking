@@ -1,4 +1,5 @@
 import { isIOS, isAndroid, loadLibrary } from '@/utils'
+import { resolveR2Url } from '@/config/endpoints'
 
 // Lazy loader for modern-screenshot so initial startup bundle stays lightweight
 let _domToCanvasPromise: Promise<typeof import('modern-screenshot').domToCanvas> | null = null
@@ -89,7 +90,7 @@ export function fetchUrlAsDataUrl(rawUrl: string): Promise<string> {
 
     // 2. Fallback to R2 proxy or wsrv.nl for external images without CORS headers
     if (isExternal) {
-      const r2Url = (import.meta as any).env?.VITE_R2_URL || ''
+      const r2Url = resolveR2Url()
       const proxyUrls = [
         r2Url ? `${r2Url}/proxy?url=${encodeURIComponent(absUrl)}` : '',
         `https://wsrv.nl/?url=${encodeURIComponent(absUrl)}&output=png`

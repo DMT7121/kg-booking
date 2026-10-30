@@ -246,6 +246,15 @@ export function extractSetOrComboHeaderAndQty(
  * Reverse-match a list of component dish lines (e.g. "1/ Sum Vầy [1]", "2/ Súp Gà...")
  * to the canonical Set menu (1..15) or Combo couple (1..11).
  */
+export function isSetModificationInstruction(rawLine: string, normLine?: string): boolean {
+  const raw = (rawLine || '').trim()
+  if (!raw) return false
+  const accentedMod = /(?<!\p{L})(?:đổi|thay|bỏ|không\s+lấy|không\s+ăn|không\s+cay|ít\s+cay|không\s+hành|tách\s+riêng|để\s+riêng|ghi\s+chú|lưu\s+ý|yêu\s+cầu)(?!\p{L})/iu
+  if (accentedMod.test(raw)) return true
+  const norm = (normLine ?? stripAccents(raw).toLowerCase()).trim()
+  return /\b(?:doi\s+.+\s+(?:qua|sang|thanh)|thay\s+.+\s+bang|bo\s+(?:mon|ra|phan|hanh|cay|tieu|ngo|khong)|khong\s+(?:lay|an|cay|hanh|ngo|tieu)|it\s+cay|tach\s+rieng|de\s+rieng|ghi\s+chu|luu\s+y|yeu\s+cau)\b|^(?:doi|thay|them)\s+/i.test(norm)
+}
+
 export function detectSetMenuFromComponentLines(
   lines: string[],
   menuList: any[] = [],
@@ -253,10 +262,22 @@ export function detectSetMenuFromComponentLines(
 ): {
   matchedSetName: string
   score: number
+  precision: number
   matchedCount: number
+  unmatchedDishCount: number
   customModifications: string[]
 } | null {
   if (!lines || lines.length < 2) return null
+
+  const hasBracketMarkers = lines.filter(l => /\[\d+\]\s*$/.test(String(l || '').trim())).length >= 2
+  const alaCarteMultiplierCount = lines.filter(l =>
+    /(?:^|\s|\()x\s*\d+\b|\*\s*\d+\b|\b\d+\s*(?:phần|phan|đĩa|dia|dĩa|suất|suat|tô|to|nồi|noi|thố|tho|lon|chai|ly|két|ket|thùng|thung)\b/i.test(String(l || '').trim())
+  ).length
+
+  // Canonical Set/Combo component dumps use [1]/[2], never explicit à la carte multipliers (x2, x3, 2 phần, 3 đĩa)
+  if (!hasBracketMarkers && alaCarteMultiplierCount >= 2) {
+    return null
+  }
 
   const cleanComp = (s: string) =>
     stripAccents(s)
@@ -268,8 +289,17 @@ export function detectSetMenuFromComponentLines(
       .replace(/\s+/g, ' ')
       .trim()
 
-  const inputCleaned = lines.map(l => ({ raw: l.trim(), norm: cleanComp(l) })).filter(x => x.norm.length >= 3)
+  const inputCleaned = lines
+    .map(l => ({ raw: String(l || '').trim(), norm: cleanComp(String(l || '')) }))
+    .filter(x => x.norm.length >= 3)
   if (inputCleaned.length < 2) return null
+
+  // Separate pure modification instructions from actual component dish lines
+  const isPureModLine = (inp: { raw: string; norm: string }) =>
+    isSetModificationInstruction(inp.raw, inp.norm) && !/\[\d+\]\s*$/.test(inp.raw)
+
+  const dishInputs = inputCleaned.filter(inp => !isPureModLine(inp))
+  if (dishInputs.length < 2) return null
 
   // Build candidate set definitions from SETS + menuDetails + menuList
   const setDefs = new Map<string, string>()
@@ -287,47 +317,90 @@ export function detectSetMenuFromComponentLines(
     }
   }
 
-  let bestSet = ''
-  let bestScore = 0
-  let bestMatchedCount = 0
-  let bestCanonicalNorms: string[] = []
+  const doesInputMatchCanonLine = (inpNorm: string, rawCanonLine: string, cNormFull: string): boolean => {
+    if (inpNorm === cNormFull) return true
+    const rawHead = rawCanonLine.split(/[:(]/)[0] || ''
+    const cNormHead = cleanComp(rawHead)
+    const hasSpecificHead = cNormHead.length >= 5 && cNormHead !== 'combo khai vi' && cNormHead.split(' ').length >= 2
 
-  for (const [setName, desc] of setDefs.entries()) {
-    const canonLines = formatSetNote(desc).split('\n').map(cleanComp).filter(Boolean)
-    if (canonLines.length < 3) continue
+    if (hasSpecificHead && inpNorm === cNormHead) return true
 
-    let matchedCanon = 0
-    for (const cNorm of canonLines) {
-      const cWords = cNorm.split(' ').filter(w => w.length > 1)
-      const isHit = inputCleaned.some(inp => {
-        if (inp.norm === cNorm) return true
-        if (cNorm.includes(inp.norm) || inp.norm.includes(cNorm)) return inp.norm.length >= 5
-        const iWords = inp.norm.split(' ').filter(w => w.length > 1)
-        if (iWords.length >= 2 && cWords.length >= 2) {
-          const shared = iWords.filter(w => cWords.includes(w)).length
-          return shared / Math.min(iWords.length, cWords.length) >= 0.7
-        }
-        return false
-      })
-      if (isHit) matchedCanon++
+    const iWords = inpNorm.split(' ').filter(w => w.length > 1)
+    if (iWords.length < 2) return false
+
+    const checkWordOverlap = (targetNorm: string) => {
+      const tWords = targetNorm.split(' ').filter(w => w.length > 1)
+      if (tWords.length < 2) return false
+      const shared = iWords.filter(w => tWords.includes(w)).length
+      return shared / Math.max(iWords.length, tWords.length) >= 0.65
     }
 
-    const ratio = matchedCanon / canonLines.length
-    if (matchedCanon >= 3 && (ratio > bestScore || (ratio === bestScore && matchedCanon > bestMatchedCount))) {
+    if (checkWordOverlap(cNormFull)) return true
+    if (hasSpecificHead && checkWordOverlap(cNormHead)) return true
+    return false
+  }
+
+  let bestSet = ''
+  let bestScore = 0
+  let bestPrecision = 0
+  let bestMatchedCount = 0
+  let bestUnmatchedDishCount = Infinity
+
+  for (const [setName, desc] of setDefs.entries()) {
+    const canonEntries = formatSetNote(desc)
+      .split('\n')
+      .map(raw => ({ raw, norm: cleanComp(raw) }))
+      .filter(x => Boolean(x.norm))
+    if (canonEntries.length < 3) continue
+
+    // A Set with C dishes cannot originate from a much longer dish list (e.g. 12 à la carte dishes vs 6-dish Set)
+    if (dishInputs.length > canonEntries.length + 1) continue
+
+    let matchedCanon = 0
+    const matchedInputIndices = new Set<number>()
+
+    for (const cEntry of canonEntries) {
+      let canonHit = false
+      for (let idx = 0; idx < dishInputs.length; idx++) {
+        if (doesInputMatchCanonLine(dishInputs[idx].norm, cEntry.raw, cEntry.norm)) {
+          canonHit = true
+          matchedInputIndices.add(idx)
+        }
+      }
+      if (canonHit) matchedCanon++
+    }
+
+    const matchedInputCount = matchedInputIndices.size
+    const unmatchedDishCount = dishInputs.length - matchedInputCount
+    const precision = matchedInputCount / dishInputs.length
+    const ratio = matchedCanon / canonEntries.length
+
+    // Require high bidirectional match: both Set recall AND input precision must be high, with <= 1 unmatched dish
+    const minRecall = hasBracketMarkers ? 0.55 : 0.65
+    if (matchedCanon < 3 || ratio < minRecall || precision < 0.75 || unmatchedDishCount > 1) {
+      continue
+    }
+
+    const isBetter =
+      ratio > bestScore ||
+      (ratio === bestScore && precision > bestPrecision) ||
+      (ratio === bestScore && precision === bestPrecision && matchedCanon > bestMatchedCount)
+
+    if (isBetter) {
       bestScore = ratio
+      bestPrecision = precision
       bestSet = setName
       bestMatchedCount = matchedCanon
-      bestCanonicalNorms = canonLines
+      bestUnmatchedDishCount = unmatchedDishCount
     }
   }
 
-  if (!bestSet || bestScore < 0.5) return null
+  if (!bestSet) return null
 
-  // Identify any input lines that were modified compared to canonical lines
-  const MOD_WORDS = /\b(?:doi|thay|bo|khong\s+lay|khong\s+cay|it\s+cay|them)\b/i
+  // Identify any input lines that carry real modification instructions
   const customModifications: string[] = []
   for (const inp of inputCleaned) {
-    if (MOD_WORDS.test(inp.norm)) {
+    if (isSetModificationInstruction(inp.raw, inp.norm)) {
       customModifications.push(inp.raw)
     }
   }
@@ -335,7 +408,9 @@ export function detectSetMenuFromComponentLines(
   return {
     matchedSetName: bestSet,
     score: bestScore,
+    precision: bestPrecision,
     matchedCount: bestMatchedCount,
+    unmatchedDishCount: bestUnmatchedDishCount,
     customModifications
   }
 }
@@ -856,16 +931,67 @@ function consolidateSetMenuItems(
   // Case 1: No explicit Set header in rawItems, check if rawItems (3+ items) are actually a dumped Set menu component list
   if (setIndices.length === 0 && rawItems.length >= 3) {
     const candidateLines = rawItems.map(it => String(it.raw_name || it.name || '').trim()).filter(Boolean)
-    const markedCount = candidateLines.filter(hasComponentMarkers).length
-    if (markedCount >= 2 || rawItems.length >= 4) {
+    const bracketMarkedCount = candidateLines.filter(s => /\[\d+\]\s*$/.test(s)).length
+    const slashMarkedCount = candidateLines.filter(s => /^\s*(?:[1-9]|1[0-5])\s*\/\s+\S+/.test(s)).length
+
+    if (bracketMarkedCount >= 2 || rawItems.length >= 4) {
       const detected = detectSetMenuFromComponentLines(candidateLines, menuList, menuDetails)
-      if (detected && (detected.score >= 0.65 || (markedCount >= 3 && detected.score >= 0.5))) {
-        return [{
-          raw_name: detected.matchedSetName,
-          matched_name: detected.matchedSetName,
-          quantity: 1,
-          note: detected.customModifications.join('\n')
-        }]
+      if (detected) {
+        if (bracketMarkedCount >= 2 && detected.score >= 0.7 && detected.unmatchedDishCount <= 1) {
+          return [{
+            raw_name: detected.matchedSetName,
+            matched_name: detected.matchedSetName,
+            quantity: 1,
+            note: detected.customModifications.join('\n')
+          }]
+        }
+
+        // Without [1]/[2] brackets and without any Set header, ONLY collapse when 100% of input dishes belong to the Set,
+        // item quantities match canonical Set component quantities, and Set signature lines (or 100% Set coverage) exist.
+        if (detected.unmatchedDishCount === 0 && detected.score >= 0.85 && detected.matchedCount >= 4) {
+          const setDesc = resolveSetMenuDescription(detected.matchedSetName, menuList, menuDetails) || ''
+          const canonQtyByNorm = new Map<string, number>()
+          for (const cLine of formatSetNote(setDesc).split('\n')) {
+            const qMatch = cLine.match(/\[(\d+)\]\s*$/)
+            const cQty = qMatch ? parseInt(qMatch[1], 10) : 1
+            const cNorm = cleanCompNorm(cLine)
+            if (cNorm) canonQtyByNorm.set(cNorm, cQty)
+          }
+
+          let hasConflictingAlaCarteQty = false
+          let multiQtyCount = 0
+          for (const it of rawItems) {
+            const itemQty = Number(it.quantity ?? it.qty ?? 1) || 1
+            if (itemQty > 1) {
+              multiQtyCount++
+              const itNorm = cleanCompNorm(String(it.raw_name || it.name || ''))
+              const expectedQty = canonQtyByNorm.get(itNorm)
+              if (!expectedQty || expectedQty !== itemQty) {
+                hasConflictingAlaCarteQty = true
+                break
+              }
+            }
+          }
+
+          const hasSetSignatureLine = candidateLines.some(l =>
+            /(?:trai\s+cay\s+tau\s+hu\s+lanh|banh\s+bo\s+thot\s+not|nuoc\s+tu\s+chon|trai\s+cay\s+trang\s+mieng|combo\s+khai\s+vi)/i.test(
+              cleanCompNorm(l)
+            )
+          )
+
+          if (
+            !hasConflictingAlaCarteQty &&
+            !(multiQtyCount >= 2 && slashMarkedCount < 2 && !hasSetSignatureLine) &&
+            (hasSetSignatureLine || detected.score === 1)
+          ) {
+            return [{
+              raw_name: detected.matchedSetName,
+              matched_name: detected.matchedSetName,
+              quantity: 1,
+              note: detected.customModifications.join('\n')
+            }]
+          }
+        }
       }
     }
     return rawItems
@@ -1135,6 +1261,14 @@ export function matchMenuItems(
 
     if (match) {
       let note = item.note || item.notes || ''
+      // Suppress redundant note if it merely repeats an official parenthetical suffix of matched dish (e.g. "(cay)", "(chay)")
+      if (note) {
+        const noteNorm = stripAccents(String(note)).toLowerCase().trim()
+        const matchNorm = stripAccents(match.name).toLowerCase().trim()
+        if (noteNorm && matchNorm.endsWith(`(${noteNorm})`)) {
+          note = ''
+        }
+      }
       if (extractedCustomNote && !note.includes(extractedCustomNote)) {
         note = note ? `${note} (${extractedCustomNote})` : extractedCustomNote
       }

@@ -1,13 +1,16 @@
+import { resolveSupabaseUrl } from '@/config/endpoints'
+
 let _resolvedMode: 'gas' | 'postgres' | 'dual_write' | null = null
 
 export function getBackendMode(): 'gas' | 'postgres' | 'dual_write' {
   if (_resolvedMode && import.meta.env.MODE !== 'test') return _resolvedMode
 
-  const mode = import.meta.env.VITE_BACKEND_MODE || 'postgres'
+  const defaultMode = import.meta.env.MODE === 'test' ? 'postgres' : 'dual_write'
+  const mode = import.meta.env.VITE_BACKEND_MODE || defaultMode
 
   // If dual_write or postgres mode but Supabase not configured, fall back to gas
   if (mode !== 'gas') {
-    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
+    const supabaseUrl = resolveSupabaseUrl()
     if (!supabaseUrl) {
       console.warn(`[Backend] VITE_BACKEND_MODE="${mode}" but VITE_SUPABASE_URL not set. Falling back to GAS mode.`)
       _resolvedMode = 'gas'
@@ -19,8 +22,8 @@ export function getBackendMode(): 'gas' | 'postgres' | 'dual_write' {
     _resolvedMode = mode
     return mode
   }
-  _resolvedMode = 'postgres'
-  return 'postgres'
+  _resolvedMode = defaultMode
+  return defaultMode
 }
 
 export function clearResolvedMode(): void {

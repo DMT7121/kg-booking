@@ -341,18 +341,40 @@ function _createBillRender() {
               return { billUploadUrl, billUploadSource, uploadedReceiptUrl }
             })()
 
-            // Task 2: First-phase Save payload (fast payload without base64 images)
+            // Wait briefly (up to 2.5s) for fast R2 image upload so 95%+ of saves include final URLs in 1 atomic write
+            // instead of firing saveOrder + updateOrderImages concurrently onto GAS ScriptLock.
+            let preUploaded: { billUploadUrl: string; billUploadSource: string; uploadedReceiptUrl: string } | null = null
+            try {
+              preUploaded = await Promise.race([
+                uploadPromise,
+                new Promise<null>((resolve) => setTimeout(() => resolve(null), 2500))
+              ])
+            } catch {
+              preUploaded = null
+            }
+
+            const initialBillUrl =
+              preUploaded?.billUploadUrl && preUploaded.billUploadUrl.startsWith('http')
+                ? preUploaded.billUploadUrl
+                : ''
+            const initialReceiptUrl =
+              preUploaded?.uploadedReceiptUrl && preUploaded.uploadedReceiptUrl.startsWith('http')
+                ? preUploaded.uploadedReceiptUrl
+                : (depositImage.startsWith('http') ? depositImage : '')
+
+            // Task 2: First-phase Save payload (includes R2 URLs immediately if ready, never raw base64)
             fastPayload = {
               customer: customer,
               items: items,
-              deposit: { ...depositInfo, image: depositImage.startsWith('http') ? depositImage : '' },
+              deposit: { ...depositInfo, image: initialReceiptUrl },
               depositTime: depositInfo?.time || '',
               depositHistory: depositInfo?.history || [],
               staff: staff,
               id: orderId,
               version: orderVersion,
               total: calculatedTotalsFinal,
-              billImage: '', // Blank initially for fast save
+              billImage: initialBillUrl,
+              billUrl: initialBillUrl,
               customFileName: dynamicFileName,
               oldBillFileId: oldBillFileId,
               smartIndex: {
@@ -368,8 +390,15 @@ function _createBillRender() {
                 timestamp: new Date().toISOString()
               },
               renderPdf: saveType === 'pdf',
-              imageSource: 'base64',
+              imageSource: initialBillUrl ? 'r2' : 'base64',
               activeMenuSheet: activeSheet
+            }
+
+            if (initialReceiptUrl && initialReceiptUrl !== optimisticOrder.transferImage) {
+              optimisticOrder.transferImage = initialReceiptUrl
+            }
+            if (initialBillUrl) {
+              ;(optimisticOrder as any).billUrl = initialBillUrl
             }
 
             uiStore.connectionStatus = 'syncing'
@@ -425,19 +454,26 @@ function _createBillRender() {
               }
 
               // Await image upload completion in background
-              const uploads = await uploadPromise
+              const uploads = preUploaded || (await uploadPromise)
 
-              // Phase 2: Update images on GAS once uploaded
-              if (uploads.billUploadUrl || uploads.uploadedReceiptUrl !== depositImage) {
+              // Phase 2: Only update images if they were NOT already persisted in Phase 1 fastPayload
+              const newBillUrl = uploads.billUploadUrl && uploads.billUploadUrl !== initialBillUrl ? uploads.billUploadUrl : ''
+              const newReceiptUrl =
+                uploads.uploadedReceiptUrl &&
+                uploads.uploadedReceiptUrl !== depositImage &&
+                uploads.uploadedReceiptUrl !== initialReceiptUrl
+                  ? uploads.uploadedReceiptUrl
+                  : ''
+
+              if (newBillUrl || newReceiptUrl) {
                 try {
-                  const updateRes = await updateOrderImages(
-                    orderId,
-                    uploads.billUploadUrl,
-                    uploads.uploadedReceiptUrl !== depositImage ? uploads.uploadedReceiptUrl : ''
-                  )
+                  const updateRes = await updateOrderImages(orderId, newBillUrl, newReceiptUrl)
                   if (updateRes?.ok) {
                     console.log('[BG Sync] Successfully updated order images on GAS')
-                    optimisticOrder.transferImage = uploads.uploadedReceiptUrl
+                    if (newReceiptUrl) optimisticOrder.transferImage = newReceiptUrl
+                    if (newBillUrl) {
+                      ;(optimisticOrder as any).billUrl = newBillUrl
+                    }
                     appStore.setOptimisticOrder(optimisticOrder)
                   }
                 } catch (updateErr) {

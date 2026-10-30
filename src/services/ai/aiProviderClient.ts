@@ -1,7 +1,7 @@
 import { AI_TIMEOUTS, AI_MODELS } from '@/utils/constants'
 import type { AIModel } from '@/utils/constants'
 import * as api from '@/services/api'
-import { API_GATEWAY_URL } from '@/config/endpoints'
+import { API_GATEWAY_URL, SHARED_SECRET, resolveAiGatewayUrl } from '@/config/endpoints'
 import { handleModelFailure, isGatewayCircuitOpen, reportGatewaySuccess, reportGatewayFailure, cooldownModel } from './circuitBreaker'
 import * as localKeyVault from '@/services/security/localKeyVault'
 import { classifyError, AITransportPolicy } from './aiTransportPolicy'
@@ -352,7 +352,7 @@ export async function callAIModel(
       return null
     }
 
-    const gatewayUrl = apiGatewayUrl || import.meta.env.VITE_AI_GATEWAY_URL || ''
+    const gatewayUrl = apiGatewayUrl || resolveAiGatewayUrl()
     if (!gatewayUrl) {
       if (logCallback) logCallback(`[Model: ${model.name}] Chưa cấu hình URL Gateway. Bỏ qua.`, 'warning')
       return null
@@ -371,7 +371,7 @@ export async function callAIModel(
 
     try {
       const headers: Record<string, string> = { 'Content-Type': 'application/json' }
-      const sharedSecret = import.meta.env.VITE_APP_SHARED_SECRET || 'kg_booking_secret_token_2026'
+      const sharedSecret = import.meta.env.VITE_APP_SHARED_SECRET || SHARED_SECRET
       headers['Authorization'] = `Bearer ${sharedSecret}`
 
       const res = await fetch(`${gatewayUrl}/api/ai/analyze`, {

@@ -2,10 +2,37 @@ import { useUIStore } from '@/stores/useUIStore'
 import { get as idbGet, set as idbSet } from 'idb-keyval'
 import { isGatewayCircuitOpen, reportGatewaySuccess, reportGatewayFailure } from '@/services/ai/circuitBreaker'
 import { API_GATEWAY_URL, GAS_DIRECT_URL, buildGatewayHeaders, buildGASHeaders } from '@/config/endpoints'
+import { getBackendMode } from '@/utils/backendMode'
 
 // L1 memory cache for API read requests
 const l1ApiCache = new Map<string, { data: any; timestamp: number }>()
 const inFlightGasRequests = new Map<string, Promise<any>>()
+
+const SERIALIZED_GAS_MUTATION_ACTIONS = new Set([
+  'saveOrder',
+  'saveOrdersBatch',
+  'deleteOrder',
+  'removeOrderFromSheet',
+  'updateOrderImages'
+])
+
+let gasMutationChain: Promise<void> = Promise.resolve()
+
+/**
+ * Serializes mutating GAS calls on the client so concurrent writes (e.g. saveOrder + updateOrderImages + outboxSync)
+ * never stampede Google Apps Script's single ScriptLock.
+ */
+export function enqueueGasMutation<T>(action: string | undefined, task: () => Promise<T>): Promise<T> {
+  if (!action || !SERIALIZED_GAS_MUTATION_ACTIONS.has(action) || import.meta.env.MODE === 'test') {
+    return task()
+  }
+  const run = gasMutationChain.then(() => task(), () => task())
+  gasMutationChain = run.then(
+    () => undefined,
+    () => undefined
+  )
+  return run
+}
 
 function isSuccessfulResponse(res: any): boolean {
   return res && typeof res === 'object' && res.ok === true
@@ -156,15 +183,19 @@ async function postGASDirect(payload: Record<string, any>, signal?: AbortSignal,
     // Pinia not yet initialized, skip UI tracking
   }
 
-  const isGasMode = import.meta.env.VITE_BACKEND_MODE === 'gas'
+  const isGasMode = getBackendMode() === 'gas'
   const useLocalProxy = import.meta.env.DEV && API_GATEWAY_URL.startsWith('/api')
   const useWorker = (useLocalProxy || !isGasMode) && !isGatewayCircuitOpen('cloudflare_edge')
+  const isMutation = SERIALIZED_GAS_MUTATION_ACTIONS.has(String(payload.action || ''))
+  const gatewayTimeoutMs = isMutation ? 45000 : 15000
+  const directGasTimeoutMs = isMutation ? 45000 : 25000
 
   try {
     if (useWorker) {
+      let gatewayTimedOut = false
       try {
         const headers = buildGatewayHeaders()
-        const gwBound = createBoundedSignal(signal, 12000)
+        const gwBound = createBoundedSignal(signal, gatewayTimeoutMs)
 
         const res = await fetch(API_GATEWAY_URL, {
           method: 'POST',
@@ -192,21 +223,29 @@ async function postGASDirect(payload: Record<string, any>, signal?: AbortSignal,
       } catch (gatewayError: any) {
         if (signal?.aborted) throw gatewayError
 
-        console.warn(`[API Client] Lỗi kết nối tới Gateway (${gatewayError.message}). Đang chuyển hướng dự phòng sang GAS trực tiếp...`)
-        
+        gatewayTimedOut =
+          gatewayError?.name === 'AbortError' ||
+          String(gatewayError?.message || '').includes('Request timeout after')
+
+        console.warn(`[API Client] Lỗi kết nối tới Gateway (${gatewayError.message}).`)
+
         const isNetworkErr = gatewayError instanceof TypeError || gatewayError.message?.includes('fetch') || gatewayError.message?.includes('network')
         if (isNetworkErr) {
           reportGatewayFailure('cloudflare_edge', 'edge_cors_or_network', gatewayError.message)
         }
-        
+
+        // Do not fire a duplicate write into GAS if Gateway timed out after 45s while GAS is still executing
+        if (isMutation && gatewayTimedOut) {
+          throw gatewayError
+        }
         // Fallback to GAS below
       }
     } else {
-      console.info('[API Client] Cloudflare Edge circuit is open. Bypassing Gateway, calling GAS directly.')
+      console.info('[API Client] Cloudflare Edge circuit is open or GAS mode active. Calling GAS directly.')
     }
 
     // Fallback sang GAS trực tiếp
-    const gasBound = createBoundedSignal(signal, 20000)
+    const gasBound = createBoundedSignal(signal, directGasTimeoutMs)
     const res = await fetch(GAS_DIRECT_URL, {
       method: 'POST',
       headers: buildGASHeaders(),
@@ -263,7 +302,7 @@ export async function postGAS(
   }
 
   invalidateL1CacheForAction(payload.action)
-  return postGASDirect(payload, signal, false)
+  return enqueueGasMutation(payload.action, () => postGASDirect(payload, signal, false))
 }
 
 /**
@@ -275,18 +314,33 @@ export async function fetchWithRetry(
   signal?: AbortSignal,
   options?: { silent?: boolean }
 ): Promise<any> {
+  return enqueueGasMutation(payload.action, () =>
+    fetchWithRetryInternal(payload, retries, signal, options)
+  )
+}
+
+async function fetchWithRetryInternal(
+  payload: Record<string, any>,
+  retries = 3,
+  signal?: AbortSignal,
+  options?: { silent?: boolean }
+): Promise<any> {
   const ui = useUIStore()
   ui.activeRequests++
 
-  const isGasMode = import.meta.env.VITE_BACKEND_MODE === 'gas'
+  const isGasMode = getBackendMode() === 'gas'
   const useLocalProxy = import.meta.env.DEV && API_GATEWAY_URL.startsWith('/api')
   const useWorker = (useLocalProxy || !isGasMode) && !isGatewayCircuitOpen('cloudflare_edge')
+  const isMutation = SERIALIZED_GAS_MUTATION_ACTIONS.has(String(payload.action || ''))
+  const gatewayTimeoutMs = isMutation ? 45000 : 15000
+  const directGasTimeoutMs = isMutation ? 45000 : 25000
 
   invalidateL1CacheForAction(payload.action)
 
   // Chỉ chạy vòng lặp retry qua API Gateway khi useWorker === true (tránh ngủ chờ 3s vô ích khi gọi thẳng GAS)
   if (useWorker) {
     const gatewayAttempts = Math.min(retries, 2)
+    let gatewayTimedOut = false
     for (let i = 0; i < gatewayAttempts; i++) {
       if (signal?.aborted) {
         setTimeout(() => { ui.activeRequests-- }, 300)
@@ -295,7 +349,7 @@ export async function fetchWithRetry(
 
       try {
         const headers = buildGatewayHeaders()
-        const gwBound = createBoundedSignal(signal, 12000)
+        const gwBound = createBoundedSignal(signal, gatewayTimeoutMs)
 
         const res = await fetch(API_GATEWAY_URL, {
           method: 'POST',
@@ -310,6 +364,16 @@ export async function fetchWithRetry(
           }
           reportGatewaySuccess('cloudflare_edge')
           const data = await res.json()
+          // Retry once on transient GAS ScriptLock contention
+          if (
+            !data.ok &&
+            i < gatewayAttempts - 1 &&
+            typeof data.message === 'string' &&
+            data.message.toLowerCase().includes('lock timeout')
+          ) {
+            await new Promise(r => setTimeout(r, 1500))
+            continue
+          }
           if (!data.ok && data.message && !options?.silent) {
             ui.showToast(`Lỗi Server: ${data.message}`, 'error')
           }
@@ -324,6 +388,13 @@ export async function fetchWithRetry(
           throw e
         }
 
+        gatewayTimedOut =
+          e?.name === 'AbortError' ||
+          String(e?.message || '').includes('Request timeout after')
+        if (isMutation && gatewayTimedOut) {
+          break
+        }
+
         const isNetworkErr = e instanceof TypeError || e.message?.includes('fetch') || e.message?.includes('network')
         if (isNetworkErr) {
           reportGatewayFailure('cloudflare_edge', 'edge_cors_or_network', e.message)
@@ -333,15 +404,21 @@ export async function fetchWithRetry(
 
       if (i < gatewayAttempts - 1) {
         console.warn(`[API Client] Giao dịch thất bại. Đang thử lại... (${i + 1}/${gatewayAttempts})`)
-        await new Promise(r => setTimeout(r, 350 * (i + 1)))
+        await new Promise(r => setTimeout(r, 500 * (i + 1)))
       }
+    }
+
+    if (isMutation && gatewayTimedOut) {
+      ui.connectionStatus = 'error'
+      setTimeout(() => { ui.activeRequests-- }, 300)
+      throw new Error(`Gateway write timeout after ${gatewayTimeoutMs}ms`)
     }
   }
 
   // Fallback to GAS directly if Gateway is skipped or fails
   console.warn(`[API Client] Chuyển hướng đồng bộ trực tiếp lên GAS...`)
   try {
-    const gasBound = createBoundedSignal(signal, 20000)
+    const gasBound = createBoundedSignal(signal, directGasTimeoutMs)
     const res = await fetch(GAS_DIRECT_URL, {
       method: 'POST',
       headers: buildGASHeaders(),

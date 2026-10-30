@@ -12,8 +12,10 @@ import { extractByRules, parseSingleMenuLine, parseDishItems, stripSetMenuCompon
 import { parseStructuredForm } from '@/domain/ai/structuredFormParser'
 import { parseUnifiedBooking } from '@/domain/ai/unifiedParserEngine'
 import { retrieveMenuCandidates } from '@/domain/menu/menuCandidateRetriever'
+import { repairAndNormalizeJSON, crossValidateResults, applyDeterministicRuleLock } from '@/domain/booking/bookingNormalizer'
 import { formatSetNote, mergeSetComponentNote } from '@/utils'
 import { SETS } from '@/utils/constants'
+import menu2026Catalog from '@/infrastructure/local/data/menu_MENU2026.json'
 
 describe('Set Menu (1..15) & Combo Couple (1..11) Comprehensive Analysis & Matching', () => {
   const catalog: any[] = [
@@ -236,5 +238,172 @@ Tối mai 19h 10 người
     const names = candSet2.map(c => c.itemName)
     expect(names).toContain('Set menu 2')
     expect(names).toContain('Combo couple 3')
+  })
+
+  it('8. NEVER collapses an à la carte dish order (E4 Thu Cúc 12-dish reproduction) into Set menu 2', () => {
+    const thuCucBooking = `E4\tThu Cúc
+\t20ng - 17h
+\t
+\tSinh nhật
+\tNhận: DMT
+\tBẢNG "HPBD MINH ANH 1ST"
+
+
+1. Tôm Cocktail (10 con) x2
+
+2. Thịt heo nướng xiên x3
+
+3. Giò heo muối hoa tiêu xôi hạt sen x2
+
+4. Chả giò kim tiền x3
+
+5. Cơm chiên bò nướng Teriyaki x2
+
+6. Cơm chiên hải sản x1
+
+7. Miến xào cua x3
+
+8. Mực trứng om ớt xiêm xanh (cay) x3
+
+9. Salad cá hồi Nauy x2
+
+10. Lẩu chua cay hải sản x1
+
+11. Lẩu mực lá é x1
+
+12. Mì xào hải sản x1`
+
+    // Test both double-spaced and contiguous numbered list variants
+    const contiguousVariant = thuCucBooking.replace(/\n\n(?=\d+\.)/g, '\n')
+
+    for (const sample of [thuCucBooking, contiguousVariant]) {
+      const ruleRes = extractByRules(sample)
+      expect(ruleRes.table_code).toBe('E4')
+      expect(ruleRes.customer_name).toBe('Thu Cúc')
+      expect(ruleRes.guest_count).toBe(20)
+      expect(ruleRes.event_time).toBe('17:00')
+      expect(ruleRes.booking_need).toBe('Sinh nhật')
+      expect(ruleRes.receiver).toBe('DMT')
+      expect(ruleRes.decoration_details.board_text).toMatch(/MINH ANH 1ST/i)
+      expect(ruleRes.menu_items).toHaveLength(12)
+
+      const matched = matchMenuItems(
+        ruleRes.menu_items,
+        ruleRes.guest_count,
+        menu2026Catalog as any[],
+        aliases,
+        SETS,
+        ruleRes.guest_count
+      )
+
+      expect(matched).toHaveLength(12)
+      expect(matched.some((m: any) => /set\s*menu|combo\s*couple/i.test(m.name))).toBe(false)
+
+      expect(matched.map((m: any) => ({ name: m.name, qty: m.quantity }))).toEqual([
+        { name: 'Tôm Cocktail (10 con)', qty: 2 },
+        { name: 'Thịt heo nướng xiên', qty: 3 },
+        { name: 'Giò heo muối hoa tiêu xôi hạt sen', qty: 2 },
+        { name: 'Chả giò kim tiền', qty: 3 },
+        { name: 'Cơm chiên bò nướng Teriyaki', qty: 2 },
+        { name: 'Cơm chiên hải sản', qty: 1 },
+        { name: 'Miến xào cua', qty: 3 },
+        { name: 'Mực trứng om ớt xiêm xanh (cay)', qty: 3 },
+        { name: 'Salad cá hồi Nauy', qty: 2 },
+        { name: 'Lẩu chua cay hải sản', qty: 1 },
+        { name: 'Lẩu mực lá é', qty: 1 },
+        { name: 'Mì xào hải sản', qty: 1 }
+      ])
+      expect(matched[7].note).toBe('')
+    }
+
+    // Also verify Unified Deterministic Parser (Live Preview / Fast-Track)
+    const canonical = parseUnifiedBooking(thuCucBooking, {
+      menuCatalog: menu2026Catalog as any[],
+      currentDate: new Date('2026-10-30T10:00:00+07:00')
+    })
+    expect(canonical.customer.name.value).toBe('Thu Cúc')
+    expect(canonical.booking.tableCode.value).toBe('E4')
+    expect(canonical.booking.guestCount.value).toBe(20)
+    expect(canonical.booking.time.value).toBe('17:00')
+    expect(canonical.booking.need.value).toBe('Sinh nhật')
+    expect(canonical.menuItems).toHaveLength(12)
+    expect(canonical.menuItems.some(m => /set\s*menu|combo\s*couple/i.test(m.matchedName))).toBe(false)
+  })
+
+  it('9. Keeps mergeSetComponentNote strictly idempotent without duplicating "Bò" / "Bánh Bò Thốt Nốt" lines', () => {
+    for (const [setName, rawDesc] of Object.entries(SETS)) {
+      const firstPass = mergeSetComponentNote('Đổi món khai vị giúp chị', rawDesc)
+      const secondPass = mergeSetComponentNote(firstPass, rawDesc)
+      const thirdPass = mergeSetComponentNote(secondPass, rawDesc)
+
+      expect(secondPass).toBe(firstPass)
+      expect(thirdPass).toBe(firstPass)
+
+      const canonicalLineCount = formatSetNote(rawDesc).split('\n').filter(Boolean).length
+      const totalLinesInMerged = secondPass.split('\n').filter(Boolean)
+      expect(totalLinesInMerged, `Duplicate component line in ${setName}`).toHaveLength(canonicalLineCount + 1)
+    }
+  })
+
+  it('10. Preserves numbered extra à la carte dishes ordered alongside a numbered Set menu', () => {
+    const mixedOrder = `Bàn A2 Minh Tuấn 0909888777 18h30 12ng
+1. Set menu 2 x2
+2. Khoai tây chiên x2
+3. Heineken 330ml x20`
+
+    const ruleRes = extractByRules(mixedOrder)
+    expect(ruleRes.menu_items).toHaveLength(3)
+    const matched = matchMenuItems(
+      ruleRes.menu_items,
+      ruleRes.guest_count,
+      menu2026Catalog as any[],
+      aliases,
+      SETS,
+      ruleRes.guest_count
+    )
+    expect(matched).toHaveLength(3)
+    expect(matched[0].name).toBe('Set menu 2')
+    expect(matched[0].quantity).toBe(2)
+    expect(matched[1].name).toBe('Khoai tây chiên')
+    expect(matched[1].quantity).toBe(2)
+    expect(matched[2].name).toBe('Heineken 330ml')
+    expect(matched[2].quantity).toBe(20)
+  })
+
+  it('11. Preserves 4-dish à la carte order even when every dish overlaps with Set menu 2 components', () => {
+    const overlappingAlaCarte = `Bàn B3 Chị Thảo 0912345678 19h 8ng
+1. Miến xào trứng tôm x2
+2. Giò heo muối hoa tiêu xôi hạt sen x1
+3. Mực trứng om ớt xiêm xanh (cay) x2
+4. Lẩu chua cay hải sản x1`
+
+    const ruleRes = extractByRules(overlappingAlaCarte)
+    expect(ruleRes.menu_items).toHaveLength(4)
+
+    const matched = matchMenuItems(
+      ruleRes.menu_items,
+      ruleRes.guest_count,
+      menu2026Catalog as any[],
+      aliases,
+      SETS,
+      ruleRes.guest_count
+    )
+    expect(matched).toHaveLength(4)
+    expect(matched.some((m: any) => /set\s*menu|combo\s*couple/i.test(m.name))).toBe(false)
+
+    // Verify full normalizer + crossValidate + deterministicRuleLock pipeline
+    const normalized = repairAndNormalizeJSON({
+      customer: { name: ruleRes.customer_name, phone: ruleRes.phone },
+      booking: {
+        event_time: ruleRes.event_time,
+        guest_count: ruleRes.guest_count,
+        table_number: ruleRes.table_code,
+        need: ruleRes.booking_need
+      },
+      menu_items: matched
+    })
+    const { result: crossValidated } = crossValidateResults(normalized, ruleRes)
+    const locked = applyDeterministicRuleLock(crossValidated, {}, ruleRes)
+    expect(locked.menu_items).toHaveLength(4)
   })
 })

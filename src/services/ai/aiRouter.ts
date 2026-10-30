@@ -6,6 +6,7 @@ import type { AIModel } from '@/utils/constants'
 import { runAsymmetricRace } from './asymmetricRace'
 import { getModelPolicy } from './modelPolicy'
 import { BOOKING_EXTRACTION_SCHEMA } from '@/domain/ai/bookingExtractionSchema'
+import { resolveAiGatewayUrl, resolveAiMode } from '@/config/endpoints'
 import { isModelCooldown, getCooldownReason, isProviderCircuitOpen, reportProviderSuccess, handleModelFailure } from './circuitBreaker'
 
 
@@ -100,8 +101,8 @@ export async function runAIRouter(request: {
     loadingSubMsgCallback
   } = request
 
-  const activeAiMode = aiMode || (import.meta.env.VITE_AI_MODE as 'direct' | 'gateway') || 'direct'
-  const isGatewayActive = activeAiMode === 'gateway' && !!(apiGatewayUrl || import.meta.env.VITE_AI_GATEWAY_URL)
+  const activeAiMode = aiMode || resolveAiMode()
+  const isGatewayActive = activeAiMode === 'gateway' && !!(apiGatewayUrl || resolveAiGatewayUrl())
 
   let candidates = availableModels
     .filter(m => m.type === type)

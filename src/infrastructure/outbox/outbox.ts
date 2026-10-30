@@ -80,6 +80,97 @@ function fastClonePayload<T>(payload: T): T {
   return JSON.parse(JSON.stringify(payload))
 }
 
+/**
+ * Normalizes any order payload variant (fastPayload, HistoryOrder/optimisticOrder with parsedCustomer,
+ * or legacy BookingDetailModal payload with stringified .data) into a canonical sync payload
+ * while preserving all original fields.
+ */
+export function normalizeOrderPayloadForSync(id: string, rawPayload: any): any {
+  if (!rawPayload || typeof rawPayload !== 'object') {
+    return { id }
+  }
+  const cloned: any = JSON.parse(JSON.stringify(rawPayload))
+  if (!cloned.id && id) {
+    cloned.id = id
+  }
+
+  let inner: any = null
+  if (typeof cloned.data === 'string' && cloned.data.trim().startsWith('{')) {
+    try {
+      inner = JSON.parse(cloned.data)
+    } catch {}
+  } else if (cloned.data && typeof cloned.data === 'object') {
+    inner = cloned.data
+  }
+
+  const srcCust = cloned.customer || cloned.parsedCustomer || inner?.customer || inner?.parsedCustomer || null
+  if (!cloned.customer && srcCust && typeof srcCust === 'object') {
+    cloned.customer = {
+      name: srcCust.name || cloned.customerName || cloned.customer_name || cloned.name || '',
+      phone: srcCust.phone || cloned.customerPhone || cloned.customer_phone || cloned.phone || '',
+      date: srcCust.date || cloned.bookingDate || cloned.booking_date || '',
+      time: srcCust.time || cloned.booking_time || '18:00',
+      pax: String(srcCust.pax ?? cloned.guest_count ?? '1'),
+      tables: cloned.customerTable || srcCust.tables || srcCust.table_number || '',
+      type: srcCust.type || cloned.status || 'Ăn thường',
+      note: srcCust.note || cloned.note || ''
+    }
+  } else if (!cloned.customer && (cloned.customerName || cloned.customer_name || cloned.name)) {
+    cloned.customer = {
+      name: cloned.customerName || cloned.customer_name || cloned.name || '',
+      phone: cloned.customerPhone || cloned.customer_phone || cloned.phone || '',
+      date: cloned.date || cloned.bookingDate || cloned.booking_date || '',
+      time: cloned.time || cloned.booking_time || '18:00',
+      pax: String(cloned.pax ?? cloned.guest_count ?? '1'),
+      tables: cloned.customerTable || cloned.tables || cloned.table_number || '',
+      type: cloned.type || cloned.status || 'Ăn thường',
+      note: cloned.note || ''
+    }
+  }
+
+  if (!Array.isArray(cloned.items)) {
+    if (Array.isArray(cloned.menuItems)) {
+      cloned.items = cloned.menuItems
+    } else if (Array.isArray(inner?.items)) {
+      cloned.items = inner.items
+    } else if (Array.isArray(inner?.menuItems)) {
+      cloned.items = inner.menuItems
+    }
+  }
+
+  if (cloned.total === undefined || cloned.total === null) {
+    if (cloned.totalAmount !== undefined) {
+      cloned.total = Number(cloned.totalAmount) || 0
+    } else if (inner?.total !== undefined) {
+      cloned.total = Number(inner.total) || 0
+    } else if (inner?.totalAmount !== undefined) {
+      cloned.total = Number(inner.totalAmount) || 0
+    }
+  }
+
+  if (!cloned.deposit && (cloned.isDeposited !== undefined || cloned.depositAmount !== undefined || cloned.transferImage || inner?.deposit)) {
+    const innerDep = inner?.deposit || {}
+    cloned.deposit = {
+      isPaid: Boolean(cloned.isDeposited || innerDep.isPaid),
+      amount: Number(cloned.depositAmount ?? innerDep.amount) || 0,
+      image: cloned.transferImage || innerDep.image || '',
+      note: innerDep.note || ''
+    }
+  }
+
+  if (cloned.deposit && cloned.deposit.image === '__OFFLINE_IMAGE_BUFFER_REF__') {
+    cloned.deposit.image = ''
+  }
+  if (cloned.transferImage === '__OFFLINE_IMAGE_BUFFER_REF__') {
+    cloned.transferImage = ''
+  }
+  if (cloned.staff === null) {
+    cloned.staff = { name: 'Admin', phone: '' }
+  }
+
+  return cloned
+}
+
 async function encryptData(data: string, key: CryptoKey): Promise<{ ciphertext: ArrayBuffer; iv: Uint8Array }> {
   const iv = crypto.getRandomValues(new Uint8Array(12))
   const ciphertext = await crypto.subtle.encrypt(
@@ -301,6 +392,30 @@ export async function retryOutboxItem(id: string, action: 'upsert' | 'delete'): 
     items[idx].lastAttemptAt = 0
     await saveOutboxRawItems(items)
   }
+}
+
+export async function getUnsyncedOutboxCount(): Promise<number> {
+  const items = await getOutboxRawItems()
+  return items.filter(item => !item.synced).length
+}
+
+export async function resetFailedOutboxAttempts(includeConflicts = false): Promise<number> {
+  const items = await getOutboxRawItems()
+  let resetCount = 0
+  for (const item of items) {
+    if (item.synced) continue
+    if (!includeConflicts && item.lastError?.startsWith('Conflict detected')) continue
+    if (item.attempts > 0 || item.lastError) {
+      item.attempts = 0
+      item.lastError = null
+      item.lastAttemptAt = 0
+      resetCount++
+    }
+  }
+  if (resetCount > 0) {
+    await saveOutboxRawItems(items)
+  }
+  return resetCount
 }
 
 export async function removeOutboxItem(id: string, action: 'upsert' | 'delete'): Promise<void> {

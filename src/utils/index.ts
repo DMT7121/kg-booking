@@ -245,28 +245,33 @@ export const mergeSetComponentNote = (existingNote: string, canonicalDescription
   if (trimmedExisting === formattedCanonical) return formattedCanonical
 
   const canonicalLines = formattedCanonical.split('\n').map(l => l.trim()).filter(Boolean)
+  const canonicalExactLowerSet = new Set(
+    canonicalLines.map(l => l.replace(/\s+/g, ' ').trim().toLowerCase())
+  )
   const canonicalNorms = canonicalLines.map(normalizeSetComponentLine).filter(Boolean)
 
   const existingLines = formatSetNote(trimmedExisting).split('\n').map(l => l.trim()).filter(Boolean)
   const customLines: string[] = []
 
-  const MODIFICATION_KEYWORDS = /\b(?:doi|thay|bo|khong\s+lay|khong\s+hanh|khong\s+cay|it\s+cay|them|tach|rieng|ghi\s+chu|luu\s+y)\b/i
+  const ACCENTED_MOD_REGEX = /(?<!\p{L})(?:đổi|thay|bỏ|không\s+lấy|không\s+ăn|không\s+hành|không\s+cay|ít\s+cay|tách\s+riêng|để\s+riêng|ghi\s+chú|lưu\s+ý|yêu\s+cầu)(?!\p{L})/iu
+  const UNACCENTED_MOD_REGEX = /\b(?:doi|thay|bo\s+(?:mon|ra|phan|hanh|cay|tieu|ngo|khong)|khong\s+(?:lay|an|hanh|cay|ngo|tieu)|it\s+cay|tach\s+rieng|de\s+rieng|ghi\s+chu|luu\s+y|yeu\s+cau)\b|^them\s+/i
 
   for (const line of existingLines) {
+    const collapsedLower = line.replace(/\s+/g, ' ').trim().toLowerCase()
+    if (canonicalExactLowerSet.has(collapsedLower)) continue
+
     const normLine = normalizeSetComponentLine(line)
     if (!normLine) continue
 
-    const hasModification = MODIFICATION_KEYWORDS.test(stripAccents(line).toLowerCase())
+    const strippedLower = stripAccents(line).toLowerCase().trim()
+    const hasModification = ACCENTED_MOD_REGEX.test(line) || UNACCENTED_MOD_REGEX.test(strippedLower)
     const matchesCanonical = canonicalNorms.some(cNorm => {
       if (cNorm === normLine) return true
-      if (cNorm.includes(normLine) || normLine.includes(cNorm)) {
-        return normLine.length >= 6
-      }
       const lineWords = normLine.split(' ').filter(w => w.length > 1)
       const cWords = cNorm.split(' ').filter(w => w.length > 1)
       if (lineWords.length >= 2 && cWords.length >= 2) {
         const shared = lineWords.filter(w => cWords.includes(w)).length
-        return shared / Math.min(lineWords.length, cWords.length) >= 0.75
+        return shared / Math.max(lineWords.length, cWords.length) >= 0.7
       }
       return false
     })

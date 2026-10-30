@@ -264,4 +264,134 @@ describe('Outbox and OutboxSync Integration Tests', () => {
     decrypted = await outbox.getAllOutboxItemsDecrypted()
     expect(decrypted.length).toBe(0)
   })
+
+  it('should count dead-letter items (>= 5 attempts) in getUnsyncedOutboxCount and recover them via resetFailedOutboxAttempts', async () => {
+    vi.stubEnv('VITE_BACKEND_MODE', 'dual_write')
+    const bookingId = 'KG-20261026-223815-4JFM'
+    await outbox.addToOutbox(
+      bookingId,
+      'upsert',
+      { id: bookingId, customer: { name: 'Trần Văn Thưởng', phone: '0363070363', date: '28/10/2026', time: '20:00', tables: 'E1', pax: '16' }, total: 3665000 },
+      { syncedToPg: false, syncedToSheets: false }
+    )
+
+    // Simulate 6 failed attempts ("Lần thử 6/5: Failed to save to Google Sheets")
+    for (let i = 0; i < 6; i++) {
+      await outbox.recordAttemptFailure(bookingId, 'upsert', 'Failed to save to Google Sheets')
+    }
+
+    // Standard auto-sync skips dead-letter items, but getUnsyncedOutboxCount still reports 1
+    expect((await outbox.getPendingItems(false)).length).toBe(0)
+    expect(await outbox.getUnsyncedOutboxCount()).toBe(1)
+
+    // Reset failed attempts and run Dual-Write sync
+    const resetCount = await outbox.resetFailedOutboxAttempts(false)
+    expect(resetCount).toBe(1)
+
+    const syncRes = await triggerSync(true)
+    expect(syncRes).toEqual({ processed: 1, failures: 0 })
+    expect(await outbox.getUnsyncedOutboxCount()).toBe(0)
+    expect(saveSpy).toHaveBeenCalledTimes(1)
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('should queue forceRetryAll=true instead of dropping when an initial auto-sync is already running', async () => {
+    vi.stubEnv('VITE_BACKEND_MODE', 'dual_write')
+    await outbox.addToOutbox('auto-1', 'upsert', { id: 'auto-1', customer: { name: 'Khách 1', phone: '0901111111' } })
+    await outbox.addToOutbox('dead-2', 'upsert', { id: 'dead-2', customer: { name: 'Khách 2', phone: '0902222222' } })
+    for (let i = 0; i < 6; i++) {
+      await outbox.recordAttemptFailure('dead-2', 'upsert', 'Failed to save to Google Sheets')
+    }
+
+    saveSpy.mockImplementation(async () => {
+      await new Promise((r) => setTimeout(r, 25))
+      return { ok: true }
+    })
+
+    // Fire auto-sync (forceRetryAll=false) and immediately fire manual "Đồng bộ tất cả ngay" (forceRetryAll=true)
+    const pAuto = triggerSync(false)
+    const pForce = triggerSync(true)
+
+    const [resAuto, resForce] = await Promise.all([pAuto, pForce])
+    expect(resForce.processed).toBe(2)
+    expect(resAuto.processed).toBe(2)
+    expect(await outbox.getUnsyncedOutboxCount()).toBe(0)
+  })
+
+  it('should normalize HistoryOrder/optimisticOrder payloads and suppress stale Telegram notifications', async () => {
+    vi.stubEnv('VITE_BACKEND_MODE', 'dual_write')
+    const bookingId = 'KG85053425901'
+    await outbox.addToOutbox(bookingId, 'upsert', {
+      id: bookingId,
+      parsedCustomer: {
+        name: 'Tường Linh',
+        phone: '0934141687',
+        date: '27/10/2026',
+        time: '20:00',
+        tables: 'C6',
+        pax: '14'
+      },
+      menuItems: [{ name: 'Miến xào cua', qty: 2, price: 250000 }],
+      totalAmount: 3998000,
+      isDeposited: true,
+      depositAmount: 1000000,
+      staff: null
+    })
+
+    // Backdate createdAt to 73 hours ago
+    const raw = await outbox.getOutboxRawItems()
+    raw[0].createdAt = Date.now() - 73 * 3600 * 1000
+    const { set } = await import('idb-keyval')
+    await set('kg_outbox_items', raw)
+
+    await triggerSync(true)
+
+    expect(saveSpy).toHaveBeenCalledTimes(1)
+    expect(saveSpy.mock.calls[0][0].customer.name).toBe('Tường Linh')
+    expect(saveSpy.mock.calls[0][0].total).toBe(3998000)
+
+    const sentBody = JSON.parse(fetchMock.mock.calls[0][1].body)
+    expect(sentBody.action).toBe('saveOrder')
+    expect(sentBody.data.customer.name).toBe('Tường Linh')
+    expect(sentBody.data.items).toHaveLength(1)
+    expect(sentBody.data.total).toBe(3998000)
+    expect(sentBody.data.skipNotification).toBe(true)
+  })
+
+  it('should batch >= 4 queued orders via saveOrdersBatch and fallback to saveOrder for any failed batch entry', async () => {
+    vi.stubEnv('VITE_BACKEND_MODE', 'dual_write')
+    for (let i = 1; i <= 5; i++) {
+      await outbox.addToOutbox(
+        `batch-order-${i}`,
+        'upsert',
+        { id: `batch-order-${i}`, customer: { name: `Khách ${i}`, phone: `090000000${i}` }, total: 500000 },
+        { syncedToPg: false, syncedToSheets: false }
+      )
+    }
+
+    fetchMock.mockImplementation(async (_url: string, opts: any) => {
+      const body = JSON.parse(opts.body)
+      if (body.action === 'saveOrdersBatch') {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({
+            ok: true,
+            results: body.payloads.map((p: any, idx: number) =>
+              idx === 4 ? { ok: false, message: 'Transient row error' } : { ok: true, id: p.id }
+            )
+          })
+        }
+      }
+      // Per-item fallback for idx === 4 succeeds
+      return { ok: true, status: 200, json: async () => ({ ok: true, id: body.id }) }
+    })
+
+    const res = await triggerSync(true)
+    expect(res).toEqual({ processed: 5, failures: 0 })
+    expect(await outbox.getUnsyncedOutboxCount()).toBe(0)
+    const actionsCalled = fetchMock.mock.calls.map((c: any) => JSON.parse(c[1].body).action)
+    expect(actionsCalled).toContain('saveOrdersBatch')
+    expect(actionsCalled).toContain('saveOrder')
+  })
 })

@@ -8,6 +8,7 @@ import { processImageForOCR } from '@/utils/imageProcessor'
 import { AI_MODELS, PLATFORMS, ADVANCED_AI_PROMPT, IMAGE_OCR_PROMPT, SINGLE_PASS_VISION_PROMPT } from '@/utils/constants'
 import type { AIModel } from '@/utils/constants'
 import { isModelCooldown } from '@/services/ai/circuitBreaker'
+import { resolveAiGatewayUrl, resolveAiMode } from '@/config/endpoints'
 import { parseUnifiedBooking, type CanonicalBookingPayload } from '@/domain/ai/unifiedParserEngine'
 import * as api from '@/services/api'
 import { getCachedMenu, getCachedMenuSheets, cacheMenuSheets, deleteCachedMenu } from '@/services/cache'
@@ -66,8 +67,8 @@ export function useAI() {
   const appStore = useAppStore()
   const logStore = useLogStore()
 
-  const aiMode = (import.meta.env.VITE_AI_MODE || 'direct') as 'direct' | 'gateway'
-  const apiGatewayUrl = import.meta.env.VITE_AI_GATEWAY_URL || ''
+  const aiMode = resolveAiMode()
+  const apiGatewayUrl = resolveAiGatewayUrl()
 
   function getMenuFingerprint(): string {
     return appStore.menuFingerprint
@@ -782,8 +783,8 @@ export function useAI() {
         modelProfile: profile,
         menuFingerprint,
         correctionFingerprint,
-        promptSchemaVersion: 3,
-        normalizerSchemaVersion: 3
+        promptSchemaVersion: 4,
+        normalizerSchemaVersion: 4
       }))
 
       logStore.addLog(`[Classifier] Complexity: "${classification.complexity}", Profile: "${profile}", requiresMenuContext: ${classification.requiresMenuContext}`)
@@ -968,6 +969,31 @@ export function useAI() {
                   })
                 }
               }
+            } else if (!formStore.aiImage && Array.isArray(rawJsonParsed.menu_items)) {
+              // Guard: Rule Engine found NO Set/Combo items (à la carte order).
+              // If text has no Set/Combo keyword at all, strip any AI-hallucinated Set/Combo replacement and restore à la carte items if collapsed.
+              const hasExplicitSetKeywordInText = /\b(?:set\s*menu|menu\s*set|combo\s*couple|couple\s*combo|(?:set|combo|couple|sm|cc)\s*(?:so\s*)?\d+)\b/i.test(
+                stripAccents(cleanedPromptForAI)
+              )
+              if (!hasExplicitSetKeywordInText) {
+                const beforeCount = rawJsonParsed.menu_items.length
+                const filteredAiItems = rawJsonParsed.menu_items.filter((aiItem: any) => {
+                  const rawAiName = String(aiItem.raw_name || aiItem.name || aiItem.matched_name || '').trim()
+                  return extractSetOrComboHeaderAndQty(rawAiName) === null
+                })
+                if (filteredAiItems.length !== beforeCount) {
+                  logStore.addLog(`[CrossValidation] Đã chặn Set/Combo ảo do AI tự gộp từ thực đơn món lẻ.`, 'warning')
+                  rawJsonParsed.menu_items = filteredAiItems.length >= ruleBasedResult.menu_items.length * 0.7
+                    ? filteredAiItems
+                    : ruleBasedResult.menu_items.map((ri: any) => ({
+                        raw_name: ri.raw_name,
+                        matched_name: ri.raw_name,
+                        quantity: ri.quantity || 1,
+                        unit_price: ri.unit_price || null,
+                        note: ri.note || ''
+                      }))
+                }
+              }
             }
           }
         }
@@ -1056,8 +1082,8 @@ export function useAI() {
             expiresAt: Date.now() + ttl,
             menuFingerprint,
             correctionFingerprint,
-            promptSchemaVersion: 1,
-            normalizerSchemaVersion: 1,
+            promptSchemaVersion: 4,
+            normalizerSchemaVersion: 2,
             modelProfile: profile
           })
         }

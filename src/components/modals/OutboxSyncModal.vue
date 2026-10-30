@@ -3,11 +3,12 @@ import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { useUIStore } from '@/stores/useUIStore'
 import { useAppStore } from '@/stores/useAppStore'
 import { formatVNDCurrency } from '@/utils/money'
+import { isOutboxSyncActive } from '@/infrastructure/outbox/outboxSync'
 
 const ui = useUIStore()
 const appStore = useAppStore()
 
-const isSyncing = ref(false)
+const isSyncing = ref(isOutboxSyncActive())
 const syncingItemId = ref<string | null>(null)
 
 const outboxList = computed(() => appStore.outboxDetailsList || [])
@@ -33,19 +34,19 @@ async function refreshData() {
 
 watch(() => ui.showOutboxModal, (isOpen) => {
   if (isOpen) {
+    isSyncing.value = isOutboxSyncActive()
     refreshData()
   }
 })
 
 async function handleSyncAll() {
-  if (isSyncing.value) return
   isSyncing.value = true
   try {
     if (typeof appStore.forceSyncAllOutbox === 'function') {
       await appStore.forceSyncAllOutbox()
     }
   } finally {
-    isSyncing.value = false
+    isSyncing.value = isOutboxSyncActive()
     await refreshData()
   }
 }
@@ -64,8 +65,9 @@ async function handleRetryItem(item: any) {
 }
 
 async function handleRemoveItem(item: any) {
+  const displayName = getItemCustomerName(item)
   const confirmed = confirm(
-    `Bạn có chắc chắn muốn xóa đơn "${item.payload?.customer?.name || item.payload?.name || item.id}" khỏi hàng đợi đồng bộ?\n\nLưu ý: Đơn hàng này sẽ không được gửi lên Cloud nữa.`
+    `Bạn có chắc chắn muốn xóa đơn "${displayName}" khỏi hàng đợi đồng bộ?\n\nLưu ý: Đơn hàng này sẽ không được gửi lên Cloud nữa.`
   )
   if (!confirmed) return
 
@@ -77,17 +79,31 @@ async function handleRemoveItem(item: any) {
 
 function getItemCustomerName(item: any): string {
   if (!item.payload) return `Đơn ID: ${item.id.slice(0, 8)}`
-  return item.payload.customer?.name || item.payload.customer_name || item.payload.name || 'Khách hàng'
+  return (
+    item.payload.customer?.name ||
+    item.payload.parsedCustomer?.name ||
+    item.payload.customer_name ||
+    item.payload.customerName ||
+    item.payload.name ||
+    'Khách hàng'
+  )
 }
 
 function getItemPhone(item: any): string {
   if (!item.payload) return ''
-  return item.payload.customer?.phone || item.payload.customer_phone || item.payload.phone || ''
+  return (
+    item.payload.customer?.phone ||
+    item.payload.parsedCustomer?.phone ||
+    item.payload.customer_phone ||
+    item.payload.customerPhone ||
+    item.payload.phone ||
+    ''
+  )
 }
 
 function getItemDetails(item: any): string {
   if (!item.payload) return ''
-  const c = item.payload.customer || item.payload
+  const c = item.payload.customer || item.payload.parsedCustomer || item.payload
   const parts = []
   if (c.date) parts.push(c.date)
   if (c.time) parts.push(c.time)
@@ -98,7 +114,7 @@ function getItemDetails(item: any): string {
 
 function getItemTotal(item: any): number {
   if (!item.payload) return 0
-  return Number(item.payload.total || item.payload.totalAmount || 0)
+  return Number(item.payload.total ?? item.payload.totalAmount ?? 0)
 }
 
 function formatTimeAgo(timestamp?: number): string {
@@ -115,12 +131,34 @@ function handleKeyDown(e: KeyboardEvent) {
   }
 }
 
+function handleOutboxUpdated() {
+  if (ui.showOutboxModal) {
+    refreshData()
+  }
+}
+
+function handleOutboxSyncState(e: Event) {
+  const detail = (e as CustomEvent)?.detail
+  if (detail && typeof detail.syncing === 'boolean') {
+    isSyncing.value = detail.syncing
+  } else {
+    isSyncing.value = isOutboxSyncActive()
+  }
+  if (ui.showOutboxModal) {
+    refreshData()
+  }
+}
+
 onMounted(() => {
   window.addEventListener('keydown', handleKeyDown)
+  window.addEventListener('kg-outbox-updated', handleOutboxUpdated)
+  window.addEventListener('kg-outbox-sync-state', handleOutboxSyncState)
 })
 
 onUnmounted(() => {
   window.removeEventListener('keydown', handleKeyDown)
+  window.removeEventListener('kg-outbox-updated', handleOutboxUpdated)
+  window.removeEventListener('kg-outbox-sync-state', handleOutboxSyncState)
 })
 </script>
 
@@ -203,7 +241,7 @@ onUnmounted(() => {
         <!-- Empty State -->
         <div v-if="pendingCount === 0" class="py-12 flex flex-col items-center justify-center text-center">
           <div class="w-16 h-16 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center text-emerald-400 mb-3 shadow-[0_0_20px_rgba(16,185,129,0.15)]">
-            <i class="fa-solid fa-cloud-check text-3xl"></i>
+            <i class="fa-solid fa-circle-check text-3xl"></i>
           </div>
           <h3 class="text-base font-bold text-white">Tất cả dữ liệu đã đồng bộ an toàn!</h3>
           <p class="text-xs text-slate-400 max-w-sm mt-1">
@@ -278,7 +316,7 @@ onUnmounted(() => {
           >
             <i class="fa-solid fa-triangle-exclamation text-rose-400 mt-0.5"></i>
             <span class="flex-1 break-all">
-              <span class="font-semibold">Lần thử {{ item.attempts }}/5:</span> {{ item.lastError }}
+              <span class="font-semibold">{{ item.attempts >= 5 ? `Đã thử ${item.attempts} lần:` : `Lần thử ${item.attempts}/5:` }}</span> {{ item.lastError }}
             </span>
           </div>
 
@@ -332,7 +370,7 @@ onUnmounted(() => {
             class="px-4 py-2 rounded-xl text-xs font-bold bg-amber-500 hover:bg-amber-400 text-slate-950 shadow-lg shadow-amber-500/20 transition-all active:scale-95 disabled:opacity-50 flex items-center gap-2 cursor-pointer"
           >
             <i class="fa-solid" :class="isSyncing ? 'fa-circle-notch animate-spin' : 'fa-bolt'"></i>
-            <span>{{ isSyncing ? 'Đang đồng bộ...' : '⚡ Đồng bộ tất cả ngay' }}</span>
+            <span>{{ isSyncing ? 'Đang đồng bộ...' : 'Đồng bộ tất cả ngay' }}</span>
           </button>
         </div>
       </div>

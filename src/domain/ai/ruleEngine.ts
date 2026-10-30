@@ -1,6 +1,6 @@
-import { stripAccents, cleanPhoneNumber, formatVND } from '@/utils'
+import { stripAccents, cleanPhoneNumber, formatVND, formatSetNote } from '@/utils'
 import { isStructuredFormText, parseStructuredForm } from './structuredFormParser'
-import { extractSetOrComboHeaderAndQty, detectSetMenuFromComponentLines } from '@/domain/menu/menuMatcher'
+import { extractSetOrComboHeaderAndQty, detectSetMenuFromComponentLines, resolveSetMenuDescription } from '@/domain/menu/menuMatcher'
 
 // Top 200 Vietnamese first names (no diacritics, lowercase) for NER boosting
 export const COMMON_VN_FIRST_NAMES = new Set([
@@ -1163,8 +1163,8 @@ export function preNormalizeInput(rawText: string): string {
     }
     return `${word} x${num}`
   })
-  clean = clean.replace(/(?<![\.\d])(\d+)(?!(?:kg|ml|g|l|h\d|h)(?:[^a-zA-Z\p{L}\p{M}]|$))([\p{L}\p{M}]{2,})/ugi, '$1 $2')
-  clean = clean.replace(/(?<!\.)(\d+)(?![hg\d\s\/:\-\.,]|kg|ml)([\p{L}])/ugi, '$1 $2')
+  clean = clean.replace(/(?<![\.\d])(\d+)(?!(?:kg|ml|g|l|h\d|h|st|nd|rd|th)(?:[^a-zA-Z\p{L}\p{M}]|$))([\p{L}\p{M}]{2,})/ugi, '$1 $2')
+  clean = clean.replace(/(?<!\.)(\d+)(?![hg\d\s\/:\-\.,]|kg|ml|(?:st|nd|rd|th)\b)([\p{L}])/ugi, '$1 $2')
   clean = clean.replace(/(\d+(?:[\.,]\d+)?)\s*(kg|g|ml|l)(?![a-zA-Z\p{L}\p{M}])/ugi, '$1$2')
 
   clean = clean.replace(/(?<![:\d\/])\b(\d+)[ ]*(?:-|–|—|đến|den|to)[ ]*(\d+)\s*(pax|người|khách|cho|nguoi|khach|guest)/gi, (match, min, max, unit) => {
@@ -1677,7 +1677,7 @@ export function parseSingleMenuLine(lineStr: string): { raw_name: string; quanti
   const parenNoteMatch = cleaned.match(/\s*\(([^)]+)\)\s*$/)
   if (parenNoteMatch) {
     const insideParen = parenNoteMatch[1].trim()
-    if (!/^\d+\s*(?:con|c|kg|g|l|ml)$/i.test(insideParen)) {
+    if (!/^(?:\d+\s*(?:con|c|kg|g|gr|l|ml|xiên|xien)|cay|chay|nhỏ|nho|lớn|lon|size\s*[sml])$/i.test(insideParen)) {
       note = note ? `${note} - ${insideParen}` : insideParen
       cleaned = cleaned.replace(/\s*\([^)]+\)\s*$/, '').trim()
     }
@@ -2766,14 +2766,26 @@ export function stripSetMenuComponents(text: string): string {
   const result: string[] = []
   let inSetMenuBlock = false
   let lastSetHeaderIdx = -1
+  let currentSetCanonSubDishes: string[] = []
   let orphanComponentBuffer: string[] = []
+
+  const cleanCompNormLocal = (s: string) =>
+    stripAccents(s)
+      .toLowerCase()
+      .replace(/^\s*(?:[-•*+>↳]|\d+\s*[\/\.\)])\s*/, '')
+      .replace(/\[\d+\]/g, '')
+      .replace(/\(\d+(?:\s*con)?\)/g, '')
+      .replace(/(?:^|\s)x\s*\d+\b/g, ' ')
+      .replace(/[^a-z0-9\s]/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim()
 
   const extractCustomComponentNote = (compLine: string): string => {
     const cleanedComp = compLine.replace(/\s*\[\d+\]\s*/g, ' ').trim()
     const parenMatch = cleanedComp.match(/\(([^)]+)\)\s*$/)
     if (parenMatch) {
       const inside = parenMatch[1].trim()
-      if (!/^(?:\d+|0[.,]\d+\s*kg|\d+\s*(?:con|c|kg|g|l|ml|phần|phan|đĩa|dia|tô|to)|1\/2\s*con|½\s*con|nửa\s*con|nua\s*con)$/i.test(inside)) {
+      if (!/^(?:\d+|0[.,]\d+\s*kg|\d+\s*(?:con|c|kg|g|l|ml|phần|phan|đĩa|dia|tô|to)|1\/2\s*con|½\s*con|nửa\s*con|nua\s*con|cay|chay|nhỏ|nho)$/i.test(inside)) {
         return inside
       }
     }
@@ -2786,9 +2798,15 @@ export function stripSetMenuComponents(text: string): string {
 
   const flushOrphanBuffer = () => {
     if (orphanComponentBuffer.length === 0) return
-    if (orphanComponentBuffer.length >= 2) {
+    if (orphanComponentBuffer.length >= 4) {
+      const hasBrackets = orphanComponentBuffer.filter(l => /\[\d+\]\s*$/.test(l.trim())).length >= 2
+      const hasSlashIndices = orphanComponentBuffer.filter(l => /^(?:[-*+•]\s*)?\d+\s*\/\s+/.test(l.trim())).length >= 3
       const detected = detectSetMenuFromComponentLines(orphanComponentBuffer)
-      if (detected) {
+      if (
+        detected &&
+        detected.unmatchedDishCount === 0 &&
+        ((hasBrackets && detected.score >= 0.7) || (hasSlashIndices && detected.score >= 0.85) || detected.score === 1)
+      ) {
         const modSuffix = detected.customModifications.length > 0
           ? ` (${detected.customModifications.join('; ')})`
           : ''
@@ -2809,8 +2827,13 @@ export function stripSetMenuComponents(text: string): string {
       continue
     }
     const lower = stripAccents(trimmed).toLowerCase()
-    const cleanCandidate = trimmed.replace(/^[-*+•]\s*/, '').replace(/^(?:món|mon|thực đơn|thuc don)\s*[:\-–—]?\s*/i, '').trim()
-    const isSetHeader = extractSetOrComboHeaderAndQty(cleanCandidate) !== null ||
+    const cleanCandidate = trimmed
+      .replace(/^(?:[-*+•]\s*)?\d+\s*[\/.)]\s*/, '')
+      .replace(/^[-*+•]\s*/, '')
+      .replace(/^(?:món|mon|thực đơn|thuc don)\s*[:\-–—]?\s*/i, '')
+      .trim()
+    const parsedHeader = extractSetOrComboHeaderAndQty(cleanCandidate)
+    const isSetHeader = parsedHeader !== null ||
       /\b(?:set\s*menu|combo\s*couple)\s*\d+\b/i.test(lower) ||
       (/set\s*menu|combo\s*\d/i.test(lower) && /x\s*\d|\(x\d\)|\d\s*(?:phan|ban|set)/i.test(lower))
 
@@ -2818,6 +2841,22 @@ export function stripSetMenuComponents(text: string): string {
       flushOrphanBuffer()
       inSetMenuBlock = true
       lastSetHeaderIdx = result.length
+      const desc = parsedHeader ? resolveSetMenuDescription(parsedHeader.canonicalName) : ''
+      currentSetCanonSubDishes = desc
+        ? formatSetNote(desc)
+            .split('\n')
+            .flatMap(cLine => {
+              const full = cleanCompNormLocal(cLine)
+              const subParts = cLine
+                .replace(/^\s*\d+\s*[\/\.\)]\s*/, '')
+                .replace(/\[\d+\]/g, '')
+                .split(/[:,\/()]/)
+                .map(cleanCompNormLocal)
+                .filter(s => s.length >= 4)
+              return [full, ...subParts]
+            })
+            .filter(Boolean)
+        : []
       result.push(trimmed)
       continue
     }
@@ -2826,14 +2865,33 @@ export function stripSetMenuComponents(text: string): string {
 
     if (inSetMenuBlock) {
       if (isNumberedComponent) {
-        const customCompNote = extractCustomComponentNote(trimmed)
-        if (customCompNote && lastSetHeaderIdx >= 0) {
-          result[lastSetHeaderIdx] = `${result[lastSetHeaderIdx]} (${customCompNote})`
+        const hasBracket = /\[\d+\]\s*$/.test(trimmed)
+        const lineNorm = cleanCompNormLocal(trimmed)
+        const matchesSetCanon =
+          hasBracket ||
+          (currentSetCanonSubDishes.length === 0 && /^(?:[-*+•]\s*)?\d+\s*\/\s+/.test(trimmed)) ||
+          currentSetCanonSubDishes.some(cNorm => {
+            if (cNorm === lineNorm) return true
+            const lWords = lineNorm.split(' ').filter(w => w.length > 1)
+            const cWords = cNorm.split(' ').filter(w => w.length > 1)
+            if (lWords.length >= 2 && cWords.length >= 2) {
+              const shared = lWords.filter(w => cWords.includes(w)).length
+              return shared / Math.max(lWords.length, cWords.length) >= 0.65
+            }
+            return false
+          })
+
+        if (matchesSetCanon) {
+          const customCompNote = extractCustomComponentNote(trimmed)
+          if (customCompNote && lastSetHeaderIdx >= 0) {
+            result[lastSetHeaderIdx] = `${result[lastSetHeaderIdx]} (${customCompNote})`
+          }
+          continue
         }
-        continue
       }
       inSetMenuBlock = false
       lastSetHeaderIdx = -1
+      currentSetCanonSubDishes = []
     }
 
     if (isNumberedComponent) {

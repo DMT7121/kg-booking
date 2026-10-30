@@ -25,7 +25,15 @@ jobs:
       - run: npm ci
       - run: npm run build
         env:
-          VITE_GAS_URL: ${{ secrets.VITE_GAS_URL }}
+          VITE_GAS_URL: ${{ secrets.VITE_GAS_URL || 'https://script.google.com/macros/s/AKfycbxzjio4sat5fWoUncPgp8SfjoGqfGxW5vFoDgkHvBI3OKVWIaszsAaUt0LE2fCHtkCFsA/exec' }}
+          VITE_AI_MODE: gateway
+          VITE_AI_GATEWAY_URL: ${{ secrets.VITE_AI_GATEWAY_URL || 'https://kg-ai-gateway.dmt-kgwork.workers.dev' }}
+          VITE_API_URL: ${{ secrets.VITE_API_URL || 'https://kg-ai-gateway.dmt-kgwork.workers.dev/api' }}
+          VITE_R2_URL: ${{ secrets.VITE_R2_URL || 'https://kg-images.dmt-kgwork.workers.dev' }}
+          VITE_BACKEND_MODE: ${{ secrets.VITE_BACKEND_MODE || 'dual_write' }}
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL || 'https://azfkzheypuvfcitckovf.supabase.co' }}
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImF6Zmt6aGV5cHV2ZmNpdGNrb3ZmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODUwNzc1MjEsImV4cCI6MjEwMDY1MzUyMX0.ltnY7GTzKGE7QiWTv8ZuDlfT_NWIR2sGfGudoVDw4NQ' }}
+          VITE_CUSTOMER_BOOKING_URL: ${{ secrets.VITE_CUSTOMER_BOOKING_URL || 'https://datban-kingsgrill.pages.dev' }}
       - uses: actions/upload-pages-artifact@v3
         with:
           path: dist
